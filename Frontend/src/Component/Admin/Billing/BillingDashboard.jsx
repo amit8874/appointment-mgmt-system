@@ -760,7 +760,7 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, clinic
             
             <div className="flex items-start text-right mt-2 sm:mt-0 gap-4">
               <div className="text-right flex-1">
-                <h2 className="text-xl font-bold text-slate-800">{clinicInfo.name || 'Clinic Management System'}</h2>
+                <h2 className="text-xl font-bold text-slate-800">{clinicInfo.name || 'Slotify'}</h2>
                 <p className="text-xs text-slate-600 mt-1">{clinicInfo.address || '123 Health Avenue, Medical District'}</p>
                 <p className="text-xs text-slate-600">{clinicInfo.email || 'contact@clinicmanagement.com'}</p>
                 <p className="text-xs text-slate-600">{clinicInfo.phone || '+1 (555) 123-4567'}</p>

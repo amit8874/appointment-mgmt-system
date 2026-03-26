@@ -114,7 +114,7 @@ const SuperAdminSidebar = ({ isSidebarOpen, toggleSidebar }) => {
                 <ShieldCheck className="text-white" size={24} />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-gray-900 leading-tight">Clicnic</h1>
+                <h1 className="text-lg font-bold text-gray-900 leading-tight">Slotify</h1>
                 <p className="text-xs font-medium text-indigo-500 uppercase tracking-widest">Super Admin</p>
               </div>
             </div>

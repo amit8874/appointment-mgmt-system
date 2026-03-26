@@ -351,7 +351,7 @@ const OrderOnline = () => {
                         <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-bold text-lg italic shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
                             P
                         </div>
-                        <span className="text-2xl font-black tracking-tighter text-emerald-600 italic">clicnic</span>
+                        <span className="text-2xl font-black tracking-tighter text-emerald-600 italic">Slotify</span>
                     </Link>
 
                     <div className="flex items-center gap-8">
@@ -698,15 +698,15 @@ const OrderOnline = () => {
             <footer className="border-t border-slate-100 py-12 px-4">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
                     <Link to="/" className="flex items-center gap-2 group opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
-                        <div className="w-6 h-6 bg-emerald-500 rounded flex items-center justify-center text-white font-bold text-xs italic">P</div>
-                        <span className="text-lg font-black tracking-tighter text-emerald-600 italic">clicnic</span>
+                        <div className="w-6 h-6 bg-emerald-500 rounded flex items-center justify-center text-white font-bold text-xs italic">S</div>
+                        <span className="text-lg font-black tracking-tighter text-emerald-600 italic">Slotify</span>
                     </Link>
                     <div className="flex gap-8 text-sm font-bold text-slate-400">
                         <a href="#" className="hover:text-emerald-600 transition-colors">Privacy Policy</a>
                         <a href="#" className="hover:text-emerald-600 transition-colors">Terms of Service</a>
                         <a href="#" className="hover:text-emerald-600 transition-colors">Help Center</a>
                     </div>
-                    <p className="text-sm text-slate-400 font-medium">© 2026 Clicnic Health. All rights reserved.</p>
+                    <p className="text-sm text-slate-400 font-medium">© 2026 Slotify Health. All rights reserved.</p>
                 </div>
             </footer>
             {/* Prescription Details Modal */}
@@ -747,8 +747,8 @@ const OrderOnline = () => {
 
                                 <div className="mb-0">
                                     <div className="flex items-center gap-2 mb-10">
-                                        <div className="w-9 h-9 bg-[#2667e0] rounded-xl flex items-center justify-center text-white font-bold italic shadow-lg shadow-blue-500/20">P</div>
-                                        <span className="text-3xl font-black tracking-tighter text-[#2667e0] italic">clicnic</span>
+                                        <div className="w-9 h-9 bg-[#2667e0] rounded-xl flex items-center justify-center text-white font-bold italic shadow-lg shadow-blue-500/20">S</div>
+                                        <span className="text-3xl font-black tracking-tighter text-[#2667e0] italic">Slotify</span>
                                     </div>
                                 </div>
 

@@ -71,7 +71,7 @@ const PharmacyRegistration = () => {
             </h2>
             
             <p className="text-slate-500 font-medium mb-12 leading-relaxed text-lg px-4">
-              Thank you for partnering with Clicnic. Our team is reviewing your application. You'll receive your official dashboard credentials via email within **24-48 hours**.
+              Thank you for partnering with Slotify. Our team is reviewing your application. You'll receive your official dashboard credentials via email within **24-48 hours**.
             </p>
             
             <div className="flex flex-col gap-4">
@@ -82,7 +82,7 @@ const PharmacyRegistration = () => {
                 Back to Home Page
               </Link>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4">
-                Need help? <a href="mailto:support@clicnic.com" className="text-emerald-500 underline underline-offset-4">Contact Support</a>
+                Need help? <a href="mailto:support@slotify.com" className="text-emerald-500 underline underline-offset-4">Contact Support</a>
               </p>
             </div>
           </motion.div>

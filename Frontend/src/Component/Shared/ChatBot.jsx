@@ -159,7 +159,7 @@ const ChatBot = () => {
                   <Send size={20} />
                 </button>
               </form>
-              <p className="text-[10px] text-center text-slate-400 mt-2 font-bold uppercase tracking-widest">Powered by Clicnic AI</p>
+              <p className="text-[10px] text-center text-slate-400 mt-2 font-bold uppercase tracking-widest">Powered by Slotify AI</p>
             </div>
           </motion.div>
         ) : (

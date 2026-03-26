@@ -10,7 +10,7 @@ const PublicFooter = () => {
 
           <div>
             <h4 className="font-black mb-3 text-slate-200">
-Clicnic</h4>
+Slotify</h4>
             <ul className="space-y-3 text-sm font-medium text-slate-300">
               <li><a href="#" className="hover:text-white transition-colors">About</a></li>
               <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
@@ -32,15 +32,15 @@ For patients</h4>
             <h4 className="font-black mb-3 text-slate-200">
 For doctors</h4>
             <ul className="space-y-3 text-sm font-medium text-slate-300">
-              <li><a href="#" className="hover:text-white transition-colors">Clicnic Profile</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Slotify Profile</a></li>
             </ul>
           </div>
           <div>
             <h4 className="font-black mb-3 text-slate-200">
 For clinics</h4>
             <ul className="space-y-3 text-sm font-medium text-slate-300">
-              <li><a href="#" className="hover:text-white transition-colors">Ray by Clicnic</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Clicnic Reach</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Ray by Slotify</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Slotify Reach</a></li>
             </ul>
           </div>
           <div>
@@ -64,10 +64,10 @@ Social</h4>
         <div className="flex flex-col items-center border-t border-slate-700 pt-8">
           <div className="flex items-center gap-2 mb-4">
 
-             <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold italic">P</div>
-             <span className="text-3xl font-black italic">clicnic</span>
+             <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold italic">S</div>
+             <span className="text-3xl font-black italic">Slotify</span>
           </div>
-          <p className="text-sm text-slate-400 font-bold">Copyright © 2026, Clicnic. All rights reserved.</p>
+          <p className="text-sm text-slate-400 font-bold">Copyright © 2026, Slotify. All rights reserved.</p>
         </div>
       </div>
     </footer>

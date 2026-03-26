@@ -124,8 +124,8 @@ const RegisterOrganization = () => {
           {/* Logo & Header */}
           <div className="flex flex-col items-center mb-8 text-center">
              <Link to="/" className="flex items-center gap-2 mb-6 group">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-xl italic group-hover:scale-110 transition-transform">P</div>
-                <span className="text-3xl font-black tracking-tighter text-slate-900 italic">clicnic</span>
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-xl italic group-hover:scale-110 transition-transform">S</div>
+                <span className="text-3xl font-black tracking-tighter text-slate-900 italic">Slotify</span>
              </Link>
              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Sign-Up for 14 days free trial!</h2>
              <p className="text-slate-400 font-medium text-sm mt-1">Start streamlining your practice today.</p>
@@ -281,7 +281,7 @@ const RegisterOrganization = () => {
       </motion.div>
 
       <footer className="mt-8 text-center text-slate-400 text-xs font-medium relative z-10">
-        <p>copyright @ 2026 Clicnic</p>
+        <p>copyright @ 2026 Slotify</p>
       </footer>
     </div>
   );

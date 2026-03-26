@@ -8,7 +8,7 @@ const OnboardingTour = ({ role }) => {
 
   useEffect(() => {
     // Check if user has already seen the tour
-    const tourKey = `clicnic_tour_seen_${role}_${user?._id || user?.id || 'guest'}`;
+    const tourKey = `slotify_tour_seen_${role}_${user?._id || user?.id || 'guest'}`;
     const hasSeenTour = localStorage.getItem(tourKey);
 
     if (!hasSeenTour) {
@@ -26,7 +26,7 @@ const OnboardingTour = ({ role }) => {
 
     if (finishedStatuses.includes(status)) {
       setRun(false);
-      const tourKey = `clicnic_tour_seen_${role}_${user?._id || user?.id || 'guest'}`;
+      const tourKey = `slotify_tour_seen_${role}_${user?._id || user?.id || 'guest'}`;
       localStorage.setItem(tourKey, 'true');
     }
   };
@@ -143,7 +143,7 @@ const OnboardingTour = ({ role }) => {
       {
         target: 'body',
         placement: 'center',
-        title: '👋 Welcome to Clicnic!',
+        title: '👋 Welcome to Slotify!',
         content: 'Your health, managed. Let\'s show you how to use your personal health portal.',
         disableBeacon: true,
       },

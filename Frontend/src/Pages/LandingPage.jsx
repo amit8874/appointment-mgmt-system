@@ -763,7 +763,7 @@ const LandingPage = () => {
                 <span className="text-sm font-bold text-orange-700 uppercase tracking-wider">Pharmacy Partnership</span>
               </div>
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.1]">
-                Grow Your Pharmacy Business with <span className="text-orange-600">Clicnic</span>
+                Grow Your Pharmacy Business with <span className="text-orange-600">Slotify</span>
               </h2>
               <div className="space-y-4">
                 {[
@@ -1034,7 +1034,7 @@ const LandingPage = () => {
               to="/register-organization" 
               className="inline-flex items-center gap-2 px-10 py-4 bg-white text-blue-600 font-bold text-lg rounded-2xl hover:bg-slate-50 transition-all shadow-xl shadow-black/20"
             >
-              Partner with Clicnic
+              Partner with Slotify
               <ChevronRight size={20} />
             </Link>
           </motion.div>

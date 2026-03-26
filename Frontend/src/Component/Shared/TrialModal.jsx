@@ -152,7 +152,7 @@ const TrialModal = ({ isOpen, onClose }) => {
                 <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/30 shadow-xl">
                   <Layout className="text-white w-7 h-7" />
                 </div>
-                <span className="text-2xl font-black tracking-tight italic">clicnic.</span>
+                <span className="text-2xl font-black tracking-tight italic">Slotify.</span>
               </div>
               
               <h2 className="text-4xl font-black mb-6 leading-tight">

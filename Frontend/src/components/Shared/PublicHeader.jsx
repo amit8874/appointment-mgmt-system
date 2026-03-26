@@ -10,9 +10,9 @@ const PublicHeader = () => {
         <div className="flex items-center gap-10">
            <Link to="/" className="flex items-center gap-2 group">
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg italic shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
-                P
+                S
               </div>
-              <span className="text-xl font-black tracking-tighter text-slate-900 italic">clicnic</span>
+              <span className="text-xl font-black tracking-tighter text-slate-900 italic">Slotify</span>
            </Link>
 
             <nav className="hidden md:flex items-center gap-4">

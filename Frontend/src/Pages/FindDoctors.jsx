@@ -713,7 +713,7 @@ const FindDoctors = () => {
                         <Star size={16} className="text-blue-600 fill-blue-600" />
                     </div>
                     <div>
-                        <h4 className="font-black text-slate-900 text-sm">Clicnic</h4>
+                        <h4 className="font-black text-slate-900 text-sm">Slotify</h4>
                         <p className="text-[10px] font-bold text-slate-500">India's #1 healthcare platform</p>
                     </div>
                 </div>
