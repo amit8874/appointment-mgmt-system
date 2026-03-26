@@ -110,12 +110,10 @@ const SuperAdminSidebar = ({ isSidebarOpen, toggleSidebar }) => {
           {/* Logo Section */}
           <div className="p-6 border-b border-gray-50">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
-                <ShieldCheck className="text-white" size={24} />
-              </div>
+              <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
               <div>
-                <h1 className="text-lg font-bold text-gray-900 leading-tight">Slotify</h1>
-                <p className="text-xs font-medium text-indigo-500 uppercase tracking-widest">Super Admin</p>
+                <h1 className="text-lg font-bold text-gray-900 leading-tight">Super Admin</h1>
+                <p className="text-xs font-medium text-indigo-500 uppercase tracking-widest">Control Panel</p>
               </div>
             </div>
           </div>

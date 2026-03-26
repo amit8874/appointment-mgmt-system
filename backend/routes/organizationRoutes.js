@@ -9,7 +9,8 @@ import {
   updateOrganization,
   updateOrganizationStatus,
   getOrganizationStats,
-  getTrialStatus
+  getTrialStatus,
+  dismissResetNotification
 } from '../controllers/organizationController.js';
 
 const router = express.Router();
@@ -69,5 +70,13 @@ router.get('/:id/stats', authenticateToken, detectTenant, loadTenant, getOrganiz
  * @access  Organization Admin
  */
 router.get('/:id/trial-status', authenticateToken, detectTenant, loadTenant, getTrialStatus);
+
+/**
+ * @route   PATCH /api/organizations/:id/dismiss-reset-notification
+ * @desc    Dismiss data reset notification
+ * @access  Organization Admin
+ */
+router.patch('/:id/dismiss-reset-notification', authenticateToken, detectTenant, loadTenant, dismissResetNotification);
+
 
 export default router;

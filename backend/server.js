@@ -210,8 +210,12 @@ async function initCron() {
       const { setupSubscriptionCron } = await import(
         "./cron/subscriptionCron.js"
       );
+      const { setupTrialResetCron } = await import(
+        "./cron/trialResetCron.js"
+      );
       setupSubscriptionCron();
-      console.log("Subscription cron started");
+      setupTrialResetCron();
+      console.log("Subscription and Trial Reset crons started");
     } catch {
       console.log("Cron not enabled");
     }

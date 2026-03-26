@@ -144,6 +144,7 @@ export const registerOrganization = async (req, res) => {
       trialEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
       trialDays: 14,
       isTrialActive: true,
+      planType: 'FREE_TRIAL', // Explicitly mark as Free Trial for auto-reset
     });
 
     try {
@@ -493,9 +494,30 @@ export const getTrialStatus = async (req, res) => {
       daysRemaining: Math.max(0, daysRemaining),
       isTrialExpired,
       status: organization.status,
+      planType: organization.planType || 'FREE_TRIAL',
+      lastDataResetAt: organization.lastDataResetAt,
+      needsResetNotification: organization.needsResetNotification || false,
     });
   } catch (error) {
     console.error('Get trial status error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Dismiss the data reset notification
+export const dismissResetNotification = async (req, res) => {
+  try {
+    const orgId = req.params.id;
+    const userOrgId = req.user.organizationId?._id ? req.user.organizationId._id.toString() : req.user.organizationId?.toString();
+    
+    if (req.user.role !== 'superadmin' && userOrgId !== orgId) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    await Organization.findByIdAndUpdate(orgId, { needsResetNotification: false });
+    res.json({ message: 'Notification dismissed' });
+  } catch (error) {
+    console.error('Dismiss notification error:', error);
     res.status(500).json({ message: error.message });
   }
 };

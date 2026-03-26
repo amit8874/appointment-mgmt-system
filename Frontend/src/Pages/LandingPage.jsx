@@ -407,11 +407,9 @@ const LandingPage = () => {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-full mb-8"
+            className="inline-flex items-center gap-3 px-6 py-3 bg-white/80 backdrop-blur-md border border-slate-200 rounded-full mb-10 shadow-sm"
           >
-            <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center text-white">
-              <Zap size={14} className="fill-current" />
-            </div>
+            <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
             <span className="text-sm font-bold text-slate-700 tracking-tight">AI-Powered Management Software</span>
           </motion.div>
 
@@ -422,7 +420,7 @@ const LandingPage = () => {
             transition={{ delay: 0.1 }}
             className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-6 leading-[1.2]"
           >
-            AI-Powered Smart Clinic Management Software
+            All-in-One Smart Slotify Management Software
           </motion.h2>
 
 

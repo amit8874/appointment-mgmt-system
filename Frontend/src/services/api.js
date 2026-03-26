@@ -463,6 +463,11 @@ export const organizationApi = {
     const { data } = await api.get(`/organizations/${id}/trial-status`);
     return data;
   },
+  dismissResetNotification: async (id) => {
+    if (!id) return null;
+    const { data } = await api.patch(`/organizations/${id}/dismiss-reset-notification`);
+    return data;
+  },
 };
 
 export const subscriptionApi = {

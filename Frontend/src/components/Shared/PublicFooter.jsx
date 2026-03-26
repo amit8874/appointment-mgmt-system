@@ -63,9 +63,7 @@ Social</h4>
 
         <div className="flex flex-col items-center border-t border-slate-700 pt-8">
           <div className="flex items-center gap-2 mb-4">
-
-             <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold italic">S</div>
-             <span className="text-3xl font-black italic">Slotify</span>
+             <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto mb-2" />
           </div>
           <p className="text-sm text-slate-400 font-bold">Copyright © 2026, Slotify. All rights reserved.</p>
         </div>

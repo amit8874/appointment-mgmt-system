@@ -149,10 +149,7 @@ const TrialModal = ({ isOpen, onClose }) => {
           <div className="md:w-5/12 bg-gradient-to-br from-[#00386a] to-[#005bb5] p-10 text-white relative flex flex-col justify-between hidden md:flex">
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-12">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/30 shadow-xl">
-                  <Layout className="text-white w-7 h-7" />
-                </div>
-                <span className="text-2xl font-black tracking-tight italic">Slotify.</span>
+                <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
               </div>
               
               <h2 className="text-4xl font-black mb-6 leading-tight">

@@ -8,12 +8,9 @@ const PublicHeader = () => {
         
         {/* Left Section: Logo + Pricing */}
         <div className="flex items-center gap-10">
-           <Link to="/" className="flex items-center gap-2 group">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg italic shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
-                S
-              </div>
-              <span className="text-xl font-black tracking-tighter text-slate-900 italic">Slotify</span>
-           </Link>
+            <Link to="/" className="flex items-center gap-2 group">
+               <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
+            </Link>
 
             <nav className="hidden md:flex items-center gap-4">
               <a 

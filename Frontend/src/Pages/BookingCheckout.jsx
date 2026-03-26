@@ -142,8 +142,7 @@ const BookingCheckout = () => {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 md:px-20 py-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-1 cursor-pointer" onClick={() => navigate('/')}>
-          <div className="w-3 h-3 bg-[#14bef0] rounded-full"></div>
-          <span className="text-2xl font-black tracking-tighter text-[#2d2d32]">Slotify<span className="text-[#14bef0]">.</span></span>
+          <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
         </div>
         
         <div className="flex items-center gap-6">

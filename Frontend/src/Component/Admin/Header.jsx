@@ -126,9 +126,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout }) => {
           </span>
         </div>
         ) : (
-          <h1 className="text-xl font-bold text-indigo-700 dark:text-indigo-400 tracking-tight">
-            ADMIN
-          </h1>
+          <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
         )}
       </div>
 

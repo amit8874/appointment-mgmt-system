@@ -1,51 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { organizationApi } from '../../services/api';
+import { AlertCircle, Clock, X, ChevronRight, RotateCcw } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const TrialNotification = ({ organizationId }) => {
   const [trialStatus, setTrialStatus] = useState(null);
   const [isVisible, setIsVisible] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [timeLeft, setTimeLeft] = useState('');
 
-  useEffect(() => {
-    // We can fetch by organizationId OR tenantSlug. The backend might need an update to accept tenantSlug if we only have that.
-    // However, if we just use the tenantSlug context, we can hit the API by slug. 
-    // Wait, the API `getTrialStatus` expects an ID. Let's see if we can get the organizationId from user object or we have to pass it.
-    // Actually, `organizationApi.getTrialStatus` takes an ID. If we only have slug, we might need a workaround.
-    // Let's assume the user object DOES have organizationId inside user.organization._id.
-    
-    if (organizationId) {
-      fetchTrialStatus(organizationId);
-    }
-  }, [organizationId]);
-
-  useEffect(() => {
-    // Auto-hide after 10 seconds if trial is active
-    if (trialStatus && !trialStatus.isTrialExpired && isVisible) {
-      const timer = setTimeout(() => {
-        setIsAnimating(true);
-        setTimeout(() => {
-          setIsVisible(false);
-        }, 300); // Wait for animation to complete
-      }, 10000);
-      return () => clearTimeout(timer);
-    }
-  }, [trialStatus, isVisible]);
-
-  const fetchTrialStatus = async (id) => {
+  const fetchTrialStatus = useCallback(async (id) => {
     try {
       setIsLoading(true);
       const data = await organizationApi.getTrialStatus(id);
       setTrialStatus(data);
     } catch (error) {
-      // Silently ignore 401 errors — this is a known race condition where the
-      // component briefly renders before the auth token is available after login.
-      // The parent component will re-render with a valid token shortly after.
       if (error.response?.status !== 401) {
         console.error('Error fetching trial status:', error);
       }
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (organizationId) {
+      fetchTrialStatus(organizationId);
+    }
+  }, [organizationId, fetchTrialStatus]);
+
+  // Handle countdown for Free Trial auto-reset
+  useEffect(() => {
+    if (trialStatus?.planType === 'FREE_TRIAL' && trialStatus?.trialStartDate) {
+      const updateTimer = () => {
+        const now = new Date();
+        const start = new Date(trialStatus.trialStartDate);
+        const resetTime = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+        const diff = resetTime - now;
+
+        if (diff <= 0) {
+          setTimeLeft('Resetting...');
+          // Refresh status after reset might have happened
+          setTimeout(() => fetchTrialStatus(organizationId), 5000);
+          return;
+        }
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+      };
+
+      const timer = setInterval(updateTimer, 1000);
+      updateTimer();
+      return () => clearInterval(timer);
+    }
+  }, [trialStatus, organizationId, fetchTrialStatus]);
+
+  const handleClose = () => {
+    setIsAnimating(true);
+    setTimeout(() => {
+      setIsVisible(false);
+    }, 300);
+  };
+
+  const handleDismissReset = async () => {
+    try {
+      await organizationApi.dismissResetNotification(organizationId);
+      setTrialStatus(prev => ({ ...prev, needsResetNotification: false }));
+      handleClose();
+    } catch (error) {
+      console.error('Error dismissing notification:', error);
     }
   };
 
@@ -62,33 +89,41 @@ const TrialNotification = ({ organizationId }) => {
   const getMessage = () => {
     if (!trialStatus) return null;
 
-    // If no trial days, this is a paid subscription - don't show notification
-    if (!trialStatus.trialDays || trialStatus.trialDays === 0) {
-      return null;
+    // 1. DATA RESET NOTIFICATION (Highest Priority)
+    if (trialStatus.needsResetNotification) {
+      return {
+        type: 'reset',
+        title: 'Trial Data Reset',
+        message: 'Your free trial operational data (appointments, patients, etc.) has been reset as per the 24-hour policy.',
+        buttonText: 'Got it',
+        buttonAction: handleDismissReset
+      };
     }
 
+    // 2. TRIAL EXPIRED
     if (trialStatus.isTrialExpired) {
       return {
         type: 'error',
         title: 'Trial Expired',
-        message: 'Your free trial has expired. Please upgrade to continue using the platform.',
+        message: 'Your 14-day free trial has expired. Please upgrade to continue using the platform.',
         buttonText: 'Upgrade Now',
         buttonAction: () => window.location.href = '/organization/subscription'
       };
     }
 
-    const { daysRemaining, trialDays, trialEndDate } = trialStatus;
-
-    if (daysRemaining === trialDays) {
-      // First day
+    // 3. FREE TRIAL WITH RESET TIMER
+    if (trialStatus.planType === 'FREE_TRIAL') {
       return {
-        type: 'info',
-        title: 'Trial Started',
-        message: `Your free ${trialDays}-day trial has started.\nTrial will end on: ${formatDate(trialEndDate)}`,
-        buttonText: null,
-        buttonAction: null
+        type: 'timer',
+        title: 'Trial Auto-Reset Active',
+        message: `Your clinical data resets every 24 hours to keep the system fast. Next reset in: ${timeLeft}`,
+        buttonText: 'Upgrade to Save Data',
+        buttonAction: () => window.location.href = '/organization/subscription'
       };
     }
+
+    // 4. LEGACY 14-DAY TRIAL MESSAGES
+    const { daysRemaining, trialDays, trialEndDate } = trialStatus;
 
     if (daysRemaining === 1) {
       return {
@@ -113,7 +148,7 @@ const TrialNotification = ({ organizationId }) => {
     return {
       type: 'info',
       title: 'Trial Active',
-      message: `You have ${daysRemaining} days left in your free trial.\nTrial will end on: ${formatDate(trialEndDate)}`,
+      message: `You have ${daysRemaining} days left in your free trial.`,
       buttonText: null,
       buttonAction: null
     };
@@ -123,44 +158,60 @@ const TrialNotification = ({ organizationId }) => {
     return null;
   }
 
-  // Don't show notification if trial is not active and not expired (i.e., they have a paid plan)
-  if (!trialStatus.isTrialActive && trialStatus.isTrialExpired === false) {
+  // Hide if not trial and not expired (i.e., paid)
+  if (trialStatus.planType === 'PAID' && !trialStatus.isTrialExpired) {
     return null;
   }
 
   const content = getMessage();
-  if (!content) {
-    return null;
-  }
+  if (!content) return null;
 
   const getStyles = () => {
     switch (content.type) {
+      case 'reset':
+        return {
+          bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+          border: 'border-emerald-200 dark:border-emerald-800',
+          icon: <RotateCcw className="h-5 w-5 text-emerald-500" />,
+          title: 'text-emerald-800 dark:text-emerald-300',
+          message: 'text-emerald-700 dark:text-emerald-400',
+          button: 'bg-emerald-600 hover:bg-emerald-700 text-white'
+        };
       case 'error':
         return {
-          bg: 'bg-red-50',
-          border: 'border-red-200',
-          icon: 'text-red-500',
-          title: 'text-red-800',
-          message: 'text-red-700',
+          bg: 'bg-red-50 dark:bg-red-900/20',
+          border: 'border-red-200 dark:border-red-800',
+          icon: <AlertCircle className="h-5 w-5 text-red-500" />,
+          title: 'text-red-800 dark:text-red-300',
+          message: 'text-red-700 dark:text-red-400',
           button: 'bg-red-600 hover:bg-red-700 text-white'
+        };
+      case 'timer':
+        return {
+          bg: 'bg-indigo-50 dark:bg-indigo-900/20',
+          border: 'border-indigo-200 dark:border-indigo-800',
+          icon: <Clock className="h-5 w-5 text-indigo-500 animate-pulse" />,
+          title: 'text-indigo-800 dark:text-indigo-300',
+          message: 'text-indigo-700 dark:text-indigo-400',
+          button: 'bg-indigo-600 hover:bg-indigo-700 text-white'
         };
       case 'warning':
         return {
-          bg: 'bg-yellow-50',
-          border: 'border-yellow-200',
-          icon: 'text-yellow-500',
-          title: 'text-yellow-800',
-          message: 'text-yellow-700',
-          button: 'bg-yellow-600 hover:bg-yellow-700 text-white'
+          bg: 'bg-amber-50 dark:bg-amber-900/20',
+          border: 'border-amber-200 dark:border-amber-800',
+          icon: <AlertCircle className="h-5 w-5 text-amber-500" />,
+          title: 'text-amber-800 dark:text-amber-300',
+          message: 'text-amber-700 dark:text-amber-400',
+          button: 'bg-amber-600 hover:bg-amber-700 text-white'
         };
       default:
         return {
-          bg: 'bg-blue-50',
-          border: 'border-blue-200',
-          icon: 'text-blue-500',
-          title: 'text-blue-800',
-          message: 'text-blue-700',
-          button: 'bg-blue-600 hover:bg-blue-700 text-white'
+          bg: 'bg-slate-50 dark:bg-slate-800/50',
+          border: 'border-slate-200 dark:border-slate-700',
+          icon: <Clock className="h-5 w-5 text-slate-500" />,
+          title: 'text-slate-800 dark:text-slate-200',
+          message: 'text-slate-700 dark:text-slate-400',
+          button: 'bg-slate-600 hover:bg-slate-700 text-white'
         };
     }
   };
@@ -169,57 +220,52 @@ const TrialNotification = ({ organizationId }) => {
 
   return (
     <div 
-      className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ${
-        isAnimating ? 'opacity-0 translate-y-[-20px]' : 'opacity-100 translate-y-0'
+      className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-[9999] transition-all duration-500 ease-out w-[90%] max-w-lg ${
+        isAnimating ? 'opacity-0 -translate-y-8 scale-95' : 'opacity-100 translate-y-0 scale-100'
       }`}
     >
-      <div className={`${styles.bg} border ${styles.border} rounded-lg shadow-lg max-w-md`}>
-        <div className="p-4">
-          <div className="flex items-start gap-3">
-            {content.type === 'error' ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${styles.icon} flex-shrink-0`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            ) : content.type === 'warning' ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${styles.icon} flex-shrink-0`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${styles.icon} flex-shrink-0`} viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            )}
+      <div className={`${styles.bg} border ${styles.border} backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden`}>
+        <div className="p-5">
+          <div className="flex items-start gap-4">
+            <div className="mt-0.5">{styles.icon}</div>
             <div className="flex-1 min-w-0">
-              <h3 className={`font-semibold ${styles.title} text-sm`}>{content.title}</h3>
-              <p className={`text-sm ${styles.message} whitespace-pre-line mt-1`}>
+              <h3 className={`font-bold ${styles.title} text-sm tracking-tight`}>{content.title}</h3>
+              <p className={`text-xs ${styles.message} leading-relaxed mt-1 opacity-90 whitespace-pre-line`}>
                 {content.message}
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {content.buttonText && (
-                <button
-                  onClick={content.buttonAction}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium ${styles.button} transition`}
-                >
-                  {content.buttonText}
-                </button>
-              )}
+            <button
+              onClick={handleClose}
+              className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            >
+              <X className="h-4 w-4 text-slate-400" />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 mt-4">
+            {content.buttonText && (
               <button
-                onClick={() => {
-                  setIsAnimating(true);
-                  setTimeout(() => {
-                    setIsVisible(false);
-                  }, 300);
-                }}
-                className="p-1 rounded-full hover:bg-gray-200 transition"
+                onClick={content.buttonAction}
+                className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold ${styles.button} shadow-lg shadow-indigo-500/20 transition-all active:scale-95`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
+                {content.buttonText}
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
-            </div>
+            )}
           </div>
         </div>
+        
+        {/* Progress Bar for countdown */}
+        {content.type === 'timer' && (
+          <div className="h-1 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <motion.div 
+              initial={{ width: "100%" }}
+              animate={{ width: "0%" }}
+              transition={{ duration: 24 * 60 * 60, ease: "linear" }}
+              className="h-full bg-indigo-500"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

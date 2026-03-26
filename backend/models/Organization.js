@@ -106,6 +106,19 @@ const organizationSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  // New fields for 24h Auto-Reset
+  planType: {
+    type: String,
+    enum: ['FREE_TRIAL', 'PAID'],
+    default: 'FREE_TRIAL',
+  },
+  lastDataResetAt: {
+    type: Date,
+  },
+  needsResetNotification: {
+    type: Boolean,
+    default: false,
+  },
   // Metadata
   createdAt: {
     type: Date,

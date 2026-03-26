@@ -348,10 +348,7 @@ const OrderOnline = () => {
             <header className="fixed top-0 left-0 right-0 bg-white z-[100] border-b border-slate-100 shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     <Link to="/" className="flex items-center gap-2 group">
-                        <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-bold text-lg italic shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
-                            P
-                        </div>
-                        <span className="text-2xl font-black tracking-tighter text-emerald-600 italic">Slotify</span>
+                        <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
                     </Link>
 
                     <div className="flex items-center gap-8">
@@ -697,9 +694,8 @@ const OrderOnline = () => {
             {/* Simple Footer */}
             <footer className="border-t border-slate-100 py-12 px-4">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-                    <Link to="/" className="flex items-center gap-2 group opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
-                        <div className="w-6 h-6 bg-emerald-500 rounded flex items-center justify-center text-white font-bold text-xs italic">S</div>
-                        <span className="text-lg font-black tracking-tighter text-emerald-600 italic">Slotify</span>
+                    <Link to="/" className="flex items-center gap-2 group opacity-80 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
+                        <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
                     </Link>
                     <div className="flex gap-8 text-sm font-bold text-slate-400">
                         <a href="#" className="hover:text-emerald-600 transition-colors">Privacy Policy</a>
@@ -747,8 +743,7 @@ const OrderOnline = () => {
 
                                 <div className="mb-0">
                                     <div className="flex items-center gap-2 mb-10">
-                                        <div className="w-9 h-9 bg-[#2667e0] rounded-xl flex items-center justify-center text-white font-bold italic shadow-lg shadow-blue-500/20">S</div>
-                                        <span className="text-3xl font-black tracking-tighter text-[#2667e0] italic">Slotify</span>
+                                        <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
                                     </div>
                                 </div>
 
