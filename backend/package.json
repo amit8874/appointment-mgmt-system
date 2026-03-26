@@ -1,0 +1,33 @@
+{
+  "name": "hospital-backend",
+  "version": "1.0.0",
+  "description": "Backend for hospital React app with MongoDB",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.9.2",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^1.41.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "fs": "^0.0.1-security",
+    "groq-sdk": "^1.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.13.1",
+    "mongoose": "^7.7.0",
+    "multer": "^2.0.2",
+    "multer-storage-cloudinary": "^4.0.0",
+    "node-cron": "^3.0.3",
+    "path": "^0.12.7",
+    "razorpay": "^2.9.6",
+    "react-redux": "^9.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
