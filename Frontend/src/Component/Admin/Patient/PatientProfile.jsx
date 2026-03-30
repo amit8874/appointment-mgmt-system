@@ -217,19 +217,33 @@ const PatientProfile = () => {
     // Navigate to appointment form with pre-filled state
     if (location.pathname.startsWith('/admin')) {
       const rebookData = {
-        patientId: data._id,
+        patientId: data.patientId,
         patientName: data.fullName || `${data.firstName} ${data.lastName}`,
+        firstName: data.firstName || data.fullName?.split(' ')[0] || '',
+        lastName: data.lastName || data.fullName?.split(' ').slice(1).join(' ') || '',
+        patientPhone: data.mobile || data.phone || data.contactNumber || data.contact || '',
+        patientEmail: data.email || '',
+        gender: data.gender,
+        patientAge: data.age,
+        ageType: data.ageType || 'Year',
         doctorId: appt.doctorId,
         doctorName: appt.doctorName,
         specialty: appt.specialty,
         reason: appt.reason,
         patient: data
       };
-      navigate('/admin-dashboard', { state: { activeTab: 'Appointment Mgmt', rebookData } });
+      navigate('/admin-dashboard', { state: { activeTab: 'Calendar View', rebookData } });
     } else {
       const rebookData = {
-        patientId: data._id,
+        patientId: data.patientId,
         patientName: data.fullName || `${data.firstName} ${data.lastName}`,
+        firstName: data.firstName || data.fullName?.split(' ')[0] || '',
+        lastName: data.lastName || data.fullName?.split(' ').slice(1).join(' ') || '',
+        patientPhone: data.mobile || data.phone || data.contactNumber || data.contact || '',
+        patientEmail: data.email || '',
+        gender: data.gender,
+        patientAge: data.age,
+        ageType: data.ageType || 'Year',
         doctorId: appt.doctorId,
         doctorName: appt.doctorName,
         specialty: appt.specialty,

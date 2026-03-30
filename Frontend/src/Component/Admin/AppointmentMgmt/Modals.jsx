@@ -382,7 +382,7 @@ function AppointmentDetailsModal({
               <InfoRow
                 icon={<User size={18} className="text-blue-500" />}
                 label="Patient"
-                value={resource.patientName}
+                value={`${resource.patientName}${resource.patientAge ? ` (${resource.patientAge} years)` : ''}`}
               />
               <InfoRow
                 icon={<UserPlus size={18} className="text-green-500" />}
@@ -428,7 +428,7 @@ function AppointmentDetailsModal({
             <div className="flex flex-wrap gap-2 p-6 bg-gradient-to-r from-gray-50 to-gray-100 rounded-b-2xl border-t">
               {resource.status !== 'cancelled' && resource.status !== 'completed' && (
                 <>
-                  {resource.status !== 'confirmed' && (
+                  {resource.status !== 'confirmed' && (new Date(start).setHours(0,0,0,0) <= new Date().setHours(0,0,0,0)) && (
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}

@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, ChevronDown, Send, Sparkles, Loader2 } from 'lucide-react';
-import { chatbotApi } from '../../services/api';
+import { MessageCircle, X, ChevronDown, Send, Sparkles, Loader2, Info, UserPlus, CreditCard } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { chatbotApi, organizationApi } from '../../services/api';
+import toast from 'react-hot-toast';
+import ReactMarkdown from 'react-markdown';
 
 // Injected keyframe for rotating rainbow ring
 const rainbowStyle = `
@@ -13,17 +16,70 @@ const rainbowStyle = `
     0%   { transform: rotate(0deg); }
     100% { transform: rotate(-360deg); }
   }
+  .markdown-content p {
+    margin-bottom: 0.5rem;
+  }
+  .markdown-content p:last-child {
+    margin-bottom: 0;
+  }
+  .markdown-content strong {
+    font-weight: 800;
+  }
+  .markdown-content ul, .markdown-content ol {
+    margin-left: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  .markdown-content li {
+    margin-bottom: 0.25rem;
+  }
 `;
 
 const ChatBot = () => {
+  const { user, isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     { id: 1, text: "Hey, my name is Maya! 👋 I'm here to help you revolutionize your clinic management. How can I assist you today?", sender: 'bot' }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(true);
+  const [clinicInfo, setClinicInfo] = useState(null);
+
+  // Get organizationId from user, URL, or localStorage
+  const getOrganizationId = () => {
+    // 1. From User object (if logged in)
+    if (user?.organizationId?._id) return user.organizationId._id;
+    if (user?.organizationId) return user.organizationId;
+    
+    // 2. From URL params (for public links like /booking/:orgId)
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromUrl = urlParams.get('orgId') || urlParams.get('organizationId');
+    if (fromUrl) return fromUrl;
+
+    // 3. From pathname (if it's /clinic/ORG_ID)
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts[1] === 'clinic' && pathParts[2]) return pathParts[2];
+
+    // 4. From localStorage fallback
+    return localStorage.getItem('organizationId');
+  };
+
+  const organizationId = getOrganizationId();
 
   useEffect(() => {
+    console.log(`[ChatBot] Detected OrganizationID: ${organizationId}`);
+    const fetchClinicInfo = async () => {
+      if (organizationId) {
+        try {
+          const data = await organizationApi.getById(organizationId);
+          setClinicInfo(data);
+        } catch (error) {
+          console.error("Error fetching clinic info:", error);
+        }
+      }
+    };
+    fetchClinicInfo();
+
     // Auto-popup after 2.5 seconds if not shown this load
     const hasShown = sessionStorage.getItem('hasShownChatBot');
     if (!hasShown) {
@@ -35,27 +91,53 @@ const ChatBot = () => {
     }
   }, []);
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+  const handleQuickAction = (text) => {
+    setInputValue(text);
+    setShowQuickActions(false);
+    
+    // Use a small delay to ensure state updates before submitting
+    setTimeout(() => {
+      const form = document.getElementById('chatbot-form');
+      if (form) {
+        const fakeEvent = { preventDefault: () => {} };
+        handleSend(fakeEvent, text);
+      }
+    }, 100);
+  };
 
-    const userMsg = { id: Date.now(), text: inputValue, sender: 'user' };
+  const handleSend = async (e, overrideValue = null) => {
+    if (e) e.preventDefault();
+    const currentInput = overrideValue || inputValue;
+    if (!currentInput.trim() || isLoading) return;
+
+    const userMsg = { id: Date.now(), text: currentInput, sender: 'user' };
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
     setIsLoading(true);
 
     try {
-      // Prepare history for Gemini (simplified for now)
+      // Prepare history for model
       const history = messages.map(m => ({
         role: m.sender === 'user' ? 'user' : 'model',
         parts: [{ text: m.text }]
       }));
 
-      const response = await chatbotApi.chat(inputValue, history);
+      // Prepare user context for better responses
+      const userContext = isAuthenticated ? {
+        name: user?.name || user?.firstName,
+        role: user?.role,
+        phone: user?.mobile || user?.phone
+      } : null;
+
+      const response = await chatbotApi.chat(currentInput, history, organizationId, userContext);
       
+      const botText = response.text;
+      
+      const displayTemplate = botText.trim();
+
       setMessages(prev => [...prev, { 
         id: Date.now() + 1, 
-        text: response.text, 
+        text: displayTemplate, 
         sender: 'bot' 
       }]);
     } catch (error) {
@@ -124,10 +206,46 @@ const ChatBot = () => {
                       ? 'bg-[#00386a] text-white rounded-tr-none' 
                       : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
                   }`}>
-                    {msg.text}
+                    <div className="markdown-content">
+                      <ReactMarkdown>
+                        {msg.text}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 </motion.div>
               ))}
+              
+              {showQuickActions && messages.length === 1 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-wrap gap-2 pt-2 px-2"
+                >
+                  <button 
+                    onClick={() => handleQuickAction("What are the features of Slotify?")}
+                    className="bg-white border border-blue-200 text-[#00386a] px-4 py-2 rounded-full text-xs font-bold hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
+                  >
+                    <Info size={14} />
+                    Explore Features
+                  </button>
+                  <button 
+                    onClick={() => handleQuickAction("Tell me about the pricing plans.")}
+                    className="bg-white border border-blue-200 text-[#00386a] px-4 py-2 rounded-full text-xs font-bold hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
+                  >
+                    <CreditCard size={14} />
+                    Pricing Plans
+                  </button>
+                  <button 
+                    onClick={() => handleQuickAction("How can I register my clinic?")}
+                    className="bg-white border border-blue-200 text-[#00386a] px-4 py-2 rounded-full text-xs font-bold hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
+                  >
+                    <UserPlus size={14} />
+                    How to Register?
+                  </button>
+                </motion.div>
+              )}
+
+
               {isLoading && (
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }}
@@ -142,23 +260,33 @@ const ChatBot = () => {
               )}
             </div>
 
-            {/* Input Area */}
             <div className="p-4 bg-white border-t border-slate-100">
-              <form onSubmit={handleSend} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="Ask me anything..."
-                  className="flex-1 bg-slate-100 border-none rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-400 font-bold text-slate-700"
-                />
-                <button 
-                  type="submit"
-                  className="bg-[#00386a] text-white p-3.5 rounded-xl hover:bg-[#002b52] transition-all shadow-lg shadow-blue-900/10 active:scale-90 flex items-center justify-center"
-                >
-                  <Send size={20} />
-                </button>
-              </form>
+                <form id="chatbot-form" onSubmit={handleSend} className="flex items-start gap-2 bg-slate-100 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+                  <textarea
+                    rows="1"
+                    value={inputValue}
+                    onChange={(e) => {
+                      setInputValue(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = e.target.scrollHeight + 'px';
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend(e);
+                        e.target.style.height = 'auto';
+                      }
+                    }}
+                    placeholder="Ask me anything..."
+                    className="flex-1 bg-transparent border-none px-2 py-2 text-sm outline-none transition-all placeholder:text-slate-400 font-bold text-slate-700 resize-none max-h-32 overflow-y-auto"
+                  />
+                  <button 
+                    type="submit"
+                    className="bg-[#00386a] text-white p-2.5 rounded-lg hover:bg-[#002b52] transition-all shadow-lg active:scale-90 flex items-center justify-center shrink-0 mt-0.5"
+                  >
+                    <Send size={18} />
+                  </button>
+                </form>
               <p className="text-[10px] text-center text-slate-400 mt-2 font-bold uppercase tracking-widest">Powered by Slotify AI</p>
             </div>
           </motion.div>

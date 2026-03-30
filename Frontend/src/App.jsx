@@ -6,6 +6,7 @@ import { AnimatePresence } from "framer-motion";
 import AccountDeactivatedModal from "./Component/Organization/AccountDeactivatedModal";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import SmartNotificationSystem from "./components/common/SmartNotificationSystem";
 
 // Lazy load components
 const ProtectedRoute = lazy(() => import("./Component/ProtectedRoute"));
@@ -27,6 +28,7 @@ const AppointmentTable = lazy(() => import("./Component/Admin/AppointmentMgmt/Ap
 const NewAppointmentForm = lazy(() => import("./Component/Admin/NewAppointmentForm"));
 const AdminPatientPanel = lazy(() => import("./Component/Admin/Patient/PatientPanel.jsx"));
 const ReceptionistPatientPanel = lazy(() => import("./components/Receptionist/Patients/PatientPanel.jsx"));
+const TrackAppointmentView = lazy(() => import("./Component/Admin/AppointmentMgmt/TrackAppointmentView.jsx"));
 const PatientProfile = lazy(() => import("./Component/Admin/Patient/PatientProfile.jsx"));
 const BillingMgmt = lazy(() => import("./components/Receptionist/Billing/BillingMgmt"));
 const DoctorGrid = lazy(() => import("./components/Receptionist/Doctors/DoctorGrid"));
@@ -181,6 +183,7 @@ export default function App() {
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} />
+      <SmartNotificationSystem />
       {isImpersonating && <ShadowModeBanner />}
       <AnimatePresence mode="wait">
         <Router>
@@ -258,6 +261,7 @@ export default function App() {
             }>
               <Route index element={<Dashboard />} />
               <Route path="appointments" element={<AppointmentTable />} />
+              <Route path="track-appointments" element={<TrackAppointmentView />} />
               <Route path="patients" element={<ReceptionistPatientPanel />} />
               <Route path="billing" element={<BillingMgmt />} />
               <Route path="doctor" element={<DoctorGrid />} />

@@ -84,7 +84,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout }) => {
       if (notification.category === 'user_registration') {
         targetTab = 'Patients';
       } else if (notification.category === 'appointment_booking') {
-        targetTab = 'Appointment Mgmt';
+        targetTab = 'Calendar View';
       }
 
       setShowNotifications(false);

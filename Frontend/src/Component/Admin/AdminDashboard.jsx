@@ -32,7 +32,7 @@ const Admin = () => {
   
   // Initialize tab from URL or fallback to 'Dashboard'
   const queryParams = new URLSearchParams(location.search);
-  const initialTab = queryParams.get('tab') || 'Dashboard';
+  const initialTab = queryParams.get('tab') || 'New Appointment';
   const [activeTab, setActiveTab] = useState(initialTab);
   
   // Update URL when activeTab changes
@@ -61,6 +61,7 @@ const Admin = () => {
   const [appointmentTrendsData, setAppointmentTrendsData] = useState([]);
   const [revenueByDoctorData, setRevenueByDoctorData] = useState([]);
   const [monthlyIncomeExpenseData, setMonthlyIncomeExpenseData] = useState([]);
+  const [recentAppointments, setRecentAppointments] = useState([]);
 
   // For form
   const [activeModal, setActiveModal] = useState(null);
@@ -105,7 +106,7 @@ const Admin = () => {
       receptionistsHook.setReceptionistsError('');
 
       // Fetch all data in parallel
-      const [patientsData, doctorsData, receptionistsData, countsData, todayApptsCount, billingStats, chartsData] = await Promise.all([
+      const responses = await Promise.all([
         patientsHook.fetchPatients().catch(error => {
           patientsHook.setPatientsError('Error loading patients');
           return [];
@@ -130,8 +131,14 @@ const Admin = () => {
         analyticsApi.getCharts().catch(error => {
           console.error("Error fetching admin charts", error);
           return null;
+        }),
+        analyticsApi.getDashboard().catch(error => {
+          console.error("Error fetching admin dashboard data", error);
+          return null;
         })
       ]);
+
+      const [patientsData, doctorsData, receptionistsData, countsData, todayApptsCount, billingStats, chartsData, dashboardData] = responses;
 
 
       // Update state with fetched data
@@ -152,6 +159,11 @@ const Admin = () => {
         setAppointmentTrendsData(chartsData.appointmentTrends || []);
         setRevenueByDoctorData(chartsData.revenueByDoctor || []);
         setMonthlyIncomeExpenseData(chartsData.incomeExpense || []);
+      }
+
+      // Update dashboard specific data (recent appointments)
+      if (dashboardData) {
+        setRecentAppointments(dashboardData.recentAppointments || []);
       }
 
     } catch (error) {
@@ -178,7 +190,7 @@ const Admin = () => {
       // Check for rebookData in navigation state
       const locationState = window.history.state?.usr;
       if (locationState?.rebookData) {
-        setActiveTab('Appointment Mgmt');
+        setActiveTab('New Appointment');
         setRebookData(locationState.rebookData);
         // Clear state to avoid re-triggering on refresh
         window.history.replaceState({}, document.title);
@@ -218,7 +230,6 @@ const Admin = () => {
       icon: Users,
       color: "text-green-600",
       bg: "bg-green-100 dark:bg-green-900/30",
-      link: "Patients"
     },
     {
       name: "Total Doctors",
@@ -226,7 +237,7 @@ const Admin = () => {
       icon: Stethoscope,
       color: "text-blue-600",
       bg: "bg-blue-100 dark:bg-blue-900/30",
-      link: "Doctors"
+      link: "Doctor"
     },
     {
       name: "Total Receptionists",
@@ -267,31 +278,35 @@ const Admin = () => {
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 font-sans antialiased transition-colors duration-500 overflow-x-hidden">
         <OnboardingTour role="admin" />
         {(user?.organizationId || user?.organization?._id) && (
-          <TrialNotification organizationId={user?.organizationId || user?.organization?._id} />
+          <TrialNotification organizationId={user?.organizationId?._id || user?.organizationId || user?.organization?._id} />
         )}
-        <Header
-          isSidebarOpen={isSidebarOpen}
-          toggleSidebar={toggleSidebar}
-          notifications={notificationsHook.notifications}
-          showNotifications={notificationsHook.showNotifications}
-          setShowNotifications={notificationsHook.setShowNotifications}
-          notificationsLoading={notificationsHook.notificationsLoading}
-          handleNotificationClick={notificationsHook.handleNotificationClick}
-          markAllAsRead={notificationsHook.markAllAsRead}
-          setNotifications={notificationsHook.setNotifications}
-          onLogout={() => setIsLogoutModalOpen(true)}
-          navigate={navigate}
-          user={user}
-        />
-        <div className="flex flex-grow h-[calc(100vh-81px)] sm:h-[calc(100vh-89px)] overflow-hidden relative">
-          <AdminSidebar
+        <div className="no-print">
+          <Header
             isSidebarOpen={isSidebarOpen}
             toggleSidebar={toggleSidebar}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            notifications={notificationsHook.notifications}
+            showNotifications={notificationsHook.showNotifications}
+            setShowNotifications={notificationsHook.setShowNotifications}
+            notificationsLoading={notificationsHook.notificationsLoading}
+            handleNotificationClick={notificationsHook.handleNotificationClick}
+            markAllAsRead={notificationsHook.markAllAsRead}
+            setNotifications={notificationsHook.setNotifications}
+            onLogout={() => setIsLogoutModalOpen(true)}
+            navigate={navigate}
             user={user}
-            onDoctorAdd={doctorsHook.openDoctorForm}
           />
+        </div>
+        <div className="flex flex-grow h-[calc(100vh-81px)] sm:h-[calc(100vh-89px)] overflow-hidden relative">
+          <div className="no-print h-full">
+            <AdminSidebar
+              isSidebarOpen={isSidebarOpen}
+              toggleSidebar={toggleSidebar}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              user={user}
+              onDoctorAdd={doctorsHook.openDoctorForm}
+            />
+          </div>
 
           {/* Mobile Overlay for Sidebar */}
           {isSidebarOpen && (
@@ -319,6 +334,8 @@ const Admin = () => {
               handleEditDoctor={doctorsHook.handleEditDoctor}
               handleDeleteDoctor={doctorsHook.handleDeleteDoctor}
               openDoctorForm={doctorsHook.openDoctorForm}
+              onVerifyDoctor={doctorsHook.handleVerifyDoctor}
+              onRejectDoctor={doctorsHook.handleRejectDoctor}
               receptionists={receptionistsHook.receptionists}
               receptionistsLoading={receptionistsHook.receptionistsLoading}
               receptionistsError={receptionistsHook.receptionistsError}
@@ -333,12 +350,20 @@ const Admin = () => {
               appointmentTrendsData={appointmentTrendsData}
               revenueByDoctorData={revenueByDoctorData}
               monthlyIncomeExpenseData={monthlyIncomeExpenseData}
+              recentAppointments={recentAppointments}
               rebookData={rebookData}
               setRebookData={setRebookData}
               setSelectedDoctor={doctorsHook.setSelectedDoctor}
               handleEditDoctorFromProfile={doctorsHook.handleEditDoctorFromProfile}
               handleDeleteDoctorFromProfile={doctorsHook.handleDeleteDoctorFromProfile}
               refreshDoctors={doctorsHook.fetchDoctors}
+              // Pagination Props
+              patientsCurrentPage={patientsHook.currentPage}
+              patientsTotalPages={patientsHook.totalPages}
+              onPatientsPageChange={patientsHook.fetchPatients}
+              doctorsCurrentPage={doctorsHook.currentPage}
+              doctorsTotalPages={doctorsHook.totalPages}
+              onDoctorsPageChange={doctorsHook.fetchDoctors}
             />
           </main>
         </div>

@@ -18,7 +18,7 @@ export const generatePatientId = async (organizationId) => {
     { new: true, upsert: true }
   );
 
-  return `PT${String(counter.value).padStart(4, '0')}`;
+  return `${String(counter.value).padStart(6, '0')}`;
 };
 
 /**

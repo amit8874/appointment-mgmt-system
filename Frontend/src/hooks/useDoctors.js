@@ -7,23 +7,35 @@ export const useDoctors = () => {
   const [doctorsLoading, setDoctorsLoading] = useState(true);
   const [doctorsError, setDoctorsError] = useState('');
   const [totalDoctors, setTotalDoctors] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
   const [doctorsCountLoading, setDoctorsCountLoading] = useState(true);
   const [editingDoctor, setEditingDoctor] = useState(null);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [showDoctorForm, setShowDoctorForm] = useState(false);
 
-  // Fetch all doctors
-  const fetchDoctors = useCallback(async () => {
+  // Fetch doctors with pagination
+  const fetchDoctors = useCallback(async (page = 1, limit = 15) => {
     try {
       setDoctorsLoading(true);
       setDoctorsError('');
-      const data = await centralDoctorApi.getAll();
-      const uniqueData = Array.from(new Map((data || []).map(doc => [doc.id || doc._id, doc])).values());
+      const response = await centralDoctorApi.getAll({ page, limit });
+      
+      let doctorsList = [];
+      if (response && response.doctors) {
+        doctorsList = response.doctors;
+        setTotalPages(response.totalPages || 1);
+        setCurrentPage(response.currentPage || 1);
+        setTotalDoctors(response.totalDoctors || 0);
+      } else {
+        doctorsList = response || [];
+      }
+
+      const uniqueData = Array.from(new Map(doctorsList.map(doc => [doc.id || doc._id, doc])).values());
       setDoctors(uniqueData);
       return uniqueData;
     } catch (error) {
       setDoctorsError('Error loading doctors');
-      // Don't set doctors to empty array on error, keep existing data
     } finally {
       setDoctorsLoading(false);
     }
@@ -108,6 +120,34 @@ export const useDoctors = () => {
     }
   }, [fetchDoctors, fetchDoctorCount]);
 
+  // Handle doctor verification
+  const handleVerifyDoctor = useCallback(async (doctorId) => {
+    try {
+      await centralDoctorApi.verify(doctorId);
+      await Promise.all([
+        fetchDoctors(),
+        fetchDoctorCount()
+      ]);
+    } catch (error) {
+      console.error('Error verifying doctor:', error);
+    }
+  }, [fetchDoctors, fetchDoctorCount]);
+
+  // Handle doctor rejection
+  const handleRejectDoctor = useCallback(async (doctorId) => {
+    try {
+      if (window.confirm('Are you sure you want to reject this doctor registration?')) {
+        await centralDoctorApi.reject(doctorId);
+        await Promise.all([
+          fetchDoctors(),
+          fetchDoctorCount()
+        ]);
+      }
+    } catch (error) {
+      console.error('Error rejecting doctor:', error);
+    }
+  }, [fetchDoctors, fetchDoctorCount]);
+
   // Open doctor form
   const openDoctorForm = useCallback(() => {
     setShowDoctorForm(true);
@@ -126,6 +166,8 @@ export const useDoctors = () => {
     doctorsLoading,
     doctorsError,
     totalDoctors,
+    totalPages,
+    currentPage,
     doctorsCountLoading,
     editingDoctor,
     selectedDoctor,
@@ -136,6 +178,8 @@ export const useDoctors = () => {
     setDoctorsLoading,
     setDoctorsError,
     setTotalDoctors,
+    setTotalPages,
+    setCurrentPage,
     setDoctorsCountLoading,
     setEditingDoctor,
     setSelectedDoctor,
@@ -150,6 +194,8 @@ export const useDoctors = () => {
     handleDeleteDoctor,
     handleDeleteDoctorFromProfile,
     handleDoctorSuccess,
+    handleVerifyDoctor,
+    handleRejectDoctor,
     openDoctorForm,
     closeDoctorForm,
   };

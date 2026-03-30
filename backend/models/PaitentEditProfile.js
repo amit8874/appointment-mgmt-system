@@ -14,6 +14,10 @@ const patientSchema = new mongoose.Schema({
     unique: true,
     required: true
   },
+  designation: {
+    type: String,
+    trim: true,
+  },
   firstName: {
     type: String,
     required: true,
@@ -26,12 +30,17 @@ const patientSchema = new mongoose.Schema({
   },
   fullName: {
     type: String,
-    required: true,
+    required: false,
     trim: true
   },
   age: {
     type: Number,
     min: [0, 'Age must be positive']
+  },
+  ageType: {
+    type: String,
+    enum: ['Year', 'Month', 'Days'],
+    default: 'Year'
   },
   gender: {
     type: String,
@@ -47,7 +56,7 @@ const patientSchema = new mongoose.Schema({
   },
   mobile: {
     type: String,
-    required: true,
+    required: false,
     trim: true
   },
   email: {

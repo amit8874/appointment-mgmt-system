@@ -108,7 +108,9 @@ export const bookPatientAppointment = async (req, res) => {
     if (!doctorId) return res.status(400).json({ message: 'Doctor is required' });
     if (!date) return res.status(400).json({ message: 'Appointment date is required' });
     if (!time) return res.status(400).json({ message: 'Appointment time is required' });
-    if (!patientDetails || !patientDetails.phone) return res.status(400).json({ message: 'Patient phone is required' });
+    if (!patientDetails || !patientDetails.firstName) {
+      return res.status(400).json({ message: 'Patient first name is required' });
+    }
 
     const tenantFilter = { organizationId, doctorId, date, time };
     const [pending, confirmed] = await Promise.all([
@@ -120,8 +122,20 @@ export const bookPatientAppointment = async (req, res) => {
       return res.status(400).json({ message: 'This time slot is already booked' });
     }
 
-    let patientIdToUse = patientId;
-    let existingPatient = await Patient.findOne({ mobile: patientDetails.phone });
+    let existingPatient = null;
+    
+    // 1. First try to find by patientId OR MongoDB _id
+    if (patientId) {
+      existingPatient = await Patient.findOne({ organizationId, patientId: patientId });
+      if (!existingPatient && patientId.match(/^[0-9a-fA-F]{24}$/)) {
+        existingPatient = await Patient.findOne({ organizationId, _id: patientId });
+      }
+    }
+    
+    // 2. Fallback to phone search if still not found
+    if (!existingPatient && patientDetails.phone) {
+      existingPatient = await Patient.findOne({ organizationId, mobile: patientDetails.phone });
+    }
 
     if (!existingPatient) {
       // Generate internal Patient ID
@@ -130,13 +144,15 @@ export const bookPatientAppointment = async (req, res) => {
       existingPatient = new Patient({
         organizationId,
         patientId: newPatientId,
+        designation: patientDetails.designation || '',
         firstName: patientDetails.firstName || '',
         lastName: patientDetails.lastName || '',
-        fullName: `${patientDetails.firstName || ''} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient',
-        mobile: patientDetails.phone,
-        email: patientDetails.email,
-        address: patientDetails.address,
+        fullName: `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName || ''} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient',
+        mobile: patientDetails.phone || '',
+        email: patientDetails.email || '',
+        address: patientDetails.address || '',
         age: patientDetails.age,
+        ageType: patientDetails.ageType || 'Year',
         gender: patientDetails.gender ? (patientDetails.gender.charAt(0).toUpperCase() + patientDetails.gender.slice(1).toLowerCase()) : undefined,
       });
 
@@ -148,12 +164,15 @@ export const bookPatientAppointment = async (req, res) => {
       }
     }
     
-    patientIdToUse = existingPatient.patientId || existingPatient._id.toString();
-    const patientName = patientDetails?.firstName ? `${patientDetails.firstName} ${patientDetails.lastName || ''}`.trim() : 'Unknown Patient';
+    const patientIdToUse = existingPatient.patientId || existingPatient._id.toString();
+    const patientName = `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient';
 
     const appointment = new PendingAppointment({
       organizationId,
       patientId: patientIdToUse,
+      designation: patientDetails.designation,
+      firstName: patientDetails.firstName,
+      lastName: patientDetails.lastName,
       doctorId,
       doctorName: doctorName || '',
       specialty: specialty || 'General',
@@ -162,8 +181,12 @@ export const bookPatientAppointment = async (req, res) => {
       reason: reason || '',
       symptoms: symptoms || '',
       patientName,
-      patientPhone: patientDetails.phone,
+      patientPhone: patientDetails.phone || '',
       patientEmail: patientDetails.email || '',
+      patientAge: patientDetails.age,
+      ageType: patientDetails.ageType || 'Year',
+      rateListType: patientDetails.rateListType || 'Main',
+      dispatchMethods: patientDetails.dispatchMethods || [],
       amount: amount || 0,
       paymentStatus: paymentStatus || 'pending'
     });
@@ -210,6 +233,7 @@ export const bookPatientAppointment = async (req, res) => {
         organizationId: organizationId,
         patientId: patientIdToUse,
         patientName,
+        patientPhone: patientDetails.phone || '',
         doctorId,
         doctorName: doctorName || '',
         amount: fee,
@@ -218,7 +242,7 @@ export const bookPatientAppointment = async (req, res) => {
         appointmentId: appointment._id.toString(),
         appointmentDate: date,
         appointmentTime: time,
-        items: [{ description: 'Consultation Fee', cost: fee }],
+        items: [{ description: 'Consultation Fee', cost: fee, unitPrice: fee, subtotal: fee, qty: 1 }],
         status: paymentStatus === 'paid' ? 'Paid' : 'Pending',
         notes: `Patient Web Booking on ${date} at ${time}`,
         paymentMethod: 'N/A'
@@ -419,6 +443,13 @@ export const bookAppointment = async (req, res) => {
     const patientPhone = patientDetails?.phone || '';
     const patientEmail = patientDetails?.email || '';
 
+    // Look up doctor fee for appointment recording
+    let docObj = await Doctor.findOne({ doctorId });
+    if (!docObj) {
+      docObj = await Doctor.findById(doctorId);
+    }
+    const fee = docObj?.fee || 500;
+
     const appointment = new PendingAppointment({
       organizationId: req.tenantId,
       patientId: patientIdToUse,
@@ -432,6 +463,9 @@ export const bookAppointment = async (req, res) => {
       patientName,
       patientPhone,
       patientEmail,
+      patientAge: patientDetails.age,
+      amount: fee,
+      paymentStatus: 'pending'
     });
 
     await appointment.save();
@@ -481,6 +515,7 @@ export const bookAppointment = async (req, res) => {
         organizationId: req.tenantId,
         patientId: patientIdToUse,
         patientName,
+        patientPhone: patientPhone || '',
         doctorId,
         doctorName: doctorName || '',
         amount: fee,
@@ -489,7 +524,7 @@ export const bookAppointment = async (req, res) => {
         appointmentId: appointment._id.toString(),
         appointmentDate: date,
         appointmentTime: time,
-        items: [{ description: 'Consultation Fee', cost: fee }],
+        items: [{ description: 'Consultation Fee', cost: fee, unitPrice: fee, subtotal: fee, qty: 1 }],
         status: 'Pending',
         notes: `Auto-generated for appointment on ${date} at ${time}`,
         paymentMethod: 'N/A'
@@ -508,7 +543,7 @@ export const bookAppointment = async (req, res) => {
 
 export const updateAppointmentStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, cancellationReason } = req.body;
     const appointmentId = req.params.id;
 
     if (!status) return res.status(400).json({ message: 'Status is required' });
@@ -532,13 +567,16 @@ export const updateAppointmentStatus = async (req, res) => {
 
     if (status && status !== appointment.status) {
       let newModel;
-      if (status === 'confirmed' || status === 'completed') newModel = ConfirmedAppointment;
+      if (status === 'confirmed' || status === 'in-progress') newModel = ConfirmedAppointment;
+      else if (status === 'completed' || status === 'missed') newModel = OldAppointment;
       else if (status === 'cancelled') newModel = CancelledAppointment;
       else if (status === 'pending') newModel = PendingAppointment;
 
       const newAppointment = new newModel({
         ...appointment.toObject(),
-        status: status
+        _id: appointment._id, // Explicitly preserve the _id across collections
+        status: status,
+        cancellationReason: cancellationReason || appointment.cancellationReason
       });
 
       await newAppointment.save();
@@ -556,7 +594,7 @@ export const updateAppointmentStatus = async (req, res) => {
 
 export const updateAppointment = async (req, res) => {
   try {
-    const { date, time, reason, symptoms, status } = req.body;
+    const { date, time, reason, symptoms, status, cancellationReason } = req.body;
     const appointmentId = req.params.id;
 
     let appointment = await PendingAppointment.findById(appointmentId);
@@ -589,16 +627,19 @@ export const updateAppointment = async (req, res) => {
 
     if (status && status !== appointment.status) {
       let newModel;
-      if (status === 'confirmed' || status === 'completed') newModel = ConfirmedAppointment;
+      if (status === 'confirmed' || status === 'in-progress') newModel = ConfirmedAppointment;
+      else if (status === 'completed' || status === 'missed') newModel = OldAppointment;
       else if (status === 'cancelled') newModel = CancelledAppointment;
       else if (status === 'pending') newModel = PendingAppointment;
 
       const newAppointment = new newModel({
         ...appointment.toObject(),
+        _id: appointment._id, // Explicitly preserve the _id across collections
         date: date || appointment.date,
         time: time || appointment.time,
         reason: reason !== undefined ? reason : appointment.reason,
         symptoms: symptoms !== undefined ? symptoms : appointment.symptoms,
+        cancellationReason: cancellationReason !== undefined ? cancellationReason : appointment.cancellationReason,
       });
 
       await newAppointment.save();
@@ -885,6 +926,7 @@ export const bookPublicAppointment = async (req, res) => {
         organizationId,
         patientId: patient.patientId || patient._id.toString(),
         patientName,
+        patientPhone: patientPhone || '',
         doctorId: doctor.doctorId || doctor._id.toString(),
         doctorName: doctor.name,
         amount: fee,
@@ -893,7 +935,7 @@ export const bookPublicAppointment = async (req, res) => {
         appointmentId: appointment._id.toString(),
         appointmentDate: date,
         appointmentTime: time,
-        items: [{ description: 'Consultation Fee', cost: fee }],
+        items: [{ description: 'Consultation Fee', cost: fee, unitPrice: fee, subtotal: fee, qty: 1 }],
         status: 'Pending',
         notes: 'Auto-generated for website booking',
         paymentMethod: 'Cash' // Assume cash on arrival by default for web bookings
@@ -901,6 +943,28 @@ export const bookPublicAppointment = async (req, res) => {
       await newBill.save();
     } catch (billingError) {
       console.error('Error creating linked bill for public booking:', billingError);
+    }
+
+    // 7. Emit Real-time update for Admin/Receptionist popup
+    try {
+      const io = req.app.get("io");
+      if (io) {
+        const room = String(organizationId);
+        io.to(room).emit("public-appointment-booked", { 
+          appointment: {
+            ...appointment.toObject(),
+            patientDetails: {
+              name: patientName,
+              phone: patientPhone,
+              email: patientEmail,
+              age: patient.age,
+              gender: patient.gender
+            }
+          }
+        });
+      }
+    } catch (socketErr) {
+      // Silent error for socket to not break the booking process
     }
 
     res.status(201).json({
@@ -987,4 +1051,184 @@ export const cancelPublicAppointment = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// --- NEW STANDARDIZED ENDPOINTS WITH REAL-TIME SYNC ---
+
+export const getTodayAppointments = async (req, res) => {
+  try {
+    const organizationId = req.tenantId;
+    const today = new Date().toISOString().split('T')[0];
+    
+    const query = { organizationId, date: today };
+    const [pending, confirmed, cancelled, old] = await Promise.all([
+      PendingAppointment.find(query),
+      ConfirmedAppointment.find(query),
+      CancelledAppointment.find(query),
+      OldAppointment.find(query)
+    ]);
+
+    const all = [
+      ...pending.map(a => ({ ...a.toObject(), status: 'pending' })),
+      ...confirmed.map(a => ({ ...a.toObject(), status: 'confirmed' })),
+      ...cancelled.map(a => ({ ...a.toObject(), status: 'cancelled' })),
+      ...old.map(a => ({ ...a.toObject() }))
+    ];
+
+    res.json(all);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const patchAppointmentStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, cancellationReason } = req.body;
+    const organizationId = req.tenantId;
+
+    // 1. Find the current appointment in any possible collection
+    let appointment = null;
+    let oldModel = null;
+    
+    const models = [PendingAppointment, ConfirmedAppointment, OldAppointment, CancelledAppointment];
+    for (const model of models) {
+      appointment = await model.findById(id);
+      if (appointment) {
+        oldModel = model;
+        break;
+      }
+    }
+
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+
+    // 2. Determine the target collection for the new status
+    let newModel;
+    if (status === 'confirmed' || status === 'in-progress') newModel = ConfirmedAppointment;
+    else if (status === 'completed' || status === 'missed') newModel = OldAppointment;
+    else if (status === 'cancelled') newModel = CancelledAppointment;
+    else if (status === 'pending') newModel = PendingAppointment;
+
+    let updatedAppointment;
+
+    // 3. Handle Update in Place vs. Migration
+    if (newModel.modelName === oldModel.modelName) {
+      // Stay in the SAME collection, just update
+      updatedAppointment = await newModel.findByIdAndUpdate(
+        id,
+        { 
+          status, 
+          cancellationReason: cancellationReason || appointment.cancellationReason,
+          updatedAt: new Date()
+        },
+        { new: true }
+      );
+    } else {
+      // MIGRATE to DIFFERENT collection
+      const appointmentData = {
+        ...appointment.toObject(),
+        status,
+        cancellationReason: cancellationReason || appointment.cancellationReason,
+        updatedAt: new Date()
+      };
+
+      updatedAppointment = new newModel(appointmentData);
+      await updatedAppointment.save();
+      
+      // Delete from original collection
+      await oldModel.findByIdAndDelete(id);
+    }
+
+    // 4. Emit Real-time update
+    const io = req.app.get("io");
+    if (io) {
+      const room = organizationId.toString();
+      console.log(`[REAL-TIME] Emitting status_change for ${id} to room ${room}`);
+      io.to(room).emit("appointment-updated", { 
+        type: 'status_change', 
+        appointment: updatedAppointment 
+      });
+    }
+
+    res.json(updatedAppointment);
+  } catch (error) {
+    console.error('Status mapping error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const patchReschedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { appointmentDate, appointmentTime } = req.body;
+    const organizationId = req.tenantId;
+
+    let appointment = await PendingAppointment.findById(id) || 
+                      await ConfirmedAppointment.findById(id);
+
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+
+    // Validate slot
+    const existing = await ConfirmedAppointment.findOne({ 
+      organizationId, 
+      doctorId: appointment.doctorId, 
+      date: appointmentDate, 
+      time: appointmentTime,
+      _id: { $ne: id }
+    });
+
+    if (existing) return res.status(400).json({ message: 'Time slot already booked' });
+
+    appointment.date = appointmentDate;
+    appointment.appointmentDate = appointmentDate;
+    appointment.time = appointmentTime;
+    appointment.appointmentTime = appointmentTime;
+    appointment.isRescheduled = true;
+    appointment.updatedAt = new Date();
+
+    await appointment.save();
+
+    // Emit Real-time update
+    const io = req.app.get("io");
+    io.to(organizationId.toString()).emit("appointment-updated", { 
+      type: 'reschedule', 
+      appointment 
+    });
+
+    res.json(appointment);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const deleteAppointmentV2 = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizationId = req.tenantId;
+
+    let appointment = await PendingAppointment.findById(id) || 
+                      await ConfirmedAppointment.findById(id);
+
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+
+    const cancelledApp = new CancelledAppointment({
+      ...appointment.toObject(),
+      status: 'cancelled',
+      updatedAt: new Date()
+    });
+
+    await cancelledApp.save();
+    await appointment.constructor.findByIdAndDelete(id);
+
+    const io = req.app.get("io");
+    io.to(organizationId.toString()).emit("appointment-updated", { 
+      type: 'cancelled', 
+      appointmentId: id 
+    });
+
+    res.json({ message: 'Appointment cancelled and archived' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 

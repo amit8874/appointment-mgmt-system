@@ -24,6 +24,7 @@ export const getDashboard = async (req, res) => {
       pendingAppointments,
       confirmedAppointments,
       cancelledAppointments,
+      revenueThisMonthRaw,
     ] = await Promise.all([
       Doctor.countDocuments({ organizationId: orgId }),
       User.countDocuments({ organizationId: orgId, role: 'receptionist' }),
@@ -40,7 +41,13 @@ export const getDashboard = async (req, res) => {
       PendingAppointment.countDocuments({ organizationId: orgId }),
       ConfirmedAppointment.countDocuments({ organizationId: orgId }),
       CancelledAppointment.countDocuments({ organizationId: orgId }),
+      Billing.aggregate([
+        { $match: { organizationId: orgId, status: 'Paid', createdAt: { $gte: startOfMonth } } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ])
     ]);
+
+    const revenueThisMonth = revenueThisMonthRaw[0]?.total || 0;
 
     // Get appointments by status
     const appointmentsByStatus = {
@@ -63,6 +70,7 @@ export const getDashboard = async (req, res) => {
         totalAppointments,
         appointmentsThisMonth,
         appointmentsThisYear,
+        revenueThisMonth,
       },
       appointmentsByStatus,
       recentAppointments,
@@ -395,6 +403,135 @@ export const getPatientStats = async (req, res) => {
     });
   } catch (error) {
     console.error('Patient analytics error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getBillingAnalytics = async (req, res) => {
+  try {
+    const { period = 'week' } = req.query;
+    const orgId = req.tenantId;
+    const now = new Date();
+    let startDate = new Date();
+    let groupBy;
+
+    if (period === 'today') {
+      startDate.setHours(0, 0, 0, 0);
+      groupBy = { $hour: "$createdAt" };
+    } else if (period === 'week') {
+      startDate.setDate(now.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0);
+      groupBy = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+    } else if (period === 'month') {
+      startDate.setMonth(now.getMonth() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      groupBy = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+    } else if (period === 'year') {
+      startDate.setFullYear(now.getFullYear() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      groupBy = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
+    }
+
+    const [trends, paymentMethods, topServices, summary] = await Promise.all([
+      // 1. Revenue Trends
+      Billing.aggregate([
+        {
+          $match: {
+            organizationId: orgId,
+            status: 'Paid',
+            createdAt: { $gte: startDate }
+          }
+        },
+        {
+          $group: {
+            _id: groupBy,
+            total: { $sum: "$amount" },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
+
+      // 2. Payment Method Breakdown
+      Billing.aggregate([
+        {
+          $match: {
+            organizationId: orgId,
+            status: 'Paid',
+            createdAt: { $gte: startDate }
+          }
+        },
+        {
+          $group: {
+            _id: "$paymentMethod",
+            value: { $sum: "$amount" }
+          }
+        }
+      ]),
+
+      // 3. Top Services
+      Billing.aggregate([
+        {
+          $match: {
+            organizationId: orgId,
+            status: 'Paid',
+            createdAt: { $gte: startDate }
+          }
+        },
+        { $unwind: "$items" },
+        {
+          $group: {
+            _id: "$items.description",
+            value: { $sum: "$items.subtotal" },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { value: -1 } },
+        { $limit: 10 }
+      ]),
+
+      // 4. Summary Metrics
+      Billing.aggregate([
+        {
+          $match: {
+            organizationId: orgId,
+            createdAt: { $gte: startDate }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalCollected: { 
+              $sum: { $cond: [{ $eq: ["$status", "Paid"] }, "$amount", 0] } 
+            },
+            totalPending: { 
+              $sum: { $cond: [{ $in: ["$status", ["Pending", "Due"]] }, "$amount", 0] } 
+            },
+            invoiceCount: { $sum: 1 }
+          }
+        }
+      ])
+    ]);
+
+    res.json({
+      trends: trends.map(t => ({ 
+        label: t._id, 
+        value: t.total,
+        count: t.count
+      })),
+      paymentMethods: paymentMethods.map(pm => ({ 
+        name: pm._id || 'N/A', 
+        value: pm.value 
+      })),
+      topServices: topServices.map(ts => ({ 
+        name: ts._id || 'General', 
+        value: ts.value, 
+        count: ts.count 
+      })),
+      summary: summary[0] || { totalCollected: 0, totalPending: 0, invoiceCount: 0 }
+    });
+  } catch (error) {
+    console.error('Billing analytics error:', error);
     res.status(500).json({ message: error.message });
   }
 };

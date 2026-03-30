@@ -7,15 +7,24 @@ const billingSchema = new mongoose.Schema({
     ref: 'Organization',
     required: true,
   },
+  invoiceNumber: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
   billId: {
     type: String,
     required: true
   },
   patientId: {
     type: String,
-    required: true
+    required: false // Optional for fast retail sales
   },
   patientName: {
+    type: String,
+    default: 'Walk-in Patient'
+  },
+  patientPhone: {
     type: String,
     default: ''
   },
@@ -30,6 +39,18 @@ const billingSchema = new mongoose.Schema({
   amount: {
     type: Number,
     required: true
+  },
+  subtotal: {
+    type: Number,
+    default: 0
+  },
+  taxAmount: {
+    type: Number,
+    default: 0
+  },
+  discount: {
+    type: Number,
+    default: 0
   },
   paidAmount: {
     type: Number,
@@ -61,17 +82,19 @@ const billingSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  appointmentDate: {
-    type: String,
-    default: null
-  },
-  appointmentTime: {
-    type: String,
+  templateId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'InvoiceTemplate',
     default: null
   },
   items: [{
+    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     description: String,
-    cost: Number
+    qty: { type: Number, default: 1 },
+    unitPrice: Number,
+    cost: Number,
+    tax: { type: Number, default: 0 },
+    subtotal: Number
   }],
   notes: String
 }, {

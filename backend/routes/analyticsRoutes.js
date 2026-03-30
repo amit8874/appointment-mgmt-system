@@ -2,7 +2,7 @@ import express from 'express';
 import { authenticateToken, requireAdmin, requireOrgAdmin } from '../middleware/auth.js';
 import { requireTenant, loadTenant } from '../middleware/tenant.js';
 import { checkSubscription } from '../middleware/subscription.js';
-import { getDashboard, getCharts, getAppointmentsStats, getDoctorStats, getPatientStats } from '../controllers/analyticsController.js';
+import { getDashboard, getCharts, getAppointmentsStats, getDoctorStats, getPatientStats, getBillingAnalytics } from '../controllers/analyticsController.js';
 
 const router = express.Router();
 
@@ -10,6 +10,13 @@ const router = express.Router();
 router.use(authenticateToken);
 router.use(requireTenant);
 router.use(loadTenant);
+
+/**
+ * @route   GET /api/analytics/billing
+ * @desc    Get billing and revenue analytics
+ * @access  Organization Admin
+ */
+router.get('/billing', requireOrgAdmin, checkSubscription, getBillingAnalytics);
 
 /**
  * @route   GET /api/analytics/dashboard

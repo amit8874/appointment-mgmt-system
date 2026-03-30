@@ -80,16 +80,16 @@ const doctorSchema = new mongoose.Schema({
     name: String,
     from: Date,
   }],
-  workingHours: {
-    start: {
-      type: String,
-      default: '09:00',
+  workingHours: [
+    {
+      start: { type: String, default: '09:00' },
+      end: { type: String, default: '13:00' },
     },
-    end: {
-      type: String,
-      default: '17:00',
-    },
-  },
+    {
+      start: { type: String, default: '17:00' },
+      end: { type: String, default: '21:00' },
+    }
+  ],
   availability: {
     monday: { type: Boolean, default: true },
     tuesday: { type: Boolean, default: true },
@@ -119,6 +119,34 @@ const doctorSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  registrationNumber: {
+    type: String,
+    trim: true,
+  },
+  registrationCouncil: {
+    type: String,
+    trim: true,
+  },
+  registrationYear: {
+    type: String,
+    trim: true,
+  },
+  certificateUrl: {
+    type: String,
+    trim: true,
+  },
+  idType: {
+    type: String,
+    enum: ['Aadhar Card', 'PAN Card', 'Driving License', 'Voter Card', 'Other'],
+  },
+  idNumber: {
+    type: String,
+    trim: true,
+  },
+  idDocumentUrl: {
+    type: String,
+    trim: true,
+  },
   experience: {
     type: Number,
     default: 0,
@@ -129,8 +157,26 @@ const doctorSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Active', 'Inactive', 'On Leave'],
-    default: 'Active',
+    enum: ['Active', 'Inactive', 'On Leave', 'Pending', 'Verified', 'Rejected'],
+    default: 'Pending',
+  },
+  serviceLocation: {
+    type: {
+      type: String,
+      enum: ['clinic', 'other'],
+      default: 'clinic'
+    },
+    practiceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Practice'
+    },
+    practiceName: String, // Cache name for easy display
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      pincode: String
+    }
   },
   photo: {
     type: String,

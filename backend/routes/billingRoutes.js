@@ -7,7 +7,8 @@ import {
   createBill,
   updateBillStatus,
   deleteBill,
-  getBillById
+  getBillById,
+  createPOSBill
 } from '../controllers/billingController.js';
 
 const router = express.Router();
@@ -22,7 +23,10 @@ router.get('/', getAllBills);
 // GET billing stats
 router.get('/stats', getBillingStats);
 
-// CREATE new bill
+// CREATE new POS bill (Fast checkout, stock deduction)
+router.post('/pos', createPOSBill);
+
+// CREATE new standard bill
 router.post('/', createBill);
 
 // UPDATE bill status

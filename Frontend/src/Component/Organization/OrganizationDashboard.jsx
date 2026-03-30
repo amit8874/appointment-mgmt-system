@@ -11,8 +11,9 @@ const OrganizationDashboard = () => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Get organizationId from user object or localStorage
-  const organizationId = user?.organizationId || localStorage.getItem('organizationId');
+  // Get organizationId from user object or localStorage (ensure only ID string is used)
+  const orgRawId = user?.organizationId || localStorage.getItem('organizationId');
+  const organizationId = typeof orgRawId === 'object' ? orgRawId._id : orgRawId;
 
   useEffect(() => {
     fetchData();

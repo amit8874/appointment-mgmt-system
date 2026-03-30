@@ -5,35 +5,47 @@ import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 
 // Helper function to generate time slots with range format
-const generateTimeSlots = (startTime, endTime, intervalMinutes = 30) => {
+const generateTimeSlots = (workingHours, intervalMinutes = 30) => {
   const slots = [];
-  const start = new Date(`1970-01-01T${startTime}:00`);
-  const end = new Date(`1970-01-01T${endTime}:00`);
+  
+  // If workingHours is not an array, convert to array for backward compatibility
+  const hoursArray = Array.isArray(workingHours) ? workingHours : [workingHours];
 
-  while (start < end) {
-    const slotStart = new Date(start);
-    const slotEnd = new Date(start.getTime() + intervalMinutes * 60000);
+  hoursArray.forEach(hours => {
+    if (!hours || !hours.start || !hours.end) return;
     
-    // Format start time
-    const startHours = slotStart.getHours();
-    const startMinutes = slotStart.getMinutes();
-    const startAmpm = startHours >= 12 ? 'PM' : 'AM';
-    const startDisplayHours = startHours % 12 || 12;
-    const startStr = `${startDisplayHours}:${startMinutes.toString().padStart(2, '0')}`;
-    
-    // Format end time
-    const endHours = slotEnd.getHours();
-    const endMinutes = slotEnd.getMinutes();
-    const endAmpm = endHours >= 12 ? 'PM' : 'AM';
-    const endDisplayHours = endHours % 12 || 12;
-    const endStr = `${endDisplayHours}:${endMinutes.toString().padStart(2, '0')}`;
-    
-    // Create range format like "10:00-10:30 AM" or "10:00-11:00 AM"
-    const displayTime = `${startStr}-${endStr} ${startAmpm}`;
-    slots.push(displayTime);
-    
-    start.setMinutes(start.getMinutes() + intervalMinutes);
-  }
+    const start = new Date(`1970-01-01T${hours.start}:00`);
+    const end = new Date(`1970-01-01T${hours.end}:00`);
+    const current = new Date(start);
+
+    while (current < end) {
+      const slotStart = new Date(current);
+      const slotEnd = new Date(current.getTime() + intervalMinutes * 60000);
+      
+      if (slotEnd > end) break;
+
+      // Format start time
+      const startHours = slotStart.getHours();
+      const startMinutes = slotStart.getMinutes();
+      const startAmpm = startHours >= 12 ? 'PM' : 'AM';
+      const startDisplayHours = startHours % 12 || 12;
+      const startStr = `${startDisplayHours}:${startMinutes.toString().padStart(2, '0')}`;
+      
+      // Format end time
+      const endHours = slotEnd.getHours();
+      const endMinutes = slotEnd.getMinutes();
+      const endAmpm = endHours >= 12 ? 'PM' : 'AM';
+      const endDisplayHours = endHours % 12 || 12;
+      const endStr = `${endDisplayHours}:${endMinutes.toString().padStart(2, '0')}`;
+      
+      // Create range format like "10:00-10:30 AM" or "10:00-11:00 AM"
+      const displayTime = `${startStr}-${endStr} ${startAmpm}`;
+      slots.push(displayTime);
+      
+      current.setMinutes(current.getMinutes() + intervalMinutes);
+    }
+  });
+  
   return slots;
 };
 
@@ -41,7 +53,7 @@ const generateTimeSlots = (startTime, endTime, intervalMinutes = 30) => {
 export const getGlobalPublicDoctors = async (req, res) => {
   try {
     const { speciality, city, query } = req.query;
-    const dbQuery = { status: 'Active' };
+    const dbQuery = { status: { $in: ['Active', 'Verified'] } };
     
     // If 'query' is provided, search in both name and specialization
     if (query && query.trim() !== '') {
@@ -86,22 +98,37 @@ export const getGlobalPublicDoctors = async (req, res) => {
     });
     const uniqueDoctors = Array.from(uniqueDoctorsMap.values());
 
-    const formattedDoctors = uniqueDoctors.map(doctor => ({
-      id: doctor.doctorId,
-      _id: doctor._id,
-      name: doctor.name,
-      specialization: doctor.specialization,
-      experience: doctor.experience,
-      fee: doctor.fee,
-      qualification: doctor.qualification,
-      workingHours: doctor.workingHours,
-      availability: doctor.availability,
-      photo: doctor.photo,
-      address: doctor.address,
-      phone: doctor.phone,
-      status: doctor.status,
-      organizationId: doctor.organizationId
-    }));
+    const formattedDoctors = uniqueDoctors.map(doctor => {
+      let displayAddress = doctor.address;
+      let displayClinic = doctor.serviceLocation?.type === 'other' ? "External Clinic" : "Own Clinic";
+
+      // If a specific service location address is provided (Own or Other), use it
+      if (doctor.serviceLocation?.address?.city) {
+        const addr = doctor.serviceLocation.address;
+        displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
+        if (doctor.serviceLocation.practiceName) {
+          displayClinic = doctor.serviceLocation.practiceName;
+        }
+      }
+
+      return {
+        id: doctor.doctorId,
+        _id: doctor._id,
+        name: doctor.name,
+        specialization: doctor.specialization,
+        experience: doctor.experience,
+        fee: doctor.fee,
+        qualification: doctor.qualification,
+        workingHours: doctor.workingHours,
+        availability: doctor.availability,
+        photo: doctor.photo,
+        address: displayAddress,
+        clinicName: displayClinic,
+        phone: doctor.phone,
+        status: doctor.status,
+        organizationId: doctor.organizationId
+      };
+    });
     
     res.json(formattedDoctors);
   } catch (error) {
@@ -204,13 +231,14 @@ export const getDoctorSlots = async (req, res) => {
     }
 
     // Check if doctor is active
-    if (doctor.status !== 'Active') {
+    if (!['Active', 'Verified'].includes(doctor.status)) {
       return res.json({ available: false, slots: [], message: 'Doctor is not available' });
     }
 
-    // Parse date and get day of week
+    // Parse date and get day of week in UTC to avoid timezone shifts
     const appointmentDate = new Date(date);
-    const dayOfWeek = appointmentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayOfWeek = days[appointmentDate.getUTCDay()];
 
     // Check availability for the day
     const dayAvailability = doctor.availability?.[dayOfWeek];
@@ -225,11 +253,15 @@ export const getDoctorSlots = async (req, res) => {
     }
 
     // Get working hours - use defaults if not set
-    const startTime = doctor.workingHours?.start || '09:00';
-    const endTime = doctor.workingHours?.end || '17:00';
+    const workingHours = doctor.workingHours && doctor.workingHours.length > 0 
+      ? doctor.workingHours 
+      : [{ start: '09:00', end: '17:00' }];
+
+    const startTime = workingHours[0].start;
+    const endTime = workingHours[0].end;
 
     // Generate possible time slots
-    const possibleSlotsStr = generateTimeSlots(startTime, endTime);
+    const possibleSlotsStr = generateTimeSlots(workingHours);
     
     if (possibleSlotsStr.length === 0) {
       return res.json({ 
@@ -371,7 +403,7 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
     if (!doctor) {
       doctor = await Doctor.findById(id);
     }
-    if (!doctor || doctor.status !== 'Active') {
+    if (!doctor || !['Active', 'Verified'].includes(doctor.status)) {
       return res.status(404).json({ message: 'Doctor not found or inactive' });
     }
 
@@ -388,9 +420,10 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
       let slotCount = 0;
 
       if (isAvailable) {
-        const startTime = doctor.workingHours?.start || '09:00';
-        const endTime = doctor.workingHours?.end || '17:00';
-        const possibleSlots = generateTimeSlots(startTime, endTime);
+        const workingHours = doctor.workingHours && doctor.workingHours.length > 0 
+          ? doctor.workingHours 
+          : [{ start: '09:00', end: '17:00' }];
+        const possibleSlots = generateTimeSlots(workingHours);
         
         const doctorIdSearch = [];
         if (doctor.doctorId) doctorIdSearch.push(doctor.doctorId);
@@ -445,12 +478,23 @@ export const getDoctor = async (req, res) => {
   res.json(doctor);
 };
 
-// Get all doctors
+// Get all doctors with pagination
 export const getAllDoctors = async (req, res) => {
   try {
-    const doctors = await Doctor.find({ organizationId: req.tenantId }).sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const skip = (page - 1) * limit;
 
-    // Remove duplicates based on doctorId to ensure unique doctors
+    const totalDoctors = await Doctor.countDocuments({ organizationId: req.tenantId });
+    const totalPages = Math.ceil(totalDoctors / limit);
+
+    const doctors = await Doctor.find({ organizationId: req.tenantId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Remove duplicates based on doctorId to ensure unique doctors (if still necessary in pagination context)
+    // Note: If doctorId is always unique within an org, this Map is redundant but kept for safety.
     const uniqueDoctorsMap = new Map();
     doctors.forEach(doc => {
       if (!uniqueDoctorsMap.has(doc.doctorId)) {
@@ -497,8 +541,20 @@ export const getAllDoctors = async (req, res) => {
       upcomingAppointments: doctor.upcomingAppointments,
       completedAppointments: doctor.completedAppointments,
       schedule: doctor.schedule,
+      registrationNumber: doctor.registrationNumber,
+      registrationCouncil: doctor.registrationCouncil,
+      registrationYear: doctor.registrationYear,
+      idType: doctor.idType,
+      idNumber: doctor.idNumber,
+      idDocumentUrl: doctor.idDocumentUrl,
     }));
-    res.json(formattedDoctors);
+
+    res.json({
+      doctors: formattedDoctors,
+      totalDoctors,
+      totalPages,
+      currentPage: page
+    });
   } catch (error) {
     console.error('Error fetching doctors:', error);
     res.status(500).json({ message: 'Server error' });
@@ -539,6 +595,7 @@ export const createDoctor = async (req, res) => {
     // Create and save new doctor
     const newDoctor = new Doctor({
       ...doctorData,
+      status: doctorData.status || 'Pending', // Default to pending for verification
       organizationId: req.tenantId
     });
     const savedDoctor = await newDoctor.save();
@@ -598,6 +655,48 @@ export const deleteDoctor = async (req, res) => {
   }
 };
 
+// Verify a doctor
+export const verifyDoctor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doctor = await Doctor.findOneAndUpdate(
+      { organizationId: req.tenantId, doctorId: id },
+      { $set: { status: 'Verified' } },
+      { new: true }
+    );
+
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    res.json({ message: 'Doctor verified successfully', doctor });
+  } catch (error) {
+    console.error('Error verifying doctor:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Reject a doctor
+export const rejectDoctor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doctor = await Doctor.findOneAndUpdate(
+      { organizationId: req.tenantId, doctorId: id },
+      { $set: { status: 'Rejected' } },
+      { new: true }
+    );
+
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    res.json({ message: 'Doctor rejected successfully', doctor });
+  } catch (error) {
+    console.error('Error rejecting doctor:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 /**
  * Get Checkout details for a doctor (Public)
  * Fetches doctor info and populates organization (clinic) details for the checkout summary.
@@ -613,7 +712,7 @@ export const getPublicDoctorCheckoutDetails = async (req, res) => {
       doctor = await Doctor.findById(id).populate('organizationId', 'name address');
     }
 
-    if (!doctor || doctor.status !== 'Active') {
+    if (!doctor || !['Active', 'Verified'].includes(doctor.status)) {
       return res.status(404).json({ message: 'Doctor not found' });
     }
 

@@ -58,15 +58,18 @@ function ProfilePage() {
                 setLoading(true);
                 const profileData = await getUserById(user.id);
                 // Map backend data to frontend format
+                const orgAddress = profileData.organizationId?.address || {};
                 const mappedProfile = {
                     firstName: profileData.name ? profileData.name.split(' ')[0] : '',
                     lastName: profileData.name ? profileData.name.split(' ').slice(1).join(' ') : '',
                     email: profileData.email || '',
                     phone: profileData.mobile || '',
                     userRole: profileData.role ? profileData.role.charAt(0).toUpperCase() + profileData.role.slice(1) : 'Admin',
-                    country: profileData.country || '',
-                    city: profileData.city || '',
-                    postalCode: profileData.postalCode || '',
+                    street: orgAddress.street || profileData.address || '',
+                    city: orgAddress.city || profileData.city || '',
+                    state: orgAddress.state || profileData.state || '',
+                    country: orgAddress.country || profileData.country || '',
+                    postalCode: orgAddress.zipCode || profileData.postalCode || '',
                     profilePic: profileData.profilePicture || 'https://via.placeholder.com/150/FF8C00/FFFFFF?text=NK',
                     logo: profileData.organizationId?.branding?.logo || null,
                     organizationName: profileData.organizationId?.name || '',
@@ -81,6 +84,8 @@ function ProfilePage() {
                         organization: {
                             id: profileData.organizationId._id,
                             name: profileData.organizationId.name,
+                            email: profileData.organizationId.email,
+                            phone: profileData.organizationId.phone,
                             slug: profileData.organizationId.slug,
                             branding: profileData.organizationId.branding,
                             status: profileData.organizationId.status
@@ -162,18 +167,34 @@ function ProfilePage() {
                 profilePicture: form.profilePic,
             };
 
-            await updateUserService(user.id, updateData);
+            await updateUser(user.id, updateData);
             
-            // Update organization name if changed
+            // Sync Clinic/Organization Details
             const organizationId = user?.organizationId?._id || user?.organizationId || user?.organization?._id;
-            if (organizationId && form.organizationName !== profile.organizationName) {
-                await organizationApi.update(organizationId, { name: form.organizationName });
+            if (organizationId) {
+                const orgUpdateData = {
+                    name: form.organizationName,
+                    email: form.email,
+                    phone: form.phone,
+                    address: {
+                        street: form.street,
+                        city: form.city,
+                        state: form.state,
+                        country: form.country,
+                        zipCode: form.postalCode
+                    }
+                };
+
+                await organizationApi.update(organizationId, orgUpdateData);
                 
-                // Sync global state for organization name
+                // Sync global state for organization
                 updateUser({
                     organization: {
                         ...(user.organization || {}),
-                        name: form.organizationName
+                        name: form.organizationName,
+                        email: form.email,
+                        phone: form.phone,
+                        address: orgUpdateData.address
                     }
                 });
             }
@@ -548,7 +569,10 @@ function ProfilePage() {
                                                 { label: 'Organization Name', value: profile.organizationName, icon: Globe },
                                                 { label: 'Email Address', value: profile.email, icon: Mail },
                                                 { label: 'Mobile Number', value: profile.phone, icon: Phone },
-                                                { label: 'Location', value: `${profile.city}, ${profile.country}`, icon: MapPin },
+                                                { label: 'Street Address', value: profile.street, icon: MapPin },
+                                                { label: 'City', value: profile.city, icon: MapPin },
+                                                { label: 'State', value: profile.state, icon: MapPin },
+                                                { label: 'Country', value: profile.country, icon: Globe },
                                                 { label: 'Postal Code', value: profile.postalCode, icon: Globe },
                                             ].map((item, idx) => (
                                                 <div key={idx} className="group">
@@ -965,9 +989,11 @@ const EditProfileModal = ({ isOpen, onClose, form, onFormChange, onSave }) => (
 
                             <div className="pt-6 border-t border-slate-100">
                                 <h3 className="text-lg font-bold text-slate-800 mb-6">Location Details</h3>
+                                <InputField label="Street Address" name="street" value={form.street} onChange={onFormChange} icon={MapPin} />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <InputField label="Country" name="country" value={form.country} onChange={onFormChange} icon={Globe} />
                                     <InputField label="City" name="city" value={form.city} onChange={onFormChange} icon={MapPin} />
+                                    <InputField label="State" name="state" value={form.state} onChange={onFormChange} icon={MapPin} />
+                                    <InputField label="Country" name="country" value={form.country} onChange={onFormChange} icon={Globe} />
                                     <InputField label="Postal Code" name="postalCode" value={form.postalCode} onChange={onFormChange} icon={MapPin} />
                                 </div>
                             </div>

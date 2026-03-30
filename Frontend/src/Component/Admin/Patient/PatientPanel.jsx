@@ -1,10 +1,11 @@
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, Clock, MoreVertical, FileText, CalendarPlus } from "lucide-react";
+import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, Clock, MoreVertical, FileText, CalendarPlus, MessageCircle } from "lucide-react";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../../../services/api";
 import { toast } from "react-toastify";
 import Pagination from "../../../components/common/Pagination";
+import PaymentModeModal from "../../../components/common/PaymentModeModal";
 
 const PatientPanel = ({
   onViewPatient,
@@ -13,7 +14,10 @@ const PatientPanel = ({
   patientsError,
   onAddPatient,
   setActiveTab,
-  setRebookData
+  setRebookData,
+  currentPage: serverCurrentPage,
+  totalPages,
+  onPageChange
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
@@ -21,8 +25,8 @@ const PatientPanel = ({
   const [patientToDelete, setPatientToDelete] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
@@ -31,9 +35,9 @@ const PatientPanel = ({
     return (patients || []).filter((patient) => {
       const matchesSearch =
         patient.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.patientId?.toLowerCase().includes(searchTerm.toLowerCase());
+        patient.patientId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (patient.mobile || patient.phone || patient.contactNumber || patient.contact || '').includes(searchTerm);
 
-      // Status filter - check paymentStatus or status field
       const patientStatus = patient.paymentStatus || patient.status || 'active';
       let matchesStatus = true;
       if (statusFilter === 'Paid') {
@@ -41,7 +45,6 @@ const PatientPanel = ({
       } else if (statusFilter === 'Pending') {
         matchesStatus = patientStatus === 'pending';
       } else if (statusFilter === 'Active') {
-        // Active = not dead (includes paid, pending, or undefined/null)
         matchesStatus = patientStatus !== 'dead';
       } else if (statusFilter === 'Dead') {
         matchesStatus = patientStatus === 'dead';
@@ -51,18 +54,8 @@ const PatientPanel = ({
     });
   }, [patients, searchTerm, statusFilter]);
 
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
-
-  // Paginate patients
-  const paginatedPatients = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredPatients.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredPatients, currentPage]);
-
-  const totalPages = Math.ceil(filteredPatients.length / itemsPerPage);
+  // Use the filtered patients directly (already limited by server)
+  const paginatedPatients = filteredPatients;
 
   // Calculate counts for each status
   const statusCounts = useMemo(() => {
@@ -137,12 +130,14 @@ const PatientPanel = ({
     setOpenMenuId(null);
     const rebookInfo = {
       patientName: patient.name,
-      firstName: patient.firstName,
-      lastName: patient.lastName,
-      patientPhone: patient.phone || patient.contact || '',
+      firstName: patient.firstName || patient.name?.split(' ')[0] || '',
+      lastName: patient.lastName || patient.name?.split(' ').slice(1).join(' ') || '',
+      patientPhone: patient.mobile || patient.phone || patient.contactNumber || patient.contact || '',
       patientEmail: patient.email || '',
-      patientId: patient._id,
+      patientId: patient.patientId,
       gender: patient.gender,
+      patientAge: patient.age,
+      ageType: patient.ageType || 'Year',
       bloodGroup: patient.bloodGroup,
       dateOfBirth: patient.dateOfBirth,
       address: patient.address,
@@ -153,9 +148,9 @@ const PatientPanel = ({
 
     if (setRebookData && setActiveTab) {
       setRebookData(rebookInfo);
-      setActiveTab('Appointment Mgmt');
+      setActiveTab('Calendar View');
     } else {
-      navigate('?tab=Appointment Mgmt', {
+      navigate('?tab=Calendar View', {
         state: {
           rebookData: rebookInfo
         }
@@ -292,13 +287,22 @@ const PatientPanel = ({
     openDeleteModal(patient);
   };
 
-  const handleMarkAsPaid = async (patient) => {
+  const handleMarkAsPaid = (patient) => {
     setOpenMenuId(null);
+    setSelectedPatientForPayment(patient);
+    setIsPaymentModalOpen(true);
+  };
+
+  const confirmMarkAsPaid = async (paymentMethod) => {
+    if (!selectedPatientForPayment) return;
+    const patient = selectedPatientForPayment;
+    setIsPaymentModalOpen(false);
+    
     try {
       // Find pending bills for this patient and mark as paid
       const response = await api.get('/billing');
       const pendingBills = response.data.filter(bill => 
-        bill.patientId === patient.patientId && bill.status === 'Pending'
+        bill.patientId === patient.patientId && (bill.status === 'Pending' || bill.status === 'pending')
       );
       
       if (pendingBills.length === 0) {
@@ -307,9 +311,12 @@ const PatientPanel = ({
       }
 
       for (const bill of pendingBills) {
-        await api.put(`/billing/${bill._id}`, { status: 'Paid' });
+        await api.put(`/billing/${bill._id}`, { 
+          status: 'Paid',
+          paymentMethod: paymentMethod 
+        });
       }
-      toast.success(`Marked ${pendingBills.length} bill(s) as Paid`);
+      toast.success(`Marked ${pendingBills.length} bill(s) as Paid via ${paymentMethod}`);
       
       // Small delay and refresh to show updated status
       setTimeout(() => {
@@ -321,6 +328,8 @@ const PatientPanel = ({
     } catch (error) {
       console.error('Error marking as paid:', error);
       toast.error('Error updating billing status');
+    } finally {
+      setSelectedPatientForPayment(null);
     }
   };
 
@@ -502,9 +511,6 @@ const PatientPanel = ({
                     Age
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Address
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
                     Phone
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
@@ -537,10 +543,7 @@ const PatientPanel = ({
                       {p.age || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      {p.address || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      {p.phone || p.contact || '-'}
+                      {p.mobile || p.phone || p.contactNumber || p.contact || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                       {p.lastVisit || p.date || '-'}
@@ -561,6 +564,15 @@ const PatientPanel = ({
                     </td>
                     <td className="px-6 py-4 text-sm relative">
                       <div className="flex items-center gap-2" ref={menuRef}>
+                        <a 
+                          href={`https://wa.me/${(p.mobile || p.phone || p.contactNumber || p.contact || '').replace(/\D/g, '')}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 dark:bg-green-900/20 dark:hover:bg-green-900/30 dark:text-green-400 transition-colors"
+                          title="WhatsApp Patient"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </a>
                         <button
                           onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
                           className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
@@ -636,11 +648,9 @@ const PatientPanel = ({
               </tbody>
             </table>
             <Pagination 
-              currentPage={currentPage}
+              currentPage={serverCurrentPage}
               totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              totalItems={filteredPatients.length}
-              itemsPerPage={itemsPerPage}
+              onPageChange={onPageChange}
             />
           </>
         )}
@@ -725,6 +735,14 @@ const PatientPanel = ({
           </motion.div>
         </div>
       )}
+      
+      {/* Payment Mode Selection Modal */}
+      <PaymentModeModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onConfirm={confirmMarkAsPaid}
+        patientName={selectedPatientForPayment?.name}
+      />
     </motion.div>
   );
 };

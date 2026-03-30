@@ -30,24 +30,25 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
         initial={{ x: -256 }}
         animate={{ x: sidebarOpen ? 0 : -256 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed inset-y-0 left-0 z-30 w-64 bg-gray-100 dark:bg-cyan-800 shadow-xl transform lg:translate-x-0 lg:static lg:inset-0 transition-transform duration-200 ease-in-out"
+        className="fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-800 shadow-xl transform lg:translate-x-0 lg:static lg:inset-0 transition-transform duration-300 border-r border-gray-100 dark:border-gray-700"
       >
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full p-4">
           {/* Logo */}
-          <div className="flex items-center justify-center h-20 px-4 bg-transparent border-b border-gray-200/50 dark:border-cyan-700">
+          <div className="flex items-center justify-center mb-8 px-4 bg-transparent">
             {user?.organization?.branding?.logo ? (
               <img
                 src={user.organization.branding.logo}
                 alt="Organization Logo"
-                className="h-12 w-auto object-contain"
+                className="h-16 w-auto object-contain"
               />
             ) : (
-              <h1 className="text-cyan-600 text-xl font-bold">Hospital Management</h1>
+              <h1 className="text-blue-600 text-2xl font-black italic tracking-tighter">SLOTIFY</h1>
             )}
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 space-y-3 overflow-y-auto">
+            <h2 className="text-[10px] font-black uppercase text-gray-400 mb-5 ml-4 tracking-[0.2em]">MAIN</h2>
             {navigation.map((item) => (
               <div key={item.name}>
                 {item.children ? (
@@ -56,19 +57,27 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                     <button
                       id={item.id}
                       onClick={() => toggleExpand(item.name)}
-                      className={`group flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-md transition-colors duration-200 text-gray-700 hover:bg-cyan-400 dark:text-gray-200 dark:hover:bg-cyan-700`}
+                      className={`group flex items-center justify-between w-full px-4 py-3 text-sm rounded-2xl transition-all duration-300 transform hover:translate-x-1 ${
+                        item.children.some(child => window.location.pathname === child.href)
+                        ? 'bg-blue-700 text-white shadow-lg shadow-blue-700/50 font-bold'
+                        : 'bg-slate-100/80 text-slate-700 hover:bg-blue-50 hover:text-blue-700 dark:bg-gray-700/50 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-blue-400 font-bold'
+                      }`}
                     >
                       <div className="flex items-center">
                         <item.icon
-                          className="mr-3 h-5 w-5 flex-shrink-0 text-gray-600 group-hover:text-gray-700 dark:group-hover:text-gray-200"
+                          className={`mr-3 h-5 w-5 flex-shrink-0 z-10 ${
+                            item.children.some(child => window.location.pathname === child.href) 
+                            ? 'text-white' 
+                            : 'text-blue-500 dark:text-blue-400'
+                          }`}
                           aria-hidden="true"
                         />
-                        <span className="text-gray-700 dark:text-gray-200">{item.name}</span>
+                        <span className="z-10">{item.name}</span>
                       </div>
                       {expandedItems[item.name] ? (
-                        <ChevronDown className="h-4 w-4 text-gray-500" />
+                        <ChevronDown className={`h-5 w-5 ${item.children.some(child => window.location.pathname === child.href) ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
                       ) : (
-                        <ChevronRight className="h-4 w-4 text-gray-500" />
+                        <ChevronRight className={`h-5 w-5 ${item.children.some(child => window.location.pathname === child.href) ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
                       )}
                     </button>
                     {/* Sub-menu items */}
@@ -77,16 +86,16 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="ml-6 mt-1 space-y-1"
+                        className="ml-6 mt-2 space-y-1.5"
                       >
                         {item.children.map((child) => (
                           <NavLink
                             key={child.name}
                             to={child.href}
                             className={({ isActive }) =>
-                              `group flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${isActive
-                                ? 'bg-cyan-500 text-white'
-                                : 'text-gray-600 hover:bg-cyan-400 hover:text-gray-800 dark:text-gray-300 dark:hover:bg-cyan-700 dark:hover:text-white'
+                              `group flex items-center px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 transform hover:translate-x-1 ${isActive
+                                ? 'bg-blue-500 text-white shadow-md font-black'
+                                : 'text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-blue-400'
                               }`
                             }
                           >
@@ -95,7 +104,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                                 <child.icon
                                   className={`mr-3 h-4 w-4 flex-shrink-0 ${isActive
                                     ? 'text-white'
-                                    : 'text-gray-500 group-hover:text-gray-700'
+                                    : 'text-blue-400 group-hover:text-blue-500'
                                     }`}
                                   aria-hidden="true"
                                 />
@@ -113,22 +122,23 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                     id={item.id}
                     to={item.href}
                     className={({ isActive }) =>
-                      `group flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors duration-200 ${isActive
-                        ? 'bg-cyan-500 text-white'
-                        : 'text-gray-700 hover:bg-cyan-400 dark:text-gray-200 dark:hover:bg-cyan-700'
+                      `group flex items-center px-4 py-3 text-sm rounded-2xl transition-all duration-300 transform hover:translate-x-1 ${isActive
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50 font-bold'
+                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-blue-400 font-medium'
                       }`
                     }
                   >
                     {({ isActive }) => (
                       <>
+                        {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-3/4 w-1 bg-white rounded-full"></div>}
                         <item.icon
-                          className={`mr-3 h-5 w-5 flex-shrink-0 ${isActive
+                          className={`mr-3 h-5 w-5 flex-shrink-0 z-10 ${isActive
                             ? 'text-white'
-                            : 'text-gray-600 group-hover:text-gray-700 dark:group-hover:text-gray-200'
+                            : 'text-blue-500 dark:text-blue-400'
                             }`}
                           aria-hidden="true"
                         />
-                        {item.name}
+                        <span className="z-10">{item.name}</span>
                       </>
                     )}
                   </NavLink>
@@ -137,37 +147,34 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
             ))}
           </nav>
 
-          {/* Profile & Logout */}
-          <div className="p-4 border-t border-cyan-600 dark:border-cyan-700">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
+          {/* User Profile Section (Matching Admin Style) */}
+          <div className="mt-auto pt-6 border-t border-gray-100 dark:border-gray-700">
+            <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center min-w-0">
+                <div className="relative">
                   <img
-                    className="h-9 w-9 rounded-full object-cover"
-                    src={user?.profilePhoto || `https://ui-avatars.com/api/?name=${user?.name || 'Receptionist'}&background=4f46e5&color=fff`}
+                    className="h-10 w-10 rounded-xl object-cover border-2 border-white shadow-sm"
+                    src={user?.profilePhoto || `https://ui-avatars.com/api/?name=${user?.name || 'Rec'}&background=2563eb&color=fff`}
                     alt={user?.name || 'Receptionist'}
                   />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
                 <div className="ml-3 overflow-hidden">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                  <p className="text-sm font-black text-gray-900 dark:text-white truncate uppercase tracking-tighter">
                     {user?.name || 'Receptionist'}
                   </p>
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-cyan-700 hover:text-cyan-900 dark:text-cyan-200 dark:hover:text-cyan-100"
-                    onClick={() => navigate('/receptionist/profile')}
-                  >
-                    View profile
-                  </button>
+                  <p className="text-[10px] font-bold text-gray-400 truncate tracking-wide">
+                    RECEPTIONIST
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={onLogout}
-                className="ml-4 p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all"
+                title="Logout"
               >
-                <span className="sr-only">Logout</span>
-                <LogOut className="h-5 w-5" aria-hidden="true" />
+                <LogOut className="h-5 w-5" />
               </button>
             </div>
           </div>

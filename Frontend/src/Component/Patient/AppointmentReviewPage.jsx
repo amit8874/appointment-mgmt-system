@@ -96,7 +96,7 @@ const AppointmentReviewPage = ({ userDetails, doctor, selectedDate, selectedSlot
 
       const time24h = convertTo24Hour(selectedSlot);
 
-      const response = await api.post('/appointments/patient-book', {
+      const response = await api.post('/appointments/book-patient', {
         patientId,
         organizationId: doctor.orgId,
         doctorId: doctor.id,

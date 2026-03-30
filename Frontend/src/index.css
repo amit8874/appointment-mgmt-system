@@ -17,3 +17,37 @@
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+@layer utilities {
+  .no-print {
+    @media print {
+      display: none !important;
+    }
+  }
+
+  .print-only {
+    display: none;
+    @media print {
+      display: block !important;
+    }
+  }
+}
+
+@page {
+  margin: 0;
+  size: auto;
+}
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Reset some common container constraints */
+  .min-h-screen {
+    min-height: auto !important;
+  }
+}

@@ -34,24 +34,36 @@ const DoctorScheduleModal = ({ doctor, onClose }) => {
         }
     }, [doctor]);
 
-    const generateTimeSlots = (start, end) => {
-        if (!start || !end) return [];
+    const generateTimeSlots = (workingHours) => {
         const slots = [];
-        let current = new Date(`1970-01-01T${start}:00`);
-        const last = new Date(`1970-01-01T${end}:00`);
-        while (current < last) {
-            const startTime = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            current.setMinutes(current.getMinutes() + 60);
-            const endTime = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            slots.push(`${startTime} - ${endTime}`);
+        try {
+            const shifts = Array.isArray(workingHours) ? workingHours : 
+                          (workingHours?.start ? [workingHours] : [{ start: '09:00', end: '17:00' }]);
+
+            shifts.forEach(shift => {
+                const start = shift.start || '09:00';
+                const end = shift.end || '17:00';
+                let current = new Date(`1970-01-01T${start}:00`);
+                const last = new Date(`1970-01-01T${end}:00`);
+                if (isNaN(current.getTime()) || isNaN(last.getTime())) return;
+                while (current < last) {
+                    const startTime = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                    current.setMinutes(current.getMinutes() + 30);
+                    const endTime = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                    slots.push(`${startTime} - ${endTime}`);
+                }
+            });
+        } catch (e) {
+            return [];
         }
         return slots;
     };
 
     if (!doctor) return null;
 
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const slots = generateTimeSlots(doctor.workingHours?.start, doctor.workingHours?.end);
+    const allDaysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const availableDays = allDaysOrder.filter(day => doctor.availability?.[day.toLowerCase()]);
+    const slots = generateTimeSlots(doctor.workingHours);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -96,7 +108,7 @@ const DoctorScheduleModal = ({ doctor, onClose }) => {
                         </div>
                         {/* Day Tabs */}
                         <div className="flex border-b border-gray-100 overflow-x-auto bg-gray-50/30">
-                            {days.map((day) => (
+                            {availableDays.map((day) => (
                                 <button
                                     key={day}
                                     onClick={() => setActiveDay(day)}

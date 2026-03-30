@@ -11,6 +11,8 @@ import {
   createDoctor,
   updateDoctor,
   deleteDoctor,
+  verifyDoctor,
+  rejectDoctor,
   getSearchSuggestions,
   getDoctorAvailabilitySummary,
   getPublicDoctorCheckoutDetails
@@ -63,5 +65,11 @@ router.put('/:id', requireAdminOrReceptionist, updateDoctor);
 
 // DELETE /api/doctors/:id - Delete a doctor
 router.delete('/:id', requireAdmin, deleteDoctor);
+
+// PATCH /api/doctors/:id/verify - Verify a doctor
+router.patch('/:id/verify', requireAdmin, verifyDoctor);
+
+// PATCH /api/doctors/:id/reject - Reject a doctor
+router.patch('/:id/reject', requireAdmin, rejectDoctor);
 
 export default router;

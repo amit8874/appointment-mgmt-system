@@ -141,8 +141,17 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
             doctorId: app.doctorId,
             reason: app.reason,
             status: app.status,
+            patientAge: app.patientAge,
             bookingDate: app.createdAt,
-            paymentStatus: app.paymentStatus,
+            paymentStatus: app.paymentStatus || 'pending',
+            // Added patient details for rescheduling
+            firstName: app.firstName || app.patientName?.split(' ')[0] || '',
+            lastName: app.lastName || app.patientName?.split(' ').slice(1).join(' ') || '',
+            phone: app.patientPhone || '',
+            email: app.patientEmail || '',
+            gender: app.gender || 'Male',
+            designation: app.designation || 'MR.',
+            ageType: app.ageType || 'Year',
           }
         };
       });
@@ -157,16 +166,20 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
     try {
       const res = await api.get('/doctors');
       const data = res.data;
-      setDoctors(data.map(d => ({ id: d.id || d.doctorId || d._id, name: d.name, specialization: d.specialization })));
-    } catch (err) { console.error(err); }
+      // Handle both direct array and paginated object responses
+      const doctorsArray = Array.isArray(data) ? data : (data.doctors || []);
+      setDoctors(doctorsArray.map(d => ({ id: d.id || d.doctorId || d._id, name: d.name, specialization: d.specialization })));
+    } catch (err) { console.error('Error fetching doctors:', err); }
   };
 
   const fetchPatients = async () => {
     try {
       const res = await api.get('/patients');
       const data = res.data;
-      setPatients(data.map(p => ({ id: p.patientId || p._id, name: p.fullName || `${p.firstName} ${p.lastName}` })));
-    } catch (err) { console.error(err); }
+      // Handle both direct array and paginated object responses
+      const patientsArray = Array.isArray(data) ? data : (data.patients || []);
+      setPatients(patientsArray.map(p => ({ id: p.patientId || p._id, name: p.fullName || `${p.firstName} ${p.lastName}` })));
+    } catch (err) { console.error('Error fetching patients:', err); }
   };
 
   useEffect(() => {
@@ -708,20 +721,30 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
           </div>
         </div>
 
-        {/* Calendar Grid */}
-        <div className="flex-1 min-w-0">
+        {/* Main Content Area */}
+        <div className="flex-1 min-w-0 flex flex-col gap-6">
           <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
-            {renderHeader()}
-            {view === 'month' && renderDays()}
             <AnimatePresence mode="wait">
               <motion.div
-                key={view + currentMonth}
-                initial={{ opacity: 0, scale: 0.98 }}
+                key="calendar-view"
+                initial={{ opacity: 0, scale: 0.99 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.2 }}
+                exit={{ opacity: 0, scale: 0.99 }}
+                transition={{ duration: 0.3 }}
               >
-                {view === 'month' ? renderCells() : view === 'week' ? renderWeek() : renderDay()}
+                {renderHeader()}
+                {view === 'month' && renderDays()}
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={view + currentMonth}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {view === 'month' ? renderCells() : view === 'week' ? renderWeek() : renderDay()}
+                  </motion.div>
+                </AnimatePresence>
               </motion.div>
             </AnimatePresence>
           </div>
@@ -735,7 +758,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={closeModals}
           />
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
             <NewAppointmentForm
               onClose={closeModals}
               onSuccess={handleBookOrUpdate}
@@ -743,14 +766,17 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
                 date: bookingSlotInfo?.start ? format(bookingSlotInfo.start, 'yyyy-MM-dd') : '',
                 time: bookingSlotInfo?.start ? format(bookingSlotInfo.start, 'HH:mm') : '',
                 ...(rebookData ? {
+                  patientId: rebookData.patientId,
                   doctorId: rebookData.doctorId,
                   procedure: rebookData.reason,
                   patientName: rebookData.patientName,
-                  firstName: rebookData.firstName,
-                  lastName: rebookData.lastName,
+                  firstName: rebookData.firstName || rebookData.patientName?.split(' ')[0] || '',
+                  lastName: rebookData.lastName || rebookData.patientName?.split(' ').slice(1).join(' ') || '',
                   phone: rebookData.patientPhone,
                   email: rebookData.patientEmail,
                   gender: rebookData.gender,
+                  age: rebookData.patientAge,
+                  ageType: rebookData.ageType || 'Year',
                   bloodGroup: rebookData.bloodGroup,
                   dateOfBirth: rebookData.dateOfBirth,
                   streetAddress: rebookData.address,
@@ -762,7 +788,16 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
                   id: editingEvent.id,
                   doctorId: editingEvent.resource.doctorId,
                   procedure: editingEvent.resource.reason,
-                  patientName: editingEvent.resource.patientName
+                  patientName: editingEvent.resource.patientName,
+                  // Map resource fields to NewAppointmentForm props
+                  firstName: editingEvent.resource.firstName,
+                  lastName: editingEvent.resource.lastName,
+                  phone: editingEvent.resource.phone,
+                  email: editingEvent.resource.email,
+                  gender: editingEvent.resource.gender,
+                  designation: editingEvent.resource.designation,
+                  age: editingEvent.resource.patientAge,
+                  ageType: editingEvent.resource.ageType,
                 } : {})
               }}
             />

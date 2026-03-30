@@ -15,6 +15,10 @@ import {
   deleteAppointment,
   getAvailableSlots,
   getStatsToday,
+  getTodayAppointments,
+  patchAppointmentStatus,
+  patchReschedule,
+  deleteAppointmentV2,
   bookPublicAppointment,
   cancelPublicAppointment
 } from '../controllers/appointmentController.js';
@@ -30,7 +34,7 @@ router.get('/doctor-appointments/:doctorId', authenticateToken, getDoctorAppoint
 router.get('/patient/:patientId/summary', authenticateToken, getPatientSummary);
 
 // Book new appointment dynamically (without tenant middleware reading subdomain)
-router.post('/patient-book', authenticateToken, bookPatientAppointment);
+router.post('/book-patient', authenticateToken, bookPatientAppointment);
 
 // Book appointment for public users (no auth required for initial booking)
 router.post('/public/book', bookPublicAppointment);
@@ -58,13 +62,13 @@ router.put('/:id/status', authenticateToken, requireTenant, updateAppointmentSta
 // Update appointment (reschedule or update details) - legacy route
 router.put('/:id', authenticateToken, requireTenant, updateAppointment);
 
-// Delete appointment (hard delete)
-router.delete('/:id', deleteAppointment);
-
-// Get available time slots for a doctor on a specific date
-router.get('/available-slots/:doctorId/:date', getAvailableSlots);
-
 // Get today's appointment stats (count by status)
 router.get('/stats/today', authenticateToken, requireTenant, getStatsToday);
+
+// --- NEW STANDARDIZED ROUTES ---
+router.get('/today', authenticateToken, requireTenant, getTodayAppointments);
+router.patch('/:id/status', authenticateToken, requireTenant, patchAppointmentStatus);
+router.patch('/:id/reschedule', authenticateToken, requireTenant, patchReschedule);
+router.delete('/:id', authenticateToken, requireTenant, deleteAppointmentV2);
 
 export default router;

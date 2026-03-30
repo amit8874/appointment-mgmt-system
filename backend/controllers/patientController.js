@@ -44,16 +44,34 @@ export const getPatientByMobile = async (req, res) => {
 };
 
 
-// Get all patients
+// Get all patients with pagination
 export const getAllPatients = async (req, res) => {
   try {
-    const patients = await Patient.find({ organizationId: req.tenantId }).sort({ createdAt: -1 }).lean();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const skip = (page - 1) * limit;
+
+    const totalPatients = await Patient.countDocuments({ organizationId: req.tenantId });
+    const totalPages = Math.ceil(totalPatients / limit);
+
+    const patients = await Patient.find({ organizationId: req.tenantId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
     // Ensure status field is included for all patients (default to 'active' if not set)
     const patientsWithStatus = patients.map(p => ({
       ...p,
       status: p.status || 'active'
     }));
-    res.json(patientsWithStatus);
+
+    res.json({
+      patients: patientsWithStatus,
+      totalPatients,
+      totalPages,
+      currentPage: page
+    });
   } catch (error) {
     console.error('Error fetching patients:', error);
     res.status(500).json({ message: error.message });
@@ -106,6 +124,8 @@ export const createPatient = async (req, res) => {
       allergies,
       assignedDoctor,
       assignedDoctorId,
+      designation,
+      ageType,
       reports = []
     } = req.body;
 
@@ -116,26 +136,18 @@ export const createPatient = async (req, res) => {
       return res.status(400).json({ message: 'First name is required' });
     }
 
-    if (!lastName || !lastName.trim()) {
-      return res.status(400).json({ message: 'Last name is required' });
-    }
+    // lastName and contactNumber are now optional
 
-    if (!contactNumber || !contactNumber.trim()) {
-      return res.status(400).json({ message: 'Contact number is required' });
-    }
+    // Check if patient already exists with this contact number (if provided)
+    if (contactNumber && contactNumber.trim()) {
+      const existingPatient = await Patient.findOne({
+        organizationId: req.tenantId,
+        mobile: contactNumber.trim()
+      });
 
-    if (contactNumber.length !== 10) {
-      return res.status(400).json({ message: 'Contact number must be exactly 10 digits' });
-    }
-
-    // Check if patient already exists with this contact number
-    const existingPatient = await Patient.findOne({
-      organizationId: req.tenantId,
-      mobile: contactNumber.trim()
-    });
-
-    if (existingPatient) {
-      return res.status(400).json({ message: 'Patient already exists with this contact number' });
+      if (existingPatient) {
+        return res.status(400).json({ message: 'Patient already exists with this contact number' });
+      }
     }
 
     // Generate unique Patient ID
@@ -145,13 +157,15 @@ export const createPatient = async (req, res) => {
     const newPatient = new Patient({
       organizationId: req.tenantId,
       patientId,
-      fullName: `${firstName.trim()} ${lastName.trim()}`,
+      designation: designation || '',
+      fullName: `${designation ? designation + ' ' : ''}${firstName.trim()} ${lastName ? lastName.trim() : ''}`.trim(),
       firstName: firstName.trim(),
-      lastName: lastName.trim(),
+      lastName: lastName ? lastName.trim() : '',
       age: age ? parseInt(age) : undefined,
+      ageType: ageType || 'Year',
       gender: gender && gender.trim() ? gender.trim() : undefined,
       bloodGroup: bloodGroup && bloodGroup.trim() ? bloodGroup.trim() : undefined,
-      mobile: contactNumber.trim(),
+      mobile: contactNumber ? contactNumber.trim() : '',
       email: email ? email.trim().toLowerCase() : '',
       address: address ? address.trim() : '',
       city: city ? city.trim() : '',
@@ -386,6 +400,20 @@ export const deletePatient = async (req, res) => {
     res.json({ message: 'Patient and all associated records deleted successfully' });
   } catch (error) {
     console.error('Error deleting patient:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+// Generate a new sequential Patient ID without creating a patient record
+export const getNewPatientId = async (req, res) => {
+  try {
+    const organizationId = req.tenantId || req.query.organizationId;
+    if (!organizationId) {
+      return res.status(400).json({ message: 'Organization ID is required' });
+    }
+    const patientId = await generatePatientId(organizationId);
+    res.json({ patientId });
+  } catch (error) {
+    console.error('Error generating patient ID:', error);
     res.status(500).json({ message: error.message });
   }
 };

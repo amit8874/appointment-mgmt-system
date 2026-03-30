@@ -47,17 +47,31 @@ const DoctorDetail = () => {
         fetchDoctor();
     }, [id]);
 
-    const generateTimeSlots = (start, end) => {
-        if (!start || !end) return [];
+    const generateTimeSlots = (workingHours) => {
         const slots = [];
-        let current = new Date(`1970-01-01T${start}:00`);
-        const last = new Date(`1970-01-01T${end}:00`);
+        try {
+            // Normalize workingHours to an array
+            const shifts = Array.isArray(workingHours) ? workingHours : 
+                          (workingHours?.start ? [workingHours] : [{ start: '09:00', end: '17:00' }]);
 
-        while (current < last) {
-            const startTime = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            current.setMinutes(current.getMinutes() + 60);
-            const endTime = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            slots.push(`${startTime} - ${endTime}`);
+            shifts.forEach(shift => {
+                const start = shift.start || '09:00';
+                const end = shift.end || '17:00';
+                
+                let current = new Date(`1970-01-01T${start}:00`);
+                const last = new Date(`1970-01-01T${end}:00`);
+
+                if (isNaN(current.getTime()) || isNaN(last.getTime())) return;
+
+                while (current < last) {
+                    const startTime = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                    current.setMinutes(current.getMinutes() + 30);
+                    const endTime = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                    slots.push(`${startTime} - ${endTime}`);
+                }
+            });
+        } catch (e) {
+            console.error("Error generating slots:", e);
         }
         return slots;
     };
@@ -81,24 +95,21 @@ const DoctorDetail = () => {
         );
     }
 
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const slots = generateTimeSlots(doctor.workingHours?.start, doctor.workingHours?.end);
+    const allDaysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const availableDays = allDaysOrder.filter(day => doctor.availability?.[day.toLowerCase()]);
+    const slots = generateTimeSlots(doctor.workingHours);
 
     return (
         <div className="p-6 bg-gray-100 min-h-screen space-y-6">
-            {/* Breadcrumb */}
+            {/* Breadcrumb / Back Button */}
             <div className="flex items-center gap-2 mb-4">
-                {location.pathname.startsWith('/admin') ? (
-                    <Link to="/admin-dashboard" className="flex items-center gap-1 text-gray-600 hover:text-indigo-600 font-medium transition-colors">
-                        <ChevronLeft size={20} />
-                        <span>Back to Dashboard</span>
-                    </Link>
-                ) : (
-                    <Link to="/receptionist/doctor" className="flex items-center gap-1 text-gray-600 hover:text-indigo-600 font-medium transition-colors">
-                        <ChevronLeft size={20} />
-                        <span>Doctors</span>
-                    </Link>
-                )}
+                <button 
+                    onClick={() => navigate(-1)} 
+                    className="flex items-center gap-1 text-gray-600 hover:text-indigo-600 font-bold transition-colors group bg-white px-3 py-1.5 rounded-lg border border-gray-100 shadow-sm"
+                >
+                    <ChevronLeft size={20} className="group-hover:-translate-x-0.5 transition-transform" />
+                    <span>Back</span>
+                </button>
             </div>
 
             {/* Profile Header Card */}
@@ -184,7 +195,7 @@ const DoctorDetail = () => {
 
                         {/* Day Tabs */}
                         <div className="flex border-b border-gray-100 overflow-x-auto bg-gray-50/30">
-                            {days.map((day) => (
+                            {availableDays.map((day) => (
                                 <button
                                     key={day}
                                     onClick={() => setActiveTab(day)}

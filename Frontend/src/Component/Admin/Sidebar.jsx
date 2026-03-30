@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Stethoscope, HandHeart, BarChart, CalendarCheck, Wallet, X, ChevronDown, ChevronRight, User, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, HandHeart, BarChart, CalendarCheck, Wallet, X, ChevronDown, ChevronRight, User, Calendar, Activity } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }) => {
   const [expandedItems, setExpandedItems] = useState({});
@@ -45,8 +45,8 @@ const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }
         <button
           onClick={onToggle}
           className={`group flex items-center justify-between w-full px-4 py-3 rounded-2xl transition-all duration-300 transform hover:translate-x-1 ${hasActiveChild
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50 font-bold'
-            : 'text-gray-600 hover:bg-blue-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-blue-400 font-medium'
+            ? 'bg-blue-700 text-white shadow-lg shadow-blue-700/50 font-bold'
+            : 'bg-slate-100/80 text-slate-700 hover:bg-blue-100 hover:text-blue-700 dark:bg-gray-700/50 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-blue-400 font-bold'
           }`}
         >
           <div className="flex items-center">
@@ -54,9 +54,9 @@ const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }
             <span className="z-10">{name}</span>
           </div>
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className={`w-5 h-5 ${hasActiveChild ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
           ) : (
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className={`w-5 h-5 ${hasActiveChild ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
           )}
         </button>
         {/* Sub-menu items */}
@@ -83,6 +83,11 @@ const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }
     { name: 'Doctor', icon: Stethoscope },
     { name: 'Add Doctor', icon: User },
     { name: 'Doctor Schedule', icon: Calendar },
+  ];
+
+  const appointmentChildren = [
+    { name: 'Calendar View', icon: Calendar },
+    { name: 'Track Appointment', icon: Activity },
   ];
 
   return (
@@ -117,7 +122,15 @@ const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }
         />
 
         <h2 className="text-xs font-extrabold uppercase text-gray-400 mt-8 pt-4 border-t border-gray-100 dark:border-gray-700 mb-5 ml-4 tracking-wider">OPERATIONS</h2>
-        <NavItem name="Appointment Mgmt" icon={CalendarCheck} currentTab={activeTab} onClick={setActiveTab} />
+        <ExpandableNavItem
+          name="Appointment Mgmt"
+          icon={CalendarCheck}
+          children={appointmentChildren}
+          currentTab={activeTab}
+          onClick={setActiveTab}
+          isExpanded={expandedItems['Appointment Mgmt']}
+          onToggle={() => toggleExpand('Appointment Mgmt')}
+        />
         <NavItem name="Billing & Payments" icon={Wallet} currentTab={activeTab} onClick={setActiveTab} />
         <NavItem name="Reports & Analytics" icon={BarChart} currentTab={activeTab} onClick={setActiveTab} />
         {(user?.role === 'superadmin' || user?.role === 'orgadmin' || user?.role === 'admin') && (

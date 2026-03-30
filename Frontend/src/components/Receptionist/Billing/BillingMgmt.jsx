@@ -57,7 +57,26 @@ const BillingMgmt = () => {
 
   useEffect(() => {
     fetchBills();
+    fetchAppointmentPhoneMap();
   }, []);
+
+  const [phoneMap, setPhoneMap] = useState({});
+
+  const fetchAppointmentPhoneMap = async () => {
+    try {
+      const { appointmentApi } = await import('../../../services/api');
+      const appointments = await appointmentApi.getAll();
+      const mapping = {};
+      (appointments || []).forEach(appt => {
+        if (appt.patientId && appt.patientPhone) {
+          mapping[appt.patientId] = appt.patientPhone;
+        }
+      });
+      setPhoneMap(mapping);
+    } catch (error) {
+      console.error('Error fetching appointment phone map:', error);
+    }
+  };
 
   // Find patient details
   const findPatient = async () => {
@@ -81,8 +100,9 @@ const BillingMgmt = () => {
   const calculateSubtotal = (items) => {
     if (!items || !Array.isArray(items)) return 0;
     return items.reduce((sum, item) => {
-      const price = Number(item.price || item.cost || 0);
-      const quantity = Number(item.quantity || 1);
+      // Robust price detection: if Item price is missing (legacy records), fallback to bill amount for single-item bills
+      const price = Number(item.price || item.cost || item.unitPrice || item.subtotal || (items.length === 1 ? (selectedBill?.amount || 0) : 0) || 0);
+      const quantity = Number(item.quantity || item.qty || 1);
       return sum + (price * quantity);
     }, 0);
   };
@@ -204,12 +224,17 @@ const BillingMgmt = () => {
     const matchesSearch = 
       (bill.patientName && bill.patientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (bill.id && bill.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (bill.appointmentId && bill.appointmentId.toLowerCase().includes(searchTerm.toLowerCase()));
+      (bill.billId && bill.billId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (bill.appointmentId && bill.appointmentId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (bill.patientPhone && bill.patientPhone.includes(searchTerm)) ||
+      (phoneMap[bill.patientId] && phoneMap[bill.patientId].includes(searchTerm));
     
     const matchesFilter = 
       activeFilter === 'All' || 
       (activeFilter === 'Paid' && bill.status === 'Paid') ||
-      (activeFilter === 'Pending' && bill.status === 'Pending');
+      (activeFilter === 'Pending' && bill.status === 'Pending') ||
+      (['Cash', 'UPI', 'Card'].includes(activeFilter) && 
+       bill.paymentMethod?.toLowerCase() === activeFilter.toLowerCase());
     
     return matchesSearch && matchesFilter;
   });
@@ -241,7 +266,7 @@ const BillingMgmt = () => {
             </div>
             <input
               type="text"
-              placeholder="Search bills by patient, ID, or appointment..."
+              placeholder="Search by Patient, ID, or Phone..."
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -271,7 +296,7 @@ const BillingMgmt = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className={`grid grid-cols-1 ${user?.role?.toLowerCase() === 'receptionist' ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-4 mb-6`}>
         <div className="bg-white p-4 rounded-lg shadow">
           <div className="text-sm font-medium text-gray-500">Total Bills</div>
           <div className="mt-1 text-2xl font-semibold text-gray-900">{totalBills}</div>
@@ -284,22 +309,24 @@ const BillingMgmt = () => {
           <div className="text-sm font-medium text-gray-500">Pending</div>
           <div className="mt-1 text-2xl font-semibold text-yellow-600">{pendingBills}</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm font-medium text-gray-500">Total Revenue</div>
-          <div className="mt-1 text-2xl font-semibold text-blue-600">
-            ₹{(Number(totalRevenue) || 0).toFixed(2)}
+        {user?.role?.toLowerCase() !== 'receptionist' && (
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="text-sm font-medium text-gray-500">Total Revenue</div>
+            <div className="mt-1 text-2xl font-semibold text-blue-600">
+              ₹{(Number(totalRevenue) || 0).toFixed(2)}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Filter Tabs */}
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <div className="flex space-x-2 bg-gray-200 p-1 rounded-xl w-full sm:w-auto">
-          {['All', 'Paid', 'Pending'].map(filter => (
+        <div className="flex space-x-2 bg-gray-200 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
+          {['All', 'Cash', 'UPI', 'Card'].map(filter => (
             <button
               key={filter}
               onClick={() => setActiveFilter(filter)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 w-full sm:w-auto
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap
                 ${activeFilter === filter
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'text-gray-600 hover:bg-gray-300'
@@ -324,6 +351,9 @@ const BillingMgmt = () => {
                   Patient
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Phone
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Date
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -346,6 +376,9 @@ const BillingMgmt = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {bill.patientName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {bill.patientPhone || phoneMap[bill.patientId] || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {bill.date ? format(parseISO(bill.date), 'MMM dd, yyyy') : '-'}

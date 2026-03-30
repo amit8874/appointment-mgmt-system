@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, User, Calendar, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, User, Calendar, ShieldCheck, Grid, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NavItem from './NavItem.jsx';
 
@@ -32,8 +32,8 @@ const AdminSidebar = ({
           id={id}
           onClick={() => toggleExpand(name)}
           className={`flex items-center justify-between w-full px-3 py-2.5 rounded-none transition-all duration-200 ${hasActiveChild
-            ? 'bg-indigo-50/50 text-indigo-700 font-bold'
-            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 font-medium'
+            ? 'bg-indigo-100/50 text-indigo-800 font-bold'
+            : 'bg-gray-100/40 text-gray-700 hover:bg-gray-200/50 hover:text-gray-900 dark:bg-gray-700/30 dark:text-gray-300 dark:hover:bg-gray-700 font-bold border-y border-gray-100/50 dark:border-gray-700/50'
           }`}
         >
           <div className="flex items-center">
@@ -41,9 +41,9 @@ const AdminSidebar = ({
             <span className="text-base">{name}</span>
           </div>
           {expandedItems[name] ? (
-            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            <ChevronDown className={`w-5 h-5 ${hasActiveChild ? 'text-indigo-800' : 'text-gray-700 dark:text-gray-400'}`} />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+            <ChevronRight className={`w-5 h-5 ${hasActiveChild ? 'text-indigo-800' : 'text-gray-700 dark:text-gray-400'}`} />
           )}
         </button>
         {/* Sub-menu items */}
@@ -81,6 +81,11 @@ const AdminSidebar = ({
     { name: 'Doctor Schedule', icon: Calendar },
   ];
 
+  const appointmentChildren = [
+    { name: 'Calendar View', icon: Calendar },
+    { name: 'Track Appointment', icon: Activity },
+  ];
+
   return (
     <aside
       className={`w-60 fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -96,7 +101,8 @@ const AdminSidebar = ({
 
       <nav className="space-y-1">
         <h2 className="text-xs font-semibold uppercase text-gray-400 mb-2 ml-3 tracking-wider">MAIN</h2>
-        <NavItem id="tour-admin-dashboard" name="Dashboard" icon={LayoutDashboard} currentTab={activeTab} onClick={setActiveTab} />
+        <NavItem id="tour-admin-new-appointment" name="New Appointment" icon={CalendarCheck} currentTab={activeTab} onClick={setActiveTab} />
+        <NavItem id="tour-admin-analysis" name="Analysis" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} />
         <NavItem id="tour-admin-patients" name="Patients" icon={Users} currentTab={activeTab} onClick={setActiveTab} />
 
         <h2 className="text-xs font-semibold uppercase text-gray-400 mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 mb-2 ml-3 tracking-wider">STAFF & RESOURCES</h2>
@@ -110,7 +116,12 @@ const AdminSidebar = ({
         />
 
         <h2 className="text-xs font-semibold uppercase text-gray-400 mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 mb-2 ml-3 tracking-wider">OPERATIONS</h2>
-        <NavItem id="tour-admin-appointments" name="Appointment Mgmt" icon={CalendarCheck} currentTab={activeTab} onClick={setActiveTab} />
+        <ExpandableNavItem
+          id="tour-admin-appointments"
+          name="Appointment Mgmt"
+          icon={CalendarCheck}
+          children={appointmentChildren}
+        />
         <NavItem id="tour-admin-billing" name="Billing & Payments" icon={Wallet} currentTab={activeTab} onClick={setActiveTab} />
         <NavItem id="tour-admin-reports" name="Reports & Analytics" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} />
         {(user?.role === 'superadmin' || user?.role === 'orgadmin' || user?.role === 'admin') && (

@@ -668,14 +668,14 @@ const PatientEditProfile = () => {
                 )}
 
                 <button
-                  onClick={handleCancel}
+                  onClick={() => navigate(-1)}
                   className="w-full py-3 px-6 rounded-lg font-semibold border-2 transition hover:bg-gray-50"
                   style={{
                     color: currentTheme.text,
                     borderColor: currentTheme.border,
                   }}
                 >
-                  Back to Dashboard
+                  Back
                 </button>
               </div>
             </div>

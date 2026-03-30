@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { billingApi, appointmentApi, centralDoctorApi } from '../../../services/api';
+import { billingApi, appointmentApi, centralDoctorApi, authApi } from '../../../services/api';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
 import { useAuth } from '../../../context/AuthContext';
 import Pagination from '../../../components/common/Pagination';
@@ -62,12 +62,12 @@ const InvoiceList = React.memo(({
     <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
 
       {/* Filter Tabs */}
-      <div className="flex space-x-2 text-black bg-gray-200 p-1 rounded-xl w-full sm:w-auto">
-        {['All', 'Paid', 'Pending'].map(filter => (
+      <div className="flex space-x-2 text-black bg-gray-200 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
+        {['All', 'Cash', 'UPI', 'Card'].map(filter => (
           <button
             key={filter}
             onClick={() => setActiveFilter(filter)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 w-full sm:w-auto
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap
                       ${activeFilter === filter
                 ? `bg-${PRIMARY_COLOR}-600 text-black shadow-md`
                 : 'text-gray-600 hover:bg-gray-200'
@@ -85,7 +85,7 @@ const InvoiceList = React.memo(({
         </div>
         <input
           type="text"
-          placeholder="Search ID, Patient, or Doctor..."
+          placeholder="Search by Name, ID, or Mobile..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:border-green-500 focus:ring-green-500 transition duration-150"
@@ -193,26 +193,37 @@ const transformApiData = (apiBill) => {
   return {
     id: apiBill.billId,
     _id: apiBill._id,
-    patient: apiBill.patientName,
-    patientId: apiBill.patientId,
-    doctor: apiBill.doctorName,
-    doctorId: apiBill.doctorId,
+    patient: String(apiBill.patientName || ''),
+    patientId: String(apiBill.patientId || ''),
+    doctor: String(apiBill.doctorName || ''),
+    doctorId: String(apiBill.doctorId || ''),
     date: apiBill.date ? new Date(apiBill.date).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN'),
     dateRaw: apiBill.date,
     amount: apiBill.amount,
     status: apiBill.status,
     details: {
-      patient: apiBill.patientName,
-      doctor: apiBill.doctorName,
+      patient: String(apiBill.patientName || ''),
+      doctor: String(apiBill.doctorName || ''),
       appointmentDate: apiBill.date ? new Date(apiBill.date).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
-      consultationFee: apiBill.items?.find(i => i.description?.toLowerCase().includes('consultation'))?.cost || 0,
-      tests: apiBill.items?.find(i => i.description?.toLowerCase().includes('test'))?.cost || 0,
-      medicines: apiBill.items?.find(i => i.description?.toLowerCase().includes('medicine'))?.cost || 0,
+      consultationFee: (() => {
+        const item = apiBill.items?.find(i => i.description?.toLowerCase().includes('consultation'));
+        // Ultimate fallback: if it's a consultation item but has no cost/price fields, 
+        // use the total amount as a fallback for these legacy/broken records
+        return item ? (item.cost ?? item.unitPrice ?? item.subtotal ?? apiBill.amount ?? 0) : 0;
+      })(),
+      tests: (() => {
+        const item = apiBill.items?.find(i => i.description?.toLowerCase().includes('test'));
+        return item ? (item.cost ?? item.unitPrice ?? item.subtotal ?? 0) : 0;
+      })(),
+      medicines: (() => {
+        const item = apiBill.items?.find(i => i.description?.toLowerCase().includes('medicine'));
+        return item ? (item.cost ?? item.unitPrice ?? item.subtotal ?? 0) : 0;
+      })(),
       additionalCharges: apiBill.items?.filter(i => 
         !i.description?.toLowerCase().includes('consultation') && 
         !i.description?.toLowerCase().includes('test') && 
         !i.description?.toLowerCase().includes('medicine')
-      ).reduce((sum, item) => sum + (item.cost || 0), 0) || 0,
+      ).reduce((sum, item) => sum + (item.cost || item.unitPrice || item.subtotal || 0), 0) || 0,
       discounts: 0,
       taxRate: 0,
       totalAmount: apiBill.amount,
@@ -404,11 +415,11 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
         
         setBillData(prev => ({
           ...prev,
-          patientName: appt.patientName,
-          patientId: appt.patientId || appt.patient?._id || appt.patient,
-          doctorName: appt.doctorName,
-          doctorId: appt.doctorId || appt.doctor?._id || appt.doctor,
-          appointmentId: appt._id || appt.id,
+          patientName: String(appt.patientName || ''),
+          patientId: String(appt.patientId || appt.patient?._id || appt.patient || ''),
+          doctorName: String(appt.doctorName || ''),
+          doctorId: String(appt.doctorId || appt.doctor?._id || appt.doctor || ''),
+          appointmentId: String(appt._id || appt.id || ''),
           appointmentDate: appt.date ? new Date(appt.date).toISOString().substring(0, 10) : prev.appointmentDate,
           consultationFee: doctor?.consultantFee || doctor?.fee || 0
         }));
@@ -474,10 +485,10 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
     try {
       // Prepare items array
       const items = [];
-      if (billData.consultationFee > 0) items.push({ description: 'Consultation Fee', cost: billData.consultationFee });
-      if (billData.tests > 0) items.push({ description: 'Tests/Lab Fees', cost: billData.tests });
-      if (billData.medicines > 0) items.push({ description: 'Medicines/Pharmacy', cost: billData.medicines });
-      if (billData.additionalCharges > 0) items.push({ description: 'Additional Charges', cost: billData.additionalCharges });
+      if (billData.consultationFee > 0) items.push({ description: 'Consultation Fee', cost: billData.consultationFee, unitPrice: billData.consultationFee, subtotal: billData.consultationFee, qty: 1 });
+      if (billData.tests > 0) items.push({ description: 'Tests/Lab Fees', cost: billData.tests, unitPrice: billData.tests, subtotal: billData.tests, qty: 1 });
+      if (billData.medicines > 0) items.push({ description: 'Medicines/Pharmacy', cost: billData.medicines, unitPrice: billData.medicines, subtotal: billData.medicines, qty: 1 });
+      if (billData.additionalCharges > 0) items.push({ description: 'Additional Charges', cost: billData.additionalCharges, unitPrice: billData.additionalCharges, subtotal: billData.additionalCharges, qty: 1 });
 
       // Map payment mode to API format
       const paymentModeMap = {
@@ -686,9 +697,9 @@ const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
         <Icon className="w-6 h-6" />
       </div>
       <div>
-        <p className="text-sm font-medium text-gray-500">{title}</p>
+        <p className="text-sm font-medium text-gray-500">{String(title || '')}</p>
         <p className="text-2xl font-extrabold text-gray-900 tracking-tight">
-          {value}
+          {String(value || '')}
         </p>
       </div>
     </div>
@@ -697,7 +708,7 @@ const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
 
 
 // --- Invoice Detail Modal Component ---
-const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, clinicInfo = {} }) => {
+const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, clinicInfo = {} }) => {
   const details = invoice.details || {};
 
   // Map the detail fields to readable labels
@@ -726,15 +737,15 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, clinic
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-80 flex items-center justify-center p-4 sm:p-6 print:p-0 print:bg-white" onClick={onClose}>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-80 flex items-center justify-center p-4 sm:p-6 no-print" onClick={onClose}>
       <div 
-        className="bg-white shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative transform transition-all duration-300 scale-100 print:shadow-none print:w-full print:max-w-none print:m-0 print:max-h-none"
+        className="bg-white shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative transform transition-all duration-300 scale-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Status Watermark */}
         <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-10 pointer-events-none select-none z-0 print:opacity-10" style={{ zIndex: 0 }}>
           <span className={`text-[100px] font-black uppercase transform -rotate-45 block ${invoice.status === 'Paid' ? 'text-green-600' : 'text-red-500'}`}>
-            {invoice.status}
+            {String(invoice.status || '')}
           </span>
         </div>
 
@@ -755,15 +766,23 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, clinic
           <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-800 pb-4 mb-4">
             <div>
               <h1 className="text-3xl font-black text-slate-800 tracking-tight uppercase mb-1">INVOICE</h1>
-              <p className="text-xs font-bold text-slate-500">#{invoice.id}</p>
+              <p className="text-xs font-bold text-slate-500">#{String(invoice.id || '')}</p>
             </div>
             
             <div className="flex items-start text-right mt-2 sm:mt-0 gap-4">
               <div className="text-right flex-1">
-                <h2 className="text-xl font-bold text-slate-800">{clinicInfo.name || 'Slotify'}</h2>
-                <p className="text-xs text-slate-600 mt-1">{clinicInfo.address || '123 Health Avenue, Medical District'}</p>
-                <p className="text-xs text-slate-600">{clinicInfo.email || 'contact@clinicmanagement.com'}</p>
-                <p className="text-xs text-slate-600">{clinicInfo.phone || '+1 (555) 123-4567'}</p>
+                <h2 className="text-xl font-bold text-slate-800">{clinicInfo.name || clinicInfo.clinicName || 'Clinic Name'}</h2>
+                <p className="text-xs text-slate-600 mt-1">
+                  {(() => {
+                    const addr = clinicInfo.address || clinicInfo.clinicAddress || clinicInfo.location;
+                    if (!addr) return '';
+                    if (typeof addr === 'string') return addr;
+                    const parts = [addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean);
+                    return parts.join(', ');
+                  })()}
+                </p>
+                <p className="text-xs text-slate-600">{clinicInfo.email || clinicInfo.clinicEmail || clinicInfo.contactEmail || ''}</p>
+                <p className="text-xs text-slate-600">{clinicInfo.phone || clinicInfo.mobile || clinicInfo.contact || ''}</p>
               </div>
               {clinicInfo.branding?.logo && (
                 <div className="flex-shrink-0">
@@ -778,24 +797,24 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, clinic
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Billed To</p>
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                <h3 className="text-md font-bold text-slate-800">{invoice.patient}</h3>
-                <p className="text-xs text-slate-600 mt-0.5">Patient ID: {details.patientId || invoice.patientId || 'N/A'}</p>
-                <p className="text-xs text-slate-600">Attending Doctor: <span className="font-semibold">{invoice.doctor}</span></p>
+                <h3 className="text-md font-bold text-slate-800">{String(invoice.patient || '')}</h3>
+                <p className="text-xs text-slate-600 mt-0.5">Patient ID: {String(details.patientId || invoice.patientId || 'N/A')}</p>
+                <p className="text-xs text-slate-600">Attending Doctor: <span className="font-semibold">{String(invoice.doctor || '')}</span></p>
               </div>
             </div>
             <div className="sm:text-right">
               <div className="grid grid-cols-2 gap-3">
                 <div className="text-left sm:text-right">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Invoice Date</p>
-                  <p className="text-xs font-semibold text-slate-800">{invoice.date}</p>
+                  <p className="text-xs font-semibold text-slate-800">{String(invoice.date || '')}</p>
                 </div>
                 <div className="text-left sm:text-right">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Due Date</p>
-                  <p className="text-xs font-semibold text-slate-800">{invoice.date}</p>
+                  <p className="text-xs font-semibold text-slate-800">{String(invoice.date || '')}</p>
                 </div>
                 <div className="text-left sm:text-right">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Payment Mode</p>
-                  <p className="text-xs font-semibold text-slate-800">{details.paymentMode || 'N/A'}</p>
+                  <p className="text-xs font-semibold text-slate-800">{String(details.paymentMode || 'N/A')}</p>
                 </div>
                 <div className="text-left sm:text-right">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Status</p>
@@ -867,10 +886,16 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, clinic
           </div>
 
           {/* Print Button (Hidden on Print) */}
-          <div className="mt-6 flex justify-center print:hidden">
+          <div className="mt-6 flex justify-center no-print">
             <button
-              onClick={() => window.print()}
-              className="inline-flex items-center px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors shadow-md"
+              onClick={() => {
+                if (onPrint) {
+                  onPrint(invoice);
+                } else {
+                  window.print();
+                }
+              }}
+              className="inline-flex items-center px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors shadow-md shadow-slate-100"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -888,8 +913,8 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, clinic
 
 // --- Main Application Component ---
 const BillingDashboard = () => {
-  const { user } = useAuth();
-  const clinicInfo = user?.organization || {};
+  const { user, updateUser } = useAuth();
+  const clinicInfo = user?.organization || user?.organizationId || {};
 
   const [invoices, setInvoices] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -904,6 +929,32 @@ const BillingDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null); // State for modal
   const [printingInvoice, setPrintingInvoice] = useState(null); // State for single invoice printing
+
+  // --- Session Sync ---
+  // Ensure we have the latest organization data populated
+  useEffect(() => {
+    const syncSession = async () => {
+      try {
+        const data = await authApi.checkSession();
+        if (data && data.user) {
+          // Update auth context with the latest populated user data
+          updateUser(data.user);
+        }
+      } catch (err) {
+        // Suppress session sync errors to prevent console noise if cert is invalid
+        // The rest of the dashboard will still function with existing auth state
+        console.warn('Session sync skipped or failed (likely SSL/Network issue):', err.message);
+      }
+    };
+
+    // Only sync if the organization data seems to be missing vital contact info
+    const hasContactInfo = clinicInfo.email || clinicInfo.phone || clinicInfo.address;
+    const isActuallyPopulated = typeof clinicInfo === 'object' && Object.keys(clinicInfo).length > 5;
+
+    if (!hasContactInfo || !isActuallyPopulated) {
+      syncSession();
+    }
+  }, []);
 
   // Fetch bills from API on component mount
   const fetchData = useCallback(async () => {
@@ -940,25 +991,33 @@ const BillingDashboard = () => {
         setSelectedInvoice(invoice); // Open modal
       } else if (action === 'Print') {
         setPrintingInvoice(invoice);
-        // Allow time for the hidden print container to populate before triggering print
-        setTimeout(() => {
-          window.print();
-          setPrintingInvoice(null);
-        }, 100);
         setStatusMessage(`Printing Invoice ${invoice.id} for ${invoice.patient}`);
       }
     }
   };
+
+  // Handler for printing from modal - uses same mechanism as list
+  const handlePrintFromModal = (invoice) => {
+    setPrintingInvoice(invoice);
+    setStatusMessage(`Printing Invoice ${invoice.id} for ${invoice.patient}`);
+  };
+
+  // Ensure HTML for invoice is rendered before calling window.print()
+  useEffect(() => {
+    if (!printingInvoice) return;
+    const timeout = setTimeout(() => {
+      window.print();
+      setPrintingInvoice(null);
+    }, 1000);
+
+    return () => clearTimeout(timeout);
+  }, [printingInvoice]);
 
   // Handler for saving a new invoice from the form
   const handleSaveNewInvoice = (newInvoice, shouldPrint = false) => {
     setInvoices(prev => [newInvoice, ...prev]);
     if (shouldPrint) {
       setPrintingInvoice(newInvoice);
-      setTimeout(() => {
-        window.print();
-        setPrintingInvoice(null);
-      }, 150);
       setStatusMessage(`Success! Invoice ${newInvoice.id} generated and sent to print.`);
     }
   };
@@ -1032,18 +1091,38 @@ const BillingDashboard = () => {
     const lowerCaseSearch = searchTerm.toLowerCase();
 
     // 1. Filtering
+    // Create a phone map from appointments for mobile number search
+    const patientPhoneMap = {};
+    (appointments || []).forEach(appt => {
+      if (appt.patientId && appt.patientPhone) {
+        patientPhoneMap[appt.patientId] = appt.patientPhone;
+      }
+    });
+
     let filtered = invoices.filter(invoice => {
-      // Apply status filter
-      if (activeFilter !== 'All' && invoice.status !== activeFilter) {
-        return false;
+      // Apply status/paymentMode filter
+      if (activeFilter !== 'All') {
+        if (['Cash', 'UPI', 'Card'].includes(activeFilter)) {
+          // Filter by payment mode (case insensitive check for safety)
+          if (invoice.details?.paymentMode?.toLowerCase() !== activeFilter.toLowerCase()) {
+            return false;
+          }
+        } else if (invoice.status !== activeFilter) {
+          // Fallback for status filters like 'Paid' or 'Pending' if they are ever added back
+          return false;
+        }
       }
 
       // Apply search term filter
       if (searchTerm) {
+        const patientPhone = patientPhoneMap[invoice.patientId] || "";
         const matchesPatient = invoice.patient.toLowerCase().includes(lowerCaseSearch);
         const matchesDoctor = invoice.doctor.toLowerCase().includes(lowerCaseSearch);
         const matchesId = invoice.id.toLowerCase().includes(lowerCaseSearch);
-        return matchesPatient || matchesDoctor || matchesId;
+        const matchesPatientId = invoice.patientId?.toLowerCase().includes(lowerCaseSearch);
+        const matchesPhone = patientPhone.includes(searchTerm);
+
+        return matchesPatient || matchesDoctor || matchesId || matchesPatientId || matchesPhone;
       }
       return true;
     });
@@ -1089,10 +1168,10 @@ const BillingDashboard = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-10 font-['Inter']">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-10 font-['Inter'] print:bg-white print:p-0">
 
-      {/* Header and Title */}
-      <header className="mb-10">
+      {/* Header and Title (Hidden on Print) */}
+      <header className="mb-10 print:hidden">
         <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tighter">
           Billing & Payments
         </h1>
@@ -1108,8 +1187,8 @@ const BillingDashboard = () => {
         </div>
       )}
 
-      {/* Main Card Container */}
-      <div className="bg-white rounded-xl shadow-2xl p-6 sm:p-10">
+      {/* Main Card Container (Hidden on Print) */}
+      <div className="bg-white rounded-xl shadow-2xl p-6 sm:p-10 print:hidden">
 
         {viewMode === 'list' ? (
           <InvoiceList
@@ -1139,32 +1218,46 @@ const BillingDashboard = () => {
       </div>
 
       {/* Invoice Detail Modal */}
-      {selectedInvoice && <InvoiceDetailModal invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteInvoice} clinicInfo={clinicInfo} />}
+      {selectedInvoice && (
+        <InvoiceDetailModal 
+          invoice={selectedInvoice} 
+          onClose={() => setSelectedInvoice(null)} 
+          onUpdateStatus={handleUpdateStatus} 
+          onDelete={handleDeleteInvoice} 
+          onPrint={handlePrintFromModal} 
+          clinicInfo={clinicInfo} 
+        />
+      )}
 
-      {/* Hidden Invoice Template for Printing */}
-      <div className="hidden print:block invoice-print-container">
+      {/* Dedicated Print Portal */}
+      <div className="print-only bg-white text-black">
         {printingInvoice && (
-          <div key={`print-${printingInvoice.id}`} className="print-only-item">
-            <InvoiceTemplate
-              clinicInfo={clinicInfo}
-              invoiceData={{
-                billId: printingInvoice.id,
-                date: printingInvoice.date,
-                patientName: printingInvoice.patient,
-                items: [
-                  { description: 'Consultation Fee', price: printingInvoice.details?.consultationFee || 0 },
-                  { description: 'Tests/Lab Fees', price: printingInvoice.details?.tests || 0 },
-                  { description: 'Medicines/Pharmacy', price: printingInvoice.details?.medicines || 0 },
-                  { description: 'Additional Charges', price: printingInvoice.details?.additionalCharges || 0 }
-                ],
-                subtotal: (printingInvoice.details?.consultationFee || 0) + (printingInvoice.details?.tests || 0) + (printingInvoice.details?.medicines || 0) + (printingInvoice.details?.additionalCharges || 0),
-                discount: printingInvoice.details?.discounts || 0,
-                total: printingInvoice.amount,
-                notes: '',
-                paymentMethod: printingInvoice.details?.paymentMode || 'N/A'
-              }}
-            />
-          </div>
+          <InvoiceTemplate
+            clinicInfo={clinicInfo}
+            invoiceData={{
+              billId: printingInvoice.id,
+              date: printingInvoice.date,
+              patientName: printingInvoice.patient,
+              patientId: printingInvoice.details?.patientId || printingInvoice.patientId || 'N/A',
+              doctorName: printingInvoice.doctor || 'N/A',
+              items: [
+                { description: 'Consultation Fee', price: parseFloat(printingInvoice.details?.consultationFee) || 0 },
+                { description: 'Tests/Lab Fees', price: parseFloat(printingInvoice.details?.tests) || 0 },
+                { description: 'Medicines/Pharmacy', price: parseFloat(printingInvoice.details?.medicines) || 0 },
+                { description: 'Additional Charges', price: parseFloat(printingInvoice.details?.additionalCharges) || 0 }
+              ].filter(item => item.price > 0),
+              subtotal: (parseFloat(printingInvoice.details?.consultationFee) || 0) + 
+                        (parseFloat(printingInvoice.details?.tests) || 0) + 
+                        (parseFloat(printingInvoice.details?.medicines) || 0) + 
+                        (parseFloat(printingInvoice.details?.additionalCharges) || 0),
+              discount: parseFloat(printingInvoice.details?.discounts) || 0,
+              taxRate: parseFloat(printingInvoice.details?.taxRate) || 0,
+              total: parseFloat(printingInvoice.amount) || 0,
+              notes: printingInvoice.details?.remarks || '',
+              paymentMethod: printingInvoice.details?.paymentMode || 'N/A',
+              status: printingInvoice.status
+            }}
+          />
         )}
       </div>
     </div>

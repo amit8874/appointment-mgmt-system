@@ -31,13 +31,20 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
         status = 'Paid'
     } = invoiceData;
 
+    const formatAddress = (addr) => {
+        if (!addr) return '';
+        if (typeof addr === 'string') return addr;
+        const parts = [addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean);
+        return parts.join(', ');
+    };
+
     const info = {
-        name: clinicInfo.name || 'Healing Hands Medical Center',
-        address: clinicInfo.address || '123 Health Avenue, Medical District',
-        phone: clinicInfo.phone || '+1 (555) 123-4567',
-        email: clinicInfo.email || 'contact@healinghands.com',
-        logo: clinicInfo.branding?.logo || clinicInfo.logo,
-        ...clinicInfo
+        ...clinicInfo,
+        name: String(clinicInfo.name || clinicInfo.clinicName || 'Clinic Name'),
+        address: String(formatAddress(clinicInfo.address || clinicInfo.clinicAddress || clinicInfo.location)),
+        phone: String(clinicInfo.phone || clinicInfo.mobile || clinicInfo.contact || ''),
+        email: String(clinicInfo.email || clinicInfo.clinicEmail || clinicInfo.contactEmail || ''),
+        logo: clinicInfo.logo ? String(clinicInfo.logo) : (clinicInfo.branding?.logo ? String(clinicInfo.branding.logo) : null),
     };
 
     const formatCurrency = (amount) => {
@@ -48,11 +55,11 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
     };
 
     return (
-        <div className="bg-white shadow-2xl w-full max-w-3xl mx-auto relative transform transition-all duration-300 scale-100 print:shadow-none print:w-full print:max-w-none print:m-0 print:max-h-none font-['Inter', 'sans-serif'] text-slate-800">
+        <div className="invoice-print-container bg-white shadow-2xl w-full max-w-3xl mx-auto relative transform transition-all duration-300 scale-100 print:shadow-none print:w-full print:max-w-none print:m-0 print:max-h-none font-['Inter', 'sans-serif'] text-slate-800">
             {/* Status Watermark */}
             <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-10 pointer-events-none select-none z-0 print:opacity-10" style={{ zIndex: 0 }}>
                 <span className={`text-[100px] font-black uppercase transform -rotate-45 block ${status === 'Paid' ? 'text-green-600' : 'text-red-500'}`}>
-                    {status}
+                    {String(status || '')}
                 </span>
             </div>
 
@@ -63,15 +70,15 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
                 <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">
                     <div>
                         <h1 className="text-4xl font-black text-slate-800 tracking-tight uppercase mb-2">INVOICE</h1>
-                        <p className="text-sm font-bold text-slate-500">#{billId}</p>
+                        <p className="text-sm font-bold text-slate-500">#{String(billId || '')}</p>
                     </div>
                     
                     <div className="flex items-start text-right mt-4 sm:mt-0 gap-6">
                         <div className="text-right">
-                            <h2 className="text-2xl font-bold text-slate-800">{info.name}</h2>
-                            <p className="text-xs text-slate-600 mt-1 max-w-[250px] ml-auto">{info.address}</p>
-                            <p className="text-xs text-slate-600">{info.email}</p>
-                            <p className="text-xs text-slate-600">{info.phone}</p>
+                            <h2 className="text-2xl font-bold text-slate-800">{String(info.name)}</h2>
+                            <p className="text-xs text-slate-600 mt-1 max-w-[250px] ml-auto">{String(info.address)}</p>
+                            <p className="text-xs text-slate-600">{String(info.email)}</p>
+                            <p className="text-xs text-slate-600">{String(info.phone)}</p>
                         </div>
                         {info.logo && (
                             <div className="flex-shrink-0">
@@ -86,25 +93,25 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
                     <div>
                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Billed To</p>
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                            <h3 className="text-lg font-bold text-slate-800">{patientName}</h3>
-                            <p className="text-xs text-slate-600 mt-1">Patient ID: {patientId}</p>
-                            <p className="text-xs text-slate-600">Attending Doctor: <span className="font-semibold">{doctorName}</span></p>
-                            <p className="text-xs text-slate-600 mt-2 italic">Thank you for choosing {info.name}</p>
+                            <h3 className="text-lg font-bold text-slate-800">{String(patientName || '')}</h3>
+                            <p className="text-xs text-slate-600 mt-1">Patient ID: {String(patientId || '')}</p>
+                            <p className="text-xs text-slate-600">Attending Doctor: <span className="font-semibold">{String(doctorName || '')}</span></p>
+                            <p className="text-xs text-slate-600 mt-2 italic">Thank you for choosing {String(info.name || '')}</p>
                         </div>
                     </div>
                     <div className="sm:text-right">
                         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                             <div className="text-left sm:text-right">
                                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Invoice Date</p>
-                                <p className="text-xs font-semibold text-slate-800">{formatDateSafe(date)}</p>
+                                <p className="text-xs font-semibold text-slate-800">{String(formatDateSafe(date))}</p>
                             </div>
                             <div className="text-left sm:text-right">
                                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Due Date</p>
-                                <p className="text-xs font-semibold text-slate-800">{formatDateSafe(date)}</p>
+                                <p className="text-xs font-semibold text-slate-800">{String(formatDateSafe(date))}</p>
                             </div>
                             <div className="text-left sm:text-right">
                                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Payment Mode</p>
-                                <p className="text-xs font-semibold text-slate-800">{paymentMethod}</p>
+                                <p className="text-xs font-semibold text-slate-800">{String(paymentMethod || 'N/A')}</p>
                             </div>
                             <div className="text-left sm:text-right">
                                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status</p>
@@ -130,10 +137,26 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
                         <tbody className="bg-white divide-y divide-slate-200">
                             {items.length > 0 ? items.map((item, index) => (
                                 <tr key={index} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">{item.description || 'Service'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-slate-600">{item.quantity || 1}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-slate-700">{formatCurrency(item.price || item.cost || 0)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-slate-800">{formatCurrency((item.quantity || 1) * (item.price || item.cost || 0))}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">{String(item.description || 'Service')}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-slate-600">{String(item.quantity || 1)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-slate-700">
+                                        {(() => {
+                                            const price = Number(item.price || item.cost || 0);
+                                            // Handle legacy records where items had no price but invoice had total
+                                            if (price === 0 && items.length === 1 && total > 0) return formatCurrency(total);
+                                            return formatCurrency(price);
+                                        })()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-slate-800">
+                                        {(() => {
+                                            const price = Number(item.price || item.cost || 0);
+                                            const qty = Number(item.quantity || 1);
+                                            const amount = price * qty;
+                                            // Handle legacy records
+                                            if (amount === 0 && items.length === 1 && total > 0) return formatCurrency(total);
+                                            return formatCurrency(amount);
+                                        })()}
+                                    </td>
                                 </tr>
                             )) : (
                                 <tr>
@@ -149,7 +172,7 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
                     <div className="w-full sm:w-1/2 mb-6 sm:mb-0">
                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Notes & Terms</p>
                         <p className="text-xs text-slate-500 leading-relaxed">
-                            {notes || 'Please keep this invoice for your records. For any queries regarding this bill, please contact our billing department.'}
+                            {typeof notes === 'string' && notes ? notes : (typeof notes === 'number' ? String(notes) : 'Please keep this invoice for your records. For any queries regarding this bill, please contact our billing department.')}
                         </p>
                     </div>
                     <div className="w-full sm:w-5/12 ml-auto">
@@ -187,62 +210,43 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
             <style dangerouslySetInnerHTML={{
                 __html: `
         @media print {
-          /* 1. Kill the layout entirely to prevent sidebar/header bleed */
-          html, body {
-            height: auto !important;
-            overflow: visible !important;
-            background: white !important;
+          /* Hide all non-print elements */
+          .screen-only, .no-print {
+            display: none !important;
           }
 
-          #root, #root > * { 
-            visibility: hidden !important; 
-            height: 0 !important;
-            overflow: hidden !important;
+          .print-only {
+            display: block !important;
           }
           
-          /* 2. Surgical visibility for the invoice container */
+          /* Show our invoice container explicitly */
           .invoice-print-container {
-            visibility: visible !important;
+            display: block !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
             height: auto !important;
-            display: block !important;
             z-index: 9999999 !important;
             background: white !important;
+            margin: 0 !important;
+            padding: 15mm !important;
           }
 
-          .invoice-print-container *, 
-          .invoice-print-container .bg-transparent,
-          .invoice-print-container .bg-white {
+          /* Show all children of the invoice container */
+          .invoice-print-container > * {
+            display: block !important;
             visibility: visible !important;
           }
 
-          /* 3. Hide all common UI wrappers explicitly */
-          nav, aside, header, footer, button, .no-print {
-            display: none !important;
-          }
-
-          /* 4. Formatting tweaks for paper */
-          @page {
-            size: auto;
-            margin: 0mm;
-          }
-
-          body {
-            margin: 0;
-            padding: 0;
-          }
-
-          /* 5. Fix table rendering broken by Tailwind/Global styles */
+          /* Fix table rendering */
           table { display: table !important; width: 100% !important; }
           thead { display: table-header-group !important; }
           tbody { display: table-row-group !important; }
           tr { display: table-row !important; }
           th, td { display: table-cell !important; }
           
-          /* Ensure watermark prints correctly */
+          /* Ensure watermark prints */
           .opacity-10 { opacity: 0.1 !important; }
         }
       `}} />

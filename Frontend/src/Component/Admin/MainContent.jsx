@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import PatientPanel from './Patient/PatientPanel.jsx';
+import HorizontalAppointmentForm from './HorizontalAppointmentForm';
 import DoctorPanel from './Doctor/DoctorPanel.jsx';
 import ReceptionistPanel from './Receptionist/ReceptionistPanel.jsx';
 import AppointmentManagement from './AppointmentMgmt/AppointmentManagment.jsx';
+import TrackAppointmentView from './AppointmentMgmt/TrackAppointmentView.jsx';
 import AppointmentTable from './AppointmentMgmt/AppointmentTable.jsx';
 import BillingDashboard from './Billing/BillingDashboard.jsx';
 import UserManagementPanel from './UserManagementPanel.jsx';
@@ -12,6 +13,7 @@ import AdminDashboardPanel from './AdminDashboardPanel.jsx';
 import PatientProfileModal from './PatientProfileModal.jsx';
 import DoctorProfileModal from './DoctorProfileModal.jsx';
 import AdminDoctorSchedule from './Doctor/AdminDoctorSchedule.jsx';
+import PatientPanel from './Patient/PatientPanel.jsx';
 
 const MainContent = ({
   activeTab,
@@ -32,6 +34,8 @@ const MainContent = ({
   handleEditDoctor,
   handleDeleteDoctor,
   openDoctorForm,
+  onVerifyDoctor,
+  onRejectDoctor,
   receptionists,
   receptionistsLoading,
   receptionistsError,
@@ -51,6 +55,14 @@ const MainContent = ({
   handleEditDoctorFromProfile,
   handleDeleteDoctorFromProfile,
   refreshDoctors,
+  // Pagination Props
+  patientsCurrentPage,
+  patientsTotalPages,
+  onPatientsPageChange,
+  doctorsCurrentPage,
+  doctorsTotalPages,
+  onDoctorsPageChange,
+  recentAppointments = []
 }) => {
   const content = useMemo(() => {
     if (selectedPatient) {
@@ -63,7 +75,18 @@ const MainContent = ({
     }
 
     switch (activeTab) {
-      case 'Dashboard':
+      case 'New Appointment':
+        return (
+          <div className="p-6">
+            <HorizontalAppointmentForm 
+              doctors={doctors} 
+              onSuccess={() => setActiveTab('Appointment Mgmt')} 
+              openDoctorForm={openDoctorForm} 
+              initialData={rebookData}
+            />
+          </div>
+        );
+      case 'Analysis':
         return (
           <AdminDashboardPanel
             stats={stats}
@@ -79,6 +102,8 @@ const MainContent = ({
             appointmentTrendsData={appointmentTrendsData}
             revenueByDoctorData={revenueByDoctorData}
             monthlyIncomeExpenseData={monthlyIncomeExpenseData}
+            recentAppointments={recentAppointments}
+            hideForm={true}
           />
         );
       case 'Patients':
@@ -88,9 +113,12 @@ const MainContent = ({
             patientsLoading={patientsLoading}
             patientsError={patientsError}
             onViewPatient={handleViewPatient}
-            onAddPatient={() => openPatientForm()}
+            onAddPatient={openPatientForm}
             setActiveTab={setActiveTab}
             setRebookData={setRebookData}
+            currentPage={patientsCurrentPage}
+            totalPages={patientsTotalPages}
+            onPageChange={onPatientsPageChange}
           />
         );
       case 'Doctor':
@@ -103,7 +131,12 @@ const MainContent = ({
             onEditDoctor={handleEditDoctor}
             onDeleteDoctor={handleDeleteDoctor}
             onAddDoctor={openDoctorForm}
+            onVerifyDoctor={onVerifyDoctor}
+            onRejectDoctor={onRejectDoctor}
             refreshDoctors={refreshDoctors}
+            currentPage={doctorsCurrentPage}
+            totalPages={doctorsTotalPages}
+            onPageChange={onDoctorsPageChange}
           />
         );
       case 'Doctor Schedule':
@@ -128,11 +161,14 @@ const MainContent = ({
           />
         );
       case 'Appointment Mgmt':
+      case 'Calendar View':
         return (
           <AppointmentManagement
             rebookData={rebookData}
           />
         );
+      case 'Track Appointment':
+        return <TrackAppointmentView />;
       case 'Billing & Payments':
         return <BillingDashboard />;
       case 'Reports & Analytics':
@@ -173,6 +209,7 @@ const MainContent = ({
     appointmentTrendsData,
     revenueByDoctorData,
     monthlyIncomeExpenseData,
+    recentAppointments,
   ]);
 
   return (

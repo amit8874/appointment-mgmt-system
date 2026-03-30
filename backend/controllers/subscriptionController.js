@@ -73,9 +73,9 @@ export const upgradeSubscription = async (req, res) => {
 
     // Plan pricing (in INR)
     const pricing = {
-      basic: { monthly: 2999, yearly: 29999 },
-      pro: { monthly: 7999, yearly: 79999 },
-      enterprise: { monthly: 19999, yearly: 199999 },
+      basic: { monthly: 799, yearly: 7999 },
+      pro: { monthly: 1999, yearly: 19999 },
+      enterprise: { monthly: 3999, yearly: 39999 },
     };
 
     const amount = pricing[plan][billingCycle];
@@ -300,13 +300,13 @@ export const getPlans = (req, res) => {
     },
     basic: {
       name: 'Basic',
-      price: { monthly: 2999, yearly: 29999 },
+      price: { monthly: 799, yearly: 7999 },
       billingCycle: ['monthly', 'yearly'],
       features: {
-        doctors: 10,
-        receptionists: 5,
+        doctors: 1,
+        receptionists: 0,
         appointmentsPerMonth: 500,
-        patients: 2000,
+        patients: 1000,
         storageGB: 5,
         advancedAnalytics: false,
         customBranding: false,
@@ -314,33 +314,35 @@ export const getPlans = (req, res) => {
       },
     },
     pro: {
-      name: 'Pro',
-      price: { monthly: 7999, yearly: 79999 },
+      name: 'Standard',
+      price: { monthly: 1999, yearly: 19999 },
       billingCycle: ['monthly', 'yearly'],
       features: {
-        doctors: 50,
-        receptionists: 20,
-        appointmentsPerMonth: 5000,
-        patients: 10000,
-        storageGB: 50,
+        doctors: 3,
+        receptionists: 2,
+        appointmentsPerMonth: 2000,
+        patients: 5000,
+        storageGB: 20,
         advancedAnalytics: true,
-        customBranding: true,
+        customBranding: false,
         apiAccess: false,
       },
     },
     enterprise: {
-      name: 'Enterprise',
-      price: { monthly: 19999, yearly: 199999 },
+      name: 'Premium',
+      price: { monthly: 3999, yearly: 39999 },
       billingCycle: ['monthly', 'yearly'],
       features: {
         doctors: -1, // Unlimited
         receptionists: -1,
         appointmentsPerMonth: -1,
         patients: -1,
-        storageGB: 500,
+        storageGB: 100,
         advancedAnalytics: true,
         customBranding: true,
         apiAccess: true,
+        smsReminders: true,
+        reports: true,
       },
     },
   };

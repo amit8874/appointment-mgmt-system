@@ -17,7 +17,8 @@ import {
   Trash2,
   X,
   List,
-  CalendarDays
+  CalendarDays,
+  MessageSquare
 } from "lucide-react";
 import api from "../../../services/api";
 import AppointmentManagement from "./AppointmentManagment.jsx";
@@ -51,9 +52,30 @@ export default function AppointmentTable({ rebookData }) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.get('/appointments');
-      const data = response.data;
-      setAppointments(data);
+      const { default: api } = await import("../../../services/api");
+      const [appointmentsRes, billsRes] = await Promise.all([
+        api.get('/appointments'),
+        api.get('/billing')
+      ]);
+      
+      const appointmentsData = appointmentsRes.data || [];
+      const billsData = billsRes.data || [];
+
+      // Map appointmentId to its corresponding bill amount
+      const billMap = {};
+      billsData.forEach(bill => {
+        if (bill.appointmentId) {
+          billMap[bill.appointmentId] = bill.amount;
+        }
+      });
+
+      // Join appointments with bill amounts if amount is 0 or missing
+      const joinedAppointments = appointmentsData.map(appt => ({
+        ...appt,
+        amount: appt.amount || billMap[appt._id] || billMap[appt.appointmentId] || 0
+      }));
+
+      setAppointments(joinedAppointments);
     } catch (err) {
       setError(err.message);
       console.error('Error fetching appointments:', err);
@@ -86,15 +108,28 @@ export default function AppointmentTable({ rebookData }) {
     } catch (err) {
       console.error('Error updating status:', err);
       setError(err.message);
+      fetchAppointments();
     } finally {
       setUpdatingId(null);
     }
   };
 
-  // Handle status toggle
+  // Handle WhatsApp Notify
+  const handleWhatsAppNotify = (app) => {
+    const phone = app.patientPhone?.replace(/\D/g, '');
+    if (!phone) return alert('No phone number available for this patient.');
+    
+    const message = `Today is your appointment book with ${app.doctorName} on ${app.time} and ${app.date}.`;
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
+  // Handle status toggle (One-Click Arrived -> Completed)
   const handleStatusToggle = (appointment) => {
-    const newStatus = appointment.status === 'confirmed' ? 'cancelled' : 'confirmed';
-    updateAppointmentStatus(appointment._id, newStatus);
+    // If pending/confirmed/arrived -> mark as completed (Confirmed)
+    if (appointment.status !== 'completed' && appointment.status !== 'cancelled') {
+        updateAppointmentStatus(appointment._id, 'completed');
+    }
   };
 
   // Filter appointments based on search and status
@@ -104,7 +139,8 @@ export default function AppointmentTable({ rebookData }) {
         appointment.patientName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         appointment.doctorName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         appointment.specialty?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        appointment.patientId?.toLowerCase().includes(searchQuery.toLowerCase());
+        appointment.patientId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        appointment.patientPhone?.includes(searchQuery);
 
       const matchesStatus = statusFilter === 'all' || appointment.status === statusFilter;
 
@@ -129,6 +165,16 @@ export default function AppointmentTable({ rebookData }) {
     });
   };
 
+  // Check if date is in the future (after today)
+  const isFutureDate = (dateStr) => {
+    if (!dateStr) return false;
+    const appDate = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    appDate.setHours(0, 0, 0, 0);
+    return appDate > today;
+  };
+
   // Format time
   const formatTime = (timeStr) => {
     if (!timeStr) return '-';
@@ -145,11 +191,14 @@ export default function AppointmentTable({ rebookData }) {
       confirmed: 'bg-green-100 text-green-800',
       pending: 'bg-yellow-100 text-yellow-800',
       cancelled: 'bg-red-100 text-red-800',
-      completed: 'bg-blue-100 text-blue-800'
+      completed: 'bg-green-100 text-green-800' // Show green Confirmed for completed
     };
+    
+    const label = status === 'completed' ? 'CONFIRMED' : (status?.charAt(0).toUpperCase() + status?.slice(1));
+    
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status] || styles.pending}`}>
-        {status?.charAt(0).toUpperCase() + status?.slice(1)}
+        {label}
       </span>
     );
   };
@@ -450,25 +499,49 @@ export default function AppointmentTable({ rebookData }) {
                                 <Eye className="w-4 h-4" />
                               </button>
 
-                              {/* Status Toggle */}
-                              <button
-                                onClick={() => handleStatusToggle(appointment)}
-                                disabled={updatingId === appointment._id}
-                                className={`p-2 rounded transition-colors ${appointment.status === 'confirmed'
-                                  ? 'text-red-500 hover:bg-red-50'
-                                  : 'text-green-500 hover:bg-green-50'
-                                  }`}
-                                title={appointment.status === 'confirmed' ? 'Cancel Appointment' : 'Confirm Appointment'}
-                              >
-                                {updatingId === appointment._id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : appointment.status === 'confirmed' ? (
-                                  <XCircle className="w-4 h-4" />
-                                ) : (
-                                  <CheckCircle className="w-4 h-4" />
+                                {/* One-Click Arrive Button - Hidden for future dates */}
+                                {appointment.status !== 'completed' && appointment.status !== 'cancelled' && !isFutureDate(appointment.date) && (
+                                  <button
+                                    onClick={() => handleStatusToggle(appointment)}
+                                    disabled={updatingId === appointment._id}
+                                    className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                    title="Mark as Arrived"
+                                  >
+                                    {updatingId === appointment._id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="w-4 h-4" />
+                                    )}
+                                  </button>
                                 )}
-                              </button>
-                            </div>
+
+                                {/* Cancel Button (Only for non-completed) */}
+                                {appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
+                                  <button
+                                    onClick={() => updateAppointmentStatus(appointment._id, 'cancelled')}
+                                    disabled={updatingId === appointment._id}
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                    title="Cancel Appointment"
+                                  >
+                                    {updatingId === appointment._id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <XCircle className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                )}
+
+                                {/* WhatsApp Notify */}
+                                {appointment.patientPhone && appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
+                                  <button 
+                                    onClick={() => handleWhatsAppNotify(appointment)}
+                                    className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors border-l border-gray-100 ml-1 pl-3"
+                                    title="Notify via WhatsApp"
+                                  >
+                                    <MessageSquare className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
                           </td>
                         </tr>
                       ))
@@ -535,6 +608,7 @@ export default function AppointmentTable({ rebookData }) {
                     </div>
                     <div>
                       <p className="font-medium text-gray-700">{selectedAppointment.patientName || 'N/A'}</p>
+                      <p className="text-sm text-gray-500">{selectedAppointment.patientAge ? `${selectedAppointment.patientAge} years` : ''}</p>
                       <p className="text-sm text-gray-500">{selectedAppointment.patientPhone}</p>
                       <p className="text-sm text-gray-500">{selectedAppointment.patientEmail}</p>
                     </div>

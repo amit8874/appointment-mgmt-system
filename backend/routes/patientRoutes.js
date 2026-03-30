@@ -10,7 +10,8 @@ import {
   createPatient,
   getPatientById,
   updatePatient,
-  deletePatient
+  deletePatient,
+  getNewPatientId
 } from '../controllers/patientController.js';
 
 const router = express.Router();
@@ -21,6 +22,9 @@ router.use(requireTenant);
 
 // New route to get patient by patientId (string) instead of _id (ObjectId)
 router.get('/by-patient-id', getPatientByPatientId);
+
+// Route to generate a new sequential Patient ID
+router.get('/generate-id', getNewPatientId);
 
 // Get patient by mobile number
 router.get("/by-mobile/:mobile", getPatientByMobile);

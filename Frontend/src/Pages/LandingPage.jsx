@@ -1100,7 +1100,7 @@ const LandingPage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Starter Plan */}
+            {/* Basic Plan */}
             <motion.div 
                initial={{ opacity: 0, y: 20 }}
                whileInView={{ opacity: 1, y: 0 }}
@@ -1108,38 +1108,34 @@ const LandingPage = () => {
                className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-500 group flex flex-col"
             >
               <div className="mb-8">
-                <span className="text-emerald-500 font-black text-sm uppercase tracking-widest block mb-1">Starter</span>
-                <span className="text-slate-900 font-bold text-lg">15,000 Annual Appointments</span>
+                <span className="text-emerald-500 font-black text-sm uppercase tracking-widest block mb-1">Basic</span>
+                <span className="text-slate-900 font-bold text-lg">Solo Doctor / Small Clinic</span>
               </div>
               
               <div className="border-t border-dashed border-slate-200 pt-8 mb-8">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">₹500</span>
+                  <span className="text-4xl font-black text-slate-900">₹799</span>
                   <span className="text-slate-400 font-medium font-sm">per month + GST</span>
                 </div>
               </div>
 
               <button onClick={() => navigate('/register-organization')} className="w-full py-3 px-6 rounded-full border-2 border-slate-100 text-slate-700 font-bold hover:bg-slate-50 transition-colors mb-8">
-                 Start for Free
+                 Start 14-Day Free Trial
               </button>
 
               <ul className="space-y-4 flex-1">
-                <PricingFeature text="Custom Billing" />
-                <PricingFeature text="Custom Reporting" />
-                <PricingFeature text="Financial Analysis" />
-                <PricingFeature text="Business Analysis" />
-                <PricingFeature text="User Management" />
-                <PricingFeature text="Package Module" />
-                <PricingFeature text="Referral Doctor Login" />
-                <PricingFeature text="Dr. Referral Management" />
+                <PricingFeature text="1 Doctor Access" />
+                <PricingFeature text="500 Monthly Appointments" />
+                <PricingFeature text="1,000 Patient Records" />
+                <PricingFeature text="Digital Prescriptions" />
+                <PricingFeature text="Basic Billing & Invoicing" />
+                <PricingFeature text="Secure Cloud Storage (5GB)" />
                 <PricingFeature text="QR-Verified Reports" />
-                <PricingFeature text="Phone Access" />
-                <PricingFeature text="Ticket Support" />
-                <PricingFeature text="Call Support" />
+                <PricingFeature text="Phone & Email Support" />
               </ul>
             </motion.div>
 
-            {/* Growth Plan (Most Popular) */}
+            {/* Standard Plan (Most Popular) */}
             <motion.div 
                initial={{ opacity: 0, y: 20 }}
                whileInView={{ opacity: 1, y: 0 }}
@@ -1152,35 +1148,35 @@ const LandingPage = () => {
               </div>
 
               <div className="mb-8">
-                <span className="text-blue-600 font-black text-sm uppercase tracking-widest block mb-1">Growth</span>
-                <span className="text-slate-900 font-bold text-lg">15,000 Annual Appointments</span>
+                <span className="text-blue-600 font-black text-sm uppercase tracking-widest block mb-1">Standard</span>
+                <span className="text-slate-900 font-bold text-lg">2–3 Doctors / Receptionist</span>
               </div>
               
               <div className="border-t border-dashed border-blue-200 pt-8 mb-8">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">₹750</span>
+                  <span className="text-4xl font-black text-slate-900">₹1999</span>
                   <span className="text-slate-400 font-medium font-sm">per month + GST</span>
                 </div>
               </div>
 
               <button onClick={() => navigate('/register-organization')} className="w-full py-3 px-6 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20 mb-8">
-                 Start for Free
+                 Start 14-Day Free Trial
               </button>
 
               <ul className="space-y-4 flex-1">
-                <PricingFeature text="All Starter Features" isPlus />
-                <PricingFeature text="Digital Prescriptions" />
-                <PricingFeature text="QR Code on Bill" />
-                <PricingFeature text="Login Tracker" />
-                <PricingFeature text="Free Letterhead Design" />
-                <PricingFeature text="Quotation Module" />
-                <PricingFeature text="Activity Tracking" />
-                <PricingFeature text="Clinic Mobile App" />
-                <PricingFeature text="Department Wise Signature" />
+                <PricingFeature text="Everything in Basic" isPlus />
+                <PricingFeature text="Up to 3 Doctor Logins" />
+                <PricingFeature text="2 Receptionist Logins" />
+                <PricingFeature text="5,000 Patient Records" />
+                <PricingFeature text="2,000 Monthly Appointments" />
+                <PricingFeature text="Advanced Analytics Dashboard" />
+                <PricingFeature text="Dynamic QR Codes on Bills" />
+                <PricingFeature text="Inventory Management" />
+                <PricingFeature text="20GB Secure Storage" />
               </ul>
             </motion.div>
 
-            {/* Leader Plan (Most Valuable) */}
+            {/* Premium Plan (Most Valuable) */}
             <motion.div 
                initial={{ opacity: 0, y: 20 }}
                whileInView={{ opacity: 1, y: 0 }}
@@ -1193,32 +1189,32 @@ const LandingPage = () => {
               </div>
 
               <div className="mb-8">
-                <span className="text-orange-500 font-black text-sm uppercase tracking-widest block mb-1">Leader</span>
-                <span className="text-slate-900 font-bold text-lg">20,000 Annual Appointments</span>
+                <span className="text-orange-500 font-black text-sm uppercase tracking-widest block mb-1">Premium</span>
+                <span className="text-slate-900 font-bold text-lg">Multi-Doctor / Hospital</span>
               </div>
               
               <div className="border-t border-dashed border-slate-200 pt-8 mb-8">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">₹1000</span>
+                  <span className="text-4xl font-black text-slate-900">₹3999</span>
                   <span className="text-slate-400 font-medium font-sm">per month + GST</span>
                 </div>
               </div>
 
               <button onClick={() => navigate('/register-organization')} className="w-full py-3 px-6 rounded-full border-2 border-slate-100 text-slate-700 font-bold hover:bg-slate-50 transition-colors mb-8">
-                 Start for Free
+                 Start 14-Day Free Trial
               </button>
 
               <ul className="space-y-4 flex-1">
-                <PricingFeature text="All Growth Plan Features" isPlus />
-                <PricingFeature text="WhatsApp Integration" />
-                <PricingFeature text="Inventory Management" />
+                <PricingFeature text="Everything in Standard" isPlus />
+                <PricingFeature text="Unlimited Doctor Logins" />
+                <PricingFeature text="Unlimited Staff Logins" />
+                <PricingFeature text="SMS Reminders & Alerts" />
+                <PricingFeature text="Professional Medical Reports" />
+                <PricingFeature text="Chain of Clinic Management" />
+                <PricingFeature text="Custom Clinic Branding" />
                 <PricingFeature text="Telemedicine Module" />
-                <PricingFeature text="Health Records Graph" />
-                <PricingFeature text="Follow-up Tracking" />
-                <PricingFeature text="Patient Loyalty Module" />
-                <PricingFeature text="Promotion Templates" />
-                <PricingFeature text="Advanced Analytics" />
-                <PricingFeature text="Bulk Operations" />
+                <PricingFeature text="Priority 24/7 Support" />
+                <PricingFeature text="100GB Secure Storage" />
               </ul>
             </motion.div>
 

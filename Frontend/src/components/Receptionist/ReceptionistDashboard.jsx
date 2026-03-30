@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Calendar, Users, FileText, BarChart3, Bell, User, LogOut, Stethoscope } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, FileText, BarChart3, Bell, User, LogOut, Stethoscope, Grid } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import TopNav from './components/TopNav';
 import Notification from './components/Notification';
@@ -31,8 +31,15 @@ const ReceptionistLayout = () => {
   }, []);
 
   const navigation = [
-    { name: 'Dashboard', href: '/receptionist', icon: LayoutDashboard },
-    { name: 'Appointments', href: '/receptionist/appointments', icon: Calendar },
+    { name: 'New Appointment', href: '/receptionist', icon: Calendar },
+    {
+      name: 'Appointment Mgmt',
+      icon: Calendar,
+      children: [
+        { name: 'Calendar View', href: '/receptionist/appointments', icon: Calendar },
+        { name: 'Track Appointment', href: '/receptionist/track-appointments', icon: Grid },
+      ]
+    },
     { name: 'Patients', href: '/receptionist/patients', icon: Users },
     { name: 'Billing', href: '/receptionist/billing', icon: FileText },
     {

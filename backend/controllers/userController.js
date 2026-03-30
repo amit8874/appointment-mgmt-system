@@ -49,7 +49,19 @@ export const getAllUsers = async (req, res) => {
 // Check if session is valid
 export const checkSession = async (req, res) => {
   try {
-    res.json({ message: 'Session is valid', user: { id: req.user._id, role: req.user.role } });
+    const user = await User.findById(req.user._id)
+      .select('-password')
+      .populate('organizationId', 'phone email address name branding slug subdomain');
+    
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Fallback for mobile
+    const userObj = user.toObject();
+    if ((user.role === 'orgadmin' || user.role === 'admin') && !user.mobile && user.organizationId) {
+      userObj.mobile = user.organizationId.phone || '';
+    }
+
+    res.json({ message: 'Session is valid', user: userObj });
   } catch (error) {
     console.error('Check session error:', error);
     res.status(500).json({ message: 'Error checking session' });
@@ -61,7 +73,7 @@ export const getUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .select('-password')
-      .populate('organizationId', 'phone name branding');
+      .populate('organizationId', 'phone email address name branding');
     
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -359,7 +371,10 @@ export const login = async (req, res) => {
         name: user.organizationId.name,
         slug: user.organizationId.slug,
         status: user.organizationId.status,
-        branding: user.organizationId.branding
+        branding: user.organizationId.branding,
+        address: user.organizationId.address,
+        phone: user.organizationId.phone,
+        email: user.organizationId.email
       } : null
     };
 
@@ -450,6 +465,9 @@ export const adminLogin = async (req, res) => {
           slug: user.organizationId.slug,
           subdomain: user.organizationId.subdomain,
           branding: user.organizationId.branding,
+          address: user.organizationId.address,
+          phone: user.organizationId.phone,
+          email: user.organizationId.email
         } : null
       }
     });
@@ -552,7 +570,7 @@ export const updateUserProfile = async (req, res) => {
       req.params.id,
       filteredUpdateData,
       { new: true, runValidators: true }
-    ).populate('organizationId', 'phone name branding');
+    ).populate('organizationId', 'phone email address name branding');
     
     if (!updatedUser) return res.status(404).json({ message: 'User not found' });
 
@@ -816,8 +834,12 @@ export const deleteUser = async (req, res) => {
     // Check permission based on role
     const currentUserRole = req.user.role;
     const userToDeleteRole = userToDelete.role;
+    const userTenantId = userToDelete.organizationId?.toString();
+    const currentTenantId = req.tenantId?.toString();
 
-    // Superadmin can delete anyone except themselves
+    console.log(`[DeleteUser] Attempt by ${req.user.name} (${currentUserRole}, Org: ${currentTenantId}) to delete ${userToDelete.name} (${userToDeleteRole}, Org: ${userTenantId})`);
+
+    // Superadmin can delete anyone except themselves and other superadmins
     if (currentUserRole === 'superadmin') {
       if (userToDeleteRole === 'superadmin') {
         return res.status(403).json({ message: 'Cannot delete superadmin' });
@@ -825,21 +847,45 @@ export const deleteUser = async (req, res) => {
     }
     // Orgadmin/Admin can delete staff within their organization
     else if (currentUserRole === 'orgadmin' || currentUserRole === 'admin') {
+      // Permission restriction
       if (!['receptionist', 'doctor', 'patient'].includes(userToDeleteRole)) {
+        console.warn(`[DeleteUser] Forbidden: Role mismatch. ${currentUserRole} tried to delete ${userToDeleteRole}`);
         return res.status(403).json({ message: 'Can only delete staff or patient users' });
       }
-      // Ensure the user belongs to the same organization
-      if (userToDelete.organizationId?.toString() !== req.user.organizationId?.toString()) {
+      
+      // Organization restriction
+      if (userTenantId !== currentTenantId) {
+        console.warn(`[DeleteUser] Forbidden: Org mismatch. Current: ${currentTenantId}, Target: ${userTenantId}`);
         return res.status(403).json({ message: 'Cannot delete user from different organization' });
       }
     }
     else {
+      console.warn(`[DeleteUser] Forbidden: User role ${currentUserRole} has no deletion privileges`);
       return res.status(403).json({ message: 'Not authorized to delete users' });
     }
 
-    const deletedUser = await User.findByIdAndDelete(userId);
+    // Cascading deletion for specialized profiles
+    try {
+      if (userToDeleteRole === 'doctor') {
+        const Doctor = mongoose.model('Doctor');
+        await Doctor.deleteOne({ $or: [{ doctorId: userId }, { _id: userId }, { mobile: userToDelete.mobile, organizationId: userToDelete.organizationId }] });
+      } else if (userToDeleteRole === 'receptionist') {
+        const Receptionist = mongoose.model('Receptionist');
+        await Receptionist.deleteOne({ $or: [{ receptionistId: userId }, { _id: userId }, { phone: userToDelete.mobile, organizationId: userToDelete.organizationId }] });
+      } else if (userToDeleteRole === 'patient') {
+        const Patient = mongoose.model('Patient');
+        await Patient.deleteOne({ $or: [{ patientId: userId }, { _id: userId }, { mobile: userToDelete.mobile, organizationId: userToDelete.organizationId }] });
+      }
+    } catch (profileDelError) {
+      console.warn('[DeleteUser] Associated profile deletion failed or not found:', profileDelError.message);
+    }
+
+    await User.findByIdAndDelete(userId);
+    console.log(`[DeleteUser] Successfully deleted user ${userId} and their associated profile`);
+    
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
+    console.error('[DeleteUser] Critical Error:', error);
     res.status(500).json({ message: error.message });
   }
 };

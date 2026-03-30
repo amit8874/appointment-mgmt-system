@@ -367,19 +367,19 @@ const TrialModal = ({ isOpen, onClose }) => {
                       <PlanCard 
                         id="basic"
                         title="Basic"
-                        price="FREE"
-                        desc="Perfect for small practices"
-                        features={["Up to 10 Doctors", "500 Appointments/mo", "Digital Records"]}
+                        price="799/mo"
+                        desc="Perfect for solo doctors & small practices"
+                        features={["1 Doctor Login", "500 Appointments/mo", "1,000 Patient Records", "Cloud Storage"]}
                         onSelect={handleSelectPlan}
                         loading={loading}
                         icon={<Zap className="text-blue-400" size={24} />}
                       />
                       <PlanCard 
                         id="pro"
-                        title="Professional"
-                        price="POPULAR"
-                        desc="Advanced features for growing clinics"
-                        features={["Up to 50 Doctors", "Unlimited Appointments", "Advanced Analytics", "Video Consultations"]}
+                        title="Standard"
+                        price="1999/mo"
+                        desc="Enhanced features for growing clinics"
+                        features={["Up to 3 Doctors", "2 Receptionists", "2,000 Appointments/mo", "Advanced Analytics"]}
                         onSelect={handleSelectPlan}
                         loading={loading}
                         highlight
@@ -387,10 +387,10 @@ const TrialModal = ({ isOpen, onClose }) => {
                       />
                       <PlanCard 
                         id="enterprise"
-                        title="Enterprise"
-                        price="CUSTOM"
-                        desc="For multi-specialty hospitals"
-                        features={["Unlimited Everything", "Custom Branding", "Personalized Support", "On-premise deployment"]}
+                        title="Premium"
+                        price="3999/mo"
+                        desc="Full hospital & multi-doctor management"
+                        features={["Unlimited Everything", "SMS Reminders", "Professional Reports", "Custom Branding"]}
                         onSelect={handleSelectPlan}
                         loading={loading}
                         icon={<Globe className="text-emerald-400" size={24} />}

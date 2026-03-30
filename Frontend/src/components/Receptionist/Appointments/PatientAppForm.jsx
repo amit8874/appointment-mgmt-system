@@ -8,7 +8,6 @@ const PatientAppointmentForm = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    dateOfBirth: '',
     age: '',
     gender: '',
     bloodGroup: '',
@@ -23,7 +22,8 @@ const PatientAppointmentForm = ({ onSuccess }) => {
     pastMedicalHistory: '',
     allergies: '',
     assignedDoctor: '',
-    assignedDoctorId: ''
+    assignedDoctorId: '',
+    patientId: '' // Added to store existing patient ID for re-booking
   });
 
   const [doctors, setDoctors] = useState([]);
@@ -43,7 +43,8 @@ const PatientAppointmentForm = ({ onSuccess }) => {
     const fetchDoctors = async () => {
       try {
         const data = await centralDoctorApi.getAll();
-        setDoctors(data.map(d => ({
+        const doctorsList = Array.isArray(data) ? data : (data?.doctors || []);
+        setDoctors(doctorsList.map(d => ({
           id: d._id,
           name: d.name,
           specialty: d.specialization || d.specialty || 'General Physician'
@@ -64,7 +65,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
           ...prev,
           firstName: p.firstName || p.fullName?.split(' ')[0] || '',
           lastName: p.lastName || p.fullName?.split(' ').slice(1).join(' ') || '',
-          dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().split('T')[0] : '',
+          age: p.age || '',
           gender: p.gender || '',
           bloodGroup: p.bloodGroup || '',
           contactNumber: p.contactNumber || p.phone || '',
@@ -77,6 +78,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
           emergencyPhone: p.emergencyPhone || '',
           pastMedicalHistory: p.pastMedicalHistory || '',
           allergies: p.allergies || '',
+          patientId: p.patientId || p._id || '', // Capture existing ID
         }));
       }
 
@@ -91,24 +93,6 @@ const PatientAppointmentForm = ({ onSuccess }) => {
     }
   }, [rebookData]);
 
-  // Calculate age when date of birth changes
-  useEffect(() => {
-    if (formData.dateOfBirth) {
-      const birthDate = new Date(formData.dateOfBirth);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        age: age.toString()
-      }));
-    }
-  }, [formData.dateOfBirth]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -145,14 +129,18 @@ const PatientAppointmentForm = ({ onSuccess }) => {
     setError('');
 
     try {
-      // 1. Create Patient
-      const patientResponse = await api.post('/patients', {
-        ...formData,
-        gender: formData.gender === 'Prefer not to say' ? 'Other' : formData.gender
-      });
+      let patientIdString = formData.patientId;
+      let patientId = null;
 
-      const patientId = patientResponse.data._id;
-      const patientIdString = patientResponse.data.patientId;
+      // 1. Create Patient ONLY if not re-booking an existing one
+      if (!patientIdString) {
+        const patientResponse = await api.post('/patients', {
+          ...formData,
+          gender: formData.gender === 'Prefer not to say' ? 'Other' : formData.gender
+        });
+        patientId = patientResponse.data._id;
+        patientIdString = patientResponse.data.patientId;
+      }
 
       // Store appointment ID for later status update after billing
       let appointmentId = null;
@@ -294,11 +282,11 @@ const PatientAppointmentForm = ({ onSuccess }) => {
             <input type="text" name="lastName" value={formData.lastName} onChange={handleChange}
               className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500" required />
           </div>
-          <div className="w-28">
-            <label className="block text-xs font-medium text-gray-700">DOB *</label>
-            <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange}
-              className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500" required />
-          </div>
+              <div className="w-20">
+                <label className="block text-xs font-medium text-gray-700">Age *</label>
+                <input type="number" name="age" value={formData.age} onChange={handleChange}
+                  className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" required />
+              </div>
           <div className="w-20">
             <label className="block text-xs font-medium text-gray-700">Gender *</label>
             <select name="gender" value={formData.gender} onChange={handleChange}

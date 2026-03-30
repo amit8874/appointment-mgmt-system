@@ -1,4 +1,6 @@
 import express from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import cors from "cors";
 import dotenv from "dotenv";
 import multer from "multer";
@@ -24,11 +26,42 @@ import chatbotRoutes from "./routes/chatbotRoutes.js";
 import medicalRecordRoutes from "./routes/medicalRecordRoutes.js";
 import serviceRequestRoutes from "./routes/serviceRequestRoutes.js";
 import pharmacyRoutes from "./routes/pharmacyRoutes.js";
+import productRoutes from "./routes/productRoutes.js";
+import templateRoutes from "./routes/templateRoutes.js";
+import specializationRoutes from "./routes/specializationRoutes.js";
+import councilRoutes from "./routes/councilRoutes.js";
+import practiceRoutes from "./routes/practiceRoutes.js";
 import { detectTenant } from "./middleware/tenant.js";
 
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Make io accessible to our routes
+app.set("io", io);
+
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
+  
+  socket.on("join-tenant", (tenantId) => {
+    if (tenantId) {
+      const roomName = tenantId.toString();
+      socket.join(roomName);
+      console.log(`Socket [${socket.id}] joined clinic room: [${roomName}]`);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
 
 /* --------------------------------------------------
 Cloudinary Configuration
@@ -145,6 +178,11 @@ app.use("/api/chatbot", chatbotRoutes);
 app.use("/api/medical-records", medicalRecordRoutes);
 app.use("/api/service-requests", serviceRequestRoutes);
 app.use("/api/pharmacy", pharmacyRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/invoice-templates", templateRoutes);
+app.use("/api/specializations", specializationRoutes);
+app.use("/api/councils", councilRoutes);
+app.use("/api/practices", practiceRoutes);
 
 /* --------------------------------------------------
 Image Upload API
@@ -230,6 +268,6 @@ Start Server
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

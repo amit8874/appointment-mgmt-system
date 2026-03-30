@@ -17,18 +17,43 @@ const cancelledAppointmentSchema = new mongoose.Schema({
     required: true,
   },
 
+  designation: {
+    type: String,
+  },
+  firstName: {
+    type: String,
+  },
+  lastName: {
+    type: String,
+  },
   patientName: {
     type: String,
     required: true,
   },
   patientPhone: {
     type: String,
-    required: true,
+    required: false,
   },
   patientEmail: {
     type: String,
     required: false,
     default: ''
+  },
+  patientAge: {
+    type: Number,
+  },
+  ageType: {
+    type: String,
+    enum: ['Year', 'Month', 'Days'],
+    default: 'Year'
+  },
+  rateListType: {
+    type: String,
+    default: 'Main'
+  },
+  dispatchMethods: {
+    type: [String],
+    default: []
   },
   doctorId: {
     type: String,
@@ -46,11 +71,21 @@ const cancelledAppointmentSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  appointmentDate: {
+    type: String,
+  },
   time: {
     type: String,
     required: true,
   },
+  appointmentTime: {
+    type: String,
+  },
   reason: {
+    type: String,
+    trim: true,
+  },
+  cancellationReason: {
     type: String,
     trim: true,
   },
@@ -67,6 +102,10 @@ const cancelledAppointmentSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  isRescheduled: {
+    type: Boolean,
+    default: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -80,6 +119,7 @@ const cancelledAppointmentSchema = new mongoose.Schema({
 // Indexes for performance
 cancelledAppointmentSchema.index({ organizationId: 1 });
 cancelledAppointmentSchema.index({ organizationId: 1, date: 1 });
+cancelledAppointmentSchema.index({ organizationId: 1, appointmentDate: 1 });
 
 // Update the updatedAt field before saving
 cancelledAppointmentSchema.pre('save', function(next) {

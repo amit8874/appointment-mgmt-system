@@ -1,132 +1,84 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
-import { X, Loader2, Save } from "lucide-react";
-import { toast, ToastContainer } from "react-toastify";
-import BillingModal from "../../components/Shared/BillingModal";
-import api from "../../services/api";
+import React, { useState, useEffect } from 'react';
+import { X, Calendar as CalendarIcon, Loader2, Plus, Save, ChevronDown } from 'lucide-react';
+import api from '../../services/api';
+import { toast } from 'react-toastify';
+import { useAuth } from '../../context/AuthContext';
 
-export default function NewAppointmentForm({ onClose, onSuccess, initialData }) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFetchingSlots, setIsFetchingSlots] = useState(false);
-  const location = useLocation();
+export default function NewAppointmentForm({ onClose, onSuccess, initialData, isDashboardIntegrated = false }) {
+  const { user } = useAuth();
   const [doctors, setDoctors] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
+  const [isFetchingSlots, setIsFetchingSlots] = useState(false);
   const [slotError, setSlotError] = useState('');
 
-  // Billing modal state
-  const [billingOpen, setBillingOpen] = useState(false);
-  const [billingInitData, setBillingInitData] = useState({});
-  const billingAppointmentIdRef = useRef(null);
-
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    day: "",
-    month: "",
-    year: "",
-    gender: "",
-    bloodGroup: "",
-    phone: "",
-    email: "",
-    streetAddress: "",
-    streetAddress2: "",
-    city: "",
-    state: "",
-    postalCode: "",
-    previouslyApplied: "",
-    department: "",
-    procedure: "",
-    appointmentDate: "",
-    appointmentTime: ""
+    patientId: 'Loading...',
+    designation: 'MR.',
+    firstName: '',
+    lastName: '',
+    age: '',
+    ageType: 'Year',
+    gender: 'Male',
+    phone: '',
+    department: '',
+    doctor: '',
+    appointmentDate: new Date().toISOString().split('T')[0],
+    appointmentTime: '',
   });
 
   useEffect(() => {
     fetchDoctors();
-  }, []);
-
-  // Initialize form with initialData if provided
-  useEffect(() => {
-    const combinedData = initialData || location.state?.rebookData;
-    if (combinedData) {
-      // Handle Date of Birth split
-      let dobParts = { day: "", month: "", year: "" };
-      if (combinedData.dateOfBirth) {
-        try {
-          const dob = new Date(combinedData.dateOfBirth);
-          if (!isNaN(dob.getTime())) {
-            dobParts.day = dob.getDate().toString();
-            dobParts.month = (dob.getMonth() + 1).toString();
-            dobParts.year = dob.getFullYear().toString();
-          }
-        } catch (e) {
-          console.error("Error parsing DOB:", e);
-        }
-      }
-
+    if (initialData && initialData.patientId && initialData.patientId !== 'Loading...') {
       setFormData(prev => ({
         ...prev,
-        ...combinedData,
-        // Day/Month/Year from DOB
-        ...dobParts,
-        // Ensure values are strings for form compatibility
-        doctor: combinedData.doctorId || combinedData.doctor || prev.doctor,
-        appointmentDate: combinedData.date || combinedData.appointmentDate || prev.appointmentDate,
-        appointmentTime: combinedData.time || combinedData.appointmentTime || prev.appointmentTime,
-        procedure: combinedData.reason || combinedData.procedure || prev.procedure,
-        // Prefer specific firstName/lastName over splitting full name
-        firstName: combinedData.firstName || (combinedData.patientName ? combinedData.patientName.split(' ')[0] : prev.firstName),
-        lastName: combinedData.lastName || (combinedData.patientName ? combinedData.patientName.split(' ').slice(1).join(' ') : prev.lastName),
-        // Normalize gender
-        gender: combinedData.gender ? combinedData.gender.toLowerCase() : prev.gender,
+        ...initialData
       }));
-
-      // If we have doctor and date, fetch slots
-      const docId = combinedData.doctorId || combinedData.doctor;
-      const appDate = combinedData.date || combinedData.appointmentDate;
-      if (docId && appDate) {
-        fetchAvailableSlotsExplicit(docId, appDate);
+    } else {
+      fetchPatientId();
+      if (initialData) {
+        setFormData(prev => ({
+          ...prev,
+          ...initialData,
+          patientId: 'Loading...'
+        }));
       }
     }
-  }, [initialData, location.state]);
+  }, [initialData]);
 
-  // Helper for explicit slot fetching during initialization
-  const fetchAvailableSlotsExplicit = async (docId, date) => {
-    setIsFetchingSlots(true);
-    setAvailableSlots([]);
-    setSlotError('');
+  const fetchPatientId = async () => {
     try {
-      const response = await api.get(`/doctors/${docId}/slots?date=${date}`);
-      const data = response.data;
-      if (response.status === 200 && data.available && data.slots && data.slots.length > 0) {
-        setAvailableSlots(data.slots);
-      } else {
-        setSlotError(data.message || 'No slots available');
+      const orgId = user?.organizationId?._id || user?.organizationId || user?.organization?._id;
+      if (!orgId) return;
+      const response = await api.get(`/patients/generate-id?organizationId=${orgId}`);
+      if (response.data && response.data.patientId) {
+        setFormData(prev => ({ ...prev, patientId: response.data.patientId }));
       }
     } catch (error) {
-      setSlotError('Failed to load slots');
-    } finally {
-      setIsFetchingSlots(false);
+      console.error('Error fetching patient ID:', error);
     }
   };
-
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
-  const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-  ];
-  const years = Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i);
 
   const fetchDoctors = async () => {
     try {
       const response = await api.get('/doctors');
-      if (response.status === 200) {
-        const data = response.data;
-        setDoctors(data);
+      if (Array.isArray(response.data)) {
+        setDoctors(response.data);
       }
     } catch (error) {
       console.error('Error fetching doctors:', error);
     }
   };
+
+  // Gender auto-selection based on Designation
+  useEffect(() => {
+    const des = formData.designation.toUpperCase().replace('.', '');
+    if (['MR', 'SHRI'].includes(des)) {
+      setFormData(prev => ({ ...prev, gender: 'Male' }));
+    } else if (['MS', 'MRS', 'MISS', 'SMT'].includes(des)) {
+      setFormData(prev => ({ ...prev, gender: 'Female' }));
+    }
+  }, [formData.designation]);
 
   const fetchAvailableSlots = async () => {
     if (!formData.doctor || !formData.appointmentDate) return;
@@ -141,277 +93,357 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData }) 
       } else if (data.message) {
         setSlotError(data.message);
       } else {
-        setSlotError('No slots available for this date');
+        setSlotError('No slots available');
       }
     } catch (error) {
       console.error('Error fetching slots:', error);
-      setSlotError('Failed to load available slots');
+      setSlotError('Failed to load slots');
     } finally {
       setIsFetchingSlots(false);
     }
   };
 
+  useEffect(() => {
+    if (formData.doctor && formData.appointmentDate) {
+      fetchAvailableSlots();
+    }
+  }, [formData.doctor, formData.appointmentDate]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (name === 'doctor' || name === 'appointmentDate') {
-      setFormData(prev => ({ ...prev, appointmentTime: "" }));
-      // Fetch available slots when either doctor or date changes
-      if ((name === 'doctor' && formData.appointmentDate) ||
-        (name === 'appointmentDate' && formData.doctor)) {
-        fetchAvailableSlots();
-      }
+      setFormData(prev => ({ ...prev, appointmentTime: '' }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.appointmentTime) {
+      toast.error('Please select an available time slot');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
-      const selectedDoctor = doctors.find(d => d._id === formData.doctor);
-
-      // Calculate age from DOB
-      let age = null;
-      if (formData.year && formData.month && formData.day) {
-        const birthDate = new Date(formData.year, formData.month - 1, formData.day);
-        const today = new Date();
-        let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-          calculatedAge--;
-        }
-        age = calculatedAge;
+      const orgId = user?.organizationId?._id || user?.organizationId || user?.organization?._id;
+      if (!orgId) {
+        toast.error('Organization information not found. Please log in again.');
+        setIsLoading(false);
+        return;
       }
 
+      const selectedDoctor = doctors.find(d => d._id === formData.doctor);
       const appointmentData = {
-        patientDetails: {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          phone: formData.phone,
-          email: formData.email,
-          address: `${formData.streetAddress}${formData.streetAddress2 ? ', ' + formData.streetAddress2 : ''}${formData.city ? ', ' + formData.city : ''}${formData.state ? ', ' + formData.state : ''}${formData.postalCode ? ', ' + formData.postalCode : ''}`,
-          age: age,
-          gender: formData.gender,
-          dateOfBirth: formData.year ? `${formData.year}-${String(formData.month).padStart(2, '0')}-${String(formData.day).padStart(2, '0')}` : null,
-          bloodGroup: formData.bloodGroup
-        },
+        organizationId: orgId,
+        patientId: formData.patientId,
         doctorId: formData.doctor,
         doctorName: selectedDoctor ? selectedDoctor.name : '',
-        specialty: selectedDoctor ? selectedDoctor.specialization : '',
+        specialty: selectedDoctor ? selectedDoctor.specialization : 'General',
         date: formData.appointmentDate,
         time: formData.appointmentTime,
-        reason: formData.procedure
+        patientDetails: {
+          designation: formData.designation,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          age: formData.age,
+          ageType: formData.ageType,
+          gender: formData.gender,
+          phone: formData.phone,
+        }
       };
 
-      const response = await api.post('/appointments', appointmentData);
+      const response = await api.post('/appointments/book-patient', appointmentData);
 
-      if (response.status === 201 || response.status === 200) {
-        const appointment = response.data;
-
-        // Store appointment ID for billing
-        billingAppointmentIdRef.current = appointment._id;
-
-        // Prepare billing data
-        setBillingInitData({
-          patientId: appointment.patientId,
-          patientName: `${formData.firstName} ${formData.lastName}`.trim(),
-          age: age,
-          gender: formData.gender,
-          contactNumber: formData.phone,
-          email: formData.email,
-          bloodGroup: formData.bloodGroup || '',
-          doctorId: formData.doctor,
-          doctorName: selectedDoctor ? selectedDoctor.name : '',
-          appointmentId: appointment._id,
-          appointmentDate: formData.appointmentDate,
-          appointmentTime: formData.appointmentTime,
-          total: selectedDoctor?.consultationFee || 500,
-        });
-
-        // Open billing modal
-        setBillingOpen(true);
-        setIsLoading(false);
+      if (response.status === 200 || response.status === 201) {
+        toast.success('Appointment booked successfully!');
+        if (onSuccess) onSuccess();
+        if (onClose) onClose();
       } else {
-        const error = await response.json();
-        toast.error(error.message || 'Failed to create appointment');
-        setIsLoading(false);
+        toast.error('Failed to create appointment');
       }
     } catch (error) {
       console.error('Error creating appointment:', error);
       toast.error('Failed to create appointment');
+    } finally {
       setIsLoading(false);
     }
-  };
-
-  // Handle billing completion
-  const handleBillingComplete = async (bill) => {
-    console.log('Billing completed:', bill);
-    toast.success('Payment completed successfully!');
-    setBillingOpen(false);
-    if (onSuccess) onSuccess();
-    if (onClose) onClose();
   };
 
   const departments = [...new Set(doctors.map(d => d.specialization).filter(Boolean))];
 
   return (
-    <div className="bg-gray-50 p-4 sm:p-6 rounded-xl">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-bold text-gray-800">New Appointment</h2>
-        {onClose && (
-          <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-full">
-            <X className="w-5 h-5 text-gray-500" />
+    <div className={`${isDashboardIntegrated ? 'bg-transparent shadow-none border-none' : 'bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800'} overflow-hidden transition-all duration-500`}>
+      {!isDashboardIntegrated && (
+        <div className="bg-blue-600 px-6 py-4 flex justify-between items-center text-white">
+          <h2 className="text-xl font-bold tracking-tight">Assign New Appointment</h2>
+          <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-full transition-colors">
+            <X className="w-6 h-6" />
           </button>
-        )}
-      </div>
-
-      <form onSubmit={handleSubmit} className="text-sm">
-        {/* Patient Info - Compact Grid */}
-        <div className="mb-3">
-          <h3 className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Patient Information</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required placeholder="First Name *" className="border p-1.5 rounded text-sm" />
-            <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required placeholder="Last Name *" className="border p-1.5 rounded text-sm" />
-          </div>
         </div>
-
-        {/* DOB & Gender */}
-        <div className="grid grid-cols-4 gap-2 mb-3">
-          <div>
-            <label className="text-xs text-gray-600 block mb-1">Date of Birth</label>
-            <select name="day" value={formData.day} onChange={handleChange} className="border p-1.5 rounded text-xs w-full">
-              <option value="">Day</option>
-              {days.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-600 block mb-1">&nbsp;</label>
-            <select name="month" value={formData.month} onChange={handleChange} className="border p-1.5 rounded text-xs w-full">
-              <option value="">Month</option>
-              {months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-600 block mb-1">&nbsp;</label>
-            <select name="year" value={formData.year} onChange={handleChange} className="border p-1.5 rounded text-xs w-full">
-              <option value="">Year</option>
-              {years.slice(0, 50).map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-gray-600 block mb-1">Gender</label>
-            <select name="gender" value={formData.gender} onChange={handleChange} className="border p-1.5 rounded text-xs w-full">
-              <option value="">Select</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Phone & Email */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required placeholder="Phone *" className="border p-1.5 rounded text-sm" />
-          <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email" className="border p-1.5 rounded text-sm" />
-        </div>
-
-        {/* Address - Compact */}
-        <div className="mb-3">
-          <h3 className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Address</h3>
-          <input type="text" name="streetAddress" value={formData.streetAddress} onChange={handleChange} placeholder="Street Address" className="border p-1.5 rounded text-sm w-full mb-1" />
-          <div className="grid grid-cols-2 gap-2">
-            <input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="City" className="border p-1.5 rounded text-sm" />
-            <input type="text" name="state" value={formData.state} onChange={handleChange} placeholder="State" className="border p-1.5 rounded text-sm" />
-          </div>
-        </div>
-
-        {/* Department & Procedure */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <select name="department" value={formData.department} onChange={handleChange} className="border p-1.5 rounded text-xs">
-            <option value="">Department</option>
-            {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-          </select>
-          <input type="text" name="procedure" value={formData.procedure} onChange={handleChange} placeholder="Procedure/Reason" className="border p-1.5 rounded text-sm" />
-        </div>
-
-        {/* Appointment Details */}
-        <div className="mb-3">
-          <h3 className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Appointment</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <select name="doctor" value={formData.doctor} onChange={handleChange} required className="border p-1.5 rounded text-xs">
-              <option value="">Select Doctor</option>
-              {doctors.filter(d => !formData.department || d.specialization === formData.department).map(doctor => (
-                <option key={doctor._id} value={doctor._id}>Dr. {doctor.name}</option>
-              ))}
-            </select>
-            <input type="date" name="appointmentDate" value={formData.appointmentDate} onChange={handleChange} required min={new Date().toISOString().split('T')[0]} className="border p-1.5 rounded text-xs" />
-          </div>
-        </div>
-
-        {/* Time Slots */}
-        <div className="mb-4">
-          <label className="text-xs text-gray-600 block mb-1">Available Slots</label>
-          {isFetchingSlots ? (
-            <div className="flex items-center gap-1 text-xs text-gray-500"><Loader2 className="w-3 h-3 animate-spin" /> Loading...</div>
-          ) : formData.doctor && formData.appointmentDate ? (
-            availableSlots.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                {availableSlots.map(slot => {
-                  const isBooked = typeof slot === 'object' ? slot.isBooked : false;
-                  const isPast = typeof slot === 'object' ? slot.isPast : false;
-                  const slotTime = typeof slot === 'object' ? slot.time : slot;
-                  
-                  return (
-                    <button 
-                      key={slotTime} 
-                      type="button" 
-                      disabled={isBooked || isPast}
-                      onClick={() => !isBooked && !isPast && setFormData(prev => ({ ...prev, appointmentTime: slotTime }))}
-                      className={`px-2 py-1 rounded text-xs transition-colors duration-150 flex flex-col items-center ${
-                        formData.appointmentTime === slotTime 
-                          ? 'bg-blue-600 text-white shadow-sm' 
-                          : isPast
-                            ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed opacity-50'
-                            : isBooked 
-                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60' 
-                            : 'border border-gray-300 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600'
-                      }`}
-                      title={isPast ? "Time slot expired" : isBooked ? "This slot is already booked" : "Click to select"}
-                    >
-                      <span>{slotTime}</span>
-                      {isPast && <span className="text-[7px] uppercase font-bold">Expired</span>}
-                      {isBooked && !isPast && <span className="text-[7px] uppercase font-bold">Locked</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : slotError ? (
-              <span className="text-xs text-orange-600">{slotError}</span>
-            ) : (
-              <span className="text-xs text-red-500">No slots available</span>
-            )
-          ) : <span className="text-xs text-gray-400">Select doctor & date</span>}
-        </div>
-
-        {/* Submit */}
-        <button type="submit" disabled={isLoading}
-          className="w-full bg-green-500 text-white py-2 rounded font-medium hover:bg-green-600 disabled:opacity-50 flex items-center justify-center gap-2">
-          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          Create Appointment
-        </button>
-      </form>
-
-      {/* Billing Modal */}
-      {billingOpen && (
-        <BillingModal
-          initialData={billingInitData}
-          onClose={() => setBillingOpen(false)}
-          onComplete={handleBillingComplete}
-        />
       )}
 
-      <ToastContainer />
+      <form onSubmit={handleSubmit} className={`${isDashboardIntegrated ? 'p-8 sm:p-10' : 'p-6'} space-y-6`}>
+        {/* Row 1: Patient ID, Designation, Name, Age */}
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-400 mb-1 uppercase tracking-wider font-semibold">Patient ID</label>
+            <span className="text-xl font-extrabold text-blue-600 dark:text-blue-400">{formData.patientId}</span>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
+              <span className="text-red-500 mr-1">*</span> Designation
+            </label>
+            <div className="relative">
+              <select
+                name="designation"
+                value={formData.designation}
+                onChange={handleChange}
+                className="w-full border border-blue-400 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 pr-8 bg-white dark:bg-gray-800"
+                required
+              >
+                <option value="MR.">MR.</option>
+                <option value="MS.">MS.</option>
+                <option value="MRS.">MRS.</option>
+                <option value="MISS">MISS</option>
+                <option value="SHRI">SHRI</option>
+                <option value="SMT.">SMT.</option>
+              </select>
+              <ChevronDown className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div className="flex flex-col md:col-span-1">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
+              <span className="text-red-500 mr-1">*</span> First Name
+            </label>
+            <input
+              type="text"
+              name="firstName"
+              value={formData.firstName}
+              onChange={handleChange}
+              placeholder="First name"
+              className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 font-bold">Last Name</label>
+            <input
+              type="text"
+              name="lastName"
+              value={formData.lastName}
+              onChange={handleChange}
+              placeholder="Last name"
+              className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
+              <span className="text-red-500 mr-1">*</span> Age
+            </label>
+            <input
+              type="number"
+              name="age"
+              value={formData.age}
+              onChange={handleChange}
+              placeholder="Age"
+              className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+              required
+            />
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
+              <span className="text-red-500 mr-1">*</span> Type
+            </label>
+            <div className="relative">
+              <select
+                name="ageType"
+                value={formData.ageType}
+                onChange={handleChange}
+                className="w-full border border-gray-300 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                required
+              >
+                <option value="Year">Year</option>
+                <option value="Month">Month</option>
+                <option value="Days">Days</option>
+              </select>
+              <ChevronDown className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
+              <span className="text-red-500 mr-1">*</span> Mobile Number
+            </label>
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                setFormData(prev => ({ ...prev, phone: value }));
+              }}
+              placeholder="10 digit mobile number"
+              className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+              required
+            />
+          </div>
+        </div>
+
+        {/* Row 2: Gender, Dept, Doctor, Date */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
+          <div>
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-2.5 flex items-center font-bold italic">
+              <span className="text-red-500 mr-1">*</span> Gender
+            </label>
+            <div className="flex items-center space-x-5">
+              {['Male', 'Female', 'Other'].map(option => (
+                <label key={option} className="flex items-center cursor-not-allowed group">
+                  <div className="relative flex items-center">
+                    <input
+                      type="radio"
+                      name="gender"
+                      value={option}
+                      checked={formData.gender === option}
+                      readOnly
+                      className="sr-only"
+                    />
+                    <div className={`w-5 h-5 rounded-full border-2 ${formData.gender === option ? 'border-blue-500 bg-blue-500/10' : 'border-gray-300'} flex items-center justify-center transition-all`}>
+                      {formData.gender === option && <div className="w-2 h-2 rounded-full bg-blue-500 shadow-sm shadow-blue-500/50" />}
+                    </div>
+                  </div>
+                  <span className={`ml-2 text-sm ${formData.gender === option ? 'text-gray-900 dark:text-white font-bold' : 'text-gray-400'}`}>
+                    {option}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 font-bold">Department</label>
+            <div className="relative">
+              <select
+                name="department"
+                value={formData.department}
+                onChange={handleChange}
+                className="w-full border border-gray-300 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+              >
+                <option value="">All Departments</option>
+                {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+              </select>
+              <ChevronDown className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
+              <span className="text-red-500 mr-1">*</span> Doctor
+            </label>
+            <div className="relative">
+              <select
+                name="doctor"
+                value={formData.doctor}
+                onChange={handleChange}
+                required
+                className="w-full border border-gray-300 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+              >
+                <option value="">Select Doctor</option>
+                {doctors.filter(d => !formData.department || d.specialization === formData.department).map(doc => (
+                  <option key={doc._id} value={doc._id}>Dr. {doc.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
+              <span className="text-red-500 mr-1">*</span> Date
+            </label>
+            <div className="relative">
+              <input 
+                type="date" 
+                name="appointmentDate" 
+                value={formData.appointmentDate} 
+                onChange={handleChange} 
+                required 
+                min={new Date().toISOString().split('T')[0]} 
+                className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 pl-9 bg-white dark:bg-gray-800" 
+              />
+              <CalendarIcon className="w-4 h-4 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />
+            </div>
+          </div>
+        </div>
+
+        {/* Time Slots Section */}
+        <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">Available Slots</label>
+          <div className="min-h-[80px]">
+            {isFetchingSlots ? (
+              <div className="flex items-center gap-2 text-xs text-blue-500 py-4 font-medium"><Loader2 className="w-5 h-5 animate-spin" /> Fetching latest availability...</div>
+            ) : formData.doctor && formData.appointmentDate ? (
+              availableSlots.length > 0 ? (
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2.5">
+                  {availableSlots.map(slot => {
+                    const slotTime = typeof slot === 'object' ? slot.time : slot;
+                    const isBooked = typeof slot === 'object' ? slot.isBooked : false;
+                    const isPast = typeof slot === 'object' ? slot.isPast : false;
+                    
+                    return (
+                      <button 
+                        key={slotTime} 
+                        type="button" 
+                        disabled={isBooked || isPast}
+                        onClick={() => setFormData(prev => ({ ...prev, appointmentTime: slotTime }))}
+                        className={`py-2 px-1 rounded-lg border text-[11px] font-bold transition-all ${
+                          formData.appointmentTime === slotTime 
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105' 
+                            : isPast || isBooked
+                              ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50'
+                              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600'
+                        }`}
+                      >
+                        {slotTime}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-4 bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 rounded-xl text-xs text-orange-600 dark:text-orange-400 font-bold">{slotError || 'No slots found for this selection.'}</div>
+              )
+            ) : (
+              <div className="p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl text-xs text-blue-600 dark:text-blue-400 italic">Please select both a doctor and a date to view current availability.</div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className={`flex ${isDashboardIntegrated ? 'justify-end' : 'gap-4'} pt-6 border-t border-gray-100 dark:border-gray-800`}>
+          {!isDashboardIntegrated && (
+            <button 
+              type="button" 
+              onClick={onClose}
+              className="flex-1 py-3 border border-gray-300 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition-all active:scale-95"
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={isLoading || !formData.appointmentTime}
+            className={`${isDashboardIntegrated ? 'px-12 w-auto' : 'flex-[2]'} py-3 bg-blue-600 text-white rounded-xl font-extrabold hover:bg-blue-700 shadow-xl shadow-blue-600/30 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50 disabled:shadow-none`}
+          >
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
+            Book Appointment
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

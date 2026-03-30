@@ -7,7 +7,6 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    dateOfBirth: '',
     age: '',
     gender: '',
     bloodGroup: '',
@@ -40,7 +39,6 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
       setFormData({
         firstName: patient.firstName || patient.name?.split(' ')[0] || '',
         lastName: patient.lastName || patient.name?.split(' ').slice(1).join(' ') || '',
-        dateOfBirth: patient.dateOfBirth || '',
         age: patient.age || '',
         gender: patient.gender || '',
         bloodGroup: patient.bloodGroup || '',
@@ -61,7 +59,6 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
       setFormData({
         firstName: '',
         lastName: '',
-        dateOfBirth: '',
         age: '',
         gender: '',
         bloodGroup: '',
@@ -100,24 +97,6 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
     }
   }, [isOpen]);
 
-  // Calculate age when date of birth changes
-  useEffect(() => {
-    if (formData.dateOfBirth) {
-      const birthDate = new Date(formData.dateOfBirth);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        age: age.toString()
-      }));
-    }
-  }, [formData.dateOfBirth]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -333,9 +312,9 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 <input type="text" name="lastName" value={formData.lastName} onChange={handleChange}
                   className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" required />
               </div>
-              <div className="w-28">
-                <label className="block text-xs font-medium text-gray-700">DOB *</label>
-                <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange}
+              <div className="w-20">
+                <label className="block text-xs font-medium text-gray-700">Age *</label>
+                <input type="number" name="age" value={formData.age} onChange={handleChange}
                   className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" required />
               </div>
               <div className="w-20">

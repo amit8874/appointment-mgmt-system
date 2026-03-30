@@ -10,9 +10,13 @@ const TrialNotification = ({ organizationId }) => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [timeLeft, setTimeLeft] = useState('');
 
-  const fetchTrialStatus = useCallback(async (id) => {
+  const fetchTrialStatus = useCallback(async (targetId, skipLoading = false) => {
     try {
-      setIsLoading(true);
+      if (!targetId) return;
+      const id = typeof targetId === 'object' ? (targetId._id || targetId.id) : targetId;
+      if (!id || id === '[object Object]') return;
+
+      if (!skipLoading) setIsLoading(true);
       const data = await organizationApi.getTrialStatus(id);
       setTrialStatus(data);
     } catch (error) {
@@ -33,6 +37,8 @@ const TrialNotification = ({ organizationId }) => {
   // Handle countdown for Free Trial auto-reset
   useEffect(() => {
     if (trialStatus?.planType === 'FREE_TRIAL' && trialStatus?.trialStartDate) {
+      let isRefreshing = false;
+      
       const updateTimer = () => {
         const now = new Date();
         const start = new Date(trialStatus.trialStartDate);
@@ -41,8 +47,11 @@ const TrialNotification = ({ organizationId }) => {
 
         if (diff <= 0) {
           setTimeLeft('Resetting...');
-          // Refresh status after reset might have happened
-          setTimeout(() => fetchTrialStatus(organizationId), 5000);
+          // Refresh status after reset might have happened, but only once
+          if (!isRefreshing) {
+            isRefreshing = true;
+            setTimeout(() => fetchTrialStatus(organizationId, true), 5000);
+          }
           return;
         }
 
@@ -57,7 +66,21 @@ const TrialNotification = ({ organizationId }) => {
       updateTimer();
       return () => clearInterval(timer);
     }
-  }, [trialStatus, organizationId, fetchTrialStatus]);
+  }, [trialStatus?.planType, trialStatus?.trialStartDate, organizationId, fetchTrialStatus]);
+  // Auto-hide after 10 seconds unless it's an important notification
+  useEffect(() => {
+    if (isVisible && !isLoading && trialStatus) {
+      // Don't auto-hide for expired or reset notifications as they need attention
+      if (trialStatus.isTrialExpired || trialStatus.needsResetNotification) {
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        handleClose();
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, isLoading, trialStatus?.isTrialExpired, trialStatus?.needsResetNotification]);
 
   const handleClose = () => {
     setIsAnimating(true);
@@ -190,7 +213,7 @@ const TrialNotification = ({ organizationId }) => {
         return {
           bg: 'bg-indigo-50 dark:bg-indigo-900/20',
           border: 'border-indigo-200 dark:border-indigo-800',
-          icon: <Clock className="h-5 w-5 text-indigo-500 animate-pulse" />,
+          icon: <Clock className="h-5 w-5 text-indigo-500" />, // Removed animate-pulse to prevent "blinking" perception
           title: 'text-indigo-800 dark:text-indigo-300',
           message: 'text-indigo-700 dark:text-indigo-400',
           button: 'bg-indigo-600 hover:bg-indigo-700 text-white'

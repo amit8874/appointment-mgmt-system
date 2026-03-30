@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Detect tenant from subdomain or localStorage
 const getTenantSlug = () => {
@@ -180,34 +180,33 @@ export const fetchCounts = async () => {
 };
 
 export const patientApi = {
-  getAll: async () => {
+  getAll: async (params = {}) => {
     const [patientsRes, billsRes, appointmentsRes] = await Promise.all([
-      api.get('/patients'),
+      api.get('/patients', { params }),
       api.get('/billing'),
       api.get('/appointments').catch(() => ({ data: [] })) // fallback if error
     ]);
     
-    const patients = patientsRes.data;
+    // Check if the response is paginated (object) or legacy (array)
+    const isPaginated = !Array.isArray(patientsRes.data);
+    const patients = isPaginated ? patientsRes.data.patients : patientsRes.data;
     const bills = billsRes.data;
     const appointments = appointmentsRes.data;
     
     // Create a map of patientId → latest bill info
-    // Billing model status is capitalized: 'Paid', 'Pending', 'Due', 'Cancelled', 'Dead'
     const billMap = {};
     bills.forEach(bill => {
       const key = bill.patientId;
       if (key) {
-        // Keep the latest bill (array is sorted by createdAt -1 from backend)
         if (!billMap[key]) {
           billMap[key] = {
-            status: (bill.status || 'Pending').toLowerCase(), // normalize to lowercase
+            status: (bill.status || 'Pending').toLowerCase(),
             amount: bill.amount || 0
           };
         }
       }
     });
 
-    // Create a map of patientId → appointment amount (as fallback when no billing exists)
     const appointmentAmountMap = {};
     appointments.forEach(appt => {
       const key = appt.patientId;
@@ -216,9 +215,8 @@ export const patientApi = {
       }
     });
     
-    return patients.map(patient => {
+    const formattedPatients = patients.map(patient => {
       const billingInfo = billMap[patient.patientId] || null;
-      // If no billing record, use appointment fee as the pending amount
       const fallbackAmount = appointmentAmountMap[patient.patientId] || 0;
       const totalAmount = billingInfo ? billingInfo.amount : fallbackAmount;
       const isPaid = billingInfo?.status === 'paid';
@@ -245,13 +243,21 @@ export const patientApi = {
         disease: patient.disease || 'Not Specified',
         date: patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : '',
         lastVisit: patient.updatedAt ? new Date(patient.updatedAt).toLocaleDateString() : '',
-        status: patient.status || null, // Include patient's own status
+        status: patient.status || null,
         paymentStatus: isDead ? 'dead' : (isPaid ? 'paid' : 'pending'),
         paidAmount: isPaid ? totalAmount : 0,
         pendingAmount: !isPaid && !isDead ? totalAmount : 0,
         email: patient.email || '',
       };
     });
+
+    if (isPaginated) {
+      return {
+        ...patientsRes.data,
+        patients: formattedPatients
+      };
+    }
+    return formattedPatients;
   },
   getCount: async () => {
     const { data } = await api.get('/patients/count');
@@ -265,7 +271,6 @@ export const patientApi = {
     const { data } = await api.get(`/patients/by-patient-id?patientId=${patientId}`);
     return data;
   },
-  // Add other patient-related API calls here
   delete: async (id) => {
     const { data } = await api.delete(`/patients/${id}`);
     return data;
@@ -273,8 +278,8 @@ export const patientApi = {
 };
 
 export const centralDoctorApi = {
-  getAll: async () => {
-    const { data } = await api.get('/doctors');
+  getAll: async (params = {}) => {
+    const { data } = await api.get('/doctors', { params });
     return data;
   },
   getCount: async () => {
@@ -295,6 +300,14 @@ export const centralDoctorApi = {
   },
   delete: async (id) => {
     await api.delete(`/doctors/${id}`);
+  },
+  verify: async (id) => {
+    const { data } = await api.patch(`/doctors/${id}/verify`);
+    return data;
+  },
+  reject: async (id) => {
+    const { data } = await api.patch(`/doctors/${id}/reject`);
+    return data;
   },
 };
 
@@ -349,11 +362,6 @@ export const userApi = {
 
   getById: async (id) => {
     const { data } = await api.get(`/users/${id}`);
-    return data;
-  },
-
-  create: async (userData) => {
-    const { data } = await api.post('/users', userData);
     return data;
   },
 
@@ -627,6 +635,13 @@ export const pharmacyApi = {
   }
 };
 
+export const chatbotApi = {
+  chat: async (message, history, organizationId, userContext) => {
+    const { data } = await api.post('/chatbot/chat', { message, history, organizationId, userContext });
+    return data;
+  }
+};
+
 export const authApi = {
   login: async (credentials) => {
     // Attempt login with role-based routing
@@ -681,13 +696,25 @@ export const analyticsApi = {
     const { data } = await api.get('/analytics/patients');
     return data;
   },
-};
-
-export const chatbotApi = {
-  chat: async (message, history = []) => {
-    const { data } = await api.post('/chatbot/chat', { message, history });
+  getBilling: async (period = 'week') => {
+    const { data } = await api.get(`/analytics/billing?period=${period}`);
     return data;
   },
 };
 
 export default api;
+
+export const centralSpecializationApi = {
+  getAll: () => api.get(`/specializations`),
+  create: (data) => api.post(`/specializations`, data),
+};
+
+export const centralCouncilApi = {
+  getAll: () => api.get(`/councils`),
+  create: (data) => api.post(`/councils`, data),
+};
+
+export const centralPracticeApi = {
+  getAll: () => api.get(`/practices`),
+  create: (data) => api.post(`/practices`, data),
+};

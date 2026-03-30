@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone } from 'lucide-react';
+import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../../services/api';
 import { toast } from 'react-toastify';
 import Pagination from '../../common/Pagination';
+import PaymentModeModal from '../../common/PaymentModeModal';
 
 const PatientPanel = () => {
   const [patients, setPatients] = useState([]);
@@ -17,6 +18,8 @@ const PatientPanel = () => {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
   const itemsPerPage = 15;
   const menuRef = useRef(null);
   const navigate = useNavigate();
@@ -28,7 +31,12 @@ const PatientPanel = () => {
     try {
       const { patientApi } = await import('../../../services/api');
       const data = await patientApi.getAll();
-      setPatients(data);
+      // Handle both array (legacy) and object (paginated) responses
+      if (data && data.patients && Array.isArray(data.patients)) {
+        setPatients(data.patients);
+      } else {
+        setPatients(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
       console.error('Error fetching patients:', err);
       setError("Failed to load patients. Please try again.");
@@ -46,7 +54,9 @@ const PatientPanel = () => {
     return (patients || []).filter((patient) => {
       const matchesSearch =
         patient.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (patient.patientId || patient.id)?.toLowerCase().includes(searchTerm.toLowerCase());
+        (patient.patientId || patient.id)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        patient.phone?.includes(searchTerm) ||
+        patient.contact?.includes(searchTerm);
 
       // Status filter - check paymentStatus or status field
       const patientStatus = (patient.paymentStatus || patient.status || 'active').toLowerCase();
@@ -116,11 +126,8 @@ const PatientPanel = () => {
     // Navigate to new appointment page with patient info
     navigate('/receptionist/new-appointment', {
       state: {
-        patientData: {
-          name: patient.name,
-          patientId: patient._id,
-          phone: patient.phone || patient.contact || '',
-          email: patient.email || ''
+        rebookData: {
+          patient: patient
         }
       }
     });
@@ -163,6 +170,15 @@ const PatientPanel = () => {
 
   const handleMarkAsPaid = async (patient) => {
     setOpenMenuId(null);
+    setSelectedPatientForPayment(patient);
+    setIsPaymentModalOpen(true);
+  };
+
+  const confirmMarkAsPaid = async (paymentMethod) => {
+    if (!selectedPatientForPayment) return;
+    const patient = selectedPatientForPayment;
+    setIsPaymentModalOpen(false);
+    
     try {
       const response = await api.get('/billing');
       const pendingBills = response.data.filter(bill => 
@@ -176,13 +192,18 @@ const PatientPanel = () => {
       }
 
       for (const bill of pendingBills) {
-        await api.put(`/billing/${bill._id}`, { status: 'Paid' });
+        await api.put(`/billing/${bill._id}`, { 
+          status: 'Paid',
+          paymentMethod: paymentMethod 
+        });
       }
-      toast.success(`Marked ${pendingBills.length} bill(s) as Paid`);
+      toast.success(`Marked ${pendingBills.length} bill(s) as Paid via ${paymentMethod}`);
       fetchPatients();
     } catch (error) {
       console.error('Error marking as paid:', error);
       toast.error('Error updating billing status');
+    } finally {
+      setSelectedPatientForPayment(null);
     }
   };
 
@@ -210,7 +231,7 @@ const PatientPanel = () => {
           <table>
             <tr><td>Patient Name:</td><td>${patient.name}</td></tr>
             <tr><td>Patient ID:</td><td>${patient.patientId || patient.id || '-'}</td></tr>
-            <tr><td>Phone:</td><td>${patient.phone || patient.contact || 'N/A'}</td></tr>
+            <tr><td>Phone:</td><td>${patient.mobile || patient.phone || patient.contactNumber || patient.contact || 'N/A'}</td></tr>
             <tr><td>Email:</td><td>${patient.email || 'N/A'}</td></tr>
             <tr><td>Payment Status:</td><td>${patient.paymentStatus || 'N/A'}</td></tr>
             <tr><td>Paid Amount:</td><td>₹${patient.paidAmount || 0}</td></tr>
@@ -309,7 +330,6 @@ const PatientPanel = () => {
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Patient ID</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Patient Name</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Age</th>
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Address</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Phone</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Last Visit</th>
                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Amount (₹)</th>
@@ -330,11 +350,10 @@ const PatientPanel = () => {
                     <td className="px-6 py-4 text-sm font-bold text-blue-600">#{p.patientId || p.id || '-'}</td>
                     <td className="px-6 py-4 text-sm font-bold text-gray-900">{p.name || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{p.age || '-'}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-[150px] truncate">{p.address || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <div className="flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 text-gray-400" />
-                        {p.phone || p.contact || '-'}
+                        {p.mobile || p.phone || p.contactNumber || p.contact || '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{p.lastVisit || p.date || '-'}</td>
@@ -354,6 +373,15 @@ const PatientPanel = () => {
                     </td>
                     <td className="px-6 py-4 text-sm relative">
                       <div className="flex items-center gap-2" ref={menuRef}>
+                        <a 
+                          href={`https://wa.me/${(p.mobile || p.phone || p.contactNumber || p.contact || '').replace(/\D/g, '')}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition-all shadow-sm active:scale-95"
+                          title="WhatsApp Patient"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </a>
                         <button
                           onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
                           className={`p-2 rounded-xl transition-all ${
@@ -469,6 +497,14 @@ const PatientPanel = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Payment Mode Selection Modal */}
+      <PaymentModeModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onConfirm={confirmMarkAsPaid}
+        patientName={selectedPatientForPayment?.name}
+      />
     </motion.div>
   );
 };

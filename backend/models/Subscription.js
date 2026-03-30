@@ -176,25 +176,25 @@ subscriptionSchema.statics.getPlanLimits = function (plan) {
       storageGB: 1,
     },
     basic: {
-      doctors: 10,
-      receptionists: 5,
+      doctors: 1,
+      receptionists: 0,
       appointmentsPerMonth: 500,
-      patients: 2000,
+      patients: 1000,
       storageGB: 5,
     },
     pro: {
-      doctors: 50,
-      receptionists: 20,
-      appointmentsPerMonth: 5000,
-      patients: 10000,
-      storageGB: 50,
+      doctors: 3,
+      receptionists: 2,
+      appointmentsPerMonth: 2000,
+      patients: 5000,
+      storageGB: 20,
     },
     enterprise: {
       doctors: -1, // Unlimited
       receptionists: -1,
       appointmentsPerMonth: -1,
       patients: -1,
-      storageGB: 500,
+      storageGB: 100,
     },
   };
   return limits[plan] || limits.free;

@@ -8,16 +8,27 @@ export const usePatients = () => {
   const [patientsError, setPatientsError] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [totalPatients, setTotalPatients] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
   const [patientsCountLoading, setPatientsCountLoading] = useState(true);
 
-  // Fetch all patients
-  const fetchPatients = useCallback(async () => {
+  // Fetch patients with pagination
+  const fetchPatients = useCallback(async (page = 1, limit = 15) => {
     try {
       setPatientsLoading(true);
       setPatientsError('');
-      const data = await patientApi.getAll();
-      setPatients(data || []);
-      return data || [];
+      const response = await patientApi.getAll({ page, limit });
+      
+      if (response && response.patients) {
+        setPatients(response.patients);
+        setTotalPages(response.totalPages || 1);
+        setCurrentPage(response.currentPage || 1);
+        setTotalPatients(response.totalPatients || 0);
+        return response.patients;
+      } else {
+        setPatients(response || []);
+        return response || [];
+      }
     } catch (error) {
       setPatientsError('Error loading patients');
     } finally {
@@ -62,6 +73,8 @@ export const usePatients = () => {
   patientsError,
   selectedPatient,
   totalPatients,
+  totalPages,
+  currentPage,
   patientsCountLoading,
 
   // Setters (IMPORTANT)
@@ -70,6 +83,8 @@ export const usePatients = () => {
   setPatientsError,
   setSelectedPatient,
   setTotalPatients,
+  setTotalPages,
+  setCurrentPage,
   setPatientsCountLoading,
   
 
