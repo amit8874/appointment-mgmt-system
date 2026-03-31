@@ -187,17 +187,16 @@ const PatientProfile = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [patientData, allAppointments] = await Promise.all([
-          patientApi.getById(id),
-          appointmentApi.getAll()
-        ]);
-
+        // 1. Get patient details
+        const patientData = await patientApi.getById(id);
         setData(patientData);
-        // Filter appointments for this patient
-        const patientAppointments = allAppointments.filter(a => a.patientId === patientData.patientId);
-        setAppointments(patientAppointments);
+
+        // 2. Fetch ALL appointments for this patient (including history, mobile-linked, etc)
+        // Using the smart summary endpoint that links via clinical ID and mobile
+        const summaryResponse = await appointmentApi.getSummary(id);
+        setAppointments(summaryResponse);
       } catch (error) {
-        console.error('Error fetching patient data:', error);
+        console.error('Error fetching patient profile data:', error);
       } finally {
         setLoading(false);
       }

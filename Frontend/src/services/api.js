@@ -198,10 +198,16 @@ export const patientApi = {
     bills.forEach(bill => {
       const key = bill.patientId;
       if (key) {
-        if (!billMap[key]) {
+        const billDate = new Date(bill.createdAt || bill.date || 0);
+        const existingBillDate = billMap[key] ? new Date(billMap[key].createdAt || billMap[key].date || 0) : new Date(0);
+        
+        // Always take the latest bill for synchronization
+        if (!billMap[key] || billDate >= existingBillDate) {
           billMap[key] = {
             status: (bill.status || 'Pending').toLowerCase(),
-            amount: bill.amount || 0
+            amount: bill.amount || 0,
+            createdAt: bill.createdAt,
+            date: bill.date
           };
         }
       }
@@ -221,6 +227,7 @@ export const patientApi = {
       const totalAmount = billingInfo ? billingInfo.amount : fallbackAmount;
       const isPaid = billingInfo?.status === 'paid';
       const isDead = billingInfo?.status === 'dead' || patient.status === 'dead';
+      const isCancelled = billingInfo?.status === 'cancelled';
 
       return {
         id: patient.patientId,
@@ -242,11 +249,11 @@ export const patientApi = {
         doc: patient.assignedDoctor || 'Unassigned',
         disease: patient.disease || 'Not Specified',
         date: patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : '',
-        lastVisit: patient.updatedAt ? new Date(patient.updatedAt).toLocaleDateString() : '',
+        lastVisit: patient.lastVisit || (patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : ''),
         status: patient.status || null,
-        paymentStatus: isDead ? 'dead' : (isPaid ? 'paid' : 'pending'),
+        paymentStatus: isDead ? 'dead' : (isCancelled ? 'cancelled' : (isPaid ? 'paid' : 'pending')),
         paidAmount: isPaid ? totalAmount : 0,
-        pendingAmount: !isPaid && !isDead ? totalAmount : 0,
+        pendingAmount: !isPaid && !isDead && !isCancelled ? totalAmount : 0,
         email: patient.email || '',
       };
     });
@@ -377,7 +384,9 @@ export const userApi = {
 
 export const appointmentApi = {
   getTodayStats: async () => {
-    const { data } = await api.get('/appointments/stats/today');
+    const today = new Date();
+    const localDate = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    const { data } = await api.get(`/appointments/stats/today?date=${localDate}`);
     return data;
   },
   getTodayAppointments: async () => {
@@ -391,6 +400,10 @@ export const appointmentApi = {
   },
   getAll: async () => {
     const { data } = await api.get('/appointments');
+    return data;
+  },
+  getSummary: async (patientId) => {
+    const { data } = await api.get(`/appointments/patient/${patientId}/summary`);
     return data;
   },
 };
@@ -700,6 +713,33 @@ export const analyticsApi = {
     const { data } = await api.get(`/analytics/billing?period=${period}`);
     return data;
   },
+  getAiReport: async (category, dashboardData) => {
+    const { data } = await api.post('/analytics/ai-report', { category, dashboardData });
+    return data;
+  }
+};
+
+export const messageApi = {
+  getConversations: async () => {
+    const { data } = await api.get('/messages/conversations');
+    return data;
+  },
+  getPatientConversation: async (patientId, organizationId) => {
+    const { data } = await api.get(`/messages/patient/${patientId}?organizationId=${organizationId}`);
+    return data;
+  },
+  getMessages: async (conversationId, role = 'clinic') => {
+    const { data } = await api.get(`/messages/${conversationId}?role=${role}`);
+    return data;
+  },
+  sendMessage: async (messageData) => {
+    const { data } = await api.post('/messages', messageData);
+    return data;
+  },
+  explainWithMaya: async (explainData) => {
+    const { data } = await api.post('/messages/maya-explain', explainData);
+    return data;
+  }
 };
 
 export default api;

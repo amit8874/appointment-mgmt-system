@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { organizationApi } from '../../services/api';
-import { AlertCircle, Clock, X, ChevronRight, RotateCcw } from 'lucide-react';
+import { AlertCircle, Clock, X, ChevronRight, RotateCcw, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const TrialNotification = ({ organizationId }) => {
@@ -134,7 +134,18 @@ const TrialNotification = ({ organizationId }) => {
       };
     }
 
-    // 3. FREE TRIAL WITH RESET TIMER
+    // 3. EXTENDED OVERRIDE MESSAGE
+    if (trialStatus.isManualOverride) {
+      return {
+        type: 'success',
+        title: 'Trial Extended',
+        message: `Your trial has been extended for ${trialStatus.daysRemaining} days and will expire on ${formatDate(trialStatus.trialEndDate)}.`,
+        buttonText: null,
+        buttonAction: null
+      };
+    }
+
+    // 4. FREE TRIAL WITH RESET TIMER
     if (trialStatus.planType === 'FREE_TRIAL') {
       return {
         type: 'timer',
@@ -191,6 +202,15 @@ const TrialNotification = ({ organizationId }) => {
 
   const getStyles = () => {
     switch (content.type) {
+      case 'success':
+        return {
+          bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+          border: 'border-emerald-200 dark:border-emerald-800',
+          icon: <CheckCircle className="h-5 w-5 text-emerald-500" />,
+          title: 'text-emerald-800 dark:text-emerald-300',
+          message: 'text-emerald-700 dark:text-emerald-400',
+          button: 'bg-emerald-600 hover:bg-emerald-700 text-white'
+        };
       case 'reset':
         return {
           bg: 'bg-emerald-50 dark:bg-emerald-900/20',

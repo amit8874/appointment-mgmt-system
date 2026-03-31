@@ -260,9 +260,6 @@ const ReportDetailModal = ({ isOpen, onClose, report, analytics }) => {
     }
   }, [isOpen, report, period]);
 
-  if (!isOpen) return null;
-
-  // Reusable Chart Data Preparation
   const chartData = useMemo(() => {
     if (report?.id === 'patients') {
       return [
@@ -283,6 +280,8 @@ const ReportDetailModal = ({ isOpen, onClose, report, analytics }) => {
   }, [report, analytics]);
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'];
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">

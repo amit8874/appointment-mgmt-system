@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
-  TrendingUp, Search, PlusCircle, IndianRupee, BarChart3, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, Smartphone, CreditCard
+  TrendingUp, Search, PlusCircle, IndianRupee, BarChart3, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, Smartphone, CreditCard, Sparkles, BrainCircuit, Zap, X, Activity
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart as RechartsBarChart, Bar, Legend
 } from 'recharts';
 import api from '../../services/api';
-import { billingApi } from '../../services/api';
+import { billingApi, analyticsApi } from '../../services/api';
 import NewAppointmentForm from './NewAppointmentForm';
 import HorizontalAppointmentForm from './HorizontalAppointmentForm';
 
@@ -37,6 +38,79 @@ const AdminDashboardPanel = ({
   const [activePaymentFilter, setActivePaymentFilter] = useState("All");
   const [allBills, setAllBills] = useState([]);
   const [isBillsLoading, setIsBillsLoading] = useState(false);
+
+  // AI Analyst State
+  const [showMayaModal, setShowMayaModal] = useState(false);
+  const [activeAiCategory, setActiveAiCategory] = useState(null);
+  const [aiReport, setAiReport] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  const handleAiAnalysis = async (category) => {
+    setActiveAiCategory(category);
+    setIsAiLoading(true);
+    setAiReport(null);
+    
+    // Bundle the dashboard data context securely
+    const dashboardData = {
+       stats: stats.map(s => ({ name: s.name, count: s.count })),
+       appointmentTrendsData: appointmentTrendsData.slice(-7), // last 7 days
+       revenueByDoctorData,
+       monthlyIncomeExpenseData: monthlyIncomeExpenseData.slice(-3), // last 3 months
+    };
+
+    try {
+       const res = await analyticsApi.getAiReport(category, dashboardData);
+       setAiReport(res.report || "Analysis complete but no report returned.");
+    } catch (err) {
+       console.error("AI Analysis Failed:", err);
+       setAiReport("⚠️ Maya is temporarily offline or encountered an error processing your clinic data.");
+    } finally {
+       setIsAiLoading(false);
+    }
+  };
+
+  const renderMarkdownLine = (line, i) => {
+    if (!line.trim()) return <br key={i} />;
+    
+    let isHeader = false;
+    let headerLevel = 0;
+    if (line.startsWith('### ')) { isHeader = true; headerLevel = 3; }
+    else if (line.startsWith('## ')) { isHeader = true; headerLevel = 2; }
+    else if (line.startsWith('# ')) { isHeader = true; headerLevel = 1; }
+    
+    if (isHeader) {
+       const text = line.replace(/^#+\s/, '');
+       if (headerLevel === 1) return <h1 key={i} className="text-2xl font-black text-slate-900 dark:text-white mt-8 mb-4">{text}</h1>;
+       if (headerLevel === 2) return <h2 key={i} className="text-xl font-black text-slate-800 dark:text-slate-100 mt-6 mb-3">{text}</h2>;
+       return <h3 key={i} className="text-lg font-black text-slate-700 dark:text-slate-200 mt-4 mb-2">{text}</h3>;
+    }
+    
+    if (line.match(/^[-*]\s/)) {
+       const text = line.replace(/^[-*]\s/, '');
+       const parts = text.split(/(\*\*.*?\*\*)/g);
+       return (
+         <li key={i} className="flex items-start gap-2 text-slate-600 dark:text-slate-300 mb-2 ml-2 sm:ml-4">
+            <span className="text-amber-500 mt-1 flex-shrink-0">•</span>
+            <span className="leading-relaxed">
+              {parts.map((part, idx) => {
+                 if (part.startsWith('**') && part.endsWith('**')) return <strong key={idx} className="font-extrabold text-slate-900 dark:text-slate-100">{part.slice(2, -2)}</strong>;
+                 return part;
+              })}
+            </span>
+         </li>
+       );
+    }
+
+    const parts = line.split(/(\*\*.*?\*\*)/g);
+    return (
+       <p key={i} className="text-slate-700 dark:text-slate-300 leading-relaxed mb-4">
+          {parts.map((part, idx) => {
+             if (part.startsWith('**') && part.endsWith('**')) return <strong key={idx} className="font-extrabold text-slate-900 dark:text-slate-100">{part.slice(2, -2)}</strong>;
+             return part;
+          })}
+       </p>
+    );
+  };
 
   // Check for booking parameters in URL
   useEffect(() => {
@@ -149,8 +223,18 @@ const AdminDashboardPanel = ({
           Clinic Analysis
         </motion.h2>
 
-        {/* Payment Mode Tabs */}
-        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-700 shadow-inner">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Analyze with AI Button */}
+          <button
+            onClick={() => setShowMayaModal(true)}
+            className="flex items-center justify-center gap-2 px-5 py-2 sm:py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-widest shadow-lg shadow-amber-200 dark:shadow-amber-900/20 transform transition-all hover:scale-[1.02] active:scale-95 whitespace-nowrap"
+          >
+            <Sparkles className="w-4 h-4" />
+            Analyse with Maya AI
+          </button>
+
+          {/* Payment Mode Tabs */}
+          <div className="flex overflow-x-auto custom-scrollbar bg-gray-100 dark:bg-gray-800 p-1 rounded-xl border border-gray-200 dark:border-gray-700 shadow-inner">
           {[
             { id: 'All', icon: BarChart3 },
             { id: 'Cash', icon: Wallet },
@@ -170,6 +254,7 @@ const AdminDashboardPanel = ({
               {tab.id}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -464,6 +549,127 @@ const AdminDashboardPanel = ({
           </div>
         </motion.div>
       </div>
+
+      {/* MAYA AI ANALYST MODAL */}
+      <AnimatePresence>
+        {showMayaModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800"
+            >
+              {/* Decorative backgrounds */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400 opacity-10 blur-3xl rounded-full mix-blend-multiply dark:mix-blend-lighten pointer-events-none -mr-20 -mt-20"></div>
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-400 opacity-10 blur-3xl rounded-full mix-blend-multiply dark:mix-blend-lighten pointer-events-none -ml-20 -mb-20"></div>
+
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 sm:p-8 border-b border-slate-100 dark:border-slate-800 z-10">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-200 dark:shadow-none flex items-center justify-center text-white flex-shrink-0">
+                    <BrainCircuit size={20} className="sm:w-6 sm:h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white tracking-tight leading-none mb-1">Maya Analyst</h2>
+                    <p className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Chief Medical Analyst</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => { setShowMayaModal(false); setAiReport(null); setActiveAiCategory(null); }}
+                  className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-colors shrink-0"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar z-10">
+                {!aiReport && !isAiLoading && (
+                  <motion.div 
+                    initial={{ opacity: 0 }} 
+                    animate={{ opacity: 1 }} 
+                    className="flex flex-col gap-6 max-w-2xl mx-auto py-4 sm:py-8"
+                  >
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-inner">
+                      <p className="text-sm sm:text-lg font-bold text-slate-700 dark:text-slate-300 leading-relaxed">
+                        "Hello! I am Maya, your AI Business Analyst. What would you like me to analyze today?"
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      {[
+                        { id: 'Overall Clinic Health', icon: Activity, color: 'blue' },
+                        { id: 'Doctors Performance', icon: Stethoscope, color: 'emerald' },
+                        { id: 'Patient Volume Trends', icon: Users, color: 'purple' },
+                        { id: 'Revenue & Profitability', icon: Wallet, color: 'amber' },
+                      ].map(cat => (
+                        <button
+                          key={cat.id}
+                          onClick={() => handleAiAnalysis(cat.id)}
+                          className={`flex items-center p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-${cat.color}-500 hover:bg-${cat.color}-50 dark:hover:bg-${cat.color}-900/20 group transition-all duration-300 text-left bg-white dark:bg-slate-900/50`}
+                        >
+                          <div className={`p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 group-hover:bg-${cat.color}-100 dark:group-hover:bg-${cat.color}-900/30 group-hover:text-${cat.color}-600 group-hover:scale-110 transition-all shadow-sm`}>
+                            <cat.icon size={20} />
+                          </div>
+                          <span className="ml-4 font-black text-sm sm:text-base text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{cat.id}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                {isAiLoading && (
+                  <div className="flex flex-col items-center justify-center py-20 gap-6">
+                    <div className="relative">
+                      <div className="w-16 h-16 border-4 border-amber-100 dark:border-amber-900/30 border-t-amber-500 rounded-full animate-spin shadow-lg"></div>
+                      <Sparkles className="absolute inset-0 m-auto text-amber-500 animate-pulse" size={20} />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-black text-slate-700 dark:text-slate-200 animate-pulse">Maya is crunching the numbers...</p>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-2">{activeAiCategory}</p>
+                    </div>
+                  </div>
+                )}
+
+                {aiReport && !isAiLoading && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white dark:bg-slate-800/30 rounded-3xl p-4 sm:p-8 border border-slate-100 dark:border-slate-800 shadow-sm"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+                      <span className="px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-black uppercase tracking-widest rounded-lg inline-flex w-fit shadow-xs">
+                        {activeAiCategory}
+                      </span>
+                      <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                        <Zap size={14} className="text-amber-500 fill-amber-500/20" />
+                        Live Data Generation
+                      </span>
+                    </div>
+
+                    <div className="max-w-none">
+                      {aiReport.split(/\n|\\n/).map((line, i) => renderMarkdownLine(line, i))}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+              
+              {/* Footer Actions */}
+              {(aiReport || isAiLoading) && (
+                 <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 z-10 flex justify-end">
+                    <button 
+                      onClick={() => { setAiReport(null); setActiveAiCategory(null); }}
+                      className="px-6 py-3 font-black text-xs uppercase tracking-widest text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-all"
+                    >
+                       Ask Another Category
+                    </button>
+                 </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

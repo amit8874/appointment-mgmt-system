@@ -11,7 +11,9 @@ import {
   getPatientById,
   updatePatient,
   deletePatient,
-  getNewPatientId
+  getNewPatientId,
+  getPatientAISummary,
+  searchAvailablePatients
 } from '../controllers/patientController.js';
 
 const router = express.Router();
@@ -22,6 +24,9 @@ router.use(requireTenant);
 
 // New route to get patient by patientId (string) instead of _id (ObjectId)
 router.get('/by-patient-id', getPatientByPatientId);
+
+// Search for patients available to have a user account created
+router.get('/search-available', searchAvailablePatients);
 
 // Route to generate a new sequential Patient ID
 router.get('/generate-id', getNewPatientId);
@@ -43,6 +48,9 @@ router.post('/', createPatient);
 
 // Get patient by ID
 router.get('/:id', getPatientById);
+
+// Get patient AI summary
+router.get('/:id/ai-summary', getPatientAISummary);
 
 // Update patient profile
 router.put('/:id', updatePatient);

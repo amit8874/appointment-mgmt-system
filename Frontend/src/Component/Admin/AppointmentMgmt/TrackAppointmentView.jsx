@@ -17,8 +17,10 @@ import {
   AlertCircle,
   X,
   Loader2,
+  MessageSquare,
+  Sparkles,
   Zap,
-  MessageSquare
+  FileText
 } from 'lucide-react';
 import { format, isSameDay, parse, addMinutes } from 'date-fns';
 import api from '../../../services/api';
@@ -43,11 +45,21 @@ const TrackAppointmentView = () => {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [processingId, setProcessingId] = useState(null); 
+  
+  // Visit Notes State
+  const [visitNotesData, setVisitNotesData] = useState(null);
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  
+  // AI Summary State
+  const [aiSummaryData, setAiSummaryData] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   const fetchTodayAppointments = async () => {
     try {
       setLoading(true);
-      const { data } = await api.get('/appointments/today');
+      // Pass local date to ensure we don't get yesterday's appointments based on UTC server time
+      const todayDateStr = format(new Date(), 'yyyy-MM-dd');
+      const { data } = await api.get(`/appointments/today?date=${todayDateStr}`);
       setAppointments(data);
       setError(null);
     } catch (err) {
@@ -192,6 +204,25 @@ const TrackAppointmentView = () => {
     window.open(url, '_blank');
   };
 
+  const handleSaveNotes = async () => {
+    if (!visitNotesData?.id) return;
+    setIsSavingNotes(true);
+    try {
+      const res = await api.put(`/appointments/${visitNotesData.id}/notes`, { visitNotes: visitNotesData.notes });
+      if (res.status === 200) {
+        setAppointments(prev => prev.map(app => 
+          (app._id || app.id)?.toString() === visitNotesData.id.toString() ? { ...app, visitNotes: visitNotesData.notes } : app
+        ));
+        setVisitNotesData(null);
+      }
+    } catch (err) {
+      console.error('Error saving notes:', err);
+      setError('Failed to save visit notes. Please try again.');
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
   const fetchSlots = async (doctorId, date) => {
     if (!doctorId || !date) return;
     setSlotsLoading(true);
@@ -214,6 +245,38 @@ const TrackAppointmentView = () => {
       fetchSlots(rescheduleData.doctorId, rescheduleData.date);
     }
   }, [rescheduleData?.doctorId, rescheduleData?.date]);
+
+  const handleFetchAiSummary = async (patientId, patientName, currentSymptoms = '') => {
+    try {
+      setIsAiLoading(true);
+      setAiSummaryData({ loading: true, patientName, text: null });
+      
+      let baseText = '';
+      if (currentSymptoms && currentSymptoms.trim().toLowerCase() !== 'none' && currentSymptoms.trim() !== '') {
+          baseText = `📌 CURRENT VISIT REASON:\n${currentSymptoms}\n\n‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\n🏥 MAYA MEDICAL HISTORY ANALYSIS:\n`;
+      } else {
+          baseText = `🏥 MAYA MEDICAL HISTORY ANALYSIS:\n`;
+      }
+
+      const res = await api.get(`/patients/${patientId}/ai-summary`);
+      if (res.status === 200 && res.data.text) {
+        setAiSummaryData({ loading: false, patientName, text: baseText + res.data.text });
+      } else {
+        setAiSummaryData({ loading: false, patientName, text: baseText + 'No prior medical history available on record.' });
+      }
+    } catch (err) {
+      console.error('Error fetching AI Summary:', err);
+      let errorText = '';
+      if (currentSymptoms && currentSymptoms.trim().toLowerCase() !== 'none' && currentSymptoms.trim() !== '') {
+          errorText = `📌 CURRENT VISIT REASON:\n${currentSymptoms}\n\n‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\n🏥 MAYA MEDICAL HISTORY ANALYSIS:\nNo prior medical history available on record.`;
+      } else {
+          errorText = `🏥 MAYA MEDICAL HISTORY ANALYSIS:\nNo prior medical history available on record.`;
+      }
+      setAiSummaryData({ loading: false, patientName, text: errorText });
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   const getStatusInfo = (app) => {
     if (app.status === 'completed') return { label: 'CONFIRMED', color: 'green', bg: 'bg-green-100 text-green-700' };
@@ -404,7 +467,16 @@ const TrackAppointmentView = () => {
                               {app.patientName?.charAt(0)}
                             </div>
                             <div>
-                              <p className={`text-sm font-semibold ${isNow ? 'text-blue-800' : 'text-gray-800'}`}>{app.patientName}</p>
+                              <div className="flex items-center gap-2">
+                                <p className={`text-sm font-semibold ${isNow ? 'text-blue-800' : 'text-gray-800'}`}>{app.patientName}</p>
+                                <button 
+                                  onClick={() => handleFetchAiSummary(app.patientId, app.patientName, app.symptoms || app.reason)}
+                                  className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 p-1 rounded-full transition-all"
+                                  title="AI Medical Summary"
+                                >
+                                  <Sparkles size={14} />
+                                </button>
+                              </div>
                               {app.patientPhone && <p className="text-[10px] text-gray-400 font-medium">{app.patientPhone}</p>}
                             </div>
                           </div>
@@ -466,9 +538,22 @@ const TrackAppointmentView = () => {
 
                                 {/* Show Final Check for completed */}
                                 {app.status === 'completed' && (
-                                  <div className="text-green-500 pr-2">
-                                    <CheckCircle size={20} />
-                                  </div>
+                                  <>
+                                    <div className="text-green-500 pr-2 cursor-help" title="Completed">
+                                      <CheckCircle size={20} />
+                                    </div>
+                                    <button
+                                      onClick={() => setVisitNotesData({ id: app._id || app.id, notes: app.visitNotes || '', doctorName: app.doctorName, patientName: app.patientName })}
+                                      className={`p-2 rounded-lg transition-colors border-l border-gray-100 ml-1 pl-3 flex items-center justify-center ${
+                                        app.visitNotes 
+                                        ? 'text-indigo-600 hover:bg-indigo-50' 
+                                        : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                                      }`}
+                                      title={app.visitNotes ? "Edit Visit Notes" : "Add Visit Notes"}
+                                    >
+                                      <FileText size={18} className={app.visitNotes ? "fill-indigo-100" : ""} />
+                                    </button>
+                                  </>
                                 )}
 
                                 {/* Show Final X for cancelled */}
@@ -595,6 +680,120 @@ const TrackAppointmentView = () => {
                 className="flex-1 py-4 bg-rose-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-rose-200 hover:scale-[1.02] active:scale-95 transition-all"
               >
                 Confirm Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Summary Modal */}
+      {aiSummaryData && (
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl border border-slate-100 flex flex-col gap-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full -mr-16 -mt-16 opacity-50 blur-2xl"></div>
+            
+            <div className="flex justify-between items-start relative">
+              <div>
+                <div className="flex items-center gap-2 mb-1 text-amber-500">
+                  <Sparkles size={20} />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Maya Clinical Analysis</span>
+                </div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">{aiSummaryData.patientName}</h2>
+              </div>
+              <button onClick={() => setAiSummaryData(null)} className="p-2 hover:bg-slate-50 text-slate-400 rounded-xl transition-all">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="bg-slate-50 border border-slate-100 p-6 rounded-3xl min-h-[150px] relative">
+              {aiSummaryData.loading ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-3">
+                  <Loader2 size={24} className="animate-spin text-amber-500" />
+                  <span className="text-sm font-bold tracking-tight animate-pulse text-amber-600/70">Analyzing patient history...</span>
+                </div>
+              ) : (
+                <div className="prose prose-sm text-slate-700 font-medium prose-p:my-1 prose-ul:my-1 prose-li:my-1">
+                  {aiSummaryData.text?.split(/\\n|\n/).map((line, i) => (
+                    <p key={i} className={`mb-2 last:mb-0 text-sm leading-relaxed ${line.startsWith('📌') || line.startsWith('🏥') ? 'font-black text-slate-800' : ''}`}>
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button 
+              onClick={() => setAiSummaryData(null)}
+              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-slate-200 hover:bg-slate-800 active:scale-95 transition-all text-sm"
+            >
+              Close Summary
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Visit Notes Modal */}
+      {visitNotesData && (
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] p-6 lg:p-8 w-full max-w-2xl shadow-2xl border border-slate-100 flex flex-col gap-6 transform transition-all">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                  <div className="p-2 sm:p-3 bg-indigo-100 text-indigo-600 rounded-xl">
+                    <FileText size={20} />
+                  </div>
+                  Doctor Visit Notes
+                </h2>
+                <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
+                  Patient: <span className="text-slate-600">{visitNotesData.patientName}</span> • Dr. <span className="text-slate-600">{visitNotesData.doctorName}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setVisitNotesData(null)}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <label className="text-[10px] sm:text-xs font-black uppercase text-slate-400 tracking-widest block">
+                Clinical Observations & Prescriptions
+              </label>
+              <textarea 
+                className="w-full h-48 sm:h-64 p-4 sm:p-5 bg-slate-50 border border-slate-200 focus:border-indigo-400 rounded-2xl font-medium text-slate-700 text-sm sm:text-base resize-none focus:outline-none focus:ring-4 focus:ring-indigo-100 transition-all custom-scrollbar placeholder:text-slate-300 placeholder:italic"
+                placeholder="Type your notes, observations, or prescribed medications here..."
+                value={visitNotesData.notes}
+                onChange={(e) => setVisitNotesData({...visitNotesData, notes: e.target.value})}
+                autoFocus
+              />
+              <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 opacity-80 mt-2">
+                <Sparkles size={12} className="text-amber-500" />
+                These notes will be automatically analyzed by Maya AI in future visits.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-2">
+              <button 
+                onClick={() => setVisitNotesData(null)}
+                className="flex-1 py-3 sm:py-4 bg-slate-50 text-slate-500 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest hover:bg-slate-100 transition-colors text-[10px] sm:text-xs"
+                disabled={isSavingNotes}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveNotes}
+                disabled={isSavingNotes}
+                className="flex-[2] py-3 sm:py-4 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-xl sm:rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 transition-all disabled:opacity-70 disabled:cursor-not-allowed text-[10px] sm:text-xs flex items-center justify-center gap-2"
+              >
+                {isSavingNotes ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Saving Notes...
+                  </>
+                ) : (
+                  <>Save Notes</>
+                )}
               </button>
             </div>
           </div>

@@ -309,6 +309,12 @@ const BillingMgmt = () => {
           <div className="text-sm font-medium text-gray-500">Pending</div>
           <div className="mt-1 text-2xl font-semibold text-yellow-600">{pendingBills}</div>
         </div>
+        <div className="bg-white p-4 rounded-lg shadow border-l-4 border-red-500">
+          <div className="text-sm font-medium text-gray-500">Cancelled</div>
+          <div className="mt-1 text-2xl font-semibold text-red-600">
+            {bills.filter(bill => bill.status === 'Cancelled').length}
+          </div>
+        </div>
         {user?.role?.toLowerCase() !== 'receptionist' && (
           <div className="bg-white p-4 rounded-lg shadow">
             <div className="text-sm font-medium text-gray-500">Total Revenue</div>
@@ -388,7 +394,9 @@ const BillingMgmt = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${bill.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                        ${bill.status === 'Paid' ? 'bg-green-100 text-green-800' : 
+                          bill.status === 'Cancelled' ? 'bg-red-100 text-red-800' : 
+                          'bg-yellow-100 text-yellow-800'}`}>
                         {bill.status}
                       </span>
                     </td>

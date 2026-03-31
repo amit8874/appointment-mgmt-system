@@ -1,5 +1,5 @@
-// models/Patient.js
 import mongoose from 'mongoose';
+import User from './User.js';
 
 const patientSchema = new mongoose.Schema({
   // Multi-tenancy: Organization/Tenant ID
@@ -122,6 +122,10 @@ const patientSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  lastVisit: {
+    type: String, // Stored as YYYY-MM-DD for easy filtering
+    default: null
+  },
   reports: [{
     filename: String,
     url: String,
@@ -162,6 +166,24 @@ patientSchema.pre('save', function (next) {
     this.email = this.email.toLowerCase().trim();
   }
   next();
+});
+
+// Sync basic info with User record if it exists
+patientSchema.post('save', async function (doc) {
+  try {
+    const User = mongoose.model('User');
+    // Only sync if basic info changed
+    await User.findOneAndUpdate(
+      { mobile: doc.mobile, organizationId: doc.organizationId, role: 'patient' },
+      { 
+        name: doc.fullName || `${doc.firstName} ${doc.lastName || ''}`.trim(),
+        age: doc.age,
+        gender: doc.gender 
+      }
+    );
+  } catch (err) {
+    console.error('Sync error (Patient -> User):', err);
+  }
 });
 
 export default mongoose.model('Patient', patientSchema);

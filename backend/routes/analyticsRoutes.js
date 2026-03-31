@@ -1,8 +1,9 @@
 import express from 'express';
-import { authenticateToken, requireAdmin, requireOrgAdmin } from '../middleware/auth.js';
+import { authenticateToken, requireAdmin, requireOrgAdmin, requireAdminOrDoctor } from '../middleware/auth.js';
 import { requireTenant, loadTenant } from '../middleware/tenant.js';
 import { checkSubscription } from '../middleware/subscription.js';
 import { getDashboard, getCharts, getAppointmentsStats, getDoctorStats, getPatientStats, getBillingAnalytics } from '../controllers/analyticsController.js';
+import { generateBusinessReport } from '../controllers/aiAnalyticsController.js';
 
 const router = express.Router();
 
@@ -23,21 +24,21 @@ router.get('/billing', requireOrgAdmin, checkSubscription, getBillingAnalytics);
  * @desc    Get organization dashboard analytics
  * @access  Organization Admin or Doctor
  */
-router.get('/dashboard', requireAdmin, checkSubscription, getDashboard);
+router.get('/dashboard', requireAdminOrDoctor, checkSubscription, getDashboard);
 
 /**
  * @route   GET /api/analytics/charts
  * @desc    Get data for admin dashboard charts
  * @access  Organization Admin or Doctor
  */
-router.get('/charts', requireAdmin, checkSubscription, getCharts);
+router.get('/charts', requireAdminOrDoctor, checkSubscription, getCharts);
 
 /**
  * @route   GET /api/analytics/appointments
  * @desc    Get appointment analytics with date range
  * @access  Organization Admin or Doctor
  */
-router.get('/appointments', requireAdmin, checkSubscription, getAppointmentsStats);
+router.get('/appointments', requireAdminOrDoctor, checkSubscription, getAppointmentsStats);
 
 /**
  * @route   GET /api/analytics/doctors
@@ -46,11 +47,13 @@ router.get('/appointments', requireAdmin, checkSubscription, getAppointmentsStat
  */
 router.get('/doctors', requireOrgAdmin, checkSubscription, getDoctorStats);
 
-/**
- * @route   GET /api/analytics/patients
- * @desc    Get patient growth analytics
- * @access  Organization Admin
- */
 router.get('/patients', requireOrgAdmin, checkSubscription, getPatientStats);
+
+/**
+ * @route   POST /api/analytics/ai-report
+ * @desc    Generate AI Business Report based on frontend dashboard metrics
+ * @access  Organization Admin or Doctor
+ */
+router.post('/ai-report', requireAdminOrDoctor, checkSubscription, generateBusinessReport);
 
 export default router;

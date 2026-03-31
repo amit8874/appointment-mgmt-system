@@ -7,6 +7,11 @@ import Organization from '../models/Organization.js';
  */
 export const checkSubscription = async (req, res, next) => {
   try {
+    const debugResponse = (status, code, message, extra='') => {
+      console.log(`[checkSubscription] 403 Failed! code=${code}, msg=${message} ${extra}`);
+      return res.status(status).json({ message, code });
+    };
+
     // Superadmin bypasses subscription checks
     if (req.user && req.user.role === 'superadmin') {
       return next();
@@ -23,50 +28,35 @@ export const checkSubscription = async (req, res, next) => {
       return res.status(404).json({ message: 'Organization not found' });
     }
 
-    // Check if organization is in trial
-    if (organization.status === 'trial') {
+    const subscription = await Subscription.findOne({ organizationId: orgId });
+
+    // Check if organization or subscription is in trial
+    if (organization.status === 'trial' || organization.isTrialActive || subscription?.status === 'trial') {
       const trialEndDate = organization.trialEndDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-      if (new Date() > trialEndDate) {
-        return res.status(403).json({ 
-          message: 'Trial period has expired. Please subscribe to continue.',
-          code: 'TRIAL_EXPIRED'
-        });
+      const gracePeriod = new Date(trialEndDate.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 day grace period
+      if (new Date() > gracePeriod) {
+        return debugResponse(403, 'TRIAL_EXPIRED', 'Trial period has expired. Please subscribe to continue.', `gracePeriod=${gracePeriod}`);
       }
       return next();
     }
 
-    // Check subscription
-    const subscription = await Subscription.findOne({ organizationId: orgId });
-
     if (!subscription) {
-      return res.status(403).json({ 
-        message: 'No active subscription found',
-        code: 'NO_SUBSCRIPTION'
-      });
+      return debugResponse(403, 'NO_SUBSCRIPTION', 'No active subscription found');
     }
 
     // Check if subscription is active
     if (subscription.status !== 'active') {
       if (subscription.status === 'expired') {
-        return res.status(403).json({ 
-          message: 'Subscription has expired. Please renew to continue.',
-          code: 'SUBSCRIPTION_EXPIRED'
-        });
+        return debugResponse(403, 'SUBSCRIPTION_EXPIRED', 'Subscription has expired. Please renew to continue.');
       }
       if (subscription.status === 'cancelled') {
-        return res.status(403).json({ 
-          message: 'Subscription has been cancelled.',
-          code: 'SUBSCRIPTION_CANCELLED'
-        });
+        return debugResponse(403, 'SUBSCRIPTION_CANCELLED', 'Subscription has been cancelled.');
       }
-      return res.status(403).json({ 
-        message: 'Subscription is not active',
-        code: 'SUBSCRIPTION_INACTIVE'
-      });
+      return debugResponse(403, 'SUBSCRIPTION_INACTIVE', 'Subscription is not active', `subStatus=${subscription.status}, orgStatus=${organization.status}`);
     }
 
     // Check if subscription has expired
-    if (subscription.endDate && new Date() > subscription.endDate) {
+    if (subscription.endDate && new Date() > new Date(subscription.endDate.getTime() + 7 * 24 * 60 * 60 * 1000)) {
       // Update subscription status
       subscription.status = 'expired';
       await subscription.save();
@@ -74,10 +64,7 @@ export const checkSubscription = async (req, res, next) => {
       organization.status = 'inactive';
       await organization.save();
 
-      return res.status(403).json({ 
-        message: 'Subscription has expired. Please renew to continue.',
-        code: 'SUBSCRIPTION_EXPIRED'
-      });
+      return debugResponse(403, 'SUBSCRIPTION_EXPIRED', 'Subscription has expired. Please renew to continue.', `subEndDate=${subscription.endDate}`);
     }
 
     // Attach subscription to request

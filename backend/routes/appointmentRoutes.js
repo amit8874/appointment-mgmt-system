@@ -20,15 +20,22 @@ import {
   patchReschedule,
   deleteAppointmentV2,
   bookPublicAppointment,
-  cancelPublicAppointment
+  cancelPublicAppointment,
+  updateVisitNotes
 } from '../controllers/appointmentController.js';
 
-
+import { parseIntakeTranscript, processInteractiveIntake } from '../controllers/aiIntakeController.js';
 
 const router = express.Router();
 
 // Get all appointments for a specific doctor
 router.get('/doctor-appointments/:doctorId', authenticateToken, getDoctorAppointments);
+
+// Parse AI Voice Intake transcript (Single-shot)
+router.post('/parse-intake', authenticateToken, parseIntakeTranscript);
+
+// Parse AI Voice Intake transcript (Interactive conversational)
+router.post('/intake-chat', authenticateToken, processInteractiveIntake);
 
 // Get all appointments for a patient across ALL organizations (used by patient panel)
 router.get('/patient/:patientId/summary', authenticateToken, getPatientSummary);
@@ -70,5 +77,8 @@ router.get('/today', authenticateToken, requireTenant, getTodayAppointments);
 router.patch('/:id/status', authenticateToken, requireTenant, patchAppointmentStatus);
 router.patch('/:id/reschedule', authenticateToken, requireTenant, patchReschedule);
 router.delete('/:id', authenticateToken, requireTenant, deleteAppointmentV2);
+
+// Add visit notes to a completed appointment
+router.put('/:id/notes', authenticateToken, requireTenant, updateVisitNotes);
 
 export default router;

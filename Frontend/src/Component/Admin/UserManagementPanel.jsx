@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Trash2, Edit, Eye, EyeOff, X, User } from 'lucide-react';
+import { Plus, Trash2, Edit, Eye, EyeOff, X, User, Search, Activity, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
 import Pagination from '../../components/common/Pagination';
@@ -19,6 +19,10 @@ const UserManagementPanel = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
 
   // Fetch users
   const fetchUsers = async () => {
@@ -47,29 +51,77 @@ const UserManagementPanel = () => {
     }
   }, [user]);
 
+  const totalPages = Math.ceil(users.length / itemsPerPage);
+
+  // Debounced Search for Patients
+  useEffect(() => {
+    const searchPatients = async () => {
+      if (formData.role !== 'patient' || searchQuery.length < 2) {
+        setSearchResults([]);
+        return;
+      }
+
+      try {
+        setIsSearching(true);
+        const response = await api.get(`/patients/search-available?query=${searchQuery}`);
+        setSearchResults(response.data);
+      } catch (err) {
+        console.error('Search error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const timer = setTimeout(searchPatients, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery, formData.role]);
+
+  const handleSelectPatient = (patient) => {
+    setSelectedPatient(patient);
+    setFormData(prev => ({
+      ...prev,
+      name: patient.fullName,
+      mobile: patient.mobile,
+      age: patient.age,
+      gender: patient.gender,
+      patientObjectId: patient._id
+    }));
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
   // Paginate users
   const paginatedUsers = users.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  const totalPages = Math.ceil(users.length / itemsPerPage);
-
   // Handle creating/registering user
   const handleRegister = async (e) => {
     e.preventDefault();
+    if (formData.role === 'patient' && !formData.name) {
+      toast.error('Please select a patient or enter a name.');
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await api.post('/auth/create-user', formData);
       toast.success(response.data.message || 'User registered successfully');
       setIsModalOpen(false);
-      setFormData({ name: '', mobile: '', password: '', role: 'receptionist' });
+      resetForm();
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to register user');
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setFormData({ name: '', mobile: '', password: '', role: 'receptionist' });
+    setSearchQuery('');
+    setSelectedPatient(null);
   };
 
   // Handle deleting user
@@ -201,37 +253,16 @@ const UserManagementPanel = () => {
               </div>
 
               <form onSubmit={handleRegister} className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white"
-                    placeholder="Enter full name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mobile Number</label>
-                  <input
-                    type="tel"
-                    required
-                    pattern="[0-9]{10}"
-                    className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white"
-                    placeholder="10-digit number"
-                    value={formData.mobile}
-                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                  />
-                </div>
-
+                {/* 1. SELECT ROLE AT TOP */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Role</label>
                   <select
                     className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold text-slate-800 dark:text-white appearance-none cursor-pointer"
                     value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    onChange={(e) => {
+                      resetForm();
+                      setFormData({ ...formData, role: e.target.value });
+                    }}
                   >
                     <option value="receptionist">Receptionist</option>
                     <option value="doctor">Doctor</option>
@@ -239,15 +270,109 @@ const UserManagementPanel = () => {
                   </select>
                 </div>
 
+                {/* 2. SEARCH FOR PATIENT OR FULL NAME */}
+                <div className="space-y-2 relative">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                    {formData.role === 'patient' ? 'Search & Select Patient' : 'Full Name'}
+                  </label>
+                  
+                  {formData.role === 'patient' ? (
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white pl-12"
+                          placeholder="Search Name, Mobile or ID..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        {isSearching && (
+                          <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-500 animate-spin" size={18} />
+                        )}
+                      </div>
+
+                      {/* Search Results Dropdown */}
+                      {searchResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-600 rounded-2xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar">
+                          {searchResults.map((p) => (
+                            <button
+                              key={p._id}
+                              type="button"
+                              onClick={() => handleSelectPatient(p)}
+                              className="w-full p-4 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-slate-50 dark:border-gray-700/50 last:border-0 transition-colors group"
+                            >
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <p className="font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">{p.fullName}</p>
+                                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{p.patientId} • {p.mobile}</p>
+                                </div>
+                                <Plus size={16} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-all" />
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Selected Patient Preview */}
+                      {selectedPatient && (
+                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold shadow-lg shadow-blue-200">
+                              {selectedPatient.fullName.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-sm font-black text-blue-900 dark:text-blue-200">{selectedPatient.fullName}</p>
+                              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Selected Clinical Record</p>
+                            </div>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => { setSelectedPatient(null); setFormData(p => ({ ...p, name: '', mobile: '' })); }}
+                            className="p-1 text-blue-400 hover:text-blue-600 transition-colors"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white"
+                      placeholder="Enter full name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    />
+                  )}
+                </div>
+
+                {/* 3. MOBILE NUMBER (READ-ONLY IF LINKED) */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mobile Number</label>
+                  <input
+                    type="tel"
+                    required
+                    pattern="[0-9]{10}"
+                    readOnly={!!selectedPatient}
+                    className={`w-full px-4 py-4 ${selectedPatient ? 'bg-slate-100 dark:bg-gray-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-gray-700/50'} border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white`}
+                    placeholder="10-digit number"
+                    value={formData.mobile}
+                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                  />
+                  {selectedPatient && <p className="text-[9px] text-blue-500 font-bold uppercase tracking-widest mt-1 ml-1">Locked to Patient's Clinical ID</p>}
+                </div>
+
                 <div className="space-y-2 pb-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Security Password</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Set Account Password</label>
                   <div className="relative group">
                     <input
                       type={showPassword ? "text" : "password"}
                       required
                       minLength={6}
                       className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white pr-12"
-                      placeholder="At least 6 characters"
+                      placeholder="Minimum 6 characters"
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     />

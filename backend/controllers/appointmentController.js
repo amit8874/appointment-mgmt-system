@@ -1,5 +1,6 @@
 import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
+import Billing from '../models/Billing.js';
 import CancelledAppointment from '../models/CancelledAppointment.js';
 import OldAppointment from '../models/Appointment.js';
 import Notification from '../models/Notification.js';
@@ -7,7 +8,6 @@ import Patient from '../models/PaitentEditProfile.js';
 import Doctor from '../models/Doctor.js';
 import User from '../models/User.js';
 import Counter from '../models/Counter.js';
-import Billing from '../models/Billing.js';
 import { incrementUsage } from '../middleware/subscription.js';
 import { generatePatientId } from '../utils/idGenerator.js';
 
@@ -44,13 +44,22 @@ export const getPatientSummary = async (req, res) => {
     let patientFilter = {};
     
     if (/^[a-fA-F0-9]{24}$/.test(patientId)) {
-      const patient = await Patient.findOne({
+      let patient = await Patient.findOne({
         $or: [
           { _id: patientId },
           { patientId: patientId }
         ]
       });
       
+      // If no patient record found by that ID, it might be a User ID
+      if (!patient) {
+        const user = await User.findById(patientId);
+        if (user && user.role === 'patient') {
+          // Find clinical patient by user's mobile + name (standard link)
+          patient = await Patient.findOne({ mobile: user.mobile });
+        }
+      }
+
       if (patient) {
         patientFilter = {
           $or: [
@@ -312,12 +321,44 @@ export const getPatientAppointments = async (req, res) => {
 
 export const getPatientTenantAppointments = async (req, res) => {
   try {
-    const tenantFilter = { organizationId: req.tenantId, patientId: req.params.patientId };
+    const { patientId } = req.params;
+    const organizationId = req.tenantId;
+    
+    let patientFilter = { organizationId };
+    
+    // Check if the provided ID is a valid MongoDB ObjectId
+    if (mongoose.Types.ObjectId.isValid(patientId)) {
+      // 1. Try to find by Patient _id
+      let patient = await Patient.findOne({ _id: patientId, organizationId });
+      
+      // 2. If not found, try to find a User, then the Patient by that User's mobile
+      if (!patient) {
+        const user = await User.findById(patientId);
+        if (user && user.role === 'patient') {
+          patient = await Patient.findOne({ mobile: user.mobile, organizationId });
+        }
+      }
+
+      if (patient) {
+        // We found a clinical record! Search by Clinical ID OR Mobile
+        patientFilter.$or = [
+          { patientId: patient.patientId },
+          { patientPhone: patient.mobile }
+        ];
+      } else {
+        // Could be a direct User ID login but no Patient record (unlikely with our sync)
+        patientFilter.patientId = patientId; 
+      }
+    } else {
+      // It's a clinical ID string (e.g., P0001)
+      patientFilter.patientId = patientId;
+    }
+
     const [pending, confirmed, cancelled, oldAppointments] = await Promise.all([
-      PendingAppointment.find(tenantFilter).sort({ createdAt: -1 }),
-      ConfirmedAppointment.find(tenantFilter).sort({ createdAt: -1 }),
-      CancelledAppointment.find(tenantFilter).sort({ createdAt: -1 }),
-      OldAppointment.find(tenantFilter).sort({ createdAt: -1 })
+      PendingAppointment.find(patientFilter).sort({ createdAt: -1 }),
+      ConfirmedAppointment.find(patientFilter).sort({ createdAt: -1 }),
+      CancelledAppointment.find(patientFilter).sort({ createdAt: -1 }),
+      OldAppointment.find(patientFilter).sort({ createdAt: -1 })
     ]);
 
     const allAppointments = [
@@ -329,7 +370,7 @@ export const getPatientTenantAppointments = async (req, res) => {
 
     res.json(allAppointments);
   } catch (error) {
-    console.error('Error fetching appointments:', error);
+    console.error('Error fetching tenant-specific patient appointments:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -470,6 +511,12 @@ export const bookAppointment = async (req, res) => {
 
     await appointment.save();
 
+    // Update patient's lastVisit date
+    if (existingPatient) {
+      existingPatient.lastVisit = date;
+      await existingPatient.save();
+    }
+
     await incrementUsage('appointmentsThisMonth')(req, res, () => {});
 
     try {
@@ -581,6 +628,45 @@ export const updateAppointmentStatus = async (req, res) => {
 
       await newAppointment.save();
       await currentModel.findByIdAndDelete(appointmentId);
+
+      // Sync with Billing: If appointment is cancelled, cancel the bill too
+      if (status === 'cancelled') {
+        try {
+          console.log(`[SYNC DEBUG] Attempting to cancel bill for appointmentId: ${appointmentId}`);
+          
+          // Use a more flexible query to ensure we find the bill
+          const updatedBill = await Billing.findOneAndUpdate(
+            { 
+              $or: [
+                { appointmentId: appointmentId },
+                { appointmentId: appointmentId.toString() }
+              ]
+            },
+            { $set: { status: 'Cancelled' } },
+            { new: true }
+          );
+
+          if (updatedBill) {
+            console.log(`[SYNC DEBUG] Bill ${updatedBill.billId} successfully cancelled.`);
+          } else {
+            console.warn(`[SYNC DEBUG] No Bill record found with appointmentId: ${appointmentId}. Trying fallback...`);
+            // Fallback: Find by patient details if appointmentId is missing/incorrect in Billing
+            const latestBill = await Billing.findOne({
+              patientId: appointment.patientId,
+              organizationId: appointment.organizationId,
+              status: 'Pending'
+            }).sort({ createdAt: -1 });
+
+            if (latestBill && latestBill.amount === appointment.amount) {
+              latestBill.status = 'Cancelled';
+              await latestBill.save();
+              console.log(`[SYNC DEBUG] Fallback: Found and cancelled bill ${latestBill.billId} via patientId match.`);
+            }
+          }
+        } catch (billingSyncError) {
+          console.error('[SYNC DEBUG] Error syncing billing status:', billingSyncError);
+        }
+      }
 
       return res.json(newAppointment);
     }
@@ -757,8 +843,13 @@ export const getAvailableSlots = async (req, res) => {
 
 export const getStatsToday = async (req, res) => {
   try {
-    const today = new Date();
-    const localDate = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    let localDate = req.query.date;
+    if (!localDate) {
+      const today = new Date();
+      // Adjust timezone to India since the CMS is primarily localized
+      const istTime = new Date(today.getTime() + (5.5 * 60 * 60 * 1000));
+      localDate = istTime.getFullYear() + '-' + String(istTime.getMonth() + 1).padStart(2, '0') + '-' + String(istTime.getDate()).padStart(2, '0');
+    }
 
     const [pending, confirmed, cancelled, old] = await Promise.all([
       PendingAppointment.countDocuments({ organizationId: req.tenantId, date: localDate }),
@@ -886,6 +977,12 @@ export const bookPublicAppointment = async (req, res) => {
     });
 
     await appointment.save();
+
+    // Update patient's lastVisit date
+    if (patient) {
+      patient.lastVisit = date;
+      await patient.save();
+    }
 
     // 5. Create Notifications for all organization staff (admin, receptionist)
     try {
@@ -1040,9 +1137,18 @@ export const cancelPublicAppointment = async (req, res) => {
         await Notification.insertMany(notifications);
       }
     } catch (err) {
-      console.error('Notification error during cancellation:', err);
+      console.error("Error creating cancellation notifications:", err);
     }
 
+    // 5. Sync with Billing: If appointment is cancelled, cancel the bill too
+    try {
+      await Billing.findOneAndUpdate(
+        { appointmentId: pendingApp._id.toString() },
+        { $set: { status: 'Cancelled' } }
+      );
+    } catch (billingSyncError) {
+      console.error('Error syncing billing status on public appointment cancellation:', billingSyncError);
+    }
 
     res.status(200).json({ message: 'Appointment cancelled successfully' });
 
@@ -1057,7 +1163,15 @@ export const cancelPublicAppointment = async (req, res) => {
 export const getTodayAppointments = async (req, res) => {
   try {
     const organizationId = req.tenantId;
-    const today = new Date().toISOString().split('T')[0];
+    
+    // Read local date from frontend if provided, otherwise fallback to server UTC
+    let today = req.query.date;
+    if (!today) {
+      const d = new Date();
+      // Adjust to IST (+5:30) for better defaults since clinic is in India
+      const istTime = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+      today = istTime.toISOString().split('T')[0];
+    }
     
     const query = { organizationId, date: today };
     const [pending, confirmed, cancelled, old] = await Promise.all([
@@ -1178,14 +1292,29 @@ export const patchReschedule = async (req, res) => {
 
     if (existing) return res.status(400).json({ message: 'Time slot already booked' });
 
+    // 3. Update the appointment with the new date, time, and reset status if needed
     appointment.date = appointmentDate;
     appointment.appointmentDate = appointmentDate;
     appointment.time = appointmentTime;
     appointment.appointmentTime = appointmentTime;
     appointment.isRescheduled = true;
     appointment.updatedAt = new Date();
-
+    
     await appointment.save();
+
+    // 4. Update patient's lastVisit date
+    const patientRecord = await Patient.findOne({ 
+      $or: [
+        { patientId: appointment.patientId },
+        { mobile: appointment.patientPhone }
+      ],
+      organizationId: req.tenantId 
+    });
+    
+    if (patientRecord) {
+      patientRecord.lastVisit = appointmentDate;
+      await patientRecord.save();
+    }
 
     // Emit Real-time update
     const io = req.app.get("io");
@@ -1226,6 +1355,47 @@ export const deleteAppointmentV2 = async (req, res) => {
     });
 
     res.json({ message: 'Appointment cancelled and archived' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateVisitNotes = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { visitNotes } = req.body;
+    const organizationId = req.tenantId;
+
+    // The appointment could be in Confirmed, Pending, Cancelled, or OldAppointment (Completed usually lands in OldAppointment or stays in Confirmed depending on system logic)
+    let appointment = await OldAppointment.findById(id);
+    let Model = OldAppointment;
+
+    if (!appointment) {
+      appointment = await ConfirmedAppointment.findById(id);
+      Model = ConfirmedAppointment;
+    }
+    if (!appointment) {
+      appointment = await PendingAppointment.findById(id);
+      Model = PendingAppointment;
+    }
+    if (!appointment) {
+      appointment = await CancelledAppointment.findById(id);
+      Model = CancelledAppointment;
+    }
+
+    if (!appointment) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    // Authorization check
+    if (appointment.organizationId.toString() !== organizationId.toString()) {
+      return res.status(403).json({ message: 'Unauthorized access to appointment' });
+    }
+
+    appointment.visitNotes = visitNotes;
+    await appointment.save();
+
+    res.json({ message: 'Visit notes updated successfully', appointment });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

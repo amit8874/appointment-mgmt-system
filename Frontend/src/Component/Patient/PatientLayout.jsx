@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Calendar, FileText, CreditCard, User, FlaskConical, Pill, HeartPulse } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, CreditCard, User, FlaskConical, Pill, HeartPulse, MessageSquare } from 'lucide-react';
 import PatientSidebar from './components/PatientSidebar';
 import PatientTopNav from './components/PatientTopNav';
 import { useAuth } from '../../context/AuthContext';
@@ -51,6 +51,7 @@ const PatientLayout = () => {
         { name: 'Appointments', href: '/patient-dashboard/appointments', icon: Calendar },
         { name: 'Lab Booking', href: '/patient-dashboard/lab-booking', icon: FlaskConical },
         { name: 'Medicine Order', href: '/patient-dashboard/medicine-order', icon: Pill },
+        { name: 'Messages', href: '/patient-dashboard/messages', icon: MessageSquare },
         { name: 'Profile', href: '/patient-dashboard/profile', icon: User },
     ];
 

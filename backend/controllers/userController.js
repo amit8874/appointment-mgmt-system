@@ -61,6 +61,17 @@ export const checkSession = async (req, res) => {
       userObj.mobile = user.organizationId.phone || '';
     }
 
+    if (user.role === 'patient') {
+      const patientProfile = await Patient.findOne({ 
+        mobile: user.mobile, 
+        organizationId: user.organizationId?._id || user.organizationId 
+      });
+      if (patientProfile) {
+        userObj.patientProfileId = patientProfile._id;
+        userObj.patientId = patientProfile.patientId;
+      }
+    }
+
     res.json({ message: 'Session is valid', user: userObj });
   } catch (error) {
     console.error('Check session error:', error);
@@ -346,8 +357,9 @@ export const login = async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Fetch patientId if it's a patient
+    // Fetch patient info if it's a patient
     let patientId = null;
+    let patientProfileId = null;
     if (user.role === 'patient') {
       const patientProfile = await Patient.findOne({ 
         mobile: user.mobile, 
@@ -355,6 +367,7 @@ export const login = async (req, res) => {
       });
       if (patientProfile) {
         patientId = patientProfile.patientId;
+        patientProfileId = patientProfile._id;
       }
     }
 
@@ -365,7 +378,8 @@ export const login = async (req, res) => {
       mobile: user.mobile || (user.organizationId?.phone) || null,
       email: user.email,
       role: user.role,
-      patientId: patientId, // Added patientId here
+      patientId: patientId, // The PATXXXX string
+      patientProfileId: patientProfileId, // The MongoDB ObjectId
       organizationId: user.organizationId?._id || user.organizationId,
       organization: user.organizationId ? {
         name: user.organizationId.name,
@@ -679,7 +693,7 @@ export const createAdmin = async (req, res) => {
 // Create generic user (for admin/orgadmin/superadmin)
 export const createUser = async (req, res) => {
   try {
-    const { name, mobile, password, role } = req.body;
+    const { name, mobile, password, role, age, gender, patientObjectId } = req.body;
 
     // 1. Authorization Check
     if (!req.user || !['admin', 'orgadmin', 'superadmin'].includes(req.user.role)) {
@@ -740,6 +754,8 @@ export const createUser = async (req, res) => {
       mobile: normalizedMobile,
       password: trimmedPassword,
       role: targetRole,
+      age: age || undefined,
+      gender: gender || undefined,
       organizationId
     });
     
@@ -766,14 +782,20 @@ export const createUser = async (req, res) => {
         });
         await doctorProfile.save();
       } else if (targetRole === 'patient') {
-        // Check if a patient already exists with this mobile number in the organization
-        let patientProfile = await Patient.findOne({ mobile: normalizedMobile, organizationId });
+        // Find existing patient by provided ID or mobile
+        let patientProfile;
+        if (patientObjectId) {
+          patientProfile = await Patient.findOne({ _id: patientObjectId, organizationId });
+        } else {
+          patientProfile = await Patient.findOne({ mobile: normalizedMobile, organizationId });
+        }
 
         if (patientProfile) {
           patientProfile.fullName = trimmedName;
-          patientProfile.firstName = trimmedName.split(' ')[0] || trimmedName,
-          patientProfile.lastName = trimmedName.split(' ').slice(1).join(' ') || '',
-          patientProfile.age = req.body.age; // req.body.age if available
+          patientProfile.firstName = trimmedName.split(' ')[0] || trimmedName;
+          patientProfile.lastName = trimmedName.split(' ').slice(1).join(' ') || '';
+          if (age) patientProfile.age = age;
+          if (gender) patientProfile.gender = gender;
           await patientProfile.save();
         } else {
           const patientId = await generatePatientId(organizationId);
@@ -783,7 +805,9 @@ export const createUser = async (req, res) => {
             firstName: trimmedName.split(' ')[0] || trimmedName,
             lastName: trimmedName.split(' ').slice(1).join(' ') || '',
             fullName: trimmedName,
-            mobile: normalizedMobile
+            mobile: normalizedMobile,
+            age,
+            gender
           });
           await patientProfile.save();
         }

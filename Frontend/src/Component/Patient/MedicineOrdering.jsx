@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import medecineimage from '../../assets/img/medecine.png';
 import api, { pharmacyApi } from '../../services/api';

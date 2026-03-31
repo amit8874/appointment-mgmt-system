@@ -14,6 +14,7 @@ import PatientProfileModal from './PatientProfileModal.jsx';
 import DoctorProfileModal from './DoctorProfileModal.jsx';
 import AdminDoctorSchedule from './Doctor/AdminDoctorSchedule.jsx';
 import PatientPanel from './Patient/PatientPanel.jsx';
+import MessagesView from './Messaging/MessagesView.jsx';
 
 const MainContent = ({
   activeTab,
@@ -163,7 +164,7 @@ const MainContent = ({
       case 'Appointment Mgmt':
       case 'Calendar View':
         return (
-          <AppointmentManagement
+          <AppointmentTable
             rebookData={rebookData}
           />
         );
@@ -175,6 +176,12 @@ const MainContent = ({
         return <ReportsPanel />;
       case 'User Management':
         return <UserManagementPanel />;
+      case 'Messages':
+        return (
+          <div className="p-4 sm:p-6 h-full">
+            <MessagesView />
+          </div>
+        );
       default:
         return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
     }

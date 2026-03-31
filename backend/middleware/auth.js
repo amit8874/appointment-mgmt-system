@@ -98,6 +98,19 @@ export const requireAdmin = (req, res, next) => {
   next();
 };
 
+// Middleware to check if user has admin or doctor role
+export const requireAdminOrDoctor = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  if (req.user.role !== 'admin' && req.user.role !== 'superadmin' && req.user.role !== 'orgadmin' && req.user.role !== 'doctor') {
+    return res.status(403).json({ message: 'Admin or Doctor access required' });
+  }
+
+  next();
+};
+
 // Middleware to check if user is organization admin
 export const requireOrgAdmin = (req, res, next) => {
   if (!req.user) {

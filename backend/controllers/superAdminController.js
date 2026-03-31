@@ -399,6 +399,25 @@ export const overrideSubscription = async (req, res) => {
 
     await subscription.save();
 
+    // Also update the Organization record
+    const org = await Organization.findById(req.params.orgId);
+    if (org) {
+      if (trialEndDate) org.trialEndDate = new Date(trialEndDate);
+      if (status) org.status = status;
+      
+      // Clear inactive/suspended statuses if we extend trial to future
+      if (trialEndDate && new Date(trialEndDate) > new Date()) {
+         org.isTrialActive = true;
+         if (org.status === 'inactive') org.status = 'trial';
+      }
+      // If setting to active, clear trial explicitly
+      if (status === 'active') {
+         org.isTrialActive = false;
+      }
+      
+      await org.save();
+    }
+
     // Log the manual override
     await AuditLog.create({
       adminId: req.user.id,

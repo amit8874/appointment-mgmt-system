@@ -61,6 +61,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
 
   // Filter/Search State
   const [doctorFilter, setDoctorFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal State
@@ -73,14 +74,16 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
   const [editingEvent, setEditingEvent] = useState(null);
   const [waitlist, setWaitlist] = useState([]);
 
-  // Stats
-  const stats = useMemo(() => ({
-    total: appointments.length,
-    confirmed: appointments.filter(a => a.resource.status === 'confirmed').length,
-    pending: appointments.filter(a => a.resource.status === 'pending').length,
-    cancelled: appointments.filter(a => a.resource.status === 'cancelled').length,
-    waitlistCount: waitlist.length
-  }), [appointments, waitlist]);
+  const stats = useMemo(() => {
+    const getStatus = (a) => (a.resource?.status || '').toLowerCase();
+    return {
+      total: appointments.length,
+      confirmed: appointments.filter(a => ['confirmed', 'completed', 'arrived'].includes(getStatus(a))).length,
+      pending: appointments.filter(a => getStatus(a) === 'pending').length,
+      cancelled: appointments.filter(a => getStatus(a) === 'cancelled').length,
+      waitlistCount: waitlist.length
+    };
+  }, [appointments, waitlist]);
 
 
 
@@ -332,12 +335,26 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
   // --- Filtering ---
   const filteredAppointments = useMemo(() => {
     return appointments.filter(app => {
+      const status = (app.resource?.status || '').toLowerCase();
+      const patientName = (app.resource?.patientName || '').toLowerCase();
+      const reason = (app.resource?.reason || '').toLowerCase();
+      const search = searchQuery.toLowerCase();
+
       const matchesDoc = doctorFilter === 'all' || app.resource.doctorId === doctorFilter;
-      const matchesSearch = app.resource.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        app.resource.reason.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesDoc && matchesSearch;
+      
+      // Status mapping: 'confirmed' filter shows both 'confirmed' and 'completed' appointments
+      let matchesStatus = statusFilter === 'all';
+      if (statusFilter === 'confirmed') {
+        matchesStatus = ['confirmed', 'completed', 'arrived'].includes(status);
+      } else if (statusFilter !== 'all') {
+        matchesStatus = status === statusFilter.toLowerCase();
+      }
+
+      const matchesSearch = patientName.includes(search) || reason.includes(search);
+      
+      return matchesDoc && matchesStatus && matchesSearch;
     });
-  }, [appointments, doctorFilter, searchQuery]);
+  }, [appointments, doctorFilter, statusFilter, searchQuery]);
 
   // --- Rendering Helpers ---
   const renderHeader = () => {
@@ -667,11 +684,45 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
 
       {!isEmbedded && (
         <div className="mb-10 grid grid-cols-2 lg:grid-cols-5 gap-6">
-          <StatCard title="Total Appts" value={stats.total} icon={<Activity />} color="blue" />
-          <StatCard title="Confirmed" value={stats.confirmed} icon={<CheckCircle />} color="emerald" />
-          <StatCard title="Pending" value={stats.pending} icon={<ClockIcon />} color="amber" />
-          <StatCard title="Cancelled" value={stats.cancelled} icon={<XCircle />} color="rose" />
-          <StatCard title="Waitlist" value={stats.waitlistCount} icon={<List />} color="indigo" />
+          <StatCard 
+            title="Total Appts" 
+            value={stats.total} 
+            icon={<List />} 
+            color="blue" 
+            onClick={() => setStatusFilter('all')}
+            isActive={statusFilter === 'all'}
+          />
+          <StatCard 
+            title="Confirmed" 
+            value={stats.confirmed} 
+            icon={<CheckCircle />} 
+            color="emerald" 
+            onClick={() => setStatusFilter('confirmed')}
+            isActive={statusFilter === 'confirmed'}
+          />
+          <StatCard 
+            title="Pending" 
+            value={stats.pending} 
+            icon={<ClockIcon />} 
+            color="amber" 
+            onClick={() => setStatusFilter('pending')}
+            isActive={statusFilter === 'pending'}
+          />
+          <StatCard 
+            title="Cancelled" 
+            value={stats.cancelled} 
+            icon={<XCircle />} 
+            color="rose" 
+            onClick={() => setStatusFilter('cancelled')}
+            isActive={statusFilter === 'cancelled'}
+          />
+          <StatCard 
+            title="Waitlist" 
+            value={stats.waitlistCount} 
+            icon={<Activity />} 
+            color="indigo" 
+            onClick={() => setIsWaitlistModalOpen(true)}
+          />
         </div>
       )}
 
@@ -835,20 +886,25 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
 }
 
 // Sub-components
-function StatCard({ title, value, icon, color }) {
+function StatCard({ title, value, icon, color, onClick, isActive }) {
   const colors = {
-    blue: "from-blue-500 to-blue-600 shadow-blue-200",
-    emerald: "from-emerald-500 to-emerald-600 shadow-emerald-200",
-    amber: "from-amber-500 to-amber-600 shadow-amber-200",
-    rose: "from-rose-500 to-rose-600 shadow-rose-200",
-    indigo: "from-indigo-500 to-indigo-600 shadow-indigo-200"
+    blue: "from-blue-500 to-blue-600 shadow-blue-200 hover:shadow-blue-300",
+    emerald: "from-emerald-500 to-emerald-600 shadow-emerald-200 hover:shadow-emerald-300",
+    amber: "from-amber-500 to-amber-600 shadow-amber-200 hover:shadow-amber-300",
+    rose: "from-rose-500 to-rose-600 shadow-rose-200 hover:shadow-rose-300",
+    indigo: "from-indigo-500 to-indigo-600 shadow-indigo-200 hover:shadow-indigo-300"
   };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`bg-gradient-to-br ${colors[color]} p-6 rounded-[2rem] shadow-xl text-white`}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className={`bg-gradient-to-br ${colors[color]} p-6 rounded-[2rem] shadow-xl text-white cursor-pointer transition-all ${
+        isActive ? 'ring-4 ring-white/30 scale-105 shadow-2xl z-10' : 'opacity-90'
+      }`}
     >
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] font-black uppercase tracking-widest opacity-80">{title}</span>

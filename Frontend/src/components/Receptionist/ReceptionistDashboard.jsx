@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Calendar, Users, FileText, BarChart3, Bell, User, LogOut, Stethoscope, Grid } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, FileText, BarChart3, Bell, User, LogOut, Stethoscope, Grid, MessageSquare } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import TopNav from './components/TopNav';
 import Notification from './components/Notification';
@@ -41,6 +41,7 @@ const ReceptionistLayout = () => {
       ]
     },
     { name: 'Patients', href: '/receptionist/patients', icon: Users },
+    { name: 'Messages', href: '/receptionist/messages', icon: MessageSquare },
     { name: 'Billing', href: '/receptionist/billing', icon: FileText },
     {
       name: 'Doctor',

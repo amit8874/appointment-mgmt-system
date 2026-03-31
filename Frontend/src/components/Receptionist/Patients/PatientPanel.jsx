@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle } from 'lucide-react';
+import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../../services/api';
@@ -364,6 +364,10 @@ const PatientPanel = () => {
                       {(p.paymentStatus || p.status || '').toLowerCase() === 'paid' ? (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100">
                           <CheckCircle className="w-3.5 h-3.5" /> Paid
+                        </span>
+                      ) : (p.paymentStatus || p.status || '').toLowerCase() === 'cancelled' ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-100">
+                          <XCircle className="w-3.5 h-3.5" /> Cancelled
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-100">

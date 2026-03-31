@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, ChevronDown, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Plus, ChevronDown, Calendar as CalendarIcon, Loader2, Mic, MicOff, X } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
@@ -10,6 +10,15 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isFetchingSlots, setIsFetchingSlots] = useState(false);
   const [slotError, setSlotError] = useState('');
+  
+  // Interactive Conversational AI Voice Agent states
+  const [voiceAgent, setVoiceAgent] = useState({
+    isActive: false,
+    isListening: false,
+    isThinking: false,
+    message: '',
+    state: {},
+  });
   
   const [formData, setFormData] = useState({
     patientId: 'Loading...',
@@ -24,7 +33,140 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     doctor: '',
     appointmentDate: new Date().toISOString().split('T')[0],
     appointmentTime: '',
+    symptoms: '',
   });
+
+  // Handle Voice-to-Text Conversational Loop
+  const stopVoiceAgent = () => {
+    window.speechSynthesis.cancel();
+    setVoiceAgent(prev => ({ ...prev, isActive: false, isListening: false }));
+  };
+
+  const startVoiceAgent = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      toast.error('Browser does not support Speech Recognition. Please use Chrome.');
+      return;
+    }
+    
+    // Hard reset
+    const initialState = {
+       firstName: '', lastName: '', age: '', ageType: 'Year', gender: '', phone: '', doctor: '', symptoms: ''
+    };
+
+    setVoiceAgent({
+      isActive: true,
+      isListening: false,
+      isThinking: true,
+      message: 'Connecting to AI Assistant...',
+      state: initialState
+    });
+
+    // Send empty transcript to trigger the first question safely
+    processInteractiveTranscript('hello', initialState);
+  };
+
+  const speakAndListen = (text, currentState) => {
+     window.speechSynthesis.cancel();
+     const utterance = new SpeechSynthesisUtterance(text);
+     
+     utterance.onend = () => {
+        // Start listening immediately after AI finishes speaking
+        setVoiceAgent(prev => ({ ...prev, isListening: true, isThinking: false }));
+        
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        let hasResult = false;
+
+        recognition.onresult = async (event) => {
+          hasResult = true;
+          const currentTranscript = event.results[0][0].transcript;
+          setVoiceAgent(prev => ({ ...prev, isListening: false, isThinking: true }));
+          await processInteractiveTranscript(currentTranscript, currentState, text);
+        };
+
+        recognition.onerror = (event) => {
+          if (event.error !== 'no-speech') {
+             toast.error('Voice input failed: ' + event.error);
+             stopVoiceAgent();
+          }
+        };
+        
+        recognition.onend = () => {
+           if (!hasResult) {
+              setVoiceAgent(prev => {
+                  if (prev.isActive) {
+                      try { recognition.start(); return { ...prev, isListening: true, isThinking: false }; } catch(e) {}
+                  }
+                  return prev;
+              });
+           }
+        };
+        
+        try {
+          recognition.start();
+        } catch(e) {}
+     };
+
+     setVoiceAgent(prev => ({ ...prev, message: text }));
+     window.speechSynthesis.speak(utterance);
+  };
+
+  const processInteractiveTranscript = async (transcript, currentState, lastAgentMessage = '') => {
+    try {
+      const res = await api.post('/appointments/intake-chat', { transcript, currentState, lastAgentMessage });
+      if (res.data) {
+        const { updatedState, reply, isComplete } = res.data;
+        
+        setVoiceAgent(prev => ({ ...prev, state: updatedState }));
+
+        if (isComplete) {
+           window.speechSynthesis.speak(new SpeechSynthesisUtterance("All done! I am filling the form now."));
+           
+           let matchingDoctorId = formData.doctor;
+           if (updatedState.doctor) {
+              const matchedDoc = doctors.find(d => d.name.toLowerCase().includes(updatedState.doctor.toLowerCase()));
+              if (matchedDoc) matchingDoctorId = matchedDoc._id;
+           }
+
+           setFormData(prev => {
+             let newDesignation = prev.designation;
+             const returnedGender = (updatedState.gender || prev.gender)?.toLowerCase();
+             if (returnedGender === 'female') {
+                if (['MR.', 'SHRI.'].includes(prev.designation)) newDesignation = 'MS.';
+             } else if (returnedGender === 'male') {
+                if (['MS.', 'MRS.', 'MISS.', 'SMT.'].includes(prev.designation)) newDesignation = 'MR.';
+             }
+
+             return {
+               ...prev,
+               designation: newDesignation,
+               firstName: updatedState.firstName || prev.firstName,
+               lastName: updatedState.lastName || prev.lastName,
+               age: updatedState.age || prev.age,
+               ageType: updatedState.ageType || prev.ageType,
+               gender: updatedState.gender || prev.gender,
+               phone: updatedState.phone || prev.phone,
+               symptoms: updatedState.symptoms || prev.symptoms,
+               doctor: matchingDoctorId || prev.doctor
+             };
+           });
+
+           setVoiceAgent(prev => ({ ...prev, isActive: false }));
+           toast.success('Patient details successfully captured from AI Agent!');
+        } else {
+           speakAndListen(reply, updatedState);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('AI disconnected. Please try again.');
+      stopVoiceAgent();
+    }
+  };
 
   // Handle initialData for re-appointments or pre-filled forms
   useEffect(() => {
@@ -143,7 +285,9 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           ageType: formData.ageType,
           gender: formData.gender,
           phone: formData.phone,
-        }
+        },
+        reason: formData.symptoms, // Pass symptoms mapping to backend reason
+        symptoms: formData.symptoms,
       };
 
       const response = await api.post('/appointments/book-patient', appointmentData);
@@ -156,6 +300,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           age: '',
           phone: '',
           appointmentTime: '',
+          symptoms: '',
         }));
         if (onSuccess) onSuccess();
       }
@@ -170,8 +315,84 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const departments = [...new Set(doctors.map(d => d.specialization).filter(Boolean))];
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 w-full mb-6">
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 w-full mb-6 relative">
+      
+      {/* Interactive AI Agent Overlay */}
+      {voiceAgent.isActive && (
+        <div className="absolute inset-0 z-20 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md rounded-xl flex flex-col items-center justify-center p-8 border border-blue-200 dark:border-blue-900 shadow-2xl">
+          <button onClick={stopVoiceAgent} className="absolute top-4 right-4 p-2 text-gray-500 hover:text-red-500 rounded-full hover:bg-red-50 transition-colors">
+             <X className="w-6 h-6" />
+          </button>
+          
+          {voiceAgent.isListening ? (
+             <div className="flex flex-col items-center animate-pulse">
+                <div className="p-6 bg-blue-100 dark:bg-blue-900 rounded-full mb-4 shadow-[0_0_25px_rgba(59,130,246,0.6)]">
+                  <Mic className="w-12 h-12 text-blue-600 dark:text-blue-300" />
+                </div>
+                <p className="text-blue-700 dark:text-blue-300 font-black text-2xl mb-1">Listening...</p>
+                <p className="text-gray-500 text-sm">Speak clearly to answer the agent.</p>
+             </div>
+          ) : voiceAgent.isThinking ? (
+             <div className="flex flex-col items-center mb-4">
+                <Loader2 className="w-12 h-12 text-purple-600 animate-spin mb-4" />
+                <p className="text-purple-700 dark:text-purple-300 font-extrabold text-xl">AI is processing...</p>
+             </div>
+          ) : (
+             <div className="flex flex-col items-center mb-4 hidden">
+                <div className="p-6 bg-green-100 dark:bg-green-900 rounded-full mb-4 shadow-[0_0_15px_rgba(34,197,94,0.3)]">
+                  <Mic className="w-12 h-12 text-green-600 dark:text-green-300" />
+                </div>
+                <p className="text-green-700 dark:text-green-300 font-extrabold text-2xl mb-1">Agent is Speaking...</p>
+             </div>
+          )}
+
+          <div className="max-w-xl text-center mt-6 p-5 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800 w-full shadow-inner transform transition-all hover:scale-105">
+             <p className="text-xl text-blue-900 dark:text-blue-100 font-bold italic">"{voiceAgent.message}"</p>
+          </div>
+
+          <div className="mt-8 grid grid-cols-2 md:grid-cols-3 gap-3 w-full max-w-2xl text-sm">
+             {[
+               { key: 'firstName', label: 'First Name' },
+               { key: 'lastName', label: 'Last Name' },
+               { key: 'age', label: 'Age / Dob' },
+               { key: 'phone', label: 'Mobile' },
+               { key: 'gender', label: 'Gender' },
+               { key: 'symptoms', label: 'Symptoms' }
+             ].map(field => (
+               <div key={field.key} className={`flex justify-between items-center p-3 rounded-lg border shadow-sm transition-colors ${
+                 voiceAgent.state[field.key] ? 'bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700'
+               }`}>
+                 <span className={`font-semibold ${voiceAgent.state[field.key] ? 'text-green-800 dark:text-green-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                   {field.label}
+                 </span>
+                 <span className="font-bold text-lg">{voiceAgent.state[field.key] ? '✅' : '⏳'}</span>
+               </div>
+             ))}
+          </div>
+          
+          <button onClick={() => {
+             // Force stop and keep what we have
+             toast.success('Agent gracefully stopped. Extracted fields preserved.');
+             stopVoiceAgent();
+          }} className="mt-8 px-6 py-2 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 transition-colors">
+            Exit Early & Review Form
+          </button>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Header Action Row */}
+        <div className="flex justify-end mb-2">
+             <button
+               type="button"
+               onClick={startVoiceAgent}
+               className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-full font-bold shadow-lg shadow-purple-500/30 hover:shadow-xl hover:scale-105 transition-all text-sm animate-pulse"
+             >
+               <Mic className="w-5 h-5" />
+               Start Conversational AI Agent
+             </button>
+        </div>
+
         {/* Row 1: Patient ID, Designation, Name, Age, Mobile */}
         <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
           <div className="flex flex-col">
@@ -377,6 +598,21 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
               <CalendarIcon className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5 pointer-events-none" />
             </div>
           </div>
+        </div>
+
+        {/* Row 3: Symptoms / Reason (Optional) */}
+        <div>
+          <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-semibold flex items-center justify-between">
+            <span>Symptoms / Reason for Visit <span className="text-gray-400 font-normal italic">(Optional)</span></span>
+          </label>
+          <textarea
+            name="symptoms"
+            value={formData.symptoms}
+            onChange={handleChange}
+            placeholder="E.g., Severe headache and fever for 2 days. Known allergy to penicillin."
+            rows="2"
+            className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 resize-none"
+          ></textarea>
         </div>
 
         {/* Available Slots */}

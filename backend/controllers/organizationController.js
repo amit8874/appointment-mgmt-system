@@ -443,6 +443,8 @@ export const getTrialStatus = async (req, res) => {
       return res.status(404).json({ message: 'Organization not found' });
     }
 
+    const subscription = await Subscription.findOne({ organizationId: orgId }).lean();
+
     // Calculate trial days remaining
     const now = new Date();
     // Normalize to start of day for accurate day counting
@@ -497,6 +499,7 @@ export const getTrialStatus = async (req, res) => {
       planType: organization.planType || 'FREE_TRIAL',
       lastDataResetAt: organization.lastDataResetAt,
       needsResetNotification: organization.needsResetNotification || false,
+      isManualOverride: subscription?.isManualOverride || false,
     });
   } catch (error) {
     console.error('Get trial status error:', error);

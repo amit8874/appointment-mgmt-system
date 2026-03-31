@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, User, Calendar, ShieldCheck, Grid, Activity } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, User, Calendar, ShieldCheck, Grid, Activity, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NavItem from './NavItem.jsx';
 
@@ -104,6 +104,7 @@ const AdminSidebar = ({
         <NavItem id="tour-admin-new-appointment" name="New Appointment" icon={CalendarCheck} currentTab={activeTab} onClick={setActiveTab} />
         <NavItem id="tour-admin-analysis" name="Analysis" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} />
         <NavItem id="tour-admin-patients" name="Patients" icon={Users} currentTab={activeTab} onClick={setActiveTab} />
+        <NavItem id="tour-admin-messages" name="Messages" icon={MessageSquare} currentTab={activeTab} onClick={setActiveTab} />
 
         <h2 className="text-xs font-semibold uppercase text-gray-400 mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 mb-2 ml-3 tracking-wider">STAFF & RESOURCES</h2>
         

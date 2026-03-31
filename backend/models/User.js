@@ -160,4 +160,25 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
+// Sync basic info with Patient record if it exists
+userSchema.post('save', async function (doc) {
+  try {
+    if (doc.role === 'patient') {
+      const Patient = mongoose.model('Patient');
+      await Patient.findOneAndUpdate(
+        { mobile: doc.mobile, organizationId: doc.organizationId },
+        { 
+          fullName: doc.name,
+          firstName: doc.name.split(' ')[0],
+          lastName: doc.name.split(' ').slice(1).join(' '),
+          age: doc.age,
+          gender: doc.gender
+        }
+      );
+    }
+  } catch (err) {
+    console.error('Sync error (User -> Patient):', err);
+  }
+});
+
 export default mongoose.model('User', userSchema);

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Patient from '../models/PaitentEditProfile.js';
 import User from '../models/User.js';
 import Appointment from '../models/Appointment.js';
@@ -6,9 +7,19 @@ import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import CancelledAppointment from '../models/CancelledAppointment.js';
 import Billing from '../models/Billing.js';
 import Notification from '../models/Notification.js';
+import MedicalRecord from '../models/MedicalRecord.js';
 import { generatePatientId } from '../utils/idGenerator.js';
+import Groq from "groq-sdk";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
 // New route to get patient by patientId (string) instead of _id (ObjectId)
+
 export const getPatientByPatientId = async (req, res) => {
   try {
     const { patientId } = req.query;
@@ -86,6 +97,45 @@ export const getPatientCount = async (req, res) => {
   } catch (error) {
     console.error('Error fetching patient count:', error);
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Search patients who don't have a user account yet
+export const searchAvailablePatients = async (req, res) => {
+  try {
+    const { query } = req.query;
+    const organizationId = req.tenantId;
+
+    if (!query || query.length < 2) {
+      return res.json([]);
+    }
+
+    // 1. Find all users in this organization who are patients
+    const existingUsers = await User.find({ 
+      organizationId, 
+      role: 'patient' 
+    }).select('mobile');
+    
+    const existingMobiles = existingUsers.map(u => u.mobile);
+
+    // 2. Search patients in this organization excluding those with existing mobiles
+    const searchRegex = new RegExp(query, 'i');
+    const availablePatients = await Patient.find({
+      organizationId,
+      mobile: { $nin: existingMobiles },
+      $or: [
+        { fullName: searchRegex },
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { mobile: searchRegex },
+        { patientId: searchRegex }
+      ]
+    }).limit(10).select('fullName firstName lastName mobile patientId _id age gender');
+
+    res.json(availablePatients);
+  } catch (error) {
+    console.error('Error searching available patients:', error);
+    res.status(500).json({ message: 'Error searching patients', error: error.message });
   }
 };
 
@@ -208,11 +258,17 @@ export const createPatient = async (req, res) => {
 // Get patient by ID
 export const getPatientById = async (req, res) => {
   try {
-    let patient = await Patient.findOne({ organizationId: req.tenantId, _id: req.params.id });
+    const { id } = req.params;
+    let patient = null;
 
+    // 1. Try finding by MongoDB _id (if valid format)
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      patient = await Patient.findOne({ organizationId: req.tenantId, _id: id });
+    }
+
+    // 2. Fallback: Try finding by custom patientId (e.g., "000311")
     if (!patient) {
-      // Try to find by patientId
-      patient = await Patient.findOne({ organizationId: req.tenantId, patientId: req.params.id });
+      patient = await Patient.findOne({ organizationId: req.tenantId, patientId: id });
     }
 
     if (!patient) {
@@ -415,5 +471,80 @@ export const getNewPatientId = async (req, res) => {
   } catch (error) {
     console.error('Error generating patient ID:', error);
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Generate 10-Second AI Patient Summary using Groq
+export const getPatientAISummary = async (req, res) => {
+  const { id } = req.params;
+  try {
+    let patient = await Patient.findOne({ organizationId: req.tenantId, patientId: id });
+    if (!patient) {
+      if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        patient = await Patient.findOne({ organizationId: req.tenantId, _id: id });
+      }
+    }
+    if (!patient) return res.status(404).json({ message: 'Patient not found' });
+    
+    // Fetch recent medical records
+    const records = await MedicalRecord.find({ patientId: patient._id })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+    
+    // Fetch recent past appointments with visitNotes
+    const pastAppointments = await Appointment.find({
+        $or: [
+          { patientId: patient.patientId },
+          { _id: patient._id }
+        ],
+        visitNotes: { $exists: true, $ne: '' }
+    })
+      .sort({ createdAt: -1 })
+      .limit(3)
+      .lean();
+
+    const pastNotesString = pastAppointments.length > 0 
+      ? pastAppointments.map(a => `- Date: ${a.date} | Dr. ${a.doctorName} | Notes: ${a.visitNotes} | Reason: ${a.reason || 'N/A'}`).join('\n')
+      : 'No past visit notes available.';
+
+    const contextInfo = `
+Patient: ${patient.fullName || patient.firstName + ' ' + (patient.lastName || '')}
+Age: ${patient.age || 'Unknown'} ${patient.ageType || 'Year'}s
+Gender: ${patient.gender || 'Not specified'}
+Blood Group: ${patient.bloodGroup || 'Not specified'}
+
+Past Medical History: ${patient.pastMedicalHistory || 'None logged.'}
+Allergies: ${patient.allergies || 'None logged.'}
+Current Medications: ${patient.currentMedications || 'None logged.'}
+
+Recent Medical Records/Visits: 
+${records.length > 0 ? records.map(r => `- [${r.type}] ${r.title} : ${r.description || ''} (Status: ${r.status})`).join('\n') : 'No recent records found.'}
+
+Past Doctor Visit Notes:
+${pastNotesString}
+`;
+
+    const systemPrompt = `You are an expert AI clinical assistant built into Slotify. 
+Your job is to read the patient's medical history context (provided by the user prompt) and provide an EXTREMELY fast, concise 3-bullet-point summary so a doctor can glance at it before the patient walks in.
+Do NOT output any introductory or conversational text like "Here is the summary:" or "Based on the records...". 
+ONLY output exactly 3 bullet points starting with "- " or a relevant emoji. Focus on chronic conditions, recent robust issues, and current medications/allergies. Keep the points short and punchy.`;
+
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: contextInfo }
+      ],
+      max_tokens: 300,
+      temperature: 0.2, 
+    });
+
+    const summary = response.choices[0].message.content;
+    res.json({ text: summary });
+
+  } catch (error) {
+    console.error('Error generating AI Summary:', error);
+    res.status(500).json({ message: 'Error generating AI patient summary', error: error.message });
   }
 };

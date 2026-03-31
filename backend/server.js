@@ -31,6 +31,7 @@ import templateRoutes from "./routes/templateRoutes.js";
 import specializationRoutes from "./routes/specializationRoutes.js";
 import councilRoutes from "./routes/councilRoutes.js";
 import practiceRoutes from "./routes/practiceRoutes.js";
+import messageRoutes from "./routes/messageRoutes.js";
 import { detectTenant } from "./middleware/tenant.js";
 
 dotenv.config();
@@ -183,6 +184,7 @@ app.use("/api/invoice-templates", templateRoutes);
 app.use("/api/specializations", specializationRoutes);
 app.use("/api/councils", councilRoutes);
 app.use("/api/practices", practiceRoutes);
+app.use("/api/messages", messageRoutes);
 
 /* --------------------------------------------------
 Image Upload API

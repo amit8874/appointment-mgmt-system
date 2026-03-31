@@ -1,4 +1,4 @@
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, Clock, MoreVertical, FileText, CalendarPlus, MessageCircle } from "lucide-react";
+import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, MessageCircle } from "lucide-react";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -546,7 +546,7 @@ const PatientPanel = ({
                       {p.mobile || p.phone || p.contactNumber || p.contact || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      {p.lastVisit || p.date || '-'}
+                      {p.lastVisit || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-700 dark:text-gray-200">
                       ₹{(p.paidAmount || p.pendingAmount || 0).toLocaleString('en-IN')}
@@ -555,6 +555,10 @@ const PatientPanel = ({
                       {p.paymentStatus === 'paid' ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
                           <CheckCircle className="w-3 h-3" /> Paid
+                        </span>
+                      ) : p.paymentStatus === 'cancelled' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+                          <XCircle className="w-3 h-3" /> Cancelled
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">

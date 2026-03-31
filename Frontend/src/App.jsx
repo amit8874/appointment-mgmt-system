@@ -13,6 +13,8 @@ const ProtectedRoute = lazy(() => import("./Component/ProtectedRoute"));
 const LandingPage = lazy(() => import("./Pages/LandingPage"));
 const Login = lazy(() => import("./Pages/Login"));
 const AdminDashboard = lazy(() => import("./Component/Admin/AdminDashboard"));
+const MessagesView = lazy(() => import("./Component/Admin/Messaging/MessagesView"));
+const PatientChatView = lazy(() => import("./Component/Patient/PatientChatView"));
 
 const ReceptionistDashboard = lazy(() => import("./components/Receptionist/ReceptionistDashboard"));
 const PatientPage = lazy(() => import("./Component/Patient/PatientPage"));
@@ -263,6 +265,7 @@ export default function App() {
               <Route path="appointments" element={<AppointmentTable />} />
               <Route path="track-appointments" element={<TrackAppointmentView />} />
               <Route path="patients" element={<ReceptionistPatientPanel />} />
+              <Route path="messages" element={<MessagesView />} />
               <Route path="billing" element={<BillingMgmt />} />
               <Route path="doctor" element={<DoctorGrid />} />
               <Route path="doctor/:id" element={<DoctorDetail />} />
@@ -282,6 +285,7 @@ export default function App() {
               <Route path="appointments" element={<AppoitmentWebsite />} />
               <Route path="lab-booking" element={<LabTestBooking />} />
               <Route path="medicine-order" element={<MedicineOrdering />} />
+              <Route path="messages" element={<PatientChatView />} />
             </Route>
 
             {/* Pharmacy Routes */}
