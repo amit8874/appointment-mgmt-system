@@ -75,6 +75,7 @@ api.interceptors.request.use(
     ];
 
 
+
     // normalize URL for matching
     const url = config.url || '';
     const normalizedUrl = url.startsWith('/') ? url : `/${url}`;
@@ -439,12 +440,13 @@ export const commonApi = {
   uploadImage: async (formData) => {
     const { data } = await api.post('/upload', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined,
       },
     });
     return data;
   }
 };
+
 
 // Update patientApi to include getTodayStats
 patientApi.getTodayStats = async () => {
@@ -582,12 +584,30 @@ export const pharmacyApi = {
     const { data } = await api.get('/pharmacy/dashboard/stats');
     return data;
   },
-  getInventory: async () => {
-    const { data } = await api.get('/pharmacy/inventory');
+  getInventory: async (params = {}) => {
+    const { data } = await api.get('/pharmacy/inventory', { params });
     return data;
   },
   updateInventory: async (inventoryData) => {
     const { data } = await api.post('/pharmacy/inventory', inventoryData);
+    return data;
+  },
+  dispenseMedicine: async (dispenseData) => {
+    const { data } = await api.post('/pharmacy/inventory/dispense', dispenseData);
+    return data;
+  },
+  bulkUploadInventory: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await api.post('/pharmacy/inventory/bulk-upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return data;
+  },
+  getInventoryLogs: async (productId) => {
+    const { data } = await api.get(`/pharmacy/inventory/${productId}/logs`);
     return data;
   },
   getOrders: async (params = {}) => {
@@ -630,10 +650,23 @@ export const pharmacyApi = {
     const { data } = await api.get('/pharmacy/prescriptions/my-orders');
     return data;
   },
-  createPrescriptionQuote: async (id, quoteData) => {
+  getQuotesForUser: async (id) => {
+    const { data } = await api.get(`/pharmacy/prescriptions/${id}/quotes`);
+    return data;
+  },
+  submitQuote: async (id, quoteData) => {
     const { data } = await api.post(`/pharmacy/prescriptions/${id}/quote`, quoteData);
     return data;
   },
+  selectQuote: async (id, quoteId) => {
+    const { data } = await api.post(`/pharmacy/prescriptions/${id}/select-quote`, { quoteId });
+    return data;
+  },
+  cancelPrescriptionOrder: async (id) => {
+    const { data } = await api.post(`/pharmacy/prescriptions/${id}/cancel`);
+    return data;
+  },
+
   getPatientPrescriptions: async () => {
     const { data } = await api.get('/pharmacy/prescriptions/patient-orders');
     return data;
@@ -642,6 +675,7 @@ export const pharmacyApi = {
     const { data } = await api.post(`/pharmacy/prescriptions/${id}/confirm`);
     return data;
   },
+
   updatePrescriptionOrderStatus: async (id, status) => {
     const { data } = await api.put(`/pharmacy/prescriptions/${id}/status`, { status });
     return data;

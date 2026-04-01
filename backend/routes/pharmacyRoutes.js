@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import { 
   getDashboardStats, 
   getInventory, 
@@ -11,25 +12,37 @@ import {
   autoAssignOrder,
   broadcastPrescription,
   getBroadcastedOrders,
-  acceptBroadcastedOrder,
   getPharmacyPrescriptions,
-  createPrescriptionQuote,
+  submitQuote,
+  getQuotesForUser,
+  selectQuote,
   getPatientPrescriptions,
   confirmPrescriptionOrder,
   getPharmacyProfile,
   updatePharmacyProfile,
   getPrescriptionOrderStatus,
-  updatePrescriptionOrderStatus
+  updatePrescriptionOrderStatus,
+  cancelPrescriptionOrder,
+  bulkUploadInventory,
+  dispenseMedicine,
+  getInventoryLogs
 } from '../controllers/pharmacyController.js';
+
+
 import { authenticateToken, requirePharmacy } from '../middleware/auth.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Public/Patient Search
 router.get('/medicines/search', searchMedicines);
 router.post('/prescriptions/broadcast', broadcastPrescription);
 router.get('/prescriptions/:id/status', getPrescriptionOrderStatus);
+router.get('/prescriptions/:id/quotes', getQuotesForUser);
+router.post('/prescriptions/:id/cancel', cancelPrescriptionOrder);
 router.put('/prescriptions/:id/status', authenticateToken, updatePrescriptionOrderStatus);
+
+
 
 // Auth required from here
 router.use(authenticateToken);
@@ -38,21 +51,28 @@ router.use(authenticateToken);
 router.post('/auto-assign', autoAssignOrder);
 router.get('/prescriptions/patient-orders', getPatientPrescriptions);
 router.post('/prescriptions/:id/confirm', confirmPrescriptionOrder);
+router.post('/prescriptions/:id/select-quote', selectQuote);
+
 
 // The following routes are for users with 'pharmacy' role only
 router.use(requirePharmacy);
 
 // Pharmacy: Broadcasts & Prescriptions
 router.get('/prescriptions/broadcasts', getBroadcastedOrders);
-router.post('/prescriptions/:id/accept', acceptBroadcastedOrder);
 router.get('/prescriptions/my-orders', getPharmacyPrescriptions);
-router.post('/prescriptions/:id/quote', createPrescriptionQuote);
+router.post('/prescriptions/:id/quote', submitQuote);
+
 
 router.get('/dashboard/stats', getDashboardStats);
 
 router.route('/inventory')
   .get(getInventory)
   .post(updateInventory);
+
+router.get('/inventory/:productId/logs', getInventoryLogs);
+
+router.post('/inventory/bulk-upload', upload.single('file'), bulkUploadInventory);
+router.post('/inventory/dispense', dispenseMedicine);
 
 router.route('/orders')
   .get(getOrders);

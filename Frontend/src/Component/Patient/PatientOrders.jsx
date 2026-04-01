@@ -14,8 +14,13 @@ import {
   ArrowLeft,
   Package,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  Timer,
+  X
 } from 'lucide-react';
+
+import QuoteComparison from './QuoteComparison';
+
 
 const PatientOrders = () => {
     const navigate = useNavigate();
@@ -30,36 +35,49 @@ const PatientOrders = () => {
             const hasToken = localStorage.getItem('token') || sessionStorage.getItem('token') || 
                              localStorage.getItem('patientUser') || sessionStorage.getItem('patientUser');
             
-            if (hasToken) {
-                const presData = await pharmacyApi.getPatientPrescriptions();
-                setPrescriptions(presData);
+            let allPrescriptions = [];
 
-                // Fetch standard orders (requires ID)
-                const storage = sessionStorage.getItem('patientUser') || localStorage.getItem('patientUser') || 
-                               sessionStorage.getItem('userData') || localStorage.getItem('userData') || '{}';
-                const patientUser = JSON.parse(storage);
-                const patientId = patientUser._id || patientUser.id || patientUser.userData?._id || patientUser.userData?.id;
-                
-                if (patientId) {
-                    const serviceData = await api.get(`/service-requests/patient/${patientId}`);
-                    const orders = (serviceData.data || []).filter(req => req.requestType === 'Medicine');
-                    setStandardOrders(orders);
+            // 1. Fetch authenticated prescriptions if token exists
+            if (hasToken) {
+                try {
+                    const presData = await pharmacyApi.getPatientPrescriptions();
+                    allPrescriptions = [...presData];
+                } catch (err) {
+                    console.error("Error fetching account prescriptions:", err);
                 }
-            } else {
-                // 2. Handle guest user tracking
-                const guestOrderId = sessionStorage.getItem('guestOrderId');
-                if (guestOrderId) {
-                    try {
-                        // Use the new public status endpoint for guests
-                        const { data } = await api.get(`/pharmacy/prescriptions/${guestOrderId}/status`);
-                        if (data) {
-                            setPrescriptions([data]);
-                        }
-                    } catch (guestErr) {
-                        console.error("Error fetching guest order status:", guestErr);
+
+                // Fetch standard orders
+                try {
+                    const storage = sessionStorage.getItem('patientUser') || localStorage.getItem('patientUser') || 
+                                   sessionStorage.getItem('userData') || localStorage.getItem('userData') || '{}';
+                    const patientUser = JSON.parse(storage);
+                    const patientId = patientUser._id || patientUser.id || patientUser.userData?._id || patientUser.userData?.id;
+                    
+                    if (patientId) {
+                        const serviceData = await api.get(`/service-requests/patient/${patientId}`);
+                        const orders = (serviceData.data || []).filter(req => req.requestType === 'Medicine');
+                        setStandardOrders(orders);
                     }
+                } catch (err) {
+                    console.error("Error fetching standard orders:", err);
                 }
             }
+
+            // 2. Always check for guest order in session
+            const guestOrderId = sessionStorage.getItem('guestOrderId');
+            if (guestOrderId) {
+                try {
+                    const { data } = await api.get(`/pharmacy/prescriptions/${guestOrderId}/status`);
+                    if (data && !allPrescriptions.find(p => p._id === data._id)) {
+                        allPrescriptions.push(data);
+                    }
+                } catch (guestErr) {
+                    console.error("Error fetching guest order status:", guestErr);
+                }
+            }
+
+            setPrescriptions(allPrescriptions);
+
         } catch (err) {
             console.error("Error fetching patient orders:", err);
         } finally {
@@ -74,22 +92,40 @@ const PatientOrders = () => {
     }, []);
 
     const filterOrders = (type) => {
-        const isActive = (status) => ['broadcast', 'accepted', 'quoted', 'pending', 'processing', 'ready', 'shipped'].includes(status.toLowerCase());
+        const TWO_MIN_MS = 2 * 60 * 1000;
+        const now = Date.now();
+
+        const isCurrentlyActive = (status, updatedAt) => {
+            const s = status.toLowerCase();
+            const lastUpdate = new Date(updatedAt || Date.now()).getTime();
+
+            // Statuses that are ALWAYS active
+            const activeStatuses = ['broadcast', 'accepted', 'quoted', 'selected', 'confirmed', 'pending', 'processing', 'shipped'];
+            if (activeStatuses.includes(s)) return true;
+
+            // 'Ready' status only stays active for 2 minutes
+            if (s === 'ready') {
+                return (now - lastUpdate) < TWO_MIN_MS;
+            }
+
+            return false;
+        };
         
         if (type === 'active') {
             return {
-                pres: prescriptions.filter(p => isActive(p.status)),
-                std: standardOrders.filter(o => isActive(o.status))
+                pres: prescriptions.filter(p => isCurrentlyActive(p.status, p.updatedAt)),
+                std: standardOrders.filter(o => isCurrentlyActive(o.status, o.updatedAt))
             };
         } else {
             return {
-                pres: prescriptions.filter(p => !isActive(p.status)),
-                std: standardOrders.filter(o => !isActive(o.status))
+                pres: prescriptions.filter(p => !isCurrentlyActive(p.status, p.updatedAt)),
+                std: standardOrders.filter(o => !isCurrentlyActive(o.status, o.updatedAt))
             };
         }
     };
 
     const ordersData = filterOrders(activeTab);
+
     const hasOrders = ordersData.pres.length > 0 || ordersData.std.length > 0;
 
     const StatusBadge = ({ status }) => {
@@ -176,12 +212,15 @@ const PatientOrders = () => {
                                     <div className="flex justify-between items-start mb-6">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center border border-indigo-100 shadow-sm overflow-hidden">
-                                                {order.prescriptionUrl ? (
+                                                {order.prescriptionUrl?.toLowerCase().endsWith('.pdf') ? (
+                                                    <FileText size={24} />
+                                                ) : order.prescriptionUrl ? (
                                                     <img src={order.prescriptionUrl} alt="Prescription" className="w-full h-full object-cover" />
                                                 ) : (
                                                     <FileText size={24} />
                                                 )}
                                             </div>
+
                                             <div>
                                                 <h3 className="font-black text-slate-900 uppercase text-xs tracking-widest">Prescription Request</h3>
                                                 <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">ID: {order._id.slice(-8)} • {new Date(order.createdAt).toLocaleDateString()}</p>
@@ -190,42 +229,80 @@ const PatientOrders = () => {
                                         <StatusBadge status={order.status} />
                                     </div>
 
-                                    {/* Pharmacy Details (if accepted) */}
-                                    {order.pharmacyId ? (
+                                    {/* Quote Model Logic */}
+                                    {order.status === 'broadcast' || (order.status === 'quoted' && !order.pharmacyId) ? (
+                                        <QuoteComparison 
+                                            broadcastId={order._id} 
+                                            onSelect={async (quoteId) => {
+                                                try {
+                                                    await pharmacyApi.selectQuote(order._id, quoteId);
+                                                    fetchData(); // Refresh list
+                                                } catch (err) {
+                                                    alert("Selection failed: " + (err.response?.data?.message || err.message));
+                                                }
+                                            }}
+                                        />
+                                    ) : order.pharmacyId ? (
+
                                         <div className="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-100">
                                             <div className="flex justify-between items-start mb-4">
-                                                <div>
-                                                    <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight mb-1">{order.pharmacyId.name}</h4>
-                                                    <div className="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase">
-                                                        <MapPin size={12} className="text-slate-400" />
-                                                        {typeof order.pharmacyId.address === 'object' 
-                                                            ? `${order.pharmacyId.address.street}, ${order.pharmacyId.address.city}` 
-                                                            : order.pharmacyId.address}
+                                                <div className="flex gap-4">
+                                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-slate-800 font-black shadow-lg border border-slate-100">
+                                                        {order.pharmacyId.name?.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight mb-1">{order.pharmacyId.name}</h4>
+                                                        <div className="flex items-center gap-1.5 text-slate-500 text-[10px] font-bold uppercase tracking-tight">
+                                                            <MapPin size={12} className="text-slate-400" />
+                                                            {typeof order.pharmacyId.address === 'object' 
+                                                                ? `${order.pharmacyId.address.street}, ${order.pharmacyId.address.city}` 
+                                                                : order.pharmacyId.address}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <a 
-                                                    href={`tel:${order.pharmacyId.phone || order.pharmacyId.mobile || '0000000000'}`}
-                                                    className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-200"
-                                                >
-                                                    <Phone size={18} />
-                                                </a>
+                                                <div className="flex gap-2">
+                                                    <a 
+                                                        href={`tel:${order.pharmacyId.phone || order.pharmacyId.mobile || '0000000000'}`}
+                                                        className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95"
+                                                    >
+                                                        <Phone size={20} />
+                                                    </a>
+                                                </div>
                                             </div>
                                             
-                                            {order.status === 'quoted' && (
-                                                <div className="pt-4 border-t border-slate-200/50">
-                                                    <div className="flex justify-between items-center mb-3">
-                                                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Quote Received</span>
-                                                        <span className="font-black text-slate-900">₹{order.quotedTotal}</span>
+                                            <div className="pt-4 border-t border-slate-100">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Confirmed Quotation</p>
+                                                        <p className="font-black text-2xl text-slate-900 tracking-tighter">₹{order.quotedTotal}</p>
                                                     </div>
-                                                    <button 
-                                                        onClick={() => navigate('/medicine-ordering')}
-                                                        className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 font-semibold"
-                                                    >
-                                                        Review & Pay
-                                                        <ChevronRight size={14} />
-                                                    </button>
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                                                        <span className="px-3 py-1 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-lg shadow-emerald-100">
+                                                            Accepted
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            )}
+
+                                                {order.deliveryMethod === 'pickup' ? (
+                                                    <div className="p-4 bg-orange-50 border border-orange-100 rounded-2xl flex items-start gap-3">
+                                                        <AlertCircle className="text-orange-600 mt-0.5" size={18} />
+                                                        <div>
+                                                            <p className="text-xs font-black text-orange-900 uppercase tracking-tight">Self Pickup Confirmed</p>
+                                                            <p className="text-[10px] font-bold text-orange-700 leading-tight">Please visit the pharmacy at your convenience. They have your contact number.</p>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3">
+                                                        <MapPin className="text-blue-600 mt-0.5" size={18} />
+                                                        <div>
+                                                            <p className="text-xs font-black text-blue-900 uppercase tracking-tight">Home Delivery Confirmed</p>
+                                                            <p className="text-[10px] font-bold text-blue-700 leading-tight">Pharmacy will deliver to: {order.deliveryAddress}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
 
                                             {/* Status specific notifications */}
                                             {order.status === 'ready' && (
@@ -233,19 +310,15 @@ const PatientOrders = () => {
                                                     <Package className="text-indigo-600 mt-0.5" size={18} />
                                                     <div>
                                                         <p className="text-xs font-black text-indigo-900 uppercase tracking-tight">Medicine Packed!</p>
-                                                        <p className="text-[10px] font-bold text-indigo-600 leading-tight">Your medicine has been moved from pharmacy and shortly will be delivered to your place.</p>
+                                                        <p className="text-[10px] font-bold text-indigo-600 leading-tight">
+                                                            {order.deliveryMethod === 'pickup' 
+                                                                ? "Your medicine is packed. Please visit the pharmacy store for collection at your convenience."
+                                                                : "Your medicine has been packed and will be delivered to your location shortly."}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             )}
-                                            {order.status === 'shipped' && (
-                                                <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3">
-                                                    <MapPin className="text-blue-600 mt-0.5" size={18} />
-                                                    <div>
-                                                        <p className="text-xs font-black text-blue-900 uppercase tracking-tight">Out for Delivery</p>
-                                                        <p className="text-[10px] font-bold text-blue-600 leading-tight">The delivery partner is on the way to your location.</p>
-                                                    </div>
-                                                </div>
-                                            )}
+
                                         </div>
                                     ) : (
                                         <div className="py-8 px-6 bg-blue-50/50 rounded-2xl border border-blue-100/50 flex flex-col items-center gap-3 text-center mb-6">
@@ -254,13 +327,41 @@ const PatientOrders = () => {
                                         </div>
                                     )}
 
-                                    <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-400">
-                                        <span className="flex items-center gap-1.5 group cursor-pointer hover:text-blue-600 transition-colors">
-                                            <Clock size={12} />
-                                            Last update: {new Date(order.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                        <button className="text-blue-600 hover:underline font-black">Support</button>
+
+                                    <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-50">
+                                        <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-400">
+                                            <span className="flex items-center gap-1.5 group cursor-pointer hover:text-blue-600 transition-colors">
+                                                <Clock size={12} />
+                                                Update: {new Date(order.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                            <button className="text-blue-600 hover:underline font-black">Support</button>
+                                        </div>
+                                        
+                                        {['broadcast', 'accepted', 'quoted'].includes(order.status) ? (
+                                            <button 
+                                                onClick={async () => {
+                                                    if (window.confirm("Are you sure you want to cancel this prescription request? This will remove it from your tracking.")) {
+                                                        try {
+                                                            await pharmacyApi.cancelPrescriptionOrder(order._id);
+                                                            fetchData();
+                                                        } catch (err) {
+                                                            alert("Failed to cancel: " + (err.response?.data?.message || err.message));
+                                                        }
+                                                    }
+                                                }}
+                                                className="text-red-500 hover:text-red-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1 transition-colors"
+                                            >
+                                                <X size={14} />
+                                                Cancel Request
+                                            </button>
+                                        ) : (order.status === 'ready' || order.status === 'shipped') && (
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-tight italic">
+                                                Packed! For cancellations, contact pharmacy directly.
+                                            </span>
+                                        )}
+
                                     </div>
+
                                 </div>
                             </motion.div>
                         ))}

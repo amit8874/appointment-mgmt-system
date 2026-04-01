@@ -16,9 +16,19 @@ import {
 const PharmacyBroadcasts = () => {
   const [broadcasts, setBroadcasts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [acceptingId, setAcceptingId] = useState(null);
+  const [submittingId, setSubmittingId] = useState(null);
   const [error, setError] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
+  
+  // Quote Modal State
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [activeBroadcast, setActiveBroadcast] = useState(null);
+  const [quoteData, setQuoteData] = useState({
+    price: '',
+    deliveryTime: '30 min',
+    isFullAvailable: true
+  });
+
 
   const fetchBroadcasts = async () => {
     try {
@@ -41,20 +51,60 @@ const PharmacyBroadcasts = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleAccept = async (id) => {
+  const handleSubmitQuote = async () => {
+    if (!activeBroadcast || !quoteData.price) return;
+    
     try {
-      setAcceptingId(id);
-      await pharmacyApi.acceptBroadcastedOrder(id);
-      setBroadcasts(prev => prev.filter(b => b._id !== id));
-      alert('Order accepted successfully! You can now find it in your active orders.');
+      setSubmittingId(activeBroadcast._id);
+      await pharmacyApi.submitQuote(activeBroadcast._id, {
+        price: Number(quoteData.price),
+        deliveryTime: quoteData.deliveryTime,
+        isFullAvailable: quoteData.isFullAvailable
+      });
+      
+      setBroadcasts(prev => prev.filter(b => b._id !== activeBroadcast._id));
+      setQuoteModalOpen(false);
+      setActiveBroadcast(null);
+      setQuoteData({ price: '', deliveryTime: '30 min', isFullAvailable: true });
+      alert('Quote submitted successfully! Waiting for patient to select.');
     } catch (err) {
-      console.error('Error accepting broadcast:', err);
-      alert(err.response?.data?.message || 'Failed to accept broadcast');
-      fetchBroadcasts(); // Refresh to get updated state
+      console.error('Error submitting quote:', err);
+      alert(err.response?.data?.message || 'Failed to submit quote');
     } finally {
-      setAcceptingId(null);
+      setSubmittingId(null);
     }
   };
+
+  const Timer = ({ expiryAt }) => {
+    const [timeLeft, setTimeLeft] = useState("");
+
+    useEffect(() => {
+      const timer = setInterval(() => {
+        const now = new Date();
+        const expiry = new Date(expiryAt);
+        const diff = expiry - now;
+
+        if (diff <= 0) {
+          setTimeLeft("EXPIRED");
+          clearInterval(timer);
+          return;
+        }
+
+        const mins = Math.floor(diff / 60000);
+        const secs = Math.floor((diff % 60000) / 1000);
+        setTimeLeft(`${mins}:${String(secs).padStart(2, '0')}`);
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }, [expiryAt]);
+
+    return (
+      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest border ${timeLeft === 'EXPIRED' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
+        ⏰ {timeLeft}
+      </span>
+    );
+  };
+
 
   return (
     <div className="p-6">
@@ -106,11 +156,19 @@ const PharmacyBroadcasts = () => {
                 className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-blue-500/5 transition-all overflow-hidden flex flex-col"
               >
                 <div className="relative h-48 bg-slate-100 overflow-hidden group">
-                  <img 
-                    src={broadcast.prescriptionUrl} 
-                    alt="Prescription" 
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
+                  {broadcast.prescriptionUrl?.toLowerCase().endsWith('.pdf') ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-200 text-slate-500">
+                      <FileText size={48} className="text-red-500 mb-2" />
+                      <span className="text-xs font-black uppercase tracking-widest">PDF Prescription</span>
+                    </div>
+                  ) : (
+                    <img 
+                      src={broadcast.prescriptionUrl} 
+                      alt="Prescription" 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
+                  )}
+
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                     <button 
                       onClick={() => setSelectedImage(broadcast.prescriptionUrl)}
@@ -143,29 +201,38 @@ const PharmacyBroadcasts = () => {
                   <h3 className="text-lg font-black text-slate-800 tracking-tight mb-1 truncate">
                     {broadcast.patientId?.fullName || (typeof broadcast.patientId === 'string' && broadcast.patientId.startsWith('guest_') ? 'Guest Patient' : 'Anonymous Patient')}
                   </h3>
-                  <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-6">
-                    {broadcast.mobileNumber || broadcast.patientId?.mobile || 'No contact provided'}
-                  </p>
+                  <div className="flex items-center gap-2 mb-4">
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">
+                      {broadcast.mobileNumber || broadcast.patientId?.mobile || 'No contact'}
+                    </p>
+                    <Timer expiryAt={broadcast.expiryAt} />
+                  </div>
+
+                  {broadcast.notes && (
+                    <div className="mb-6 p-3 bg-blue-50 border border-blue-100 rounded-xl relative overflow-hidden group">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle size={14} className="text-blue-600 mt-0.5 shrink-0" />
+                        <p className="text-[11px] font-bold text-blue-700 italic leading-snug">"{broadcast.notes}"</p>
+                      </div>
+                      <div className="absolute top-0 right-0 p-1 opacity-10 group-hover:opacity-100 transition-opacity">
+                        <Star size={12} className="text-blue-600" />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-auto pt-6 border-t border-slate-50">
                     <button 
-                      onClick={() => handleAccept(broadcast._id)}
-                      disabled={acceptingId === broadcast._id}
-                      className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all shadow-xl shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                      onClick={() => {
+                        setActiveBroadcast(broadcast);
+                        setQuoteModalOpen(true);
+                      }}
+                      className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-900 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3"
                     >
-                      {acceptingId === broadcast._id ? (
-                        <>
-                          <Loader2 size={18} className="animate-spin" />
-                          Accepting...
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingBag size={18} />
-                          Accept Order
-                        </>
-                      )}
+                      <ShoppingBag size={18} />
+                      Submit Quote
                     </button>
                   </div>
+
                 </div>
               </motion.div>
             ))}
@@ -173,7 +240,92 @@ const PharmacyBroadcasts = () => {
         </div>
       )}
 
+      {/* Quote Modal */}
+      <AnimatePresence>
+        {quoteModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setQuoteModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden p-8"
+            >
+              <div className="mb-8">
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-1">Submit Your Quote</h2>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Giving your best price increases winning chance</p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Total Price (incl. delivery)</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">₹</span>
+                    <input 
+                      type="number" 
+                      placeholder="Enter amount"
+                      className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-black text-slate-800 text-lg"
+                      value={quoteData.price}
+                      onChange={(e) => setQuoteData({...quoteData, price: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Delivery Time</label>
+                  <select 
+                    className="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-black text-slate-800"
+                    value={quoteData.deliveryTime}
+                    onChange={(e) => setQuoteData({...quoteData, deliveryTime: e.target.value})}
+                  >
+                    <option value="15 min">15 min</option>
+                    <option value="30 min">30 min</option>
+                    <option value="45 min">45 min</option>
+                    <option value="1 hour">1 hour</option>
+                    <option value="2 hours">2 hours</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50">
+                  <input 
+                    type="checkbox" 
+                    id="stock" 
+                    className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                    checked={quoteData.isFullAvailable}
+                    onChange={(e) => setQuoteData({...quoteData, isFullAvailable: e.target.checked})}
+                  />
+                  <label htmlFor="stock" className="text-xs font-black text-slate-700 uppercase tracking-tight">All medicines in stock</label>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    onClick={() => setQuoteModalOpen(false)}
+                    className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleSubmitQuote}
+                    disabled={!quoteData.price || submittingId}
+                    className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/30 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {submittingId ? <Loader2 size={18} className="animate-spin" /> : 'Send Quote'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Image Modal */}
+
       <AnimatePresence>
         {selectedImage && (
           <motion.div 

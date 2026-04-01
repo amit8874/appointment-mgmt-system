@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { pharmacyApi, commonApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+
 import {
   Search,
   MapPin,
@@ -26,8 +28,10 @@ import {
 import promoBanner from '../assets/promo_banner.png';
 
 const OrderOnline = () => {
+    const { isAuthenticated, user, logout } = useAuth();
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState("");
+
     const [location, setLocation] = useState("Deliver to");
     const [showLocationDropdown, setShowLocationDropdown] = useState(false);
     const [pinCode, setPinCode] = useState("");
@@ -274,14 +278,17 @@ const OrderOnline = () => {
 
         // Allow upload if either pinCode is set OR location is detected (not the default 'Deliver to')
         if (!pinCode && location === "Deliver to") {
-            console.warn("Upload aborted: No location or PIN code.");
-            alert("Please enter a PIN code or use current location first.");
+            const wantLocation = window.confirm("Please select your location first to find nearby pharmacies. Allow detecting location?");
+            if (wantLocation) {
+                handleGetCurrentLocation();
+            }
             return;
         }
 
-        setIsMatching(false); // Close smart matching if it was open
+        setIsMatching(false); 
         setBroadcastStatus('uploading');
         setIsUploading(true);
+
 
         try {
             console.log("Starting prescription upload...");
@@ -294,16 +301,32 @@ const OrderOnline = () => {
 
             // 2. Open Details Modal instead of broadcasting immediately
             setTempDetails(prev => ({ ...prev, imageUrl }));
+            
+            // Auto-check if user is logged in to skip Step 1 (Login)
+            const storage = sessionStorage.getItem('patientUser') || localStorage.getItem('patientUser') || 
+                           sessionStorage.getItem('userData') || localStorage.getItem('userData') || '{}';
+            const patientUser = JSON.parse(storage);
+            const userPhone = patientUser.mobile || patientUser.phone || patientUser.userData?.mobile || patientUser.userData?.phone;
+
+            if (userPhone) {
+                setTempDetails(prev => ({ ...prev, mobile: userPhone }));
+                setDetailStep(2); // Skip to delivery method
+            } else {
+                setDetailStep(1);
+            }
+            
             setShowDetailsModal(true);
-            setDetailStep(1);
             setIsUploading(false);
             setBroadcastStatus(null);
+
         } catch (err) {
             console.error("Upload failed in component:", err);
-            alert("Failed to upload prescription. Please try again.");
+            const errorMsg = err.response?.data?.message || err.message || "Unknown error";
+            alert(`Upload failed: ${errorMsg}. Please check your connection.`);
             setBroadcastStatus(null);
             setIsUploading(false);
-        } finally {
+        }
+ finally {
             // Reset input so selecting the same file triggers onChange again
             e.target.value = null;
         }
@@ -318,8 +341,11 @@ const OrderOnline = () => {
                 pinCode: pinCode,
                 mobileNumber: tempDetails.mobile,
                 deliveryMethod: tempDetails.method,
-                deliveryAddress: tempDetails.address
+                deliveryAddress: tempDetails.address,
+                notes: tempDetails.notes,
+                location: tempDetails.location // Could be set from handleGetCurrentLocation
             });
+
 
             if (response.success && response.order) {
                 setBroadcastedOrderId(response.order._id);
@@ -345,16 +371,70 @@ const OrderOnline = () => {
     return (
         <div className="min-h-screen bg-white font-sans text-slate-800">
             {/* Top Header */}
-            <header className="fixed top-0 left-0 right-0 bg-white z-[100] border-b border-slate-100 shadow-sm">
-                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <header className="fixed top-0 left-0 right-0 bg-white z-[100] border-b border-slate-100 shadow-sm overflow-visible">
+                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between overflow-visible">
                     <Link to="/" className="flex items-center gap-2 group">
                         <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
                     </Link>
 
-                    <div className="flex items-center gap-8">
+                    <div className="flex items-center gap-4 md:gap-8 overflow-visible">
+                        {/* Auth State: Show Login or Profile */}
+                        <div className="relative overflow-visible">
+                            {isAuthenticated ? (
+                                <div className="relative group/profile overflow-visible">
+                                    <button 
+                                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 rounded-xl transition-all cursor-pointer border border-transparent hover:border-slate-100"
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm">
+                                            <User size={18} />
+                                        </div>
+                                        <div className="text-left hidden md:block">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">Account</p>
+                                            <p className="text-xs font-black text-slate-800 leading-none truncate max-w-[100px]">
+                                                {user?.mobile || user?.fullName || 'Active'}
+                                            </p>
+                                        </div>
+                                        <ChevronDown size={14} className="text-slate-400" />
+                                    </button>
+
+                                    {/* Dropdown on hover */}
+                                    <div className="absolute top-full right-0 mt-3 w-56 bg-white rounded-2xl shadow-3xl py-2 opacity-0 group-hover/profile:opacity-100 pointer-events-none group-hover/profile:pointer-events-auto transition-all scale-95 group-hover/profile:scale-100 border border-slate-100 z-[1000] origin-top-right box-shadow-custom">
+                                        <div className="px-5 py-4 border-b border-slate-50 bg-slate-50/30">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Identity Verified</p>
+                                            <p className="text-sm font-black text-slate-900 truncate">
+                                                {user?.mobile || user?.fullName}
+                                            </p>
+                                        </div>
+                                        <div className="p-2">
+                                            <button onClick={() => navigate('/patient/orders')} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-colors flex items-center gap-3">
+                                                <ShoppingCart size={18} /> My Orders
+                                            </button>
+                                        </div>
+                                        <div className="mt-1 pt-1 border-t border-slate-50 p-2">
+                                            <button
+                                                onClick={() => { logout(); navigate('/login'); }}
+                                                className="w-full text-left px-4 py-3 text-sm font-black text-red-600 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-3"
+                                            >
+                                                Logout
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => navigate('/login')}
+                                    className="px-5 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg shadow-slate-100 flex items-center gap-2 hover:-translate-y-0.5 active:scale-95"
+                                >
+                                    <User size={14} />
+                                    Login / Sign Up
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Cart/Orders Section */}
                         <div 
                             onClick={() => navigate('/patient/orders')}
-                            className="flex items-center gap-2 text-blue-600 font-bold text-sm cursor-pointer border-l border-slate-200 pl-8 group"
+                            className="flex items-center gap-2 text-blue-600 font-bold text-sm cursor-pointer border-l border-slate-200 pl-4 md:pl-8 group h-10"
                         >
                             <div className="relative">
                                 <ShoppingCart size={24} className="group-hover:scale-110 transition-transform" />
@@ -362,12 +442,12 @@ const OrderOnline = () => {
                                     {(prescriptions.filter(p => ['broadcast', 'accepted', 'quoted'].includes(p.status)).length)}
                                 </span>
                             </div>
-                            <span>Orders</span>
+                            <span className="hidden sm:inline">Orders</span>
                         </div>
                     </div>
                 </div>
-
             </header>
+
 
             {/* Hero Section */}
             <main className="pt-16 overflow-hidden">
@@ -649,9 +729,10 @@ const OrderOnline = () => {
                                 type="file" 
                                 id="prescription-upload" 
                                 className="hidden" 
-                                accept="image/*"
+                                accept="image/*,application/pdf"
                                 onChange={handlePrescriptionUpload}
                             />
+
                             <div className="w-14 h-14 bg-white text-blue-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
                                 {isUploading ? <Loader2 size={28} className="animate-spin" /> : <Upload size={28} />}
                             </div>
@@ -742,37 +823,72 @@ const OrderOnline = () => {
                                 </button>
 
                                 <div className="mb-0">
+                                    {/* Prescription Preview Small */}
+                                    <div className="absolute top-10 left-10 p-3 bg-white rounded-2xl shadow-xl border border-slate-100 z-10 w-24 h-24 overflow-hidden flex items-center justify-center">
+                                        {tempDetails.imageUrl?.toLowerCase().endsWith('.pdf') ? (
+                                            <div className="text-red-500 font-black text-xs text-center">
+                                                <FileText size={40} className="mx-auto mb-1" />
+                                                PDF
+                                            </div>
+                                        ) : (
+                                            <img src={tempDetails.imageUrl} alt="Prescription" className="w-full h-full object-cover rounded-lg" />
+                                        )}
+                                    </div>
                                     <div className="flex items-center gap-2 mb-10">
                                         <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
                                     </div>
+
                                 </div>
 
                                 {detailStep === 1 && (
                                     <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="space-y-6">
                                         <div className="mb-6">
-                                            <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Login / Sign up</h3>
-                                            <p className="text-slate-400 font-bold text-sm">Please provide your details to continue</p>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
+                                                    <FiLogIn size={18} />
+                                                </div>
+                                                <h3 className="text-2xl font-black text-slate-800 tracking-tight">Login / Sign up</h3>
+                                            </div>
+                                            <p className="text-slate-400 font-bold text-sm leading-relaxed">
+                                                Please provide your mobile number to <span className="text-blue-600">securely broadcast</span> your prescription and receive pharmacy quotes.
+                                            </p>
                                         </div>
 
                                         <div className="space-y-6">
                                             <div className="relative group">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block px-1">Mobile Number</label>
                                                 <input 
                                                     type="tel" 
                                                     placeholder="Enter your 10-digit mobile number"
-                                                    className="w-full px-6 py-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-bold text-slate-900 text-lg placeholder:text-slate-300 shadow-sm"
+                                                    className="w-full px-6 py-5 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-bold text-slate-900 text-lg placeholder:text-slate-300 shadow-sm group-hover:border-slate-200"
                                                     value={tempDetails.mobile}
                                                     maxLength={10}
                                                     onChange={(e) => setTempDetails({...tempDetails, mobile: e.target.value.replace(/\D/g, '')})}
                                                 />
+                                                <p className="text-[10px] font-bold text-slate-400 mt-2 px-1">
+                                                    We'll use this to notify you when a pharmacy sends a price request.
+                                                </p>
                                             </div>
 
                                             <button 
                                                 disabled={tempDetails.mobile.length < 10}
                                                 onClick={() => setDetailStep(2)}
-                                                className="w-full py-5 bg-[#2667e0] text-white rounded-2xl font-black text-lg uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/30 disabled:opacity-50"
+                                                className="w-full py-5 bg-[#2667e0] text-white rounded-2xl font-black text-lg uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/30 disabled:opacity-50 hover:-translate-y-0.5 active:scale-95"
                                             >
-                                                Continue
+                                                Login & Continue
                                             </button>
+
+                                            <div className="pt-4">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Special Instructions (Optional)</label>
+                                                <textarea 
+                                                    placeholder="Urgent chahiye / 2 ghante mein chahiye..."
+                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-600 transition-all font-bold text-slate-700 text-sm placeholder:text-slate-300 resize-none"
+                                                    rows={2}
+                                                    value={tempDetails.notes || ''}
+                                                    onChange={(e) => setTempDetails({...tempDetails, notes: e.target.value})}
+                                                />
+                                            </div>
+
 
                                             <div className="flex items-start gap-3 px-2">
                                                 <div className="mt-1">

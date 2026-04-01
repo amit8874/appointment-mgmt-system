@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { pharmacyApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import PrescriptionQuoteModal from './PrescriptionQuoteModal';
+import DispenseMedicineModal from './DispenseMedicineModal';
 
 const PharmacyOrders = () => {
   const [activeTab, setActiveTab] = useState('standard'); // 'standard', 'prescriptions'
@@ -28,6 +29,7 @@ const PharmacyOrders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedPrescription, setSelectedPrescription] = useState(null);
+  const [showDispenseModal, setShowDispenseModal] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'standard') fetchOrders();
@@ -293,10 +295,13 @@ const PharmacyOrders = () => {
                             )}
                             {(pres.status === 'paid' || pres.status === 'accepted') && (
                                 <button 
-                                    onClick={() => handlePrescriptionStatusUpdate(pres._id, 'ready')}
+                                    onClick={() => {
+                                        setSelectedPrescription(pres);
+                                        setShowDispenseModal(true);
+                                    }}
                                     className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center gap-3 shadow-xl shadow-emerald-500/10"
                                 >
-                                    <CheckCircle2 size={18} /> Ready to Deliver
+                                    <Package size={18} /> Dispense Medicine
                                 </button>
                             )}
                             {pres.status === 'ready' && (
@@ -340,12 +345,30 @@ const PharmacyOrders = () => {
       )}
 
       {/* Quote Modal */}
-      <AnimatePresence>
-        {selectedPrescription && (
+      <AnimatePresence mode="wait">
+        {selectedPrescription && !showDispenseModal && (
           <PrescriptionQuoteModal 
             prescription={selectedPrescription}
             onClose={() => setSelectedPrescription(null)}
             onSuccess={activeTab === 'standard' ? fetchOrders : fetchPrescriptions}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Dispense Modal */}
+      <AnimatePresence mode="wait">
+        {showDispenseModal && selectedPrescription && (
+          <DispenseMedicineModal 
+            order={selectedPrescription}
+            onClose={() => {
+                setShowDispenseModal(false);
+                setSelectedPrescription(null);
+            }}
+            onSuccess={() => {
+                fetchPrescriptions();
+                setShowDispenseModal(false);
+                setSelectedPrescription(null);
+            }}
           />
         )}
       </AnimatePresence>

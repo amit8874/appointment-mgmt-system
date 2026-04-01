@@ -59,6 +59,15 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("join-pharmacy", (pharmacyId) => {
+    if (pharmacyId) {
+      const roomName = `pharmacy_${pharmacyId}`;
+      socket.join(roomName);
+      console.log(`Socket [${socket.id}] joined pharmacy room: [${roomName}]`);
+    }
+  });
+
+
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });
@@ -88,6 +97,8 @@ Global Middleware
 
 app.use(cors());
 app.use(express.json());
+app.set("io", io);
+
 
 /* --------------------------------------------------
 Multi-Tenant Middleware
@@ -119,9 +130,10 @@ const cloudStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: "hospital-profiles",
-    allowed_formats: ["jpg", "png", "jpeg", "gif", "webp"],
-    transformation: [{ width: 500, height: 500, crop: "limit" }],
+    allowed_formats: ["jpg", "png", "jpeg", "gif", "webp", "pdf"],
+    transformation: [{ width: 1000, height: 1000, crop: "limit" }],
   },
+
 });
 
 // Local Disk Storage for development/fallback
@@ -142,12 +154,13 @@ const upload = multer({
   storage: isDev ? diskStorage : cloudStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
+    if (file.mimetype.startsWith("image/") || file.mimetype === "application/pdf") {
       cb(null, true);
     } else {
-      cb(new Error("Only image files are allowed!"), false);
+      cb(new Error("Only image files or PDFs are allowed!"), false);
     }
   },
+
 });
 
 global.upload = upload;
@@ -190,10 +203,13 @@ app.use("/api/messages", messageRoutes);
 Image Upload API
 -------------------------------------------------- */
 
-app.post("/api/upload", (req, res, next) => {
+app.post("/api/upload", (req, res) => {
+  console.log("Upload request received");
+  console.log("Headers:", req.headers['content-type']);
+  
   upload.single("image")(req, res, (err) => {
     if (err) {
-      console.error("Upload error:", err);
+      console.error("Multer error:", err);
       return res.status(500).json({
         message: "Upload failed",
         error: err.message,
@@ -201,9 +217,12 @@ app.post("/api/upload", (req, res, next) => {
     }
 
     if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      console.warn("No file in request. Body:", req.body);
+      return res.status(400).json({ message: "No file uploaded. Please ensure you are sending an image or PDF file." });
     }
 
+    console.log("File uploaded successfully:", req.file.filename || req.file.path);
+    
     res.json({
       message: "Image uploaded successfully",
       imageUrl: isDev 
@@ -212,6 +231,7 @@ app.post("/api/upload", (req, res, next) => {
     });
   });
 });
+
 
 /* --------------------------------------------------
 Global Error Handler

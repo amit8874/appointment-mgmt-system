@@ -30,10 +30,11 @@ const orderSchema = new mongoose.Schema({
     index: true,
   },
   customerId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed, // Support both ObjectId and guest string IDs
     ref: 'User',
     required: true,
   },
+
   items: [orderItemSchema],
   totalAmount: {
     type: Number,

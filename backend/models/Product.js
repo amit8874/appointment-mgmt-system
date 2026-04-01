@@ -56,7 +56,13 @@ const productSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-productSchema.index({ organizationId: 1, barcode: 1 }, { unique: true, sparse: true });
+productSchema.index(
+  { organizationId: 1, barcode: 1 }, 
+  { 
+    unique: true, 
+    partialFilterExpression: { barcode: { $type: "string" } } 
+  }
+);
 productSchema.index({ organizationId: 1, name: 1 });
 
 export default mongoose.model('Product', productSchema);

@@ -16,6 +16,13 @@ const prescriptionOrderSchema = new mongoose.Schema({
   mobileNumber: {
     type: String,
   },
+  notes: {
+    type: String, // e.g., "urgent", "2 hours"
+  },
+  location: {
+    lat: Number,
+    lng: Number,
+  },
   deliveryMethod: {
     type: String,
     enum: ['home', 'office', 'pickup'],
@@ -28,11 +35,28 @@ const prescriptionOrderSchema = new mongoose.Schema({
     enum: ['broadcast', 'accepted', 'quoted', 'paid', 'ready', 'shipped', 'completed', 'cancelled'],
     default: 'broadcast',
   },
+  expiryAt: {
+    type: Date,
+    required: true,
+    default: () => new Date(Date.now() + 15 * 60 * 1000), // Default 15 minutes window
+  },
   pharmacyId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Pharmacy',
     default: null,
   },
+  // New competitive quotes structure
+  quotes: [{
+    pharmacyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Pharmacy' },
+    pharmacyName: String,
+    pharmacyDistance: String,
+    pharmacyRating: Number,
+    price: Number,
+    deliveryTime: String,
+    isFullAvailable: { type: Boolean, default: true },
+    status: { type: String, enum: ['pending', 'selected', 'rejected'], default: 'pending' },
+    createdAt: { type: Date, default: Date.now }
+  }],
   quotedItems: [{
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     quantity: { type: Number, default: 1 },
@@ -51,6 +75,7 @@ const prescriptionOrderSchema = new mongoose.Schema({
     default: Date.now,
   },
 });
+
 
 prescriptionOrderSchema.pre('save', function(next) {
   this.updatedAt = Date.now();

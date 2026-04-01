@@ -8,18 +8,21 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { pharmacyApi } from '../../services/api';
 import { toast } from 'react-toastify';
 
 const PharmacyDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [data, setData] = useState({
     stats: {
       newOrders: 0,
       pendingPayout: 0,
       lowStockItems: 0,
-      avgProcessTime: '15m'
+      avgProcessTime: '---',
+      stockCapacity: 0
     },
     recentOrders: []
   });
@@ -92,7 +95,10 @@ const PharmacyDashboard = () => {
         <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="p-6 border-b border-slate-50 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">Recent Orders</h2>
-            <button className="text-sm font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 group">
+            <button 
+              onClick={() => navigate('/pharmacy/orders')}
+              className="text-sm font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 group"
+            >
               View All <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
@@ -126,8 +132,11 @@ const PharmacyDashboard = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 hover:bg-white rounded-lg border border-transparent hover:border-slate-100 transition-all">
-                        <ChevronRight size={18} className="text-slate-400" />
+                      <button 
+                        onClick={() => navigate('/pharmacy/orders')}
+                        className="p-2 hover:bg-white rounded-lg border border-transparent hover:border-slate-100 transition-all font-black text-indigo-600"
+                      >
+                        <ChevronRight size={18} />
                       </button>
                     </td>
                   </tr>
@@ -142,14 +151,19 @@ const PharmacyDashboard = () => {
           <h2 className="text-lg font-bold text-slate-900">Inventory Status</h2>
           
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-orange-50 rounded-2xl border border-orange-100">
+            <div 
+              onClick={() => navigate('/pharmacy/inventory')}
+              className="flex items-center justify-between p-4 bg-orange-50 rounded-2xl border border-orange-100 cursor-pointer hover:bg-orange-100 transition-colors"
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
                   <Package size={20} />
                 </div>
                 <div>
                   <p className="font-bold text-orange-900">Low Stock</p>
-                  <p className="text-xs text-orange-600 font-medium">5 items need attention</p>
+                  <p className="text-xs text-orange-600 font-bold uppercase tracking-wide">
+                    {data.stats.lowStockItems} items need attention
+                  </p>
                 </div>
               </div>
               <ChevronRight size={20} className="text-orange-400" />
@@ -158,14 +172,20 @@ const PharmacyDashboard = () => {
             <div className="p-4 rounded-2xl border border-slate-100 space-y-3">
                 <div className="flex justify-between text-sm font-bold">
                     <span className="text-slate-500">Stock Capacity</span>
-                    <span className="text-slate-900">85%</span>
+                    <span className="text-slate-900">{data.stats.stockCapacity}%</span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="w-[85%] h-full bg-blue-500 rounded-full"></div>
+                    <div 
+                      className="h-full bg-blue-500 rounded-full transition-all duration-1000"
+                      style={{ width: `${data.stats.stockCapacity}%` }}
+                    ></div>
                 </div>
             </div>
 
-            <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+            <button 
+              onClick={() => navigate('/pharmacy/inventory')}
+              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+            >
                 Update Inventory
             </button>
           </div>

@@ -1,36 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import PharmacySidebar from './PharmacySidebar.jsx';
 import BroadcastAlertModal from './BroadcastAlertModal.jsx';
+import QuoteAcceptedModal from './QuoteAcceptedModal.jsx';
 import { pharmacyApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { Menu, Store } from 'lucide-react';
+import { io } from 'socket.io-client';
+import { useAuth } from '../../context/AuthContext';
 
 const PharmacyLayout = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeAlert, setActiveAlert] = useState(null);
   const [dismissedIds, setDismissedIds] = useState(new Set());
-  const [isAccepting, setIsAccepting] = useState(false);
+  const [winnerData, setWinnerData] = useState(null);
+  const socketRef = useRef(null);
 
-  // Poll for new broadcasts globally
+  // Socket.io Real-time Setup
+  useEffect(() => {
+    if (!user?._id && !user?.id) return;
+
+    const pharmacyId = user._id || user.id;
+    let socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    if (socketUrl.endsWith('/api')) {
+      socketUrl = socketUrl.replace('/api', '');
+    }
+    
+    const socket = io(socketUrl);
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log("[Pharmacy] Connected to socket, joining room:", `pharmacy_${pharmacyId}`);
+      socket.emit('join-pharmacy', pharmacyId);
+    });
+
+    socket.on('quote_accepted', (data) => {
+      console.log("[Pharmacy] Quote Accepted Event Received:", data);
+      setWinnerData(data);
+      // Play success sound
+      try { new Audio('/notification.mp3').play().catch(() => {}); } catch(e) {}
+    });
+
+    socket.on('new-broadcast', (data) => {
+       // Optional: Could trigger the alert modal instantly if backend emits this
+       // For now keeping the poll as backup
+    });
+
+    return () => {
+      if (socketRef.current) socketRef.current.disconnect();
+    };
+  }, [user]);
+
+  // Poll for new broadcasts globally (Backup mechanism)
   useEffect(() => {
     const checkNewBroadcasts = async () => {
       try {
         const broadcasts = await pharmacyApi.getBroadcastedOrders();
-        console.log("[Pharmacy] Fetched broadcasts:", broadcasts);
-        console.log("[Pharmacy] Dismissed IDs:", dismissedIds);
         
         // Find the first broadcast that hasn't been dismissed yet
         const newBroadcast = broadcasts.find(b => !dismissedIds.has(b._id));
         
         if (newBroadcast && (!activeAlert || activeAlert._id !== newBroadcast._id)) {
-          console.log("[Pharmacy] New broadcast alert triggered:", newBroadcast);
           setActiveAlert(newBroadcast);
-          // Play a subtle alert sound if possible, or just show the modal
         } else if (!newBroadcast && activeAlert) {
-          console.log("[Pharmacy] Clearing active alert (no longer available)");
-          setActiveAlert(null); // Clear if no longer available
+          setActiveAlert(null); 
         }
       } catch (err) {
         console.error("Global broadcast poll failed:", err);
@@ -38,25 +73,9 @@ const PharmacyLayout = () => {
     };
 
     checkNewBroadcasts();
-    const interval = setInterval(checkNewBroadcasts, 8000); // Poll every 8 seconds
+    const interval = setInterval(checkNewBroadcasts, 10000); 
     return () => clearInterval(interval);
   }, [dismissedIds, activeAlert]);
-
-  const handleAccept = async (id) => {
-    setIsAccepting(true);
-    try {
-      await pharmacyApi.acceptBroadcastedOrder(id);
-      toast.success("Order accepted successfully!");
-      setDismissedIds(prev => new Set([...prev, id]));
-      setActiveAlert(null);
-      navigate('/pharmacy/orders'); // Take user to their active orders
-    } catch (err) {
-      console.error("Failed to accept alert:", err);
-      toast.error(err.response?.data?.message || "Failed to accept order");
-    } finally {
-      setIsAccepting(false);
-    }
-  };
 
   const handleReject = () => {
     if (activeAlert) {
@@ -96,9 +115,12 @@ const PharmacyLayout = () => {
 
       <BroadcastAlertModal 
         broadcast={activeAlert}
-        onAccept={handleAccept}
         onReject={handleReject}
-        isAccepting={isAccepting}
+      />
+
+      <QuoteAcceptedModal 
+        data={winnerData}
+        onClose={() => setWinnerData(null)}
       />
     </div>
   );
