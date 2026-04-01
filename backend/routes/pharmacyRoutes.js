@@ -25,7 +25,9 @@ import {
   cancelPrescriptionOrder,
   bulkUploadInventory,
   dispenseMedicine,
-  getInventoryLogs
+  getInventoryLogs,
+  guestMobileLogin,
+  getPharmacyAnalytics
 } from '../controllers/pharmacyController.js';
 
 
@@ -34,12 +36,14 @@ import { authenticateToken, requirePharmacy } from '../middleware/auth.js';
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Public/Patient Search
+// Public/Patient routes — no auth required (orderId acts as implicit auth for guests)
 router.get('/medicines/search', searchMedicines);
 router.post('/prescriptions/broadcast', broadcastPrescription);
 router.get('/prescriptions/:id/status', getPrescriptionOrderStatus);
 router.get('/prescriptions/:id/quotes', getQuotesForUser);
 router.post('/prescriptions/:id/cancel', cancelPrescriptionOrder);
+router.post('/prescriptions/:id/select-quote', selectQuote);
+router.post('/guest-login', guestMobileLogin);
 router.put('/prescriptions/:id/status', authenticateToken, updatePrescriptionOrderStatus);
 
 
@@ -51,7 +55,6 @@ router.use(authenticateToken);
 router.post('/auto-assign', autoAssignOrder);
 router.get('/prescriptions/patient-orders', getPatientPrescriptions);
 router.post('/prescriptions/:id/confirm', confirmPrescriptionOrder);
-router.post('/prescriptions/:id/select-quote', selectQuote);
 
 
 // The following routes are for users with 'pharmacy' role only
@@ -64,6 +67,7 @@ router.post('/prescriptions/:id/quote', submitQuote);
 
 
 router.get('/dashboard/stats', getDashboardStats);
+router.get('/analytics', getPharmacyAnalytics);
 
 router.route('/inventory')
   .get(getInventory)

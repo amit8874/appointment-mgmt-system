@@ -35,6 +35,11 @@ const prescriptionOrderSchema = new mongoose.Schema({
     enum: ['broadcast', 'accepted', 'quoted', 'paid', 'ready', 'shipped', 'completed', 'cancelled'],
     default: 'broadcast',
   },
+  paymentStatus: {
+    type: String,
+    enum: ['unpaid', 'paid', 'refunded'],
+    default: 'unpaid',
+  },
   expiryAt: {
     type: Date,
     required: true,
@@ -52,6 +57,8 @@ const prescriptionOrderSchema = new mongoose.Schema({
     pharmacyDistance: String,
     pharmacyRating: Number,
     price: Number,
+    medicineCharge: { type: Number, default: 0 },
+    deliveryCharge: { type: Number, default: 0 },
     deliveryTime: String,
     isFullAvailable: { type: Boolean, default: true },
     status: { type: String, enum: ['pending', 'selected', 'rejected'], default: 'pending' },

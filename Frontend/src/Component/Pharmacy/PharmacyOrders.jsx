@@ -104,243 +104,256 @@ const PharmacyOrders = () => {
   };
 
   return (
-    <div className="p-6 space-y-8 bg-slate-50 min-h-screen">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-4 space-y-4 bg-slate-50 min-h-screen">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Orders Management</h1>
-          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1">TRACK AND PROCESS CUSTOMER REQUESTS</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Orders Management</h1>
+          <p className="text-slate-500 font-bold uppercase text-[9px] tracking-widest mt-0.5">TRACK AND PROCESS CUSTOMER REQUESTS</p>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex bg-white p-1.5 rounded-2xl w-fit border border-slate-100 shadow-sm">
-        <button 
-          onClick={() => setActiveTab('standard')}
-          className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === 'standard' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'text-slate-500 hover:bg-slate-50'}`}
-        >
-          Standard Orders
-        </button>
-        <button 
-          onClick={() => setActiveTab('prescriptions')}
-          className={`px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${activeTab === 'prescriptions' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'text-slate-500 hover:bg-slate-50'}`}
-        >
-          Prescription Requests
-        </button>
+      {/* Tabs & Search Together */}
+      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+            <div className="flex bg-white p-1 rounded-xl border border-slate-100 shadow-sm shrink-0">
+                <button 
+                onClick={() => setActiveTab('standard')}
+                className={`px-5 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all ${activeTab === 'standard' ? 'bg-slate-900 text-white shadow-md shadow-slate-200' : 'text-slate-500 hover:bg-slate-50'}`}
+                >
+                Standard Orders
+                </button>
+                <button 
+                onClick={() => setActiveTab('prescriptions')}
+                className={`px-5 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all ${activeTab === 'prescriptions' ? 'bg-slate-900 text-white shadow-md shadow-slate-200' : 'text-slate-500 hover:bg-slate-50'}`}
+                >
+                Prescriptions
+                </button>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-3 w-full lg:w-auto items-center">
+                <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                        type="text" 
+                        placeholder="Search ID or Patient..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none"
+                    />
+                </div>
+
+                <div className="flex gap-1 overflow-x-auto w-full md:w-auto shrink-0 pb-1 md:pb-0">
+                    {['all', 'pending', 'processing', 'completed', 'cancelled'].map((status) => (
+                        <button
+                        key={status}
+                        onClick={() => setFilterStatus(status)}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                            filterStatus === status 
+                            ? 'bg-slate-900 text-white border-slate-900' 
+                            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                        }`}
+                        >
+                        {status}
+                        </button>
+                    ))}
+                </div>
+            </div>
       </div>
 
       {activeTab === 'standard' ? (
-        <>
-            {/* Filters */}
-            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-                <div className="relative w-full md:w-96">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="Search by Order ID or Patient..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 rounded-2xl border border-slate-100 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50 outline-none transition-all"
-                />
-                </div>
-
-                <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
-                {['all', 'pending', 'processing', 'completed', 'cancelled'].map((status) => (
-                    <button
-                    key={status}
-                    onClick={() => setFilterStatus(status)}
-                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                        filterStatus === status 
-                        ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' 
-                        : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                    }`}
-                    >
-                    {status}
-                    </button>
-                ))}
-                </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order ID</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date & Time</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {loading ? (
+                            [1, 2, 3, 4, 5].map(i => (
+                                <tr key={i} className="animate-pulse">
+                                    <td colSpan="6" className="px-5 py-4"><div className="h-4 bg-slate-100 rounded w-full"></div></td>
+                                </tr>
+                            ))
+                        ) : filteredOrders.length > 0 ? (
+                            filteredOrders.map((order) => (
+                                <tr key={order._id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <td className="px-5 py-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${getStatusColor(order.status).split(' ')[0]}`}>
+                                                <Package size={16} className={getStatusColor(order.status).split(' ')[1]} />
+                                            </div>
+                                            <span className="font-black text-slate-900 text-sm">{order.orderId}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        <p className="font-bold text-slate-700 text-sm leading-none">{order.customerId?.name || 'Unknown Patient'}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">{order.customerId?.mobile || 'No contact'}</p>
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        <span className="text-xs font-bold text-slate-500">
+                                            {new Date(order.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' })} • {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </td>
+                                    <td className="px-5 py-3 text-right">
+                                        <p className="text-sm font-black text-indigo-600">₹{order.totalAmount}</p>
+                                        <p className={`text-[9px] font-black uppercase tracking-widest ${
+                                            order.status === 'completed' || order.paymentStatus === 'paid' ? 'text-emerald-500' : 'text-slate-400'
+                                        }`}>{order.status === 'completed' ? 'PAID' : order.paymentStatus}</p>
+                                    </td>
+                                    <td className="px-5 py-3 text-center">
+                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${getStatusColor(order.status)}`}>
+                                            {order.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            {order.status === 'pending' && (
+                                                <button onClick={() => handleStatusUpdate(order._id, 'processing')} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all shadow-sm" title="Process">
+                                                    <Clock size={16} />
+                                                </button>
+                                            )}
+                                            {order.status === 'processing' && (
+                                                <button onClick={() => handleStatusUpdate(order._id, 'completed')} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-all shadow-sm" title="Complete">
+                                                    <CheckCircle2 size={16} />
+                                                </button>
+                                            )}
+                                            {order.status !== 'completed' && order.status !== 'cancelled' && (
+                                                <button onClick={() => handleStatusUpdate(order._id, 'cancelled')} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all shadow-sm" title="Cancel">
+                                                    <XCircle size={16} />
+                                                </button>
+                                            )}
+                                            <button className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-slate-100 transition-all" title="View Details">
+                                                <Eye size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan="6" className="py-20 text-center text-slate-400">
+                                    <Package size={48} className="mx-auto mb-3 opacity-20" />
+                                    <p className="font-bold">No orders found</p>
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
             </div>
-
-            <div className="grid grid-cols-1 gap-6">
-                {loading ? (
-                [1, 2, 3].map(i => <div key={i} className="h-32 bg-white rounded-3xl animate-pulse border border-slate-100"></div>)
-                ) : filteredOrders.length > 0 ? (
-                filteredOrders.map((order) => (
-                    <motion.div 
-                    layout
-                    key={order._id}
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-all group flex flex-col md:flex-row md:items-center justify-between gap-6"
-                    >
-                    <div className="flex items-start gap-4">
-                        <div className={`p-4 rounded-2xl ${getStatusColor(order.status).split(' ')[0]}`}>
-                        <Package size={24} className={getStatusColor(order.status).split(' ')[1]} />
-                        </div>
-                        <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-lg font-black text-slate-900">{order.orderId}</h3>
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${getStatusColor(order.status)}`}>
-                                {order.status}
-                            </span>
-                        </div>
-                        <p className="font-bold text-slate-700">{order.customerId?.name || 'Unknown Patient'}</p>
-                        <p className="text-xs text-slate-400 font-medium">Ordered on {new Date(order.createdAt).toLocaleString()}</p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col md:items-end gap-1">
-                        <p className="text-2xl font-black text-indigo-600">₹{order.totalAmount}</p>
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">{order.paymentStatus}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2 border-t md:border-t-0 pt-4 md:pt-0">
-                        {order.status === 'pending' && (
-                        <button 
-                            onClick={() => handleStatusUpdate(order._id, 'processing')}
-                            className="flex-1 md:flex-none px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-700 transition-all flex items-center gap-2"
-                        >
-                            <Clock size={16} /> Process
-                        </button>
-                        )}
-                        {order.status === 'processing' && (
-                        <button 
-                            onClick={() => handleStatusUpdate(order._id, 'completed')}
-                            className="flex-1 md:flex-none px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-emerald-700 transition-all flex items-center gap-2"
-                        >
-                            <CheckCircle2 size={16} /> Complete
-                        </button>
-                        )}
-                        {order.status !== 'completed' && order.status !== 'cancelled' && (
-                        <button 
-                            onClick={() => handleStatusUpdate(order._id, 'cancelled')}
-                            className="flex-1 md:flex-none px-4 py-2 bg-white text-red-600 border border-red-100 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-50 transition-all flex items-center gap-2"
-                        >
-                            <XCircle size={16} /> Cancel
-                        </button>
-                        )}
-                        <button className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition-all">
-                        <Eye size={20} />
-                        </button>
-                    </div>
-                    </motion.div>
-                ))
-                ) : (
-                <div className="py-20 bg-white rounded-[3rem] border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
-                    <Package size={64} className="mb-4 opacity-20" />
-                    <p className="font-bold text-xl">No orders found</p>
-                </div>
-                )}
-            </div>
-        </>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6">
-            {loading ? (
-                [1, 2, 3].map(i => <div key={i} className="h-32 bg-white rounded-3xl animate-pulse border border-slate-100"></div>)
-            ) : prescriptions.length > 0 ? (
-                prescriptions.map((pres) => (
-                    <motion.div 
-                        layout
-                        key={pres._id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6"
-                    >
-                        <div className="flex items-start gap-4">
-                            <div className={`p-4 rounded-2xl ${getStatusColor(pres.status).split(' ')[0]}`}>
-                                <FileText size={24} className={getStatusColor(pres.status).split(' ')[1]} />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="text-lg font-black text-slate-900 tracking-tight leading-none uppercase">Prescription Request</h3>
-                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${getStatusColor(pres.status)}`}>
-                                        {pres.status}
-                                    </span>
-                                </div>
-                                <p className="font-bold text-slate-700">{pres.patientId?.fullName || 'Anonymous Patient'}</p>
-                                <div className="flex items-center gap-3 mt-1.5">
-                                    <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                        <Phone size={12} />
-                                        {pres.mobileNumber || 'N/A'}
-                                    </div>
-                                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${pres.deliveryMethod === 'pickup' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                                        {pres.deliveryMethod === 'pickup' ? <Store size={12} /> : <MapPin size={12} />}
-                                        {pres.deliveryMethod || 'Pickup'}
-                                    </div>
-                                </div>
-                                <p className="text-xs text-slate-400 font-medium mt-2">Received on {new Date(pres.createdAt).toLocaleString()}</p>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col md:items-end gap-1">
-                            {pres.status === 'accepted' ? (
-                                <p className="text-sm font-black text-orange-500 uppercase tracking-widest animate-pulse italic">PENDING QUOTE</p>
-                            ) : (
-                                <>
-                                    <p className="text-2xl font-black text-indigo-600">₹{pres.quotedTotal}</p>
-                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
-                                        {pres.status === 'quoted' ? 'Patient reviewing' : 'Payment received'}
-                                    </p>
-                                </>
-                            )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            {pres.status === 'accepted' && (
-                                <button 
-                                    onClick={() => setSelectedPrescription(pres)}
-                                    className="px-6 py-3 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/10"
-                                >
-                                    <Plus size={18} /> Build Quote
-                                </button>
-                            )}
-                            {(pres.status === 'paid' || pres.status === 'accepted') && (
-                                <button 
-                                    onClick={() => {
-                                        setSelectedPrescription(pres);
-                                        setShowDispenseModal(true);
-                                    }}
-                                    className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center gap-3 shadow-xl shadow-emerald-500/10"
-                                >
-                                    <Package size={18} /> Dispense Medicine
-                                </button>
-                            )}
-                            {pres.status === 'ready' && (
-                                <button 
-                                    onClick={() => handlePrescriptionStatusUpdate(pres._id, 'shipped')}
-                                    className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center gap-3 shadow-xl shadow-indigo-500/10"
-                                >
-                                    <Package size={18} /> Out for Delivery
-                                </button>
-                            )}
-                            {pres.status === 'shipped' && (
-                                <button 
-                                    onClick={() => handlePrescriptionStatusUpdate(pres._id, 'completed')}
-                                    className="px-6 py-3 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-3 shadow-xl shadow-slate-200"
-                                >
-                                    <CheckCircle2 size={18} /> Mark Delivered
-                                </button>
-                            )}
-                            {pres.status === 'quoted' && (
-                                <div className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                                    <Clock size={16} /> Quoted
-                                </div>
-                            )}
-                            <button 
-                                onClick={() => setSelectedPrescription(pres)}
-                                className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition-all"
-                            >
-                                <Eye size={20} />
-                            </button>
-                        </div>
-                    </motion.div>
-                ))
-            ) : (
-                <div className="py-20 bg-white rounded-[3rem] border border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
-                    <FileText size={64} className="mb-4 opacity-20" />
-                    <p className="font-bold text-xl">No prescriptions found</p>
-                    <p className="text-sm">Broadcasted requests you accepted will appear here</p>
-                </div>
-            )}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Delivery</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                            <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {loading ? (
+                            [1, 2, 3, 4, 5].map(i => (
+                                <tr key={i} className="animate-pulse">
+                                    <td colSpan="7" className="px-5 py-4"><div className="h-4 bg-slate-100 rounded w-full"></div></td>
+                                </tr>
+                            ))
+                        ) : prescriptions.length > 0 ? (
+                            prescriptions.map((pres) => (
+                                <tr key={pres._id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <td className="px-5 py-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${getStatusColor(pres.status).split(' ')[0]}`}>
+                                                <FileText size={16} className={getStatusColor(pres.status).split(' ')[1]} />
+                                            </div>
+                                            <span className="font-black text-slate-900 text-[10px] uppercase tracking-widest leading-none">Prescription</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        <p className="font-bold text-slate-700 text-sm leading-none">{pres.patientId?.fullName || 'Anonymous Patient'}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 flex items-center gap-1">
+                                            <Phone size={10} /> {pres.mobileNumber || 'N/A'}
+                                        </p>
+                                    </td>
+                                    <td className="px-5 py-3 text-center">
+                                        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${pres.deliveryMethod === 'pickup' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
+                                            {pres.deliveryMethod === 'pickup' ? <Store size={10} /> : <MapPin size={10} />}
+                                            {pres.deliveryMethod || 'Pickup'}
+                                        </div>
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        <span className="text-xs font-bold text-slate-500">
+                                            {new Date(pres.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short' })}
+                                        </span>
+                                    </td>
+                                    <td className="px-5 py-3 text-right">
+                                        {pres.status === 'accepted' ? (
+                                            <span className="text-[9px] font-black text-orange-500 uppercase tracking-tighter animate-pulse">PENDING QUOTE</span>
+                                        ) : (
+                                            <>
+                                                <p className="text-sm font-black text-indigo-600">₹{pres.quotedTotal}</p>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                                                    {pres.status === 'quoted' ? 'Reviewing' : 'Paid'}
+                                                </p>
+                                            </>
+                                        )}
+                                    </td>
+                                    <td className="px-5 py-3 text-center">
+                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${getStatusColor(pres.status)}`}>
+                                            {pres.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-5 py-3">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            {pres.status === 'accepted' && (
+                                                <button onClick={() => setSelectedPrescription(pres)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all shadow-sm" title="Build Quote">
+                                                    <Plus size={16} />
+                                                </button>
+                                            )}
+                                            {(pres.status === 'paid' || pres.status === 'accepted') && (
+                                                <button onClick={() => { setSelectedPrescription(pres); setShowDispenseModal(true); }} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-all shadow-sm" title="Dispense">
+                                                    <Package size={16} />
+                                                </button>
+                                            )}
+                                            {pres.status === 'ready' && (
+                                                <button onClick={() => handlePrescriptionStatusUpdate(pres._id, 'shipped')} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all shadow-sm" title="Ship">
+                                                    <Package size={16} />
+                                                </button>
+                                            )}
+                                            {pres.status === 'shipped' && (
+                                                <button onClick={() => handlePrescriptionStatusUpdate(pres._id, 'completed')} className="p-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-all shadow-sm" title="Deliver">
+                                                    <CheckCircle2 size={16} />
+                                                </button>
+                                            )}
+                                            <button onClick={() => setSelectedPrescription(pres)} className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-slate-100 transition-all">
+                                                <Eye size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan="7" className="py-20 text-center text-slate-400">
+                                    <FileText size={48} className="mx-auto mb-3 opacity-20" />
+                                    <p className="font-bold">No prescriptions found</p>
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
       )}
 

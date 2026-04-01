@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 import { Menu, Store } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
+import PharmacyMaya from './PharmacyMaya.jsx';
 
 const PharmacyLayout = () => {
   const navigate = useNavigate();
@@ -122,6 +123,8 @@ const PharmacyLayout = () => {
         data={winnerData}
         onClose={() => setWinnerData(null)}
       />
+
+      <PharmacyMaya />
     </div>
   );
 };

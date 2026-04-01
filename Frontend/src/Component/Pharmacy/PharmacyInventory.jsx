@@ -132,182 +132,139 @@ const PharmacyInventory = () => {
   };
 
   return (
-    <div className="p-6 space-y-8 bg-slate-50 min-h-screen">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="p-4 space-y-4 bg-slate-50 min-h-screen">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Inventory Management</h1>
-          <p className="text-slate-500 font-medium">Manage your medical stock and reorder levels</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-none uppercase">Inventory Management</h1>
+          <p className="text-slate-500 font-bold uppercase text-[9px] tracking-widest mt-1">Manage and sync your medical stock levels</p>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-100"
-        >
-          <Plus size={20} />
-          Add Product
-        </button>
-      </div>
-
-      {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4">
-          <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl">
-            <Package size={24} />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Total Items</p>
-            <p className="text-2xl font-black text-slate-900">{inventory.length}</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4">
-          <div className="p-4 bg-orange-50 text-orange-600 rounded-2xl">
-            <TrendingDown size={24} />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Low Stock</p>
-            <p className="text-2xl font-black text-slate-900">{inventory.filter(i => i.stockLevel <= i.reorderLevel).length}</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4">
-          <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl">
-            <AlertCircle size={24} />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Out of Stock</p>
-            <p className="text-2xl font-black text-slate-900">{inventory.filter(i => i.stockLevel === 0).length}</p>
-          </div>
+        
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
+            <div className="relative w-full md:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input 
+                    type="text" 
+                    placeholder="Search inventory..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setCurrentPage(1);
+                    }}
+                    className="w-full pl-10 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:border-indigo-500 outline-none"
+                />
+            </div>
+            <button 
+                onClick={() => setShowAddModal(true)}
+                className="w-full md:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md shadow-slate-200"
+            >
+                <Plus size={16} /> Add Product
+            </button>
         </div>
       </div>
 
-      {/* Search and Table */}
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-6 border-b border-slate-50">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search inventory..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1); // Reset to page 1 on search
-              }}
-              className="w-full pl-12 pr-4 py-3 rounded-2xl border border-slate-100 focus:border-indigo-500 outline-none transition-all"
-            />
-          </div>
-        </div>
-
+      {/* Main Inventory Table */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50">
-                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">Product Details</th>
-                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">Category</th>
-                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">Stock Level</th>
-                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest">Status</th>
-                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest text-center">History</th>
-                <th className="px-8 py-5 text-xs font-black text-slate-400 uppercase tracking-widest"></th>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Product Details</th>
+                <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Category</th>
+                <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Stock Level</th>
+                <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">History</th>
+                <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan="5" className="p-20 text-center text-slate-400">Loading inventory...</td></tr>
-              ) : inventory.map((item) => (
-                <tr key={item._id} className="hover:bg-slate-50/30 transition-colors group">
-                  <td className="px-8 py-6">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500">
-                            <Package size={20} />
+                [1, 2, 3, 4, 5].map(i => (
+                    <tr key={i} className="animate-pulse">
+                        <td colSpan="6" className="px-5 py-4"><div className="h-4 bg-slate-100 rounded w-full"></div></td>
+                    </tr>
+                ))
+              ) : inventory.length > 0 ? (
+                inventory.map((item) => (
+                    <tr key={item._id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 shrink-0">
+                                <Package size={14} />
+                            </div>
+                            <button onClick={() => setSelectedItemForQuickDispense(item)} className="text-left group/name">
+                                <p className="font-black text-slate-900 group-hover/name:text-orange-600 transition-colors text-sm uppercase py-0 leading-tight">{item.productId?.name}</p>
+                                <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{item.productId?.manufacturer}</p>
+                            </button>
                         </div>
-                        <button 
-                            onClick={() => setSelectedItemForQuickDispense(item)}
-                            className="text-left group/name"
-                        >
-                            <p className="font-black text-slate-900 group-hover/name:text-orange-600 transition-colors uppercase py-0">{item.productId?.name}</p>
-                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{item.productId?.manufacturer}</p>
-                        </button>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6">
-                    <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-wider">
-                        {item.productId?.category}
-                    </span>
-                  </td>
-                  <td className="px-8 py-6">
-                    {stockUpdate.id === item._id ? (
-                      <div className="flex items-center gap-2">
-                        <input 
-                          autoFocus
-                          type="number" 
-                          value={stockUpdate.value}
-                          onChange={(e) => setStockUpdate({ ...stockUpdate, value: e.target.value })}
-                          className="w-20 px-3 py-1.5 rounded-lg border border-indigo-200 focus:border-indigo-500 outline-none font-bold"
-                        />
-                        <button 
-                          onClick={() => handleUpdateStock(item.productId?._id, item.stockLevel)}
-                          className="p-2 bg-emerald-500 text-white rounded-lg"
-                        >
-                          <Check size={14} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <span className={`text-xl font-black ${item.stockLevel <= item.reorderLevel ? 'text-red-600' : 'text-slate-900'}`}>
-                            {item.stockLevel}
-                            <span className="text-xs text-slate-400 font-medium ml-1">units</span>
+                    </td>
+                    <td className="px-5 py-3">
+                        <span className="px-2 py-0.5 bg-slate-50 text-slate-500 rounded-md text-[9px] font-black uppercase tracking-widest border border-slate-100">
+                            {item.productId?.category}
                         </span>
-                        <button 
-                          onClick={() => setStockUpdate({ id: item._id, value: item.stockLevel })}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                        >
-                          <Edit2 size={14} />
+                    </td>
+                    <td className="px-5 py-3">
+                        {stockUpdate.id === item._id ? (
+                        <div className="flex items-center gap-1.5">
+                            <input 
+                            autoFocus
+                            type="number" 
+                            value={stockUpdate.value}
+                            onChange={(e) => setStockUpdate({ ...stockUpdate, value: e.target.value })}
+                            className="w-16 px-2 py-1 text-xs rounded-lg border border-indigo-200 focus:border-indigo-500 outline-none font-bold"
+                            />
+                            <button onClick={() => handleUpdateStock(item.productId?._id, item.stockLevel)} className="p-1.5 bg-emerald-500 text-white rounded-lg shadow-sm">
+                            <Check size={12} />
+                            </button>
+                        </div>
+                        ) : (
+                        <div className="flex items-center gap-2">
+                            <span className={`text-sm font-black ${item.stockLevel <= item.reorderLevel ? 'text-red-600' : 'text-slate-900'}`}>
+                                {item.stockLevel}
+                                <span className="text-[10px] text-slate-400 font-bold ml-1 uppercase">units</span>
+                            </span>
+                            <button onClick={() => setStockUpdate({ id: item._id, value: item.stockLevel })} className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-indigo-600 hover:bg-white rounded transition-all">
+                            <Edit2 size={12} />
+                            </button>
+                        </div>
+                        )}
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                        item.stockLevel === 0 ? 'bg-red-50 text-red-600 border-red-100' :
+                        item.stockLevel <= item.reorderLevel ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                        'bg-emerald-50 text-emerald-600 border-emerald-100'
+                        }`}>
+                        {item.stockLevel === 0 ? 'Out of Stock' :
+                        item.stockLevel <= item.reorderLevel ? 'Low Stock' : 'In Stock'}
+                        </span>
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                            <button onClick={() => setSelectedItemForQuickDispense(item)} className="p-2 bg-orange-50 text-orange-600 hover:bg-orange-600 hover:text-white rounded-lg transition-all shadow-sm" title="Quick Dispense">
+                                <ArrowDownToLine size={14} />
+                            </button>
+                            <button onClick={() => setSelectedItemForHistory(item)} className="p-2 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all" title="View History">
+                                <History size={14} />
+                            </button>
+                        </div>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                        <button className="p-2 text-slate-300 hover:text-slate-600 rounded-lg">
+                            <MoreVertical size={16} />
                         </button>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-8 py-6">
-                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                      item.stockLevel === 0 ? 'bg-red-50 text-red-600' :
-                      item.stockLevel <= item.reorderLevel ? 'bg-orange-50 text-orange-600' :
-                      'bg-emerald-50 text-emerald-600'
-                    }`}>
-                      {item.stockLevel === 0 ? 'Out of Stock' :
-                       item.stockLevel <= item.reorderLevel ? 'Low Stock' : 'In Stock'}
-                    </span>
-                  </td>
-                  <td className="px-8 py-6 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                        <button 
-                            onClick={() => setSelectedItemForQuickDispense(item)}
-                            className="p-3 bg-orange-50 text-orange-600 hover:bg-orange-600 hover:text-white rounded-2xl transition-all shadow-sm"
-                            title="Quick Dispense"
-                        >
-                            <ArrowDownToLine size={18} />
-                        </button>
-                        <button 
-                            onClick={() => setSelectedItemForHistory(item)}
-                            className="p-3 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-2xl hover:bg-indigo-50 transition-all shadow-sm"
-                            title="View History"
-                        >
-                            <History size={18} />
-                        </button>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6 text-right">
-                    <button className="p-2 text-slate-300 hover:text-slate-600 rounded-lg">
-                        <MoreVertical size={20} />
-                    </button>
-                  </td>
+                    </td>
+                    </tr>
+                ))
+              ) : (
+                <tr>
+                    <td colSpan="6" className="py-20 text-center text-slate-400">
+                        <Package size={48} className="mx-auto mb-3 opacity-20" />
+                        <p className="font-bold">Inventory is empty</p>
+                    </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
-          {inventory.length === 0 && !loading && (
-             <div className="py-20 text-center text-slate-400">
-                <Package size={48} className="mx-auto mb-4 opacity-10" />
-                <p className="font-bold">Inventory is empty</p>
-                <p className="text-sm">Add products to your store to get started</p>
-             </div>
-          )}
         </div>
 
         {/* Pagination Footer */}

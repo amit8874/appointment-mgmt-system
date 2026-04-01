@@ -10,7 +10,9 @@ import {
   Eye, 
   ShoppingBag,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Truck,
+  Store
 } from 'lucide-react';
 
 const PharmacyBroadcasts = () => {
@@ -24,7 +26,8 @@ const PharmacyBroadcasts = () => {
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [activeBroadcast, setActiveBroadcast] = useState(null);
   const [quoteData, setQuoteData] = useState({
-    price: '',
+    medicineCharge: '',
+    deliveryCharge: '',
     deliveryTime: '30 min',
     isFullAvailable: true
   });
@@ -52,12 +55,25 @@ const PharmacyBroadcasts = () => {
   }, []);
 
   const handleSubmitQuote = async () => {
-    if (!activeBroadcast || !quoteData.price) return;
+    if (!activeBroadcast) return;
+    
+    const isHomeDelivery = activeBroadcast.deliveryMethod && activeBroadcast.deliveryMethod !== 'pickup';
+    
+    // Validate inputs
+    if (!quoteData.medicineCharge) {
+      alert('Please enter the medicine charge.');
+      return;
+    }
+    if (isHomeDelivery && quoteData.deliveryCharge === '') {
+      alert('Please enter the delivery charge (enter 0 if no delivery charge).');
+      return;
+    }
     
     try {
       setSubmittingId(activeBroadcast._id);
       await pharmacyApi.submitQuote(activeBroadcast._id, {
-        price: Number(quoteData.price),
+        medicineCharge: Number(quoteData.medicineCharge),
+        deliveryCharge: isHomeDelivery ? Number(quoteData.deliveryCharge) : 0,
         deliveryTime: quoteData.deliveryTime,
         isFullAvailable: quoteData.isFullAvailable
       });
@@ -65,7 +81,7 @@ const PharmacyBroadcasts = () => {
       setBroadcasts(prev => prev.filter(b => b._id !== activeBroadcast._id));
       setQuoteModalOpen(false);
       setActiveBroadcast(null);
-      setQuoteData({ price: '', deliveryTime: '30 min', isFullAvailable: true });
+      setQuoteData({ medicineCharge: '', deliveryCharge: '', deliveryTime: '30 min', isFullAvailable: true });
       alert('Quote submitted successfully! Waiting for patient to select.');
     } catch (err) {
       console.error('Error submitting quote:', err);
@@ -198,6 +214,19 @@ const PharmacyBroadcasts = () => {
                     </div>
                   </div>
 
+                  {/* Delivery Method Badge */}
+                  {broadcast.deliveryMethod && broadcast.deliveryMethod !== 'pickup' ? (
+                    <div className="mb-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-xl">
+                      <Truck size={13} className="text-blue-600" />
+                      <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Home Delivery</span>
+                    </div>
+                  ) : (
+                    <div className="mb-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-100 rounded-xl">
+                      <Store size={13} className="text-orange-600" />
+                      <span className="text-[10px] font-black text-orange-700 uppercase tracking-widest">Self Pickup</span>
+                    </div>
+                  )}
+
                   <h3 className="text-lg font-black text-slate-800 tracking-tight mb-1 truncate">
                     {broadcast.patientId?.fullName || (typeof broadcast.patientId === 'string' && broadcast.patientId.startsWith('guest_') ? 'Guest Patient' : 'Anonymous Patient')}
                   </h3>
@@ -251,34 +280,99 @@ const PharmacyBroadcasts = () => {
               onClick={() => setQuoteModalOpen(false)}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
-            <motion.div 
+              <motion.div 
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden p-8"
             >
-              <div className="mb-8">
+              <div className="mb-6">
                 <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-1">Submit Your Quote</h2>
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Giving your best price increases winning chance</p>
               </div>
 
-              <div className="space-y-6">
+              {/* Delivery method banner inside modal */}
+              {activeBroadcast && (
+                <div className={`mb-6 flex items-center gap-3 p-4 rounded-2xl border ${
+                  activeBroadcast.deliveryMethod && activeBroadcast.deliveryMethod !== 'pickup'
+                    ? 'bg-blue-50 border-blue-100'
+                    : 'bg-orange-50 border-orange-100'
+                }`}>
+                  {activeBroadcast.deliveryMethod && activeBroadcast.deliveryMethod !== 'pickup' ? (
+                    <>
+                      <Truck size={20} className="text-blue-600 shrink-0" />
+                      <div>
+                        <p className="text-xs font-black text-blue-900 uppercase tracking-widest">Home Delivery Order</p>
+                        <p className="text-[10px] font-bold text-blue-600 mt-0.5">Please add medicine charge + delivery charge separately</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Store size={20} className="text-orange-600 shrink-0" />
+                      <div>
+                        <p className="text-xs font-black text-orange-900 uppercase tracking-widest">Self Pickup Order</p>
+                        <p className="text-[10px] font-bold text-orange-600 mt-0.5">Customer will collect from your store</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-5">
+                {/* Medicine Charge */}
                 <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Total Price (incl. delivery)</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Medicine Charge (₹)</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">₹</span>
                     <input 
                       type="number" 
-                      placeholder="Enter amount"
+                      placeholder="Enter medicine amount"
                       className="w-full pl-10 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-black text-slate-800 text-lg"
-                      value={quoteData.price}
-                      onChange={(e) => setQuoteData({...quoteData, price: e.target.value})}
+                      value={quoteData.medicineCharge}
+                      onChange={(e) => setQuoteData({...quoteData, medicineCharge: e.target.value})}
                     />
                   </div>
                 </div>
 
+                {/* Delivery Charge (only for home delivery) */}
+                {activeBroadcast && activeBroadcast.deliveryMethod && activeBroadcast.deliveryMethod !== 'pickup' && (
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Delivery Charge (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">₹</span>
+                      <input 
+                        type="number" 
+                        placeholder="Enter delivery charge (0 for free)"
+                        className="w-full pl-10 pr-4 py-4 bg-blue-50 border border-blue-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-black text-slate-800 text-lg"
+                        value={quoteData.deliveryCharge}
+                        onChange={(e) => setQuoteData({...quoteData, deliveryCharge: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Total preview */}
+                {(quoteData.medicineCharge || quoteData.deliveryCharge) && (
+                  <div className="p-4 bg-slate-900 rounded-2xl flex items-center justify-between">
+                    <div className="space-y-1">
+                      {quoteData.medicineCharge && (
+                        <p className="text-[10px] font-bold text-slate-400">Medicine: ₹{quoteData.medicineCharge}</p>
+                      )}
+                      {activeBroadcast?.deliveryMethod !== 'pickup' && quoteData.deliveryCharge && (
+                        <p className="text-[10px] font-bold text-slate-400">Delivery: ₹{quoteData.deliveryCharge}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Total Quote</p>
+                      <p className="text-xl font-black text-white tracking-tighter">
+                        ₹{(Number(quoteData.medicineCharge) || 0) + (activeBroadcast?.deliveryMethod !== 'pickup' ? (Number(quoteData.deliveryCharge) || 0) : 0)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Delivery Time</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Estimated Delivery / Pickup Time</label>
                   <select 
                     className="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-black text-slate-800"
                     value={quoteData.deliveryTime}
@@ -303,7 +397,7 @@ const PharmacyBroadcasts = () => {
                   <label htmlFor="stock" className="text-xs font-black text-slate-700 uppercase tracking-tight">All medicines in stock</label>
                 </div>
 
-                <div className="flex gap-4 pt-4">
+                <div className="flex gap-4 pt-2">
                   <button 
                     onClick={() => setQuoteModalOpen(false)}
                     className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 transition-all"
@@ -312,7 +406,7 @@ const PharmacyBroadcasts = () => {
                   </button>
                   <button 
                     onClick={handleSubmitQuote}
-                    disabled={!quoteData.price || submittingId}
+                    disabled={!quoteData.medicineCharge || submittingId}
                     className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/30 disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {submittingId ? <Loader2 size={18} className="animate-spin" /> : 'Send Quote'}
@@ -320,6 +414,7 @@ const PharmacyBroadcasts = () => {
                 </div>
               </div>
             </motion.div>
+
           </div>
         )}
       </AnimatePresence>

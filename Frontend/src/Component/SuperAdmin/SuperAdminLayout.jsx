@@ -12,7 +12,7 @@ const SuperAdminLayout = () => {
         toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
       />
       
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden md:pl-[280px]">
         <div className="flex-1 overflow-y-auto">
           <Outlet />
         </div>

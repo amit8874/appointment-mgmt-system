@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   ChevronRight,
   History,
-  Store
+  Store,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -60,6 +61,12 @@ const SuperAdminSidebar = ({ isSidebarOpen, toggleSidebar }) => {
       color: 'text-slate-600'
     },
     { 
+      path: '/superadmin/usage-analytics', 
+      name: 'Usage Analytics', 
+      icon: Activity,
+      color: 'text-rose-500'
+    },
+    { 
       path: '/superadmin/settings', 
       name: 'Settings', 
       icon: Settings,
@@ -99,7 +106,7 @@ const SuperAdminSidebar = ({ isSidebarOpen, toggleSidebar }) => {
       <motion.aside
         initial={false}
         animate={{ 
-          x: isSidebarOpen ? 0 : -280,
+          x: typeof window !== 'undefined' && window.innerWidth >= 768 ? 0 : (isSidebarOpen ? 0 : -280),
           width: 280 
         }}
         className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-100 z-50 shadow-2xl md:shadow-none transition-all duration-300 md:translate-x-0 ${

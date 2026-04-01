@@ -7,7 +7,10 @@ import {
   ChevronRight, 
   CheckCircle2, 
   AlertCircle,
-  Timer as TimerIcon
+  Timer as TimerIcon,
+  Truck,
+  Store,
+  Package
 } from 'lucide-react';
 import { pharmacyApi } from '../../services/api';
 
@@ -165,8 +168,24 @@ const QuoteComparison = ({ broadcastId, onSelect }) => {
                                 
                                 <div className="text-right flex flex-col items-end gap-4">
                                     <div>
-                                        <p className="text-2xl font-black text-white tracking-tighter leading-none mb-1">₹{quote.price}</p>
-                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest italic">All medicines inkl.</p>
+                                        {/* Price breakdown */}
+                                        {quote.medicineCharge > 0 ? (
+                                            <div className="space-y-0.5 text-right mb-1">
+                                                <p className="text-[9px] font-bold text-slate-500">
+                                                    <span className="text-slate-400">Meds</span> ₹{quote.medicineCharge}
+                                                    {quote.deliveryCharge > 0 && (
+                                                        <> + <span className="text-slate-400">Del</span> ₹{quote.deliveryCharge}</>
+                                                    )}
+                                                </p>
+                                                <p className="text-2xl font-black text-white tracking-tighter leading-none">₹{quote.price}</p>
+                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest italic">Total</p>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <p className="text-2xl font-black text-white tracking-tighter leading-none mb-1">₹{quote.price}</p>
+                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest italic">All medicines inkl.</p>
+                                            </div>
+                                        )}
                                     </div>
                                     <button 
                                         onClick={() => onSelect(quote._id)}

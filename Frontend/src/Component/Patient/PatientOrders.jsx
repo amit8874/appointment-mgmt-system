@@ -271,13 +271,34 @@ const PatientOrders = () => {
                                             </div>
                                             
                                             <div className="pt-4 border-t border-slate-100">
-                                                <div className="flex justify-between items-center mb-4">
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Confirmed Quotation</p>
-                                                        <p className="font-black text-2xl text-slate-900 tracking-tighter">₹{order.quotedTotal}</p>
+                                                <div>
+                                                    <div className="mb-4">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Confirmed Quotation</p>
+                                                        
+                                                        {/* Itemized breakdown */}
+                                                        {order.quotes?.find(q => q.status === 'selected')?.medicineCharge > 0 ? (
+                                                            <div className="space-y-2">
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-[11px] font-bold text-slate-500">Medicine Charge</span>
+                                                                    <span className="text-sm font-black text-slate-800">₹{order.quotes.find(q => q.status === 'selected').medicineCharge}</span>
+                                                                </div>
+                                                                {order.deliveryMethod !== 'pickup' && (
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="text-[11px] font-bold text-slate-500">Delivery Charge</span>
+                                                                        <span className="text-sm font-black text-slate-800">₹{order.quotes.find(q => q.status === 'selected').deliveryCharge || 0}</span>
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</span>
+                                                                    <span className="text-2xl font-black text-slate-900 tracking-tighter">₹{order.quotedTotal}</span>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="font-black text-2xl text-slate-900 tracking-tighter">₹{order.quotedTotal}</p>
+                                                        )}
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+
+                                                    <div className="flex justify-end mb-4">
                                                         <span className="px-3 py-1 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-lg shadow-emerald-100">
                                                             Accepted
                                                         </span>

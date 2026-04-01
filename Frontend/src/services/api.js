@@ -634,6 +634,10 @@ export const pharmacyApi = {
     const { data } = await api.post('/pharmacy/auto-assign', orderData);
     return data;
   },
+  guestMobileLogin: async (mobile) => {
+    const { data } = await api.post('/pharmacy/guest-login', { mobile });
+    return data;
+  },
   broadcastPrescription: async (broadcastData) => {
     const { data } = await api.post('/pharmacy/prescriptions/broadcast', broadcastData);
     return data;
@@ -679,12 +683,16 @@ export const pharmacyApi = {
   updatePrescriptionOrderStatus: async (id, status) => {
     const { data } = await api.put(`/pharmacy/prescriptions/${id}/status`, { status });
     return data;
+  },
+  getAnalytics: async () => {
+    const { data } = await api.get('/pharmacy/analytics');
+    return data;
   }
 };
 
 export const chatbotApi = {
-  chat: async (message, history, organizationId, userContext) => {
-    const { data } = await api.post('/chatbot/chat', { message, history, organizationId, userContext });
+  chat: async (message, history, organizationId, userContext, role) => {
+    const { data } = await api.post('/chatbot/chat', { message, history, organizationId, userContext, role });
     return data;
   }
 };
@@ -749,6 +757,17 @@ export const analyticsApi = {
   },
   getAiReport: async (category, dashboardData) => {
     const { data } = await api.post('/analytics/ai-report', { category, dashboardData });
+    return data;
+  }
+};
+
+export const usageAnalyticsApi = {
+  trackHeartbeat: async (heartbeatData) => {
+    const { data } = await api.post('/analytics/heartbeat', heartbeatData);
+    return data;
+  },
+  getStats: async () => {
+    const { data } = await api.get('/analytics/superadmin/usage-stats');
     return data;
   }
 };

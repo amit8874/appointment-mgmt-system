@@ -8,7 +8,8 @@ import {
   LogOut,
   Store,
   Radio,
-  X
+  X,
+  BarChart3
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -18,6 +19,7 @@ const PharmacySidebar = ({ isSidebarOpen, toggleSidebar }) => {
   const { logout } = useAuth();
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/pharmacy/dashboard' },
+    { name: 'Analysis', icon: BarChart3, path: '/pharmacy/analysis' },
     { name: 'Nearby Broadcasts', icon: Radio, path: '/pharmacy/broadcasts' },
     { name: 'Orders', icon: ShoppingCart, path: '/pharmacy/orders' },
     { name: 'Inventory', icon: Package, path: '/pharmacy/inventory' },

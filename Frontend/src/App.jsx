@@ -7,6 +7,7 @@ import AccountDeactivatedModal from "./Component/Organization/AccountDeactivated
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import SmartNotificationSystem from "./components/common/SmartNotificationSystem";
+import useUsageTracking from './hooks/useUsageTracking';
 
 // Lazy load components
 const ProtectedRoute = lazy(() => import("./Component/ProtectedRoute"));
@@ -54,6 +55,7 @@ const Organizations = lazy(() => import("./Component/SuperAdmin/Organizations"))
 const ManageOrganisation = lazy(() => import("./Component/SuperAdmin/ManageOrganisation"));
 const AllSubscriptions = lazy(() => import("./Component/SuperAdmin/AllSubscriptions"));
 const RevenueAnalytics = lazy(() => import("./Component/SuperAdmin/RevenueAnalytics"));
+const UsageAnalyticsPage = lazy(() => import("./Component/SuperAdmin/UsageAnalytics"));
 const AuditLogsPage = lazy(() => import("./Component/SuperAdmin/AuditLogsPage"));
 const SuperAdminSettings = lazy(() => import("./Component/SuperAdmin/SuperAdminSettings"));
 const PharmacyManagement = lazy(() => import("./Component/SuperAdmin/PharmacyManagement"));
@@ -61,6 +63,7 @@ const SubscriptionManagement = lazy(() => import("./Component/Organization/Subsc
 const OrganizationDashboard = lazy(() => import("./Component/Organization/OrganizationDashboard"));
 const PharmacyLayout = lazy(() => import("./Component/Pharmacy/PharmacyLayout"));
 const PharmacyDashboard = lazy(() => import("./Component/Pharmacy/PharmacyDashboard"));
+const PharmacyAnalysis = lazy(() => import("./Component/Pharmacy/PharmacyAnalysis"));
 const PharmacyOrders = lazy(() => import("./Component/Pharmacy/PharmacyOrders"));
 const PharmacyInventory = lazy(() => import("./Component/Pharmacy/PharmacyInventory"));
 const PharmacyBroadcasts = lazy(() => import("./Component/Pharmacy/PharmacyBroadcasts"));
@@ -77,6 +80,11 @@ const LoadingFallback = () => (
   </div>
 );
 
+
+const UsageTracker = () => {
+  useUsageTracking();
+  return null;
+};
 
 export default function App() {
   const { isAuthenticated, user, login, logout } = useAuth();
@@ -189,7 +197,8 @@ export default function App() {
       {isImpersonating && <ShadowModeBanner />}
       <AnimatePresence mode="wait">
         <Router>
-        <Suspense fallback={<LoadingFallback />}>
+          <UsageTracker />
+          <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/find-doctors" element={<FindDoctors />} />
@@ -219,6 +228,7 @@ export default function App() {
               <Route path="pharmacies" element={<PharmacyManagement />} />
               <Route path="subscriptions" element={<AllSubscriptions />} />
               <Route path="revenue" element={<RevenueAnalytics />} />
+              <Route path="usage-analytics" element={<UsageAnalyticsPage />} />
               <Route path="audit-logs" element={<AuditLogsPage />} />
               <Route path="settings" element={<SuperAdminSettings />} />
             </Route>
@@ -295,6 +305,7 @@ export default function App() {
               </ProtectedRoute>
             }>
               <Route path="dashboard" element={<PharmacyDashboard />} />
+              <Route path="analysis" element={<PharmacyAnalysis />} />
               <Route path="broadcasts" element={<PharmacyBroadcasts />} />
               <Route path="orders" element={<PharmacyOrders />} />
               <Route path="inventory" element={<PharmacyInventory />} />

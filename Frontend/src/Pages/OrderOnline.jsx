@@ -23,6 +23,7 @@ import {
   AlertCircle,
   ChevronRight,
   Store,
+  LogIn,
   X
 } from 'lucide-react';
 import promoBanner from '../assets/promo_banner.png';
@@ -64,6 +65,11 @@ const OrderOnline = () => {
     });
 
     const [prescriptions, setPrescriptions] = useState([]);
+    const [showLoginModal, setShowLoginModal] = useState(false);
+    const [loginMobile, setLoginMobile] = useState('');
+    const [loginLoading, setLoginLoading] = useState(false);
+    const [loginError, setLoginError] = useState('');
+    const [termsAccepted, setTermsAccepted] = useState(true);
 
     const fetchPresCount = async () => {
         const hasToken = localStorage.getItem('token') || sessionStorage.getItem('token') || 
@@ -79,6 +85,27 @@ const OrderOnline = () => {
             const data = await pharmacyApi.getPatientPrescriptions();
             setPrescriptions(data);
         } catch (err) {}
+    };
+
+    const handleMobileLogin = async () => {
+        if (loginMobile.length < 10) return;
+        setLoginLoading(true);
+        setLoginError('');
+        try {
+            const result = await pharmacyApi.guestMobileLogin(loginMobile);
+            if (result.success) {
+                sessionStorage.setItem('token', result.token);
+                sessionStorage.setItem('guestMobile', result.user.mobile);
+                sessionStorage.setItem('patientUser', JSON.stringify(result.user));
+                setShowLoginModal(false);
+                setLoginMobile('');
+                window.location.reload();
+            }
+        } catch (err) {
+            setLoginError(err.response?.data?.message || 'Login failed. Please try again.');
+        } finally {
+            setLoginLoading(false);
+        }
     };
 
     // Debounced Search logic
@@ -302,15 +329,16 @@ const OrderOnline = () => {
             // 2. Open Details Modal instead of broadcasting immediately
             setTempDetails(prev => ({ ...prev, imageUrl }));
             
-            // Auto-check if user is logged in to skip Step 1 (Login)
+            // Auto-check if user is logged in OR previously entered their mobile this session
             const storage = sessionStorage.getItem('patientUser') || localStorage.getItem('patientUser') || 
                            sessionStorage.getItem('userData') || localStorage.getItem('userData') || '{}';
             const patientUser = JSON.parse(storage);
-            const userPhone = patientUser.mobile || patientUser.phone || patientUser.userData?.mobile || patientUser.userData?.phone;
+            const userPhone = patientUser.mobile || patientUser.phone || patientUser.userData?.mobile || patientUser.userData?.phone
+                           || sessionStorage.getItem('guestMobile'); // remembered from previous upload this session
 
             if (userPhone) {
                 setTempDetails(prev => ({ ...prev, mobile: userPhone }));
-                setDetailStep(2); // Skip to delivery method
+                setDetailStep(2); // Skip to delivery method — user already identified
             } else {
                 setDetailStep(1);
             }
@@ -422,7 +450,7 @@ const OrderOnline = () => {
                                 </div>
                             ) : (
                                 <button 
-                                    onClick={() => navigate('/login')}
+                                    onClick={() => setShowLoginModal(true)}
                                     className="px-5 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg shadow-slate-100 flex items-center gap-2 hover:-translate-y-0.5 active:scale-95"
                                 >
                                     <User size={14} />
@@ -845,7 +873,7 @@ const OrderOnline = () => {
                                         <div className="mb-6">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
-                                                    <FiLogIn size={18} />
+                                                    <LogIn size={18} />
                                                 </div>
                                                 <h3 className="text-2xl font-black text-slate-800 tracking-tight">Login / Sign up</h3>
                                             </div>
@@ -872,7 +900,11 @@ const OrderOnline = () => {
 
                                             <button 
                                                 disabled={tempDetails.mobile.length < 10}
-                                                onClick={() => setDetailStep(2)}
+                                                onClick={() => {
+                                                    // Save mobile so next upload skips this step
+                                                    sessionStorage.setItem('guestMobile', tempDetails.mobile);
+                                                    setDetailStep(2);
+                                                }}
                                                 className="w-full py-5 bg-[#2667e0] text-white rounded-2xl font-black text-lg uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-500/30 disabled:opacity-50 hover:-translate-y-0.5 active:scale-95"
                                             >
                                                 Login & Continue
@@ -978,6 +1010,91 @@ const OrderOnline = () => {
                                     </motion.div>
                                 )}
                             </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* ── Mobile Login Modal ── */}
+            <AnimatePresence>
+                {showLoginModal && (
+                    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                            onClick={() => { setShowLoginModal(false); setLoginError(''); }}
+                        />
+                        <motion.div
+                            initial={{ scale: 0.92, opacity: 0, y: 16 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.92, opacity: 0, y: 16 }}
+                            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Close */}
+                            <button
+                                onClick={() => { setShowLoginModal(false); setLoginError(''); }}
+                                className="absolute top-5 right-5 p-1.5 text-slate-300 hover:text-slate-600 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+
+                            {/* Logo */}
+                            <img src="/logo.png" alt="Logo" className="h-16 w-auto mb-2" />
+
+                            <h2 className="text-xl font-black text-slate-800 tracking-tight text-center mb-1">Welcome Back</h2>
+                            <p className="text-xs font-bold text-slate-400 text-center mb-7 uppercase tracking-widest">Sign in with your mobile number</p>
+
+                            {/* Mobile input */}
+                            <div className="w-full mb-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Mobile Number</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-400">+91</span>
+                                    <input
+                                        type="tel"
+                                        placeholder="Enter 10-digit mobile no."
+                                        maxLength={10}
+                                        autoFocus
+                                        value={loginMobile}
+                                        onChange={e => { setLoginMobile(e.target.value.replace(/\D/g, '')); setLoginError(''); }}
+                                        onKeyDown={e => e.key === 'Enter' && loginMobile.length === 10 && termsAccepted && handleMobileLogin()}
+                                        className="w-full pl-14 pr-4 py-4 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-black text-slate-800 text-lg placeholder:text-slate-300"
+                                    />
+                                    {loginMobile.length === 10 && (
+                                        <CheckCircle2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500" />
+                                    )}
+                                </div>
+                                {loginError && <p className="text-[10px] font-black text-red-500 mt-2 px-1">{loginError}</p>}
+                            </div>
+
+                            {/* Terms */}
+                            <div className="flex items-start gap-3 w-full mb-6">
+                                <input
+                                    type="checkbox"
+                                    id="terms-login"
+                                    checked={termsAccepted}
+                                    onChange={e => setTermsAccepted(e.target.checked)}
+                                    className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                                />
+                                <label htmlFor="terms-login" className="text-[11px] font-bold text-slate-400 leading-snug">
+                                    By continuing, I agree to the{' '}
+                                    <span className="text-blue-600 cursor-pointer hover:underline">Terms &amp; Conditions</span>{' '}and{' '}
+                                    <span className="text-blue-600 cursor-pointer hover:underline">Privacy Policy</span>
+                                </label>
+                            </div>
+
+                            {/* Continue button */}
+                            <button
+                                onClick={handleMobileLogin}
+                                disabled={loginMobile.length < 10 || !termsAccepted || loginLoading}
+                                className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-blue-500/25 active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                {loginLoading ? <Loader2 size={18} className="animate-spin" /> : 'Continue'}
+                            </button>
+
+                            <p className="text-[10px] text-slate-400 font-bold mt-5 text-center">
+                                OTP verification coming soon · Currently mobile-only login
+                            </p>
                         </motion.div>
                     </div>
                 )}
