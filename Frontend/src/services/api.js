@@ -727,6 +727,14 @@ export const authApi = {
   registerPharmacy: async (pharmacyData) => {
     const { data } = await api.post('/superadmin/pharmacies/public-register', pharmacyData);
     return data;
+  },
+  sendOtp: async (phone) => {
+    const { data } = await api.post('/auth/send-otp', { phone });
+    return data;
+  },
+  verifyOtp: async (phone, otp) => {
+    const { data } = await api.post('/auth/verify-otp', { phone, otp });
+    return data;
   }
 };
 

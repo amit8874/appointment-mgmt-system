@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { pharmacyApi, commonApi } from '../services/api';
+import { pharmacyApi, commonApi, authApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 import {
@@ -70,6 +70,9 @@ const OrderOnline = () => {
     const [loginLoading, setLoginLoading] = useState(false);
     const [loginError, setLoginError] = useState('');
     const [termsAccepted, setTermsAccepted] = useState(true);
+    const [isOtpSent, setIsOtpSent] = useState(false);
+    const [loginOtp, setLoginOtp] = useState('');
+    const [otpTimer, setOtpTimer] = useState(0);
 
     const fetchPresCount = async () => {
         const hasToken = localStorage.getItem('token') || sessionStorage.getItem('token') || 
@@ -92,21 +95,49 @@ const OrderOnline = () => {
         setLoginLoading(true);
         setLoginError('');
         try {
-            const result = await pharmacyApi.guestMobileLogin(loginMobile);
+            const result = await authApi.sendOtp(loginMobile);
+            if (result.success) {
+                setIsOtpSent(true);
+                setOtpTimer(30); // 30 seconds resend timer
+            }
+        } catch (err) {
+            setLoginError(err.response?.data?.message || 'Failed to send OTP. Please try again.');
+        } finally {
+            setLoginLoading(false);
+        }
+    };
+
+    const handleVerifyOtp = async () => {
+        if (loginOtp.length < 6) return;
+        setLoginLoading(true);
+        setLoginError('');
+        try {
+            const result = await authApi.verifyOtp(loginMobile, loginOtp);
             if (result.success) {
                 sessionStorage.setItem('token', result.token);
                 sessionStorage.setItem('guestMobile', result.user.mobile);
                 sessionStorage.setItem('patientUser', JSON.stringify(result.user));
                 setShowLoginModal(false);
+                setIsOtpSent(false);
+                setLoginOtp('');
                 setLoginMobile('');
                 window.location.reload();
             }
         } catch (err) {
-            setLoginError(err.response?.data?.message || 'Login failed. Please try again.');
+            setLoginError(err.response?.data?.message || 'Invalid OTP. Please try again.');
         } finally {
             setLoginLoading(false);
         }
     };
+
+    // Timer effect for Resend OTP
+    useEffect(() => {
+        let timer;
+        if (otpTimer > 0) {
+            timer = setInterval(() => setOtpTimer(prev => prev - 1), 1000);
+        }
+        return () => clearInterval(timer);
+    }, [otpTimer]);
 
     // Debounced Search logic
     useEffect(() => {
@@ -440,7 +471,7 @@ const OrderOnline = () => {
                                         </div>
                                         <div className="mt-1 pt-1 border-t border-slate-50 p-2">
                                             <button
-                                                onClick={() => { logout(); navigate('/login'); }}
+                                                onClick={() => { logout(); }}
                                                 className="w-full text-left px-4 py-3 text-sm font-black text-red-600 hover:bg-red-50 rounded-xl transition-colors flex items-center gap-3"
                                             >
                                                 Logout
@@ -1045,55 +1076,103 @@ const OrderOnline = () => {
                             <h2 className="text-xl font-black text-slate-800 tracking-tight text-center mb-1">Welcome Back</h2>
                             <p className="text-xs font-bold text-slate-400 text-center mb-7 uppercase tracking-widest">Sign in with your mobile number</p>
 
-                            {/* Mobile input */}
-                            <div className="w-full mb-4">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Mobile Number</label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-400">+91</span>
-                                    <input
-                                        type="tel"
-                                        placeholder="Enter 10-digit mobile no."
-                                        maxLength={10}
-                                        autoFocus
-                                        value={loginMobile}
-                                        onChange={e => { setLoginMobile(e.target.value.replace(/\D/g, '')); setLoginError(''); }}
-                                        onKeyDown={e => e.key === 'Enter' && loginMobile.length === 10 && termsAccepted && handleMobileLogin()}
-                                        className="w-full pl-14 pr-4 py-4 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-black text-slate-800 text-lg placeholder:text-slate-300"
-                                    />
-                                    {loginMobile.length === 10 && (
-                                        <CheckCircle2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500" />
-                                    )}
+                            {/* Mobile input (Step 1) */}
+                            {!isOtpSent ? (
+                                <div className="w-full mb-4">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Mobile Number</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-400">+91</span>
+                                        <input
+                                            type="tel"
+                                            placeholder="Enter 10-digit mobile no."
+                                            maxLength={10}
+                                            autoFocus
+                                            value={loginMobile}
+                                            onChange={e => { setLoginMobile(e.target.value.replace(/\D/g, '')); setLoginError(''); }}
+                                            onKeyDown={e => e.key === 'Enter' && loginMobile.length === 10 && termsAccepted && handleMobileLogin()}
+                                            className="w-full pl-14 pr-4 py-4 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-black text-slate-800 text-lg placeholder:text-slate-300"
+                                        />
+                                        {loginMobile.length === 10 && (
+                                            <CheckCircle2 size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500" />
+                                        )}
+                                    </div>
+                                    {loginError && <p className="text-[10px] font-black text-red-500 mt-2 px-1">{loginError}</p>}
+                                    
+                                    {/* Terms */}
+                                    <div className="flex items-start gap-3 w-full mt-6">
+                                        <input
+                                            type="checkbox"
+                                            id="terms-login"
+                                            checked={termsAccepted}
+                                            onChange={e => setTermsAccepted(e.target.checked)}
+                                            className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                                        />
+                                        <label htmlFor="terms-login" className="text-[11px] font-bold text-slate-400 leading-snug">
+                                            By continuing, I agree to the{' '}
+                                            <span className="text-blue-600 cursor-pointer hover:underline">Terms &amp; Conditions</span>{' '}and{' '}
+                                            <span className="text-blue-600 cursor-pointer hover:underline">Privacy Policy</span>
+                                        </label>
+                                    </div>
+
+                                    <button
+                                        onClick={handleMobileLogin}
+                                        disabled={loginMobile.length < 10 || !termsAccepted || loginLoading}
+                                        className="w-full py-4 mt-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-blue-500/25 active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        {loginLoading ? <Loader2 size={18} className="animate-spin" /> : 'Get OTP'}
+                                    </button>
                                 </div>
-                                {loginError && <p className="text-[10px] font-black text-red-500 mt-2 px-1">{loginError}</p>}
-                            </div>
+                            ) : (
+                                /* OTP Input (Step 2) */
+                                <div className="w-full mb-4">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Verification Code</label>
+                                        <button 
+                                            onClick={() => setIsOtpSent(false)} 
+                                            className="text-[10px] font-black text-blue-600 uppercase hover:underline"
+                                        >
+                                            Change Number
+                                        </button>
+                                    </div>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Enter 6-digit OTP"
+                                            maxLength={6}
+                                            autoFocus
+                                            value={loginOtp}
+                                            onChange={e => { setLoginOtp(e.target.value.replace(/\D/g, '')); setLoginError(''); }}
+                                            onKeyDown={e => e.key === 'Enter' && loginOtp.length === 6 && handleVerifyOtp()}
+                                            className="w-full px-4 py-4 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-600 transition-all font-black text-slate-800 text-xl text-center tracking-[0.5em] placeholder:text-slate-300 placeholder:tracking-normal"
+                                        />
+                                    </div>
+                                    {loginError && <p className="text-[10px] font-black text-red-500 mt-2 px-1 text-center">{loginError}</p>}
+                                    
+                                    <div className="text-center mt-4">
+                                        {otpTimer > 0 ? (
+                                            <p className="text-[10px] font-bold text-slate-400">Resend OTP in {otpTimer}s</p>
+                                        ) : (
+                                            <button 
+                                                onClick={handleMobileLogin} 
+                                                className="text-[10px] font-black text-blue-600 uppercase hover:underline"
+                                            >
+                                                Resend OTP
+                                            </button>
+                                        )}
+                                    </div>
 
-                            {/* Terms */}
-                            <div className="flex items-start gap-3 w-full mb-6">
-                                <input
-                                    type="checkbox"
-                                    id="terms-login"
-                                    checked={termsAccepted}
-                                    onChange={e => setTermsAccepted(e.target.checked)}
-                                    className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
-                                />
-                                <label htmlFor="terms-login" className="text-[11px] font-bold text-slate-400 leading-snug">
-                                    By continuing, I agree to the{' '}
-                                    <span className="text-blue-600 cursor-pointer hover:underline">Terms &amp; Conditions</span>{' '}and{' '}
-                                    <span className="text-blue-600 cursor-pointer hover:underline">Privacy Policy</span>
-                                </label>
-                            </div>
-
-                            {/* Continue button */}
-                            <button
-                                onClick={handleMobileLogin}
-                                disabled={loginMobile.length < 10 || !termsAccepted || loginLoading}
-                                className="w-full py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-blue-500/25 active:scale-95 flex items-center justify-center gap-2"
-                            >
-                                {loginLoading ? <Loader2 size={18} className="animate-spin" /> : 'Continue'}
-                            </button>
+                                    <button
+                                        onClick={handleVerifyOtp}
+                                        disabled={loginOtp.length < 6 || loginLoading}
+                                        className="w-full py-4 mt-6 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/25 active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        {loginLoading ? <Loader2 size={18} className="animate-spin" /> : 'Verify & Continue'}
+                                    </button>
+                                </div>
+                            )}
 
                             <p className="text-[10px] text-slate-400 font-bold mt-5 text-center">
-                                OTP verification coming soon · Currently mobile-only login
+                                {isOtpSent ? 'OTP sent to your WhatsApp' : 'Verify your number to proceed'}
                             </p>
                         </motion.div>
                     </div>
