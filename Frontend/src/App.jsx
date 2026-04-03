@@ -42,6 +42,20 @@ const PatientLayout = lazy(() => import("./Component/Patient/PatientLayout"));
 const DashboardContent = lazy(() => import("./Component/Patient/DashboardContent"));
 const FindDoctors = lazy(() => import("./Pages/FindDoctors"));
 const BookingCheckout = lazy(() => import("./Pages/BookingCheckout"));
+const Scheduling = lazy(() => import("./Pages/Features/Scheduling"));
+const Documentation = lazy(() => import("./Pages/Features/Documentation"));
+const PatientPortal = lazy(() => import("./Pages/Features/PatientPortal"));
+const HealthRecords = lazy(() => import("./Pages/Features/HealthRecords"));
+const Billing = lazy(() => import("./Pages/Features/Billing"));
+const Compliance = lazy(() => import("./Pages/Features/Compliance"));
+const TeleEmergency = lazy(() => import("./Pages/Features/TeleEmergency"));
+const Communications = lazy(() => import("./Pages/Features/Communications"));
+const Payments = lazy(() => import("./Pages/Features/Payments"));
+const Telehealth = lazy(() => import("./Pages/Features/Telehealth"));
+const ClinicalNotes = lazy(() => import("./Pages/Features/ClinicalNotes"));
+const FamilyPetCare = lazy(() => import("./Pages/Features/FamilyPetCare"));
+const PartnerProgram = lazy(() => import("./Pages/Features/PartnerProgram"));
+
 
 
 // SaaS Components
@@ -207,6 +221,22 @@ export default function App() {
             <Route path="/register-pharmacy" element={<PharmacyRegistration />} />
             <Route path="/order-online-medicine" element={<OrderOnline />} />
             <Route path="/patient/orders" element={<PatientOrders />} />
+
+            {/* Feature Marketing Pages */}
+            <Route path="/features/scheduling" element={<Scheduling />} />
+            <Route path="/features/documentation" element={<Documentation />} />
+            <Route path="/features/patient-portal" element={<PatientPortal />} />
+            <Route path="/features/health-records" element={<HealthRecords />} />
+            <Route path="/features/billing" element={<Billing />} />
+            <Route path="/features/compliance" element={<Compliance />} />
+            <Route path="/features/tele-emergency" element={<TeleEmergency />} />
+            <Route path="/features/communications" element={<Communications />} />
+            <Route path="/features/payments" element={<Payments />} />
+            <Route path="/features/telehealth" element={<Telehealth />} />
+            <Route path="/features/clinical-notes" element={<ClinicalNotes />} />
+            <Route path="/features/family-pet-care" element={<FamilyPetCare />} />
+            <Route path="/features/partner-program" element={<PartnerProgram />} />
+
 
 
 
