@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
 import { messageApi } from '../../services/api';
+import { ChatActionOptions, DoctorChatCard } from './components/ChatInteraction';
 
 const PatientChatView = () => {
   const { user } = useAuth();
@@ -101,9 +102,10 @@ const PatientChatView = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim()) return;
+  const handleSendMessage = async (e, forcedText = null) => {
+    if (e) e.preventDefault();
+    const messageText = forcedText || newMessage;
+    if (!messageText.trim()) return;
 
     try {
       const patientId = user?.patientProfileId || user?._id || user?.id;
@@ -115,7 +117,7 @@ const PatientChatView = () => {
         conversationId: conversation?._id,
         sender: 'patient',
         senderName: `${user.firstName || user.name || 'Patient'} ${user.lastName || ''}`,
-        text: newMessage
+        text: messageText
       };
       
       const res = await messageApi.sendMessage(msgData);
@@ -215,6 +217,23 @@ const PatientChatView = () => {
                     : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none shadow-sm'
                 }`}>
                   {msg.text}
+
+                  {/* Render Options if any */}
+                  {msg.messageType === 'options' && msg.metadata?.options && (
+                    <ChatActionOptions 
+                      options={msg.metadata.options} 
+                      onSelect={(val) => handleSendMessage(null, val)} 
+                    />
+                  )}
+
+                  {/* Render Doctor List if any */}
+                  {msg.messageType === 'doctor_list' && msg.metadata?.doctors && (
+                    <div className="flex flex-col gap-4 mt-2">
+                      {msg.metadata.doctors.map((doc, dIdx) => (
+                        <DoctorChatCard key={dIdx} doctor={doc} />
+                      ))}
+                    </div>
+                  )}
 
                   {/* Explain Button - ONLY for clinic messages */}
                   {msg.sender === 'clinic' && (

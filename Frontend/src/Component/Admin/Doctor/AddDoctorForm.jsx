@@ -333,7 +333,12 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
     return (
         <AnimatePresence>
             <div className="fixed inset-0 backdrop-blur-md bg-slate-900/40 z-50 flex items-center justify-center p-4">
-                <motion.div initial={{ opacity: 0, y: 20, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.98 }} className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-200 dark:border-slate-800">
+                <motion.div 
+                    initial={{ opacity: 0, y: 20, scale: 0.98 }} 
+                    animate={{ opacity: 1, y: 0, scale: 1 }} 
+                    exit={{ opacity: 0, y: 20, scale: 0.98 }} 
+                    className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800"
+                >
                     <div className="px-8 py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-900 dark:to-slate-900 flex justify-between items-center text-white">
                         <div>
                             <h1 className="text-xl font-black uppercase tracking-tight">{doctor ? 'Edit Doctor Profile' : 'Register New Doctor'}</h1>
@@ -342,7 +347,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                         <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center justify-center"><X size={20} /></button>
                     </div>
 
-                    <div className="flex h-[550px]">
+                    <div className="flex flex-1 min-h-0">
                         <div className="w-56 bg-slate-50 dark:bg-slate-800/30 border-r border-slate-100 dark:border-slate-800 p-4 space-y-1.5 overflow-y-auto">
                             {tabs.map((tab, idx) => {
                                 const isUnlocked = idx === 0 || completedSteps.includes(tabsOrder[idx - 1]);

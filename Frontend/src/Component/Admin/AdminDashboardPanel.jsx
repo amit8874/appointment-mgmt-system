@@ -152,7 +152,13 @@ const AdminDashboardPanel = ({
   }, []);
 
   const filteredRevenueByDoctor = React.useMemo(() => {
-    if (activePaymentFilter === "All") return revenueByDoctorData;
+    if (activePaymentFilter === "All") {
+      const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#EAB308', '#F97316', '#14B8A6', '#84CC16'];
+      return (revenueByDoctorData || []).map((item, index) => ({
+        ...item,
+        color: item.color || colors[index % colors.length]
+      }));
+    }
     
     // Recalculate revenue by doctor based on payment method
     const doctorRevenueMap = {};
@@ -347,8 +353,8 @@ const AdminDashboardPanel = ({
                     contentStyle={{ backgroundColor: 'white', border: 'none', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
                   />
                   <Legend iconType="circle" />
-                  <Line type="monotone" dataKey="appointments" stroke="#3B82F6" strokeWidth={4} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} name="Appointments" />
-                  <Line type="monotone" dataKey="patients" stroke="#10B981" strokeWidth={4} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} name="Unique Patients" />
+                  <Line type="monotone" dataKey="appointments" stroke="#3B82F6" strokeWidth={4} dot={{ r: 3, fill: '#3B82F6', strokeWidth: 0 }} activeDot={{ r: 6 }} name="Appointments" />
+                  <Line type="monotone" dataKey="patients" stroke="#10B981" strokeWidth={4} dot={{ r: 5, strokeWidth: 2, fill: 'none' }} activeDot={{ r: 6 }} name="Unique Patients" />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -387,7 +393,7 @@ const AdminDashboardPanel = ({
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value) => `₹${value.toLocaleString()}`} />
+                      <Tooltip formatter={(value) => `₹${(value || 0).toLocaleString()}`} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -399,7 +405,7 @@ const AdminDashboardPanel = ({
                           <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: doctor.color }}></div>
                           <span className="text-xs font-medium text-gray-600 dark:text-gray-300 truncate max-w-[100px]">{doctor.name}</span>
                         </div>
-                        <span className="text-xs font-bold text-gray-900 dark:text-gray-100">₹{doctor.value.toLocaleString()}</span>
+                        <span className="text-xs font-bold text-gray-900 dark:text-gray-100">₹{(doctor.value || 0).toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
@@ -432,7 +438,7 @@ const AdminDashboardPanel = ({
                   <XAxis dataKey="month" stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${(value/1000).toFixed(0)}k`} />
                   <Tooltip 
-                    formatter={(value) => [`₹${value.toLocaleString()}`, '']} 
+                    formatter={(value) => [`₹${(value || 0).toLocaleString()}`, '']} 
                     contentStyle={{ backgroundColor: 'white', border: 'none', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} 
                   />
                   <Legend iconType="rect" />

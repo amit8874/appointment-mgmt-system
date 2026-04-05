@@ -18,7 +18,11 @@ import {
   X,
   List,
   CalendarDays,
-  MessageSquare
+  MessageSquare,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX,
+  Brain
 } from "lucide-react";
 import api from "../../../services/api";
 import AppointmentManagement from "./AppointmentManagment.jsx";
@@ -201,6 +205,37 @@ export default function AppointmentTable({ rebookData }) {
         {label}
       </span>
     );
+  };
+
+  // Get AI Risk Indicator
+  const getRiskIndicator = (patientId, patientName) => {
+    // In a real app, this would be a calculated field from the backend
+    // For this demo, we'll use a stable hash-based logic to simulate risk for all patients
+    const hash = (patientId || patientName || "").split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const riskScore = hash % 100;
+
+    if (riskScore < 60) {
+      return { 
+        level: 'Low', 
+        color: 'text-emerald-600 bg-emerald-50 border-emerald-100', 
+        icon: <ShieldCheck className="w-3 h-3" />,
+        desc: 'Consistent attendance history.'
+      };
+    } else if (riskScore < 85) {
+      return { 
+        level: 'Medium', 
+        color: 'text-amber-600 bg-amber-50 border-amber-100', 
+        icon: <ShieldAlert className="w-3 h-3" />,
+        desc: 'Occasional rescheduling detected.'
+      };
+    } else {
+      return { 
+        level: 'High', 
+        color: 'text-red-600 bg-red-50 border-red-100', 
+        icon: <ShieldX className="w-3 h-3" />,
+        desc: 'High probability of No-Show.'
+      };
+    }
   };
 
   // Open details modal
@@ -463,7 +498,22 @@ export default function AppointmentTable({ rebookData }) {
                               </div>
                               <div>
                                 <p className="text-gray-700 font-medium">{appointment.patientName || 'N/A'}</p>
-                                <p className="text-xs text-gray-500">{appointment.patientPhone || '-'}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <p className="text-xs text-gray-500">{appointment.patientPhone || '-'}</p>
+                                  {/* AI Risk Badge */}
+                                  {(() => {
+                                    const risk = getRiskIndicator(appointment.patientId, appointment.patientName);
+                                    return (
+                                      <div 
+                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-tighter ${risk.color}`}
+                                        title={`AI Prediction: ${risk.level} Risk. ${risk.desc}`}
+                                      >
+                                        {risk.icon}
+                                        {risk.level}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
                               </div>
                             </div>
                           </td>

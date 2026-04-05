@@ -360,9 +360,12 @@ const Admin = () => {
               // Pagination Props
               patientsCurrentPage={patientsHook.currentPage}
               patientsTotalPages={patientsHook.totalPages}
+              patientsTotalItems={patientsHook.totalPatients}
               onPatientsPageChange={patientsHook.fetchPatients}
+              onPatientsRefresh={patientsHook.fetchPatients}
               doctorsCurrentPage={doctorsHook.currentPage}
               doctorsTotalPages={doctorsHook.totalPages}
+              doctorsTotalItems={doctorsHook.totalDoctors}
               onDoctorsPageChange={doctorsHook.fetchDoctors}
             />
           </main>

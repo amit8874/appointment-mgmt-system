@@ -1,4 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { 
+  Search, 
+  PlusCircle, 
+  User, 
+  CalendarPlus, 
+  Smartphone, 
+  X,
+  Eye,
+  Printer,
+  ChevronLeft
+} from 'lucide-react';
 import { billingApi, appointmentApi, centralDoctorApi, authApi } from '../../../services/api';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
 import { useAuth } from '../../../context/AuthContext';
@@ -401,32 +412,41 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
   const [billData, setBillData] = useState(getInitialBillState());
   const [selectedAppointmentId, setSelectedAppointmentId] = useState('');
   const [saving, setSaving] = useState(false);
+  
+  // Search state for appointments
+  const [apptSearchQuery, setApptSearchQuery] = useState('');
+  const [showApptDropdown, setShowApptDropdown] = useState(false);
 
-  // Handle appointment selection
-  const handleAppointmentChange = (e) => {
-    const apptId = e.target.value;
-    setSelectedAppointmentId(apptId);
+  // Filtered appointments for the search
+  const filteredAppts = useMemo(() => {
+    if (!apptSearchQuery.trim()) return appointments.slice(0, 5);
+    const query = apptSearchQuery.toLowerCase();
+    return appointments.filter(a => 
+      String(a.patientName || '').toLowerCase().includes(query) ||
+      String(a.patientId || '').toLowerCase().includes(query) ||
+      String(a.patientPhone || '').includes(query)
+    ).slice(0, 8);
+  }, [appointments, apptSearchQuery]);
+
+  // Handle manual selection from dropdown
+  const handleSelectAppointment = (appt) => {
+    setSelectedAppointmentId(appt._id || appt.id);
+    setApptSearchQuery(appt.patientName);
+    setShowApptDropdown(false);
+
+    // Find doctor to get their fee
+    const doctor = doctors.find(d => d._id === appt.doctorId || d.id === appt.doctorId);
     
-    if (apptId) {
-      const appt = appointments.find(a => a._id === apptId || a.id === apptId);
-      if (appt) {
-        // Find doctor to get their fee
-        const doctor = doctors.find(d => d._id === appt.doctorId || d.id === appt.doctorId);
-        
-        setBillData(prev => ({
-          ...prev,
-          patientName: String(appt.patientName || ''),
-          patientId: String(appt.patientId || appt.patient?._id || appt.patient || ''),
-          doctorName: String(appt.doctorName || ''),
-          doctorId: String(appt.doctorId || appt.doctor?._id || appt.doctor || ''),
-          appointmentId: String(appt._id || appt.id || ''),
-          appointmentDate: appt.date ? new Date(appt.date).toISOString().substring(0, 10) : prev.appointmentDate,
-          consultationFee: doctor?.consultantFee || doctor?.fee || 0
-        }));
-      }
-    } else {
-      setBillData(getInitialBillState());
-    }
+    setBillData(prev => ({
+      ...prev,
+      patientName: String(appt.patientName || ''),
+      patientId: String(appt.patientId || appt.patient?._id || appt.patient || ''),
+      doctorName: String(appt.doctorName || ''),
+      doctorId: String(appt.doctorId || appt.doctor?._id || appt.doctor || ''),
+      appointmentId: String(appt._id || appt.id || ''),
+      appointmentDate: appt.date ? new Date(appt.date).toISOString().substring(0, 10) : prev.appointmentDate,
+      consultationFee: doctor?.consultantFee || doctor?.fee || 0
+    }));
   };
 
   // Auto-calculation logic
@@ -559,20 +579,80 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
               Select Appointment
               <span className={`ml-3 text-sm font-medium text-${PRIMARY_COLOR}-600 uppercase tracking-widest text-[10px]`}> (Required for Dynamic Billing)</span>
             </h3>
-            <div className="mb-6">
-               <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1 mb-2 block">Choose Active Appointment</label>
-               <select 
-                value={selectedAppointmentId}
-                onChange={handleAppointmentChange}
-                className="w-full px-4 py-3 bg-white border border-sky-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all font-bold text-slate-700 shadow-inner"
-               >
-                 <option value="">-- Select an Appointment --</option>
-                 {appointments.map(appt => (
-                   <option key={appt._id || appt.id} value={appt._id || appt.id}>
-                     {appt.patientName} with {appt.doctorName} ({new Date(appt.date).toLocaleDateString()})
-                   </option>
-                 ))}
-               </select>
+            <div className="mb-6 relative">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1 mb-2 block">Search Appointment (Name, ID, or Phone)</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                    <SearchIcon className="h-5 w-5 text-sky-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={apptSearchQuery}
+                    onChange={(e) => {
+                      setApptSearchQuery(e.target.value);
+                      setShowApptDropdown(true);
+                    }}
+                    onFocus={() => setShowApptDropdown(true)}
+                    placeholder="Search by Patient Name, ID, or Number..."
+                    className="w-full pl-12 pr-4 py-4 bg-white border-2 border-sky-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 transition-all font-bold text-slate-700 shadow-sm placeholder:text-slate-300"
+                  />
+                  {apptSearchQuery && (
+                    <button 
+                      onClick={() => { setApptSearchQuery(''); setBillData(getInitialBillState()); }}
+                      className="absolute inset-y-0 right-4 flex items-center text-slate-300 hover:text-red-500 transition-colors"
+                    >
+                      <XIcon className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Search Results Dropdown */}
+                {showApptDropdown && filteredAppts.length > 0 && (
+                  <div className="absolute z-[100] w-full mt-2 bg-white rounded-2xl shadow-2xl border border-sky-100 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="max-h-64 overflow-y-auto">
+                      {filteredAppts.map(appt => (
+                        <div
+                          key={appt._id || appt.id}
+                          onClick={() => handleSelectAppointment(appt)}
+                          className="px-5 py-4 hover:bg-sky-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0 group"
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <h4 className="text-md font-bold text-slate-800 group-hover:text-sky-700 transition-colors">
+                              {appt.patientName}
+                            </h4>
+                            <span className="text-[10px] font-black bg-sky-100 text-sky-600 px-2 py-0.5 rounded-full uppercase">
+                              #{appt.patientId || 'NEW'}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
+                            <span className="flex items-center gap-1">
+                               <User className="h-3 w-3" /> Dr. {appt.doctorName}
+                            </span>
+                            <span className="flex items-center gap-1">
+                               <CalendarPlus className="h-3 w-3" /> {new Date(appt.date).toLocaleDateString()}
+                            </span>
+                            {appt.patientPhone && (
+                              <span className="flex items-center gap-1">
+                                 <SmartphoneIcon className="h-3 w-3" /> {appt.patientPhone}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-gray-50 px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center border-t border-gray-100">
+                      Showing Top Matches
+                    </div>
+                  </div>
+                )}
+                
+                {/* Backdrop to close dropdown */}
+                {showApptDropdown && (
+                  <div 
+                    className="fixed inset-0 z-[90] bg-transparent" 
+                    onClick={() => setShowApptDropdown(false)}
+                  />
+                )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-sky-100">

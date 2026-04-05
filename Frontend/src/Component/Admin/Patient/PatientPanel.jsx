@@ -1,5 +1,7 @@
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, MessageCircle } from "lucide-react";
-import { useEffect, useMemo, useState, useRef } from "react";
+import WhatsAppModal from "../../../components/common/WhatsAppModal";
+import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, MessageCircle, Download } from "lucide-react";
+import { exportPatientsToExcel } from "../../../utils/excelExport";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../../../services/api";
@@ -17,6 +19,8 @@ const PatientPanel = ({
   setRebookData,
   currentPage: serverCurrentPage,
   totalPages,
+  totalItems,
+  itemsPerPage,
   onPageChange
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -27,8 +31,15 @@ const PatientPanel = ({
   const [statusFilter, setStatusFilter] = useState("All");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
+  const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
+  const [selectedPatientForWhatsapp, setSelectedPatientForWhatsapp] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
+
+  const handleWhatsappClick = (patient) => {
+    setSelectedPatientForWhatsapp(patient);
+    setWhatsappModalOpen(true);
+  };
 
   // Filter patients
   const filteredPatients = useMemo(() => {
@@ -411,6 +422,14 @@ const PatientPanel = ({
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
             />
           </div>
+          <button
+            onClick={() => exportPatientsToExcel(patients)}
+            className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 font-bold text-sm"
+            title="Export to Excel"
+          >
+            <Download className="w-5 h-5 mr-2" />
+            Export Excel
+          </button>
         </div>
       </div>
 
@@ -514,7 +533,7 @@ const PatientPanel = ({
                     Phone
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Last Visit
+                    Appointment Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
                     Amount (₹)
@@ -568,15 +587,13 @@ const PatientPanel = ({
                     </td>
                     <td className="px-6 py-4 text-sm relative">
                       <div className="flex items-center gap-2" ref={menuRef}>
-                        <a 
-                          href={`https://wa.me/${(p.mobile || p.phone || p.contactNumber || p.contact || '').replace(/\D/g, '')}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
+                        <button 
+                          onClick={() => handleWhatsappClick(p)}
                           className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 dark:bg-green-900/20 dark:hover:bg-green-900/30 dark:text-green-400 transition-colors"
                           title="WhatsApp Patient"
                         >
                           <MessageCircle className="h-4 w-4" />
-                        </a>
+                        </button>
                         <button
                           onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
                           className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
@@ -654,6 +671,8 @@ const PatientPanel = ({
             <Pagination 
               currentPage={serverCurrentPage}
               totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
               onPageChange={onPageChange}
             />
           </>
@@ -746,6 +765,12 @@ const PatientPanel = ({
         onClose={() => setIsPaymentModalOpen(false)}
         onConfirm={confirmMarkAsPaid}
         patientName={selectedPatientForPayment?.name}
+      />
+      {/* WhatsApp Modal */}
+      <WhatsAppModal
+        isOpen={whatsappModalOpen}
+        onClose={() => setWhatsappModalOpen(false)}
+        patient={selectedPatientForWhatsapp}
       />
     </motion.div>
   );

@@ -2,6 +2,20 @@ import UsageAnalytics from "../models/UsageAnalytics.js";
 import Organization from "../models/Organization.js";
 import User from "../models/User.js";
 import mongoose from "mongoose";
+import Appointment from "../models/Appointment.js";
+import Billing from "../models/Billing.js";
+import PendingAppointment from "../models/PendingAppointment.js";
+import ConfirmedAppointment from "../models/ConfirmedAppointment.js";
+import CancelledAppointment from "../models/CancelledAppointment.js";
+import Doctor from "../models/Doctor.js";
+import Groq from "groq-sdk";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
 export const trackHeartbeat = async (req, res) => {
   const { path, organizationId, lastSeen, deviceType } = req.body;
@@ -170,5 +184,240 @@ export const getSuperAdminUsageStats = async (req, res) => {
   } catch (error) {
     console.error("SuperAdmin Analytics Error:", error);
     res.status(500).json({ message: "Failed to fetch analytics." });
+  }
+};
+
+// Get Analytics Charts Data
+export const getCharts = async (req, res) => {
+  try {
+    const organizationId = req.tenantId;
+
+    // 1. Appointment Trends (Last 7 Days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    // Aggregating from main Appointment collection (which should have all)
+    const appointmentTrends = await Appointment.aggregate([
+      { 
+        $match: { 
+          organizationId: new mongoose.Types.ObjectId(organizationId),
+          createdAt: { $gte: sevenDaysAgo }
+        } 
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          appointments: { $sum: 1 },
+          uniquePatients: { $addToSet: "$patientId" }
+        }
+      },
+      {
+        $project: {
+          day: "$_id",
+          appointments: 1,
+          patients: { $size: "$uniquePatients" },
+          _id: 0
+        }
+      },
+      { $sort: { day: 1 } }
+    ]);
+
+    // 2. Revenue by Doctor
+    const revenueByDoctor = await Billing.aggregate([
+      { 
+        $match: { 
+          organizationId: new mongoose.Types.ObjectId(organizationId),
+          status: 'Paid'
+        } 
+      },
+      {
+        $group: {
+          _id: "$doctorName",
+          revenue: { $sum: "$amount" }
+        }
+      },
+      { $sort: { revenue: -1 } },
+      { $project: { name: "$_id", value: "$revenue", _id: 0 } }
+    ]);
+
+    // 3. Income vs Expense (Placeholder for expense if not tracked)
+    // For now, let's aggregate monthly income
+    const currentYear = new Date().getFullYear();
+    const incomeExpense = await Billing.aggregate([
+      { 
+        $match: { 
+          organizationId: new mongoose.Types.ObjectId(organizationId),
+          status: 'Paid',
+          createdAt: { $gte: new Date(`${currentYear}-01-01`) }
+        } 
+      },
+      {
+        $group: {
+          _id: { $month: "$createdAt" },
+          income: { $sum: "$amount" }
+        }
+      },
+      { $sort: { _id: 1 } },
+      {
+        $project: {
+          month: {
+            $arrayElemAt: [
+              ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+              "$_id"
+            ]
+          },
+          income: 1,
+          expenses: { $literal: 0 } // Must be plural "expenses" to match frontend
+        }
+      }
+    ]);
+
+    res.json({
+      appointmentTrends,
+      revenueByDoctor,
+      incomeExpense
+    });
+  } catch (error) {
+    console.error("Error fetching charts data:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get Analytics Dashboard Data
+export const getDashboard = async (req, res) => {
+  try {
+    const organizationId = req.tenantId;
+
+    // 1. Recent Appointments (Last 10)
+    const recentAppointments = await Appointment.find({ organizationId })
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    // 2. Quick Stats
+    const totalAppointments = await Appointment.countDocuments({ organizationId });
+    const totalRevenue = await Billing.aggregate([
+      { $match: { organizationId: new mongoose.Types.ObjectId(organizationId), status: 'Paid' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+
+    res.json({
+      recentAppointments,
+      stats: {
+        totalAppointments,
+        totalRevenue: totalRevenue[0]?.total || 0
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// GET Predictive AI Insights
+export const getPredictiveInsights = async (req, res) => {
+  try {
+    const organizationId = req.tenantId;
+    const { timeRange = 90 } = req.query; // Default to 90 days
+
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(timeRange));
+
+    // 1. Aggregate Appointment Performance (No-Shows vs Success)
+    const appointmentStats = await Appointment.aggregate([
+      { 
+        $match: { 
+          organizationId: new mongoose.Types.ObjectId(organizationId),
+          createdAt: { $gte: startDate }
+        } 
+      },
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // 2. Weekly Peak Times (Day of Week distribution)
+    const peakDays = await Appointment.aggregate([
+      { 
+        $match: { 
+          organizationId: new mongoose.Types.ObjectId(organizationId),
+          createdAt: { $gte: startDate }
+        } 
+      },
+      {
+        $group: {
+          _id: { $dayOfWeek: "$createdAt" },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // 3. Revenue forecasting data
+    const revenueStats = await Billing.aggregate([
+      { 
+        $match: { 
+          organizationId: new mongoose.Types.ObjectId(organizationId),
+          status: 'Paid',
+          createdAt: { $gte: startDate }
+        } 
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+          total: { $sum: "$amount" }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // 4. Create AI Context
+    const context = {
+      appointmentStats,
+      peakDays: peakDays.map(d => ({ day: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d._id - 1], count: d.count })),
+      revenueStats,
+      totalPatients: await Appointment.distinct("patientId", { organizationId }).then(p => p.length)
+    };
+
+    // 5. Query Groq for Analysis
+    const prompt = `You are "Slotify Intelligence", a high-end medical business analyst. 
+Analyze the following clinic data from the last ${timeRange} days and provide clear, actionable predictions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 DATA SUMMARY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- APPOINTMENT STATUSES: ${JSON.stringify(context.appointmentStats)}
+- WEEKLY PEAK DISTRIBUTION: ${JSON.stringify(context.peakDays)}
+- MONTHLY REVENUE TRENDS: ${JSON.stringify(context.revenueStats)}
+- UNIQUE PATIENTS: ${context.totalPatients}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 REQUIREMENTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Provide exactly 5 bullet points with clear headlines:
+1. **No-Show Prediction**: Estimate risk of missed slots next month.
+2. **Staffing Efficiency**: Suggest which days need more/less staff.
+3. **Revenue Forecast**: Estimate growth or dip for next month.
+4. **Patient Retention**: Comment on the unique patient growth.
+5. **Growth Hack**: One unique suggestion to improve clinic performance.
+
+Keep it professional, data-driven, and short.`;
+
+    const aiResponse = await groq.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.3,
+    });
+
+    res.json({
+      insights: aiResponse.choices[0].message.content,
+      rawStats: context
+    });
+
+  } catch (error) {
+    console.error("Predictive Error:", error);
+    res.status(500).json({ message: "Failed to generate AI insights." });
   }
 };

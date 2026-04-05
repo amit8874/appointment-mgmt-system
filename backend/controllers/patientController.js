@@ -39,16 +39,16 @@ export const getPatientByPatientId = async (req, res) => {
   }
 };
 
-// Get patient by mobile number
+// Get patient by mobile number (Modified to return all matches)
 export const getPatientByMobile = async (req, res) => {
   try {
-    const patient = await Patient.findOne({ organizationId: req.tenantId, mobile: req.params.mobile });
+    const patients = await Patient.find({ organizationId: req.tenantId, mobile: req.params.mobile });
 
-    if (!patient) {
+    if (!patients || patients.length === 0) {
       return res.status(404).json({ message: "Patient not found" });
     }
 
-    res.json(patient);
+    res.json(patients);
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
@@ -188,17 +188,7 @@ export const createPatient = async (req, res) => {
 
     // lastName and contactNumber are now optional
 
-    // Check if patient already exists with this contact number (if provided)
-    if (contactNumber && contactNumber.trim()) {
-      const existingPatient = await Patient.findOne({
-        organizationId: req.tenantId,
-        mobile: contactNumber.trim()
-      });
-
-      if (existingPatient) {
-        return res.status(400).json({ message: 'Patient already exists with this contact number' });
-      }
-    }
+    // Duplicate mobile check relaxed as frontend handles user choice (Family shared numbers)
 
     // Generate unique Patient ID
     const patientId = await generatePatientId(req.tenantId);

@@ -15,6 +15,7 @@ import DoctorProfileModal from './DoctorProfileModal.jsx';
 import AdminDoctorSchedule from './Doctor/AdminDoctorSchedule.jsx';
 import PatientPanel from './Patient/PatientPanel.jsx';
 import MessagesView from './Messaging/MessagesView.jsx';
+import IntelligenceHub from './IntelligenceHub.jsx';
 
 const MainContent = ({
   activeTab,
@@ -60,9 +61,12 @@ const MainContent = ({
   patientsCurrentPage,
   patientsTotalPages,
   onPatientsPageChange,
+  onPatientsRefresh,
+  patientsTotalItems,
   doctorsCurrentPage,
   doctorsTotalPages,
   onDoctorsPageChange,
+  doctorsTotalItems,
   recentAppointments = []
 }) => {
   const content = useMemo(() => {
@@ -81,7 +85,10 @@ const MainContent = ({
           <div className="p-6">
             <HorizontalAppointmentForm 
               doctors={doctors} 
-              onSuccess={() => setActiveTab('Appointment Mgmt')} 
+              onSuccess={() => {
+                setActiveTab('Appointment Mgmt');
+                if (onPatientsRefresh) onPatientsRefresh();
+              }} 
               openDoctorForm={openDoctorForm} 
               initialData={rebookData}
             />
@@ -119,6 +126,8 @@ const MainContent = ({
             setRebookData={setRebookData}
             currentPage={patientsCurrentPage}
             totalPages={patientsTotalPages}
+            totalItems={patientsTotalItems}
+            itemsPerPage={15}
             onPageChange={onPatientsPageChange}
           />
         );
@@ -137,6 +146,8 @@ const MainContent = ({
             refreshDoctors={refreshDoctors}
             currentPage={doctorsCurrentPage}
             totalPages={doctorsTotalPages}
+            totalItems={doctorsTotalItems}
+            itemsPerPage={15}
             onPageChange={onDoctorsPageChange}
           />
         );
@@ -174,6 +185,8 @@ const MainContent = ({
         return <BillingDashboard />;
       case 'Reports & Analytics':
         return <ReportsPanel />;
+      case 'Slotify Intelligence':
+        return <IntelligenceHub />;
       case 'User Management':
         return <UserManagementPanel />;
       case 'Messages':

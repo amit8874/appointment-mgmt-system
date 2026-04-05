@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import Billing from '../models/Billing.js';
@@ -111,7 +112,7 @@ export const getPatientSummary = async (req, res) => {
 
 export const bookPatientAppointment = async (req, res) => {
   try {
-    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, amount, paymentStatus, patientDetails } = req.body;
+    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, patientDetails } = req.body;
 
     if (!organizationId) return res.status(400).json({ message: 'Organization is required' });
     if (!doctorId) return res.status(400).json({ message: 'Doctor is required' });
@@ -136,15 +137,25 @@ export const bookPatientAppointment = async (req, res) => {
     // 1. First try to find by patientId OR MongoDB _id
     if (patientId) {
       existingPatient = await Patient.findOne({ organizationId, patientId: patientId });
-      if (!existingPatient && patientId.match(/^[0-9a-fA-F]{24}$/)) {
+      if (!existingPatient && mongoose.Types.ObjectId.isValid(patientId)) {
         existingPatient = await Patient.findOne({ organizationId, _id: patientId });
       }
     }
     
-    // 2. Fallback to phone search if still not found
+    /* 
+    // Commented out automatic phone-only fallback to support multiple patients per phone.
+    // The frontend should now explicitly provide a patientId if they want to use an existing record.
     if (!existingPatient && patientDetails.phone) {
       existingPatient = await Patient.findOne({ organizationId, mobile: patientDetails.phone });
+      if (!existingPatient) {
+        existingPatient = await Patient.findOne({ mobile: patientDetails.phone });
+        if (existingPatient && !existingPatient.organizationId) {
+          existingPatient.organizationId = organizationId;
+          await existingPatient.save();
+        }
+      }
     }
+    */
 
     if (!existingPatient) {
       // Generate internal Patient ID
@@ -165,13 +176,27 @@ export const bookPatientAppointment = async (req, res) => {
         gender: patientDetails.gender ? (patientDetails.gender.charAt(0).toUpperCase() + patientDetails.gender.slice(1).toLowerCase()) : undefined,
       });
 
-      await existingPatient.save();
+      try {
+        await existingPatient.save();
+      } catch (saveError) {
+        // Handle duplicate key error if it happens despite our preceding check
+        if (saveError.code === 11000) {
+          existingPatient = await Patient.findOne({ organizationId, mobile: patientDetails.phone });
+          if (!existingPatient) throw saveError;
+        } else {
+          throw saveError;
+        }
+      }
     } else {
       if (!existingPatient.organizationId) {
         existingPatient.organizationId = organizationId;
-        await existingPatient.save();
       }
     }
+    
+    // Always update the Patient's assigned doctor to the latest booked doctor
+    existingPatient.assignedDoctor = doctorName || '';
+    existingPatient.assignedDoctorId = doctorId || '';
+    await existingPatient.save();
     
     const patientIdToUse = existingPatient.patientId || existingPatient._id.toString();
     const patientName = `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient';
@@ -189,6 +214,7 @@ export const bookPatientAppointment = async (req, res) => {
       time,
       reason: reason || '',
       symptoms: symptoms || '',
+      notes: notes || '',
       patientName,
       patientPhone: patientDetails.phone || '',
       patientEmail: patientDetails.email || '',
@@ -424,10 +450,15 @@ export const bookAppointment = async (req, res) => {
     }
 
     let patientIdToUse = patientId;
-    let existingPatient = await Patient.findOne({ 
-      organizationId: req.tenantId, 
-      mobile: patientDetails.phone
-    });
+    let existingPatient = null;
+
+    // First try by ID
+    if (patientId) {
+      existingPatient = await Patient.findOne({ organizationId: req.tenantId, patientId: patientId });
+      if (!existingPatient && mongoose.Types.ObjectId.isValid(patientId)) {
+        existingPatient = await Patient.findOne({ organizationId: req.tenantId, _id: patientId });
+      }
+    }
 
     if (!existingPatient) {
       // Generate internal Patient ID
@@ -436,9 +467,10 @@ export const bookAppointment = async (req, res) => {
       existingPatient = new Patient({
         organizationId: req.tenantId,
         patientId: newPatientId,
+        designation: patientDetails.designation || '',
         firstName: patientDetails.firstName || '',
         lastName: patientDetails.lastName || '',
-        fullName: `${patientDetails.firstName || ''} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient',
+        fullName: `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName || ''} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient',
         mobile: patientDetails.phone,
         email: patientDetails.email,
         address: patientDetails.address,
@@ -455,9 +487,10 @@ export const bookAppointment = async (req, res) => {
       if (patientDetails.firstName) updateData.firstName = patientDetails.firstName;
       if (patientDetails.lastName) updateData.lastName = patientDetails.lastName;
       if (patientDetails.firstName || patientDetails.lastName) {
-        updateData.fullName = `${patientDetails.firstName || ''} ${patientDetails.lastName || ''}`.trim();
+        updateData.fullName = `${patientDetails.designation || existingPatient.designation || ''} ${patientDetails.firstName || existingPatient.firstName || ''} ${patientDetails.lastName || existingPatient.lastName || ''}`.trim();
         updateData.firstName = patientDetails.firstName || existingPatient.firstName;
         updateData.lastName = patientDetails.lastName || existingPatient.lastName;
+        if (patientDetails.designation) updateData.designation = patientDetails.designation;
       }
       if (patientDetails.email) updateData.email = patientDetails.email;
       if (patientDetails.address) updateData.address = patientDetails.address;
@@ -933,6 +966,14 @@ export const bookPublicAppointment = async (req, res) => {
     // 3. Find or Create Patient based on mobile number and organization
     let patient = await Patient.findOne({ mobile: patientPhone, organizationId });
 
+    if (!patient) {
+      // Try globally because of the unique mobile index in the DB
+      patient = await Patient.findOne({ mobile: patientPhone });
+      if (patient && !patient.organizationId) {
+        patient.organizationId = organizationId;
+        await patient.save();
+      }
+    }
 
     if (!patient) {
       // Generate internal Patient ID
@@ -953,7 +994,17 @@ export const bookPublicAppointment = async (req, res) => {
         email: patientEmail,
         status: 'active'
       });
-      await patient.save();
+      
+      try {
+        await patient.save();
+      } catch (saveError) {
+        if (saveError.code === 11000) {
+          patient = await Patient.findOne({ mobile: patientPhone });
+          if (!patient) throw saveError;
+        } else {
+          throw saveError;
+        }
+      }
     }
 
 

@@ -17,7 +17,6 @@ const findSimilarDoctors = (inputName, doctors) => {
   return doctors
     .map(doc => {
       const docName = doc.name.toLowerCase().replace(/dr\.?\s+/g, '').trim();
-      // Calculate token overlap
       const inputWords = cleanInput.split(/\s+/);
       const docWords = docName.split(/\s+/);
       let matchCount = 0;
@@ -29,10 +28,50 @@ const findSimilarDoctors = (inputName, doctors) => {
       const score = matchCount / Math.max(inputWords.length, 1);
       return { doc, score };
     })
-    .filter(res => res.score > 0.3) // Threshold for "similar"
+    .filter(res => res.score > 0.3)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
     .map(res => res.doc.name);
+};
+
+// GET all unique cities where doctors are located
+export const getClinicCities = async (req, res) => {
+  try {
+    const doctors = await Doctor.find({ status: 'Active' });
+    const cities = new Set();
+    
+    doctors.forEach(doc => {
+      if (doc.addressInfo?.city) cities.add(doc.addressInfo.city);
+      if (doc.serviceLocation?.address?.city) cities.add(doc.serviceLocation.address.city);
+    });
+    
+    res.json({ cities: Array.from(cities).sort() });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching cities" });
+  }
+};
+
+// Search doctors by city/specialty
+export const searchDoctorsForChat = async (req, res) => {
+  const { city, specialty, name } = req.query;
+  try {
+    let query = { status: 'Active' };
+    
+    if (city) {
+      query.$or = [
+        { "addressInfo.city": new RegExp(city, 'i') },
+        { "serviceLocation.address.city": new RegExp(city, 'i') }
+      ];
+    }
+    
+    if (specialty) query.specialization = new RegExp(specialty, 'i');
+    if (name) query.name = new RegExp(name, 'i');
+
+    const doctors = await Doctor.find(query).limit(5);
+    res.json({ doctors });
+  } catch (err) {
+    res.status(500).json({ message: "Error searching doctors" });
+  }
 };
 
 export const chatWithMaya = async (req, res) => {
@@ -45,144 +84,107 @@ export const chatWithMaya = async (req, res) => {
   try {
     let contextInfo = "";
     let doctorList = [];
+    let responseMetadata = null;
+    let responseType = 'text';
+
+    // 1. Process Context
     if (organizationId) {
       const [org, doctors] = await Promise.all([
         Organization.findById(organizationId).select('name address'),
-        Doctor.find({ organizationId, status: 'Active' }).select('name specialization doctorId fee department workingHours availability')
+        Doctor.find({ organizationId, status: 'Active' }).select('name specialization doctorId fee workingHours availability addressInfo serviceLocation photo experience languages')
       ]);
-
-      if (org) {
-        contextInfo += `\nCURRENT CLINIC: ${org.name}`;
-        if (org.address) contextInfo += `\nCLINIC ADDRESS: ${org.address}`;
-      }
-      
+      if (org) contextInfo += `\nCURRENT CLINIC: ${org.name}`;
       doctorList = doctors;
-      if (doctors && doctors.length > 0) {
-        contextInfo += `\nAVAILABLE DOCTORS & THEIR SCHEDULES:`;
-        doctors.forEach(d => {
-          const avail = Object.entries(d.availability || {})
-            .filter(([day, isOpen]) => isOpen)
-            .map(([day]) => day.charAt(0).toUpperCase() + day.slice(1))
-            .join(', ') || 'Mon-Fri';
-          
-          contextInfo += `\n- Dr. ${d.name} [${d.specialization || 'Consultant'}] Timing: ${d.workingHours?.start || '09:00'}-${d.workingHours?.end || '17:00'} (Days: ${avail}) Fee: Rs. ${d.fee || 500} [ID: ${d.doctorId || d._id}]`;
-        });
+    } else {
+      // Landing page: Fetch all active doctors globally
+      doctorList = await Doctor.find({ status: 'Active' }).select('name specialization doctorId fee workingHours availability addressInfo serviceLocation photo experience languages');
+    }
+
+    // 2. Intent Detection
+    const isBookingIntent = /book|appointment|schedule|doctor|visit/i.test(message);
+    
+    // Improved City Detection: Check for "in [City]" or just a single word city name 
+    // if the conversation history suggests we were waiting for a city.
+    let cityInMessage = null;
+    const cityMatch = message.match(/(?:in|at|for)\s+([a-zA-Z\s]+)/i);
+    if (cityMatch) {
+      cityInMessage = cityMatch[1].trim();
+    } else {
+      // Check if the user just typed a single word that matches one of our cities
+      const lastBotMessage = history?.[history.length - 1]?.parts?.[0]?.text || "";
+      const isWaitingForCity = /which city|city are you in/i.test(lastBotMessage);
+      
+      if (isWaitingForCity || isBookingIntent) {
+        const potentialCity = message.trim();
+        const availableCities = Array.from(new Set(doctorList.map(d => 
+          d.addressInfo?.city || d.serviceLocation?.address?.city
+        ).filter(Boolean)));
+        
+        const cityFound = availableCities.find(c => c.toLowerCase() === potentialCity.toLowerCase());
+        if (cityFound) cityInMessage = cityFound;
       }
     }
 
-    // Smart Recovery: Detect doctor mentions and find suggestions
-    let recoveryHint = "";
-    const drMentionMatch = message.match(/(?:dr\.?\s+|doctor\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i);
-    if (drMentionMatch) {
-      const mentionedName = drMentionMatch[1];
-      const exactMatch = doctorList.find(d => d.name.toLowerCase().includes(mentionedName.toLowerCase()));
-      
-      if (!exactMatch) {
-        const suggestions = findSimilarDoctors(mentionedName, doctorList);
-        if (suggestions.length > 0) {
-          recoveryHint = `\n[RECOVERY_HINT: User mentioned "Dr. ${mentionedName}" but they are NOT in our database. SUGGEST these similar doctors instead: ${suggestions.join(', ')}. Ask "Did you mean...?" and inform them that they can book via the web portal branch.]`;
-        } else {
-          recoveryHint = `\n[RECOVERY_HINT: User mentioned "Dr. ${mentionedName}" but no similar doctors were found. Inform them and show the FULL doctor list available for the clinic.]`;
+    if (isBookingIntent || cityInMessage) {
+      const uniqueCities = Array.from(new Set(doctorList.map(d => 
+        d.addressInfo?.city || d.serviceLocation?.address?.city
+      ).filter(Boolean)));
+
+      // If user wants to book but NO city is detected yet, suggest cities
+      if (!cityInMessage && message.length < 50) {
+        if (uniqueCities.length > 0) {
+          responseType = 'options';
+          responseMetadata = {
+            options: uniqueCities.map(city => ({ label: city, value: city })),
+            title: "Which city would you like to book the appointment in?"
+          };
+          return res.json({ 
+            text: "Great! I'll help you book a doctor appointment. Which city are you looking for?", 
+            messageType: responseType,
+            metadata: responseMetadata
+          });
+        }
+      } else if (cityInMessage) {
+        // If city is specified/detected, find ALL doctors in that city
+        const matchingDoctors = doctorList.filter(d => {
+          const docCity = (d.addressInfo?.city || d.serviceLocation?.address?.city || "").toLowerCase();
+          const targetCity = cityInMessage.toLowerCase();
+          return docCity.includes(targetCity) || targetCity.includes(docCity);
+        });
+
+        if (matchingDoctors.length > 0) {
+          responseType = 'doctor_list';
+          responseMetadata = {
+            doctors: matchingDoctors.map(d => ({
+              id: d._id,
+              name: d.name,
+              specialization: d.specialization,
+              hospital: d.serviceLocation?.practiceName || "Slotify Clinic",
+              city: d.addressInfo?.city || d.serviceLocation?.address?.city,
+              photo: d.photo,
+              experience: d.experience,
+              languages: d.languages
+            }))
+          };
+          return res.json({ 
+            text: `I found ${matchingDoctors.length} doctors in ${cityInMessage}. Here are the best matches:`, 
+            messageType: responseType,
+            metadata: responseMetadata
+          });
         }
       }
     }
 
-    let systemPrompt = "";
-
-    if (role === 'pharmacy') {
-        systemPrompt = `You are Maya, the Expert Pharmacy Guide for Slotify.
-Your purpose is to assist Pharmacy Staff in managing their dashboard, inventory, and orders with high efficiency.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📦 INVENTORY MANAGEMENT:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- **Where:** "Inventory" tab in sidebar.
-- **Add Product:** Use the "+ Add Product" button. You can add a single product or perform a **Bulk Upload** using an Excel/CSV file.
-- **Stock Sync:** Real-time stock tracking with low-stock alerts (highlighted in orange/red).
-- **Quick Dispense:** Use the "Arrow Down" icon on any product to quickly register a sale and deduct stock.
-- **History:** Use the "History" icon to view an audit trail of all stock movements for that item.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛒 ORDER MANAGEMENT:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- **Where:** "Orders" tab in sidebar.
-- **Types:** Standard Orders (Direct purchases) and Prescription Orders (Uploaded by patients).
-- **Processing:** Once a prescription is uploaded, you prepare a quote/broadcast. Once "Completed", it is automatically marked as **PAID**.
-- **Compact View:** We use a professional table layout to maximize data density.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📡 BROADCAST (Bidding System):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- **Where:** "Broadcast" tab in sidebar.
-- **What:** Patients upload prescriptions which are "broadcasted" to nearby pharmacies.
-- **How to Use:** View active broadcasts, enter your pricing/quotes, and "Win" the order to process it.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📈 ANALYSIS (Dashboard):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- **Where:** "Analysis" tab in sidebar.
-- **Insights:** Provides 30-day revenue trends, order status distribution, top-selling medications, and inventory health summary.
-- **Importance:** Use this to plan restocking and identify high-performing products.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👤 PROFILE & SETTINGS:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- **Where:** "Settings" tab in sidebar.
-- **Update:** You can change pharmacy name, contact details, address, and profile pictures here.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛡️ GUIDELINES:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Be concise, professional, and authoritative.
-- IF you have any doubt about an answer or can't find specific info, SAY: "For more details or advanced technical help, please contact Slotify Support at **+91 9999999999**."
-- NEVER mention medical advice or doctor bookings unless explicitly asked in the context of pharmacy integration.
-`;
-    } else {
-        systemPrompt = `You are Maya, the expert AI Guide and Software Assistant for Slotify.
-Your goal is to guide users through the Slotify platform, explain its features, registration process, and plans.
+    // Default AI Response
+    let systemPrompt = `You are Maya, the expert AI Guide for Slotify.
 ${contextInfo}
-${recoveryHint}
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚀 ABOUT SLOTIFY:
+🛡️ APPOINTMENT FLOW:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Slotify is a premium AI-powered Clinic Management System that automates scheduling, patient management, analytics, and more.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛠️ CORE FEATURES:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Intelligent Scheduling: Automated appointment slots (booked manually via site).
-2. Doctor & Staff Management: Handle multiple doctors and receptionists with ease.
-3. Patient Records: Digital history and management.
-4. Pharmacy Management: Advanced inventory and prescription tracking.
-5. Analytics: Deep insights into clinic performance.
-6. Custom Branding: Professional look tailored to each clinic.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📄 REGISTRATION & PLANS:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- **How to Register:** Go to our landing page and select "Register Organization".
-- **Free Trial:** 14-day free trial on the "Free" plan.
-- **Plans:** 
-  - Standard/Free: Basic features for small clinics.
-  - Pro: Includes advanced analytics and higher limits.
-  - Enterprise: Unlimited doctors, patients, and custom branding.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛡️ APPOINTMENT GUIDANCE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- **BOOKING:** You CANNOT book appointments yourself. Instead, guide the user to the "Book Appointment" button or page on the clinic's portal.
-- **DOCTOR INFO:** Use the "AVAILABLE DOCTORS" list to help users choose the right doctor by telling them timings, fees, and specialties.
-- **RESCHEDULE/CANCEL:** Direct users to their dashboard or contact the clinic's receptionist.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 GUIDELINES:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Be professional, helpful, and concise.
-- NEVER ask for Name, Age, Mobile, or Gender for booking purposes.
-- IF someone wants to book, summarize the doctor's details and say: "Please use the 'Book Appointment' button on our page to continue with your booking. I'll be here if you have more questions!"
+- If a user asks to "book an appointment", ALWAYS ask for their CITY if they haven't provided it.
+- Once you know the city, I will display the doctors automatically.
+- Guide them to select a doctor and then pick a slot.
 `;
-    }
 
     const apiMessages = [
       { role: "system", content: systemPrompt },
@@ -201,7 +203,8 @@ Slotify is a premium AI-powered Clinic Management System that automates scheduli
     });
 
     const text = response.choices[0].message.content;
-    res.json({ text });
+    res.json({ text, messageType: 'text' });
+
   } catch (error) {
     console.error("Chatbot Error:", error);
     res.status(500).json({ message: "Maya is momentarily unavailable." });

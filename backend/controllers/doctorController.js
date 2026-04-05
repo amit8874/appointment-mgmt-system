@@ -235,30 +235,36 @@ export const getDoctorSlots = async (req, res) => {
       return res.json({ available: false, slots: [], message: 'Doctor is not available' });
     }
 
-    // Parse date and get day of week in UTC to avoid timezone shifts
-    const appointmentDate = new Date(date);
-    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayOfWeek = days[appointmentDate.getUTCDay()];
+    // Check for availability overrides for this specific date
+    const override = doctor.availabilityOverrides?.find(o => o.date === date);
+    
+    let isAvailable = false;
+    let workingHours = [];
 
-    // Check availability for the day
-    const dayAvailability = doctor.availability?.[dayOfWeek];
-    if (!dayAvailability) {
+    if (override) {
+      isAvailable = override.isAvailable;
+      workingHours = override.workingHours;
+    } else {
+      // Parse date and get day of week in UTC to avoid timezone shifts
+      const appointmentDate = new Date(date);
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const dayOfWeek = days[appointmentDate.getUTCDay()];
+      
+      isAvailable = doctor.availability?.[dayOfWeek] || false;
+      workingHours = doctor.workingHours && doctor.workingHours.length > 0 
+        ? doctor.workingHours 
+        : [{ start: '09:00', end: '17:00' }];
+    }
+
+    // Check availability
+    if (!isAvailable) {
       return res.json({ 
         available: false, 
         slots: [], 
-        message: `Doctor is not available on ${dayOfWeek}`,
-        dayOfWeek,
-        availability: doctor.availability 
+        message: override ? 'Doctor is marked as unavailable for this date' : 'Doctor is not available on this day of the week',
+        isOverride: !!override
       });
     }
-
-    // Get working hours - use defaults if not set
-    const workingHours = doctor.workingHours && doctor.workingHours.length > 0 
-      ? doctor.workingHours 
-      : [{ start: '09:00', end: '17:00' }];
-
-    const startTime = workingHours[0].start;
-    const endTime = workingHours[0].end;
 
     // Generate possible time slots
     const possibleSlotsStr = generateTimeSlots(workingHours);
@@ -334,6 +340,7 @@ export const getDoctorSlots = async (req, res) => {
     }).filter(Boolean);
 
     // Map possible slots to object format with isBooked and isPast flags
+    const appointmentDate = new Date(date);
     const today = new Date();
     const isToday = appointmentDate.toDateString() === today.toDateString();
     const currentHours = today.getHours();
@@ -386,7 +393,7 @@ export const getDoctorSlots = async (req, res) => {
       categorizedSlots,
       totalSlots: allSlots.length,
       bookedSlotsCount: allSlots.filter(s => s.isBooked).length,
-      workingHours: { start: startTime, end: endTime }
+      workingHours: workingHours
     });
   } catch (error) {
     console.error('Error fetching slots:', error);
@@ -416,13 +423,24 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
       const dateStr = date.toISOString().split('T')[0];
       const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
       
-      const isAvailable = doctor.availability?.[dayOfWeek] || false;
+      const override = doctor.availabilityOverrides?.find(o => o.date === dateStr);
+      
+      let isAvailable = false;
+      let workingHours = [];
+
+      if (override) {
+        isAvailable = override.isAvailable;
+        workingHours = override.workingHours;
+      } else {
+        isAvailable = doctor.availability?.[dayOfWeek] || false;
+        workingHours = doctor.workingHours && doctor.workingHours.length > 0 
+          ? doctor.workingHours 
+          : [{ start: '09:00', end: '17:00' }];
+      }
+
       let slotCount = 0;
 
       if (isAvailable) {
-        const workingHours = doctor.workingHours && doctor.workingHours.length > 0 
-          ? doctor.workingHours 
-          : [{ start: '09:00', end: '17:00' }];
         const possibleSlots = generateTimeSlots(workingHours);
         
         const doctorIdSearch = [];
@@ -750,6 +768,72 @@ export const getPublicDoctorCheckoutDetails = async (req, res) => {
     res.json(checkoutDetails);
   } catch (error) {
     console.error('Error fetching checkout details:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Update doctor availability override
+export const updateAvailabilityOverride = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, isAvailable, workingHours } = req.body;
+
+    if (!date) {
+      return res.status(400).json({ message: 'Date is required' });
+    }
+
+    const doctor = await Doctor.findOne({ organizationId: req.tenantId, doctorId: id });
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    // Find if override already exists for this date
+    const overrideIndex = doctor.availabilityOverrides.findIndex(o => o.date === date);
+
+    if (overrideIndex > -1) {
+      // Update existing override
+      doctor.availabilityOverrides[overrideIndex] = { date, isAvailable, workingHours };
+    } else {
+      // Add new override
+      doctor.availabilityOverrides.push({ date, isAvailable, workingHours });
+    }
+
+    // Clean up old overrides (optional, e.g., keep only last 3 months and future)
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+    
+    doctor.availabilityOverrides = doctor.availabilityOverrides.filter(o => o.date >= threeMonthsAgoStr);
+
+    await doctor.save();
+    res.json({ message: 'Availability override updated successfully', availabilityOverrides: doctor.availabilityOverrides });
+  } catch (error) {
+    console.error('Error updating availability override:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Remove availability override
+export const removeAvailabilityOverride = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ message: 'Date is required' });
+    }
+
+    const doctor = await Doctor.findOne({ organizationId: req.tenantId, doctorId: id });
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    doctor.availabilityOverrides = doctor.availabilityOverrides.filter(o => o.date !== date);
+    await doctor.save();
+
+    res.json({ message: 'Availability override removed successfully', availabilityOverrides: doctor.availabilityOverrides });
+  } catch (error) {
+    console.error('Error removing availability override:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

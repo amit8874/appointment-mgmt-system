@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Stethoscope, HandHeart, BarChart, CalendarCheck, Wallet, X, ChevronDown, ChevronRight, User, Calendar, Activity } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, HandHeart, BarChart, CalendarCheck, Wallet, X, ChevronDown, ChevronRight, User, Calendar, Activity, Brain } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }) => {
   const [expandedItems, setExpandedItems] = useState({});
@@ -132,7 +132,7 @@ const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }
           onToggle={() => toggleExpand('Appointment Mgmt')}
         />
         <NavItem name="Billing & Payments" icon={Wallet} currentTab={activeTab} onClick={setActiveTab} />
-        <NavItem name="Reports & Analytics" icon={BarChart} currentTab={activeTab} onClick={setActiveTab} />
+        <NavItem name="Slotify Intelligence" icon={Brain} currentTab={activeTab} onClick={setActiveTab} />
         {(user?.role === 'superadmin' || user?.role === 'orgadmin' || user?.role === 'admin') && (
           <>
             <h2 className="text-xs font-extrabold uppercase text-gray-400 mt-8 pt-4 border-t border-gray-100 dark:border-gray-700 mb-5 ml-4 tracking-wider">ADMIN</h2>

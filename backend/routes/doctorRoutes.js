@@ -15,7 +15,9 @@ import {
   rejectDoctor,
   getSearchSuggestions,
   getDoctorAvailabilitySummary,
-  getPublicDoctorCheckoutDetails
+  getPublicDoctorCheckoutDetails,
+  updateAvailabilityOverride,
+  removeAvailabilityOverride
 } from '../controllers/doctorController.js';
 
 
@@ -71,5 +73,11 @@ router.patch('/:id/verify', requireAdmin, verifyDoctor);
 
 // PATCH /api/doctors/:id/reject - Reject a doctor
 router.patch('/:id/reject', requireAdmin, rejectDoctor);
+
+// POST /api/doctors/:id/availability-override - Update availability override
+router.post('/:id/availability-override', requireAdminOrReceptionist, updateAvailabilityOverride);
+
+// DELETE /api/doctors/:id/availability-override - Remove availability override
+router.delete('/:id/availability-override', requireAdminOrReceptionist, removeAvailabilityOverride);
 
 export default router;

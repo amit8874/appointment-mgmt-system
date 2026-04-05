@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar as CalendarIcon, Loader2, Plus, Save, ChevronDown, Mic, MicOff } from 'lucide-react';
-import api from '../../services/api';
+import api, { whatsappApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -23,6 +23,10 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     message: '',
     state: {},
   });
+
+  const [existingPatients, setExistingPatients] = useState([]);
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+  const [selectedExistingId, setSelectedExistingId] = useState(null);
 
   const [formData, setFormData] = useState({
     patientId: 'Loading...',
@@ -281,6 +285,61 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     }
   };
 
+  // Real-time Patient Lookup by Phone
+  useEffect(() => {
+    const checkPhone = async () => {
+      if (formData.phone.length === 10) {
+        setIsCheckingPhone(true);
+        try {
+          const res = await api.get(`/patients/by-mobile/${formData.phone}`);
+          if (res.data && Array.isArray(res.data)) {
+            setExistingPatients(res.data);
+          } else if (res.data && typeof res.data === 'object') {
+            setExistingPatients([res.data]);
+          }
+        } catch (err) {
+          setExistingPatients([]);
+        } finally {
+          setIsCheckingPhone(false);
+        }
+      } else {
+        setExistingPatients([]);
+        setSelectedExistingId(null);
+      }
+    };
+    checkPhone();
+  }, [formData.phone]);
+
+  const handleUseExistingPatient = (p) => {
+    setSelectedExistingId(p.patientId || p._id);
+    setFormData(prev => ({
+      ...prev,
+      firstName: p.firstName || p.fullName?.split(' ')[0] || '',
+      lastName: p.lastName || p.fullName?.split(' ').slice(1).join(' ') || '',
+      age: p.age || '',
+      ageType: p.ageType || 'Year',
+      gender: p.gender || 'Male',
+      patientId: p.patientId || prev.patientId,
+      designation: p.designation || 'MR.',
+    }));
+    setExistingPatients([]);
+    toast.info(`Using existing record for ${p.fullName || p.firstName}`);
+  };
+
+  const handleRegisterNewPatient = () => {
+    setSelectedExistingId(null);
+    setExistingPatients([]);
+    // Optionally clear names if user wants to start fresh for a different person
+    setFormData(prev => ({
+      ...prev,
+      firstName: '',
+      lastName: '',
+      age: '',
+      // phone remains the same
+    }));
+    toast.success("Proceeding with new patient registration.");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.appointmentTime) {
@@ -300,7 +359,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       const selectedDoctor = doctors.find(d => d._id === formData.doctor);
       const appointmentData = {
         organizationId: orgId,
-        patientId: formData.patientId,
+        patientId: selectedExistingId || formData.patientId,
         doctorId: formData.doctor,
         doctorName: selectedDoctor ? selectedDoctor.name : '',
         specialty: selectedDoctor ? selectedDoctor.specialization : 'General',
@@ -322,8 +381,24 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       const response = await api.post('/appointments/book-patient', appointmentData);
 
       if (response.status === 200 || response.status === 201) {
-        toast.success('Appointment booked successfully!');
-        
+        // Automated WhatsApp notification
+        try {
+          const patientName = `${formData.designation} ${formData.firstName} ${formData.lastName}`.trim();
+          const phone = formData.phone;
+          const patientId = selectedExistingId || formData.patientId;
+          const doctorName = selectedDoctor ? selectedDoctor.name : '';
+          const date = formData.appointmentDate;
+          const time = formData.appointmentTime;
+
+          const msg = `Dear ${patientName}, your ID is ${patientId}, your appointment is booked with Dr. ${doctorName} on ${date} at ${time}, please be on time.`;
+          
+          await whatsappApi.send(phone, msg);
+          toast.success('WhatsApp notification sent successfully!');
+        } catch (waError) {
+          console.error('WhatsApp notification failed:', waError);
+          // Don't toast error here to not confuse the user about the booking itself which was successful
+        }
+
         // Execute callbacks if provided
         if (onSuccess) onSuccess();
         if (onClose) onClose();
@@ -546,8 +621,49 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
               className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
               required
             />
+            {isCheckingPhone && <div className="text-[10px] text-blue-500 mt-1 animate-pulse font-bold">Checking availability...</div>}
           </div>
         </div>
+
+        {/* Existing Patients Match Alert */}
+        {existingPatients.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 animate-in fade-in slide-in-from-top-4 duration-500">
+             <div className="flex items-start gap-3">
+                <div className="p-2 bg-amber-100 dark:bg-amber-800/40 rounded-full">
+                   <CalendarIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex-1">
+                   <h4 className="text-sm font-black text-amber-900 dark:text-amber-100 uppercase tracking-tight">Patient Record(s) Found!</h4>
+                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">This number is already registered to the following patient(s). Would you like to use an existing record or register a New Patient?</p>
+                   
+                   <div className="mt-3 flex flex-wrap gap-2">
+                      {existingPatients.map(p => (
+                        <button
+                          key={p._id}
+                          type="button"
+                          onClick={() => handleUseExistingPatient(p)}
+                          className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-all group"
+                        >
+                           <div className="flex flex-col items-start">
+                              <span className="text-xs font-bold text-gray-900 dark:text-gray-100">{p.fullName || `${p.firstName} ${p.lastName}`}</span>
+                              <span className="text-[10px] text-gray-500">ID: {p.patientId}</span>
+                           </div>
+                           <ChevronDown className="w-4 h-4 text-amber-500 -rotate-90 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleRegisterNewPatient}
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-black shadow-md hover:bg-blue-700 transition-all flex items-center gap-1.5"
+                      >
+                         <Plus className="w-3.5 h-3.5" />
+                         Register for New Patient
+                      </button>
+                   </div>
+                </div>
+             </div>
+          </div>
+        )}
 
         {/* Row 2: Gender, Dept, Doctor, Date */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">

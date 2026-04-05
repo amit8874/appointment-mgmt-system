@@ -270,6 +270,22 @@ const doctorSchema = new mongoose.Schema({
     hours: String,
     editable: Boolean,
   }],
+  availabilityOverrides: [
+    {
+      date: { type: String, required: true }, // Format: YYYY-MM-DD
+      isAvailable: { type: Boolean, required: true },
+      workingHours: [
+        {
+          start: { type: String, default: '09:00' },
+          end: { type: String, default: '13:00' },
+        },
+        {
+          start: { type: String, default: '17:00' },
+          end: { type: String, default: '21:00' },
+        }
+      ],
+    }
+  ],
   createdAt: {
     type: Date,
     default: Date.now,

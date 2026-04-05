@@ -146,6 +146,8 @@ const DoctorPanel = ({
   forceAddDoctor,
   currentPage: serverCurrentPage,
   totalPages,
+  totalItems,
+  itemsPerPage,
   onPageChange
 }) => {
   const navigate = useNavigate();
@@ -362,6 +364,8 @@ const DoctorPanel = ({
       <Pagination 
         currentPage={serverCurrentPage}
         totalPages={totalPages}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
         onPageChange={onPageChange}
       />
 

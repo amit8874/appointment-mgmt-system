@@ -111,7 +111,7 @@ const SmartNotificationSystem = () => {
       clearInterval(fetchInterval);
       clearInterval(checkInterval);
     };
-  }, [user, appointments]);
+  }, [user?.role, user?.id]);
 
   // Socket.io Real-time Receiver
   useEffect(() => {

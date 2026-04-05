@@ -22,6 +22,15 @@ const messageSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  messageType: {
+    type: String,
+    enum: ['text', 'options', 'doctor_list', 'slot_picker'],
+    default: 'text'
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
   isAiExplanation: {
     type: Boolean,
     default: false

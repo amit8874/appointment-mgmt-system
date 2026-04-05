@@ -1,4 +1,4 @@
-import React from 'react';
+import { Link } from 'react-router-dom';
 import { Facebook, Twitter, Linkedin, Youtube, Github } from 'lucide-react';
 
 const PublicFooter = () => {
@@ -47,7 +47,7 @@ For clinics</h4>
             <h4 className="font-black mb-3 text-slate-200">
 More</h4>
             <ul className="space-y-3 text-sm font-medium text-slate-300">
-              <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
+              <li><Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
             </ul>
           </div>
           <div>

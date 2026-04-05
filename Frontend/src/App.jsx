@@ -15,6 +15,7 @@ const LandingPage = lazy(() => import("./Pages/LandingPage"));
 const Login = lazy(() => import("./Pages/Login"));
 const AdminDashboard = lazy(() => import("./Component/Admin/AdminDashboard"));
 const MessagesView = lazy(() => import("./Component/Admin/Messaging/MessagesView"));
+const IntelligenceHub = lazy(() => import("./Component/Admin/IntelligenceHub"));
 const PatientChatView = lazy(() => import("./Component/Patient/PatientChatView"));
 
 const ReceptionistDashboard = lazy(() => import("./components/Receptionist/ReceptionistDashboard"));
@@ -55,6 +56,7 @@ const Telehealth = lazy(() => import("./Pages/Features/Telehealth"));
 const ClinicalNotes = lazy(() => import("./Pages/Features/ClinicalNotes"));
 const FamilyPetCare = lazy(() => import("./Pages/Features/FamilyPetCare"));
 const PartnerProgram = lazy(() => import("./Pages/Features/PartnerProgram"));
+const PrivacyPolicy = lazy(() => import("./Pages/PrivacyPolicy"));
 
 
 
@@ -242,6 +244,7 @@ export default function App() {
 
             {/* Organization Registration & Onboarding */}
             <Route path="/register-organization" element={<RegisterOrganization />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
             <Route path="/payment" element={<Payment />} />
 
@@ -279,6 +282,11 @@ export default function App() {
             <Route path="/admin-dashboard" element={
               <ProtectedRoute allowedRoles={['admin', 'superadmin', 'orgadmin']}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/intelligence" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <IntelligenceHub />
               </ProtectedRoute>
             } />
             <Route path="/admin-profile-page" element={

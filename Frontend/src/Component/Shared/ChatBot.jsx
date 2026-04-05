@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, ChevronDown, Send, Sparkles, Loader2, Info, UserPlus, CreditCard } from 'lucide-react';
+import { MessageCircle, X, ChevronDown, Send, Sparkles, Loader2, Info, UserPlus, CreditCard, Calendar } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { chatbotApi, organizationApi } from '../../services/api';
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
+import { ChatActionOptions, DoctorChatCard } from '../Patient/components/ChatInteraction';
 
 // Injected keyframe for rotating rainbow ring
 const rainbowStyle = `
@@ -47,21 +48,25 @@ const ChatBot = () => {
 
   // Get organizationId from user, URL, or localStorage
   const getOrganizationId = () => {
-    // 1. From User object (if logged in)
-    if (user?.organizationId?._id) return user.organizationId._id;
-    if (user?.organizationId) return user.organizationId;
+    const path = window.location.pathname;
     
-    // 2. From URL params (for public links like /booking/:orgId)
+    // 1. Explicit Clinic/Booking context in URL
     const urlParams = new URLSearchParams(window.location.search);
     const fromUrl = urlParams.get('orgId') || urlParams.get('organizationId');
     if (fromUrl) return fromUrl;
 
-    // 3. From pathname (if it's /clinic/ORG_ID)
-    const pathParts = window.location.pathname.split('/');
-    if (pathParts[1] === 'clinic' && pathParts[2]) return pathParts[2];
+    const pathParts = path.split('/');
+    if ((pathParts[1] === 'clinic' || pathParts[1] === 'booking') && pathParts[2]) return pathParts[2];
 
-    // 4. From localStorage fallback
-    return localStorage.getItem('organizationId');
+    // 2. Dashboard context (for Clinic Owners/Staff)
+    if (path.startsWith('/dashboard') || path.startsWith('/organization')) {
+      if (user?.organizationId?._id) return user.organizationId._id;
+      if (user?.organizationId) return user.organizationId;
+      return localStorage.getItem('organizationId');
+    }
+
+    // 3. Default to NULL for Maya Global Search (Home, Search Results, etc.)
+    return null;
   };
 
   const organizationId = getOrganizationId();
@@ -138,7 +143,9 @@ const ChatBot = () => {
       setMessages(prev => [...prev, { 
         id: Date.now() + 1, 
         text: displayTemplate, 
-        sender: 'bot' 
+        sender: 'bot',
+        messageType: response.messageType || 'text',
+        metadata: response.metadata || null
       }]);
     } catch (error) {
       console.error("AI Chat Error:", error);
@@ -161,7 +168,7 @@ const ChatBot = () => {
             initial={{ opacity: 0, y: 100, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 100, scale: 0.8 }}
-            className="bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-[350px] md:w-[380px] overflow-hidden border border-slate-100 flex flex-col h-[520px]"
+            className="bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] w-[350px] md:w-[380px] overflow-hidden border border-slate-100 flex flex-col h-[600px]"
           >
             {/* Header */}
             <div className="bg-[#00386a] p-5 text-white flex items-center justify-between shadow-lg relative overflow-hidden">
@@ -211,6 +218,22 @@ const ChatBot = () => {
                         {msg.text}
                       </ReactMarkdown>
                     </div>
+
+                    {/* Interactive UI */}
+                    {msg.sender === 'bot' && msg.messageType === 'options' && msg.metadata?.options && (
+                      <ChatActionOptions 
+                        options={msg.metadata.options} 
+                        onSelect={(val) => handleSend(null, val)} 
+                      />
+                    )}
+
+                    {msg.sender === 'bot' && msg.messageType === 'doctor_list' && msg.metadata?.doctors && (
+                      <div className="flex flex-col gap-4 mt-2">
+                        {msg.metadata.doctors.map((doc, dIdx) => (
+                          <DoctorChatCard key={dIdx} doctor={doc} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}
@@ -221,6 +244,13 @@ const ChatBot = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="flex flex-wrap gap-2 pt-2 px-2"
                 >
+                  <button 
+                    onClick={() => handleQuickAction("Book a doctor appointment")}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-full text-xs font-black shadow-lg shadow-blue-200 flex items-center gap-2 border border-blue-500 hover:bg-blue-700 transition-all"
+                  >
+                    <Calendar size={14} className="fill-white" />
+                    Book Appointment
+                  </button>
                   <button 
                     onClick={() => handleQuickAction("What are the features of Slotify?")}
                     className="bg-white border border-blue-200 text-[#00386a] px-4 py-2 rounded-full text-xs font-bold hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"

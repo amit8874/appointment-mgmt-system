@@ -230,6 +230,12 @@ export const patientApi = {
       const isDead = billingInfo?.status === 'dead' || patient.status === 'dead';
       const isCancelled = billingInfo?.status === 'cancelled';
 
+      // Map appointments for each patient to find their latest appointment date and doctor
+      const patientAppointments = appointments.filter(a => a.patientId === patient.patientId);
+      const sortedAppts = [...patientAppointments].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const latestAppointmentDate = sortedAppts[0]?.date || patient.lastVisit || 'No Visit';
+      const assignedDoctor = patient.assignedDoctor || sortedAppts[0]?.doctorName || 'Unassigned';
+
       return {
         id: patient.patientId,
         patientId: patient.patientId,
@@ -247,10 +253,10 @@ export const patientApi = {
         state: patient.state || '',
         zip: patient.zip || '',
         contact: patient.mobile || patient.contactNumber || '',
-        doc: patient.assignedDoctor || 'Unassigned',
+        doc: assignedDoctor,
         disease: patient.disease || 'Not Specified',
-        date: patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : '',
-        lastVisit: patient.lastVisit || (patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : ''),
+        date: latestAppointmentDate, // Using scheduled date
+        lastVisit: latestAppointmentDate,
         status: patient.status || null,
         paymentStatus: isDead ? 'dead' : (isCancelled ? 'cancelled' : (isPaid ? 'paid' : 'pending')),
         paidAmount: isPaid ? totalAmount : 0,
@@ -315,6 +321,14 @@ export const centralDoctorApi = {
   },
   reject: async (id) => {
     const { data } = await api.patch(`/doctors/${id}/reject`);
+    return data;
+  },
+  setAvailabilityOverride: async (id, overrideData) => {
+    const { data } = await api.post(`/doctors/${id}/availability-override`, overrideData);
+    return data;
+  },
+  removeAvailabilityOverride: async (id, date) => {
+    const { data } = await api.delete(`/doctors/${id}/availability-override?date=${date}`);
     return data;
   },
 };
@@ -694,6 +708,14 @@ export const chatbotApi = {
   chat: async (message, history, organizationId, userContext, role) => {
     const { data } = await api.post('/chatbot/chat', { message, history, organizationId, userContext, role });
     return data;
+  },
+  getCities: async () => {
+    const { data } = await api.get('/chatbot/stats/cities');
+    return data;
+  },
+  searchDoctors: async (params) => {
+    const { data } = await api.get('/chatbot/search/doctors', { params });
+    return data;
   }
 };
 
@@ -766,6 +788,10 @@ export const analyticsApi = {
   getAiReport: async (category, dashboardData) => {
     const { data } = await api.post('/analytics/ai-report', { category, dashboardData });
     return data;
+  },
+  getPredictiveInsights: async (timeRange = 90) => {
+    const { data } = await api.get(`/analytics/predictive?timeRange=${timeRange}`);
+    return data;
   }
 };
 
@@ -818,4 +844,15 @@ export const centralCouncilApi = {
 export const centralPracticeApi = {
   getAll: () => api.get(`/practices`),
   create: (data) => api.post(`/practices`, data),
+};
+
+export const whatsappApi = {
+  send: async (phone, message) => {
+    const { data } = await api.post('/whatsapp/send-whatsapp', { phone, message });
+    return data;
+  },
+  improve: async (text, patientName) => {
+    const { data } = await api.post('/whatsapp/improve-message', { text, patientName });
+    return data;
+  }
 };

@@ -24,16 +24,42 @@ import { centralDoctorApi } from '../../../services/api';
 /* ─────────────────────────────────────────────
    INLINE DOCTOR SCHEDULE MODAL (Calendar button)
 ───────────────────────────────────────────── */
-const DoctorScheduleModal = ({ doctor, onClose }) => {
-    const [activeDay, setActiveDay] = useState('Monday');
+const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
+    const [doctor, setDoctor] = useState(initialDoctor);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [isSaving, setIsSaving] = useState(false);
+    const [message, setMessage] = useState(null);
+    const [isEditingShifts, setIsEditingShifts] = useState(false);
+    const [tempWorkingHours, setTempWorkingHours] = useState([]);
 
+    // Generate next 14 days
+    const dateRange = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() + i);
+        return d.toISOString().split('T')[0];
+    });
+
+    const getOverrideForDate = (date) => {
+        return doctor.availabilityOverrides?.find(o => o.date === date);
+    };
+
+    const currentOverride = getOverrideForDate(selectedDate);
+    const isActuallyAvailable = currentOverride 
+        ? currentOverride.isAvailable 
+        : doctor.availability?.[new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()];
+
+    const getBaseWorkingHours = () => {
+        const day = new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        return currentOverride?.workingHours || doctor.workingHours || [{ start: '09:00', end: '13:00' }];
+    };
+
+    const currentWorkingHours = getBaseWorkingHours();
+
+    // Initialize temp working hours when selectedDate or currentOverride changes
     useEffect(() => {
-        if (doctor?.availability) {
-            const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-            const firstAvailable = daysOrder.find(day => doctor.availability[day.toLowerCase()]);
-            if (firstAvailable) setActiveDay(firstAvailable);
-        }
-    }, [doctor]);
+        setTempWorkingHours(currentWorkingHours);
+        setIsEditingShifts(false);
+    }, [selectedDate, currentOverride]);
 
     const generateTimeSlots = (workingHours) => {
         const slots = [];
@@ -60,11 +86,48 @@ const DoctorScheduleModal = ({ doctor, onClose }) => {
         return slots;
     };
 
-    if (!doctor) return null;
+    const handleUpdateOverride = async (updateData = {}) => {
+        setIsSaving(true);
+        setMessage(null);
+        try {
+            const newOverride = {
+                date: selectedDate,
+                isAvailable: updateData.hasOwnProperty('isAvailable') ? updateData.isAvailable : isActuallyAvailable,
+                workingHours: updateData.hasOwnProperty('workingHours') ? updateData.workingHours : currentWorkingHours
+            };
+            const response = await centralDoctorApi.setAvailabilityOverride(doctor.id || doctor._id, newOverride);
+            setDoctor(prev => ({ ...prev, availabilityOverrides: response.availabilityOverrides }));
+            setMessage({ type: 'success', text: `Schedule updated for ${selectedDate}` });
+            setIsEditingShifts(false);
+        } catch (error) {
+            console.error('Error updating override:', error);
+            setMessage({ type: 'error', text: 'Failed to update schedule' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
-    const allDaysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const availableDays = allDaysOrder.filter(day => doctor.availability?.[day.toLowerCase()]);
-    const slots = generateTimeSlots(doctor.workingHours);
+    const handleToggleAvailability = () => handleUpdateOverride({ isAvailable: !isActuallyAvailable });
+    const handleSaveShifts = () => handleUpdateOverride({ workingHours: tempWorkingHours, isAvailable: true });
+
+    const handleRemoveOverride = async () => {
+        setIsSaving(true);
+        setMessage(null);
+        try {
+            const response = await centralDoctorApi.removeAvailabilityOverride(doctor.id || doctor._id, selectedDate);
+            setDoctor(prev => ({ ...prev, availabilityOverrides: response.availabilityOverrides }));
+            setMessage({ type: 'success', text: `Reverted to default schedule for ${selectedDate}` });
+        } catch (error) {
+            console.error('Error removing override:', error);
+            setMessage({ type: 'error', text: 'Failed to remove override' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const slots = generateTimeSlots(currentWorkingHours);
+
+    if (!doctor) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -87,7 +150,6 @@ const DoctorScheduleModal = ({ doctor, onClose }) => {
                         <div>
                             <h2 className="text-xl font-bold text-gray-800">{doctor.name}</h2>
                             <p className="text-sm text-indigo-600 font-medium">{doctor.specialization}</p>
-                            <p className="text-xs text-gray-400">{doctor.department || 'General'}</p>
                         </div>
                     </div>
                     <button
@@ -99,92 +161,208 @@ const DoctorScheduleModal = ({ doctor, onClose }) => {
                 </div>
 
                 <div className="p-6 space-y-6">
-                    {/* Availability Section */}
-                    <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
-                        <div className="p-4 border-b border-gray-100 bg-white">
-                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                <Calendar size={18} className="text-indigo-600" />
-                                Weekly Schedule
-                            </h3>
-                        </div>
-                        {/* Day Tabs */}
-                        <div className="flex border-b border-gray-100 overflow-x-auto bg-gray-50/30">
-                            {availableDays.map((day) => (
-                                <button
-                                    key={day}
-                                    onClick={() => setActiveDay(day)}
-                                    className={`flex-1 min-w-[80px] py-3 text-xs font-bold transition-all border-b-2 text-center uppercase tracking-wider ${activeDay === day
-                                            ? 'border-indigo-600 text-gray-800 bg-white'
-                                            : 'border-transparent text-gray-400 hover:text-gray-600'
-                                        }`}
-                                >
-                                    {day.slice(0, 3)}
-                                </button>
-                            ))}
-                        </div>
-                        {/* Time Slots */}
-                        <div className="p-4">
-                            {doctor.availability?.[activeDay.toLowerCase()] ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                    {slots.length > 0 ? slots.map((slot, idx) => (
-                                        <div
-                                            key={idx}
-                                            className="p-3 bg-white border border-gray-100 rounded-lg text-center text-xs font-bold text-gray-600 hover:border-indigo-100 hover:text-indigo-600 transition-all shadow-sm"
-                                        >
-                                            {slot}
-                                        </div>
-                                    )) : (
-                                        <p className="col-span-full text-center text-gray-400 py-4 font-medium italic text-sm">
-                                            No time slots configured
-                                        </p>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="text-center py-6">
-                                    <Clock size={32} className="text-gray-200 mx-auto mb-2" />
-                                    <p className="text-gray-400 font-medium text-sm">Not available on {activeDay}</p>
-                                </div>
+                    {/* Date Selector */}
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-widest">Select Date</h3>
+                            {currentOverride && (
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded border border-amber-100 uppercase">
+                                    Custom Schedule Applied
+                                </span>
                             )}
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                            {dateRange.map((date) => {
+                                const d = new Date(date);
+                                const isSelected = selectedDate === date;
+                                const hasOverride = getOverrideForDate(date);
+                                return (
+                                    <button
+                                        key={date}
+                                        onClick={() => setSelectedDate(date)}
+                                        className={`flex-shrink-0 w-16 py-3 rounded-xl border flex flex-col items-center transition-all ${
+                                            isSelected 
+                                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' 
+                                            : 'bg-white border-gray-100 text-gray-500 hover:border-indigo-200'
+                                        } ${hasOverride && !isSelected ? 'border-amber-200 bg-amber-50/30' : ''}`}
+                                    >
+                                        <span className={`text-[10px] font-bold uppercase ${isSelected ? 'text-indigo-100' : 'text-gray-400'}`}>
+                                            {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                                        </span>
+                                        <span className="text-lg font-bold">
+                                            {d.getDate()}
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    {/* Info Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Status & Actions */}
+                    <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-gray-800 font-bold">
+                                    {new Date(selectedDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                </h4>
+                                <p className="text-xs text-gray-400 font-medium">
+                                    {isActuallyAvailable ? 'Available for appointments' : 'Doctor is currently unavailable'}
+                                </p>
+                            </div>
+                            <div className="flex gap-2">
+                                {currentOverride && (
+                                    <button
+                                        onClick={handleRemoveOverride}
+                                        disabled={isSaving}
+                                        className="px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-red-500 transition-colors"
+                                    >
+                                        Reset to Default
+                                    </button>
+                                )}
+                                <button
+                                    onClick={handleToggleAvailability}
+                                    disabled={isSaving}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                                        isActuallyAvailable 
+                                        ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100' 
+                                        : 'bg-green-50 text-green-600 border border-green-100 hover:bg-green-100'
+                                    }`}
+                                >
+                                    {isSaving ? 'Saving...' : (isActuallyAvailable ? 'Mark as Unavailable' : 'Make Available')}
+                                </button>
+                            </div>
+                        </div>
+
+                        {message && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={`p-3 rounded-lg text-xs font-bold text-center ${
+                                    message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}
+                            >
+                                {message.text}
+                            </motion.div>
+                        )}
+
+                        {/* Slots Display & Editing */}
+                        {isActuallyAvailable && (
+                            <div className="space-y-4 pt-2">
+                                <div className="flex items-center justify-between">
+                                    <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                                        <Clock size={12} />
+                                        Expected Time Slots
+                                    </h5>
+                                    {!isEditingShifts ? (
+                                        <button 
+                                            onClick={() => setIsEditingShifts(true)}
+                                            className="text-[10px] font-bold text-indigo-600 uppercase border-b border-indigo-200 hover:border-indigo-600 transition-all"
+                                        >
+                                            Edit Shifts for this day
+                                        </button>
+                                    ) : (
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => setIsEditingShifts(false)}
+                                                className="text-[10px] font-bold text-gray-400 uppercase"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button 
+                                                onClick={handleSaveShifts}
+                                                disabled={isSaving}
+                                                className="text-[10px] font-bold text-indigo-600 uppercase"
+                                            >
+                                                {isSaving ? 'Saving...' : 'Save Shifts'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {isEditingShifts ? (
+                                    <div className="space-y-3 bg-white p-4 rounded-xl border border-gray-100">
+                                        {tempWorkingHours.map((shift, idx) => (
+                                            <div key={idx} className="flex items-center gap-3">
+                                                <div className="flex-1">
+                                                    <input 
+                                                        type="time" 
+                                                        value={shift.start} 
+                                                        onChange={(e) => {
+                                                            const newHours = [...tempWorkingHours];
+                                                            newHours[idx] = { ...newHours[idx], start: e.target.value };
+                                                            setTempWorkingHours(newHours);
+                                                        }}
+                                                        className="w-full p-2 bg-gray-50 border border-gray-100 rounded text-xs font-bold"
+                                                    />
+                                                </div>
+                                                <span className="text-gray-300 text-xs">to</span>
+                                                <div className="flex-1">
+                                                    <input 
+                                                        type="time" 
+                                                        value={shift.end} 
+                                                        onChange={(e) => {
+                                                            const newHours = [...tempWorkingHours];
+                                                            newHours[idx] = { ...newHours[idx], end: e.target.value };
+                                                            setTempWorkingHours(newHours);
+                                                        }}
+                                                        className="w-full p-2 bg-gray-50 border border-gray-100 rounded text-xs font-bold"
+                                                    />
+                                                </div>
+                                                <button 
+                                                    onClick={() => setTempWorkingHours(tempWorkingHours.filter((_, i) => i !== idx))}
+                                                    className="p-1.5 text-gray-300 hover:text-red-500 transition-colors"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button 
+                                            onClick={() => setTempWorkingHours([...tempWorkingHours, { start: '09:00', end: '13:00' }])}
+                                            className="w-full py-2 border border-dashed border-gray-200 rounded-lg text-[10px] font-bold text-gray-400 uppercase hover:border-indigo-200 hover:text-indigo-600 transition-all"
+                                        >
+                                            + Add Shift
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {slots.length > 0 ? slots.map((slot, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="p-2 bg-white border border-gray-100 rounded-lg text-center text-[11px] font-bold text-gray-600 shadow-sm"
+                                            >
+                                                {slot}
+                                            </div>
+                                        )) : (
+                                            <p className="col-span-full text-center text-gray-400 py-4 italic text-xs">
+                                                No time slots configured
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Generic Info (Restored) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {[
                             { label: 'Phone Number', value: doctor.phone || 'N/A', icon: Phone },
                             { label: 'Email Address', value: doctor.email || 'N/A', icon: Mail },
-                            { label: 'License Number', value: doctor.licenseNumber || 'N/A', icon: FileText },
                             { label: 'Location', value: doctor.address || 'N/A', icon: MapPin },
+                            { label: 'License Number', value: doctor.licenseNumber || 'N/A', icon: FileText },
                             { label: 'Date of Birth', value: doctor.dob ? new Date(doctor.dob).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A', icon: Calendar },
                             { label: 'Blood Group', value: doctor.bloodGroup || 'N/A', icon: Droplet },
                         ].map((item, idx) => (
-                            <div key={idx} className="flex gap-3 group p-3 rounded-lg hover:bg-indigo-50 transition-colors">
-                                <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors flex-shrink-0">
-                                    <item.icon size={16} />
+                            <div key={idx} className="flex gap-2 p-3 rounded-xl bg-gray-50/50 border border-transparent hover:border-gray-100 transition-all flex-col">
+                                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-gray-400 shadow-sm mb-1">
+                                    <item.icon size={14} />
                                 </div>
-                                <div>
-                                    <p className="text-xs font-bold text-gray-800">{item.label}</p>
-                                    <p className="text-xs font-medium text-gray-400 group-hover:text-gray-600 transition-colors break-all">{item.value}</p>
+                                <div className="space-y-0.5">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{item.label}</p>
+                                    <p className="text-xs font-bold text-gray-700 truncate">{item.value}</p>
                                 </div>
                             </div>
                         ))}
-                    </div>
-
-                    {/* Consultation Charge */}
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-1">Consultation Charge</p>
-                            <p className="text-2xl font-bold text-indigo-700">
-                                ₹{doctor.fee || doctor.consultationFee || '499'}
-                                <span className="text-indigo-400 text-sm font-normal"> / 30 Min</span>
-                            </p>
-                        </div>
-                        {doctor.status === 'Active' && (
-                            <span className="px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-bold border border-green-100 flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                                Available
-                            </span>
-                        )}
                     </div>
                 </div>
             </motion.div>

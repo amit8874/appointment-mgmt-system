@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle } from 'lucide-react';
+import WhatsAppModal from "../../common/WhatsAppModal";
+import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download } from 'lucide-react';
+import { exportPatientsToExcel } from '../../../utils/excelExport';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../../services/api';
@@ -20,9 +22,16 @@ const PatientPanel = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
+  const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
+  const [selectedPatientForWhatsapp, setSelectedPatientForWhatsapp] = useState(null);
   const itemsPerPage = 15;
   const menuRef = useRef(null);
   const navigate = useNavigate();
+
+  const handleWhatsappClick = (patient) => {
+    setSelectedPatientForWhatsapp(patient);
+    setWhatsappModalOpen(true);
+  };
 
   // Fetch patients from backend
   const fetchPatients = async () => {
@@ -296,6 +305,14 @@ const PatientPanel = () => {
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
           />
         </div>
+        <button
+          onClick={() => exportPatientsToExcel(patients)}
+          className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 font-bold text-sm whitespace-nowrap"
+          title="Export to Excel"
+        >
+          <Download className="w-5 h-5 mr-2" />
+          Export Excel
+        </button>
       </div>
 
       {/* Stats and Table Section */}
@@ -377,15 +394,13 @@ const PatientPanel = () => {
                     </td>
                     <td className="px-6 py-4 text-sm relative">
                       <div className="flex items-center gap-2" ref={menuRef}>
-                        <a 
-                          href={`https://wa.me/${(p.mobile || p.phone || p.contactNumber || p.contact || '').replace(/\D/g, '')}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
+                        <button 
+                          onClick={() => handleWhatsappClick(p)}
                           className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition-all shadow-sm active:scale-95"
                           title="WhatsApp Patient"
                         >
                           <MessageCircle className="h-4 w-4" />
-                        </a>
+                        </button>
                         <button
                           onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
                           className={`p-2 rounded-xl transition-all ${
@@ -508,6 +523,12 @@ const PatientPanel = () => {
         onClose={() => setIsPaymentModalOpen(false)}
         onConfirm={confirmMarkAsPaid}
         patientName={selectedPatientForPayment?.name}
+      />
+      {/* WhatsApp Modal */}
+      <WhatsAppModal
+        isOpen={whatsappModalOpen}
+        onClose={() => setWhatsappModalOpen(false)}
+        patient={selectedPatientForWhatsapp}
       />
     </motion.div>
   );

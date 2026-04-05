@@ -1,5 +1,5 @@
 import express from 'express';
-import { sendWhatsApp } from '../controllers/whatsappController.js';
+import { sendWhatsApp, improveWhatsAppMessage } from '../controllers/whatsappController.js';
 
 const router = express.Router();
 
@@ -8,5 +8,11 @@ const router = express.Router();
  * POST /api/whatsapp/send-whatsapp
  */
 router.post('/send-whatsapp', sendWhatsApp);
+
+/**
+ * Endpoint to refine WhatsApp message with AI.
+ * POST /api/whatsapp/improve-message
+ */
+router.post('/improve-message', improveWhatsAppMessage);
 
 export default router;

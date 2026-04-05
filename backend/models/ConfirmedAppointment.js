@@ -93,6 +93,10 @@ const confirmedAppointmentSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  notes: {
+    type: String,
+    trim: true,
+  },
   status: {
     type: String,
     enum: ['pending', 'confirmed', 'in-progress', 'missed'],

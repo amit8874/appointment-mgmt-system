@@ -144,8 +144,8 @@ const patientSchema = new mongoose.Schema({
   }
 });
 
-// Add compound index for mobile + organizationId uniqueness
-patientSchema.index({ mobile: 1, organizationId: 1 }, { unique: true });
+// Add compound index for mobile + organizationId (Not unique to allow family shared numbers)
+patientSchema.index({ mobile: 1, organizationId: 1 });
 
 // Update the updatedAt field on save
 patientSchema.pre('save', function (next) {
