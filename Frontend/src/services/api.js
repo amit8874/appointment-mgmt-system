@@ -591,6 +591,26 @@ export const superAdminApi = {
     const { data } = await api.post(`/superadmin/pharmacies/${id}/approve`, approvalData);
     return data;
   },
+  updateTrialPeriod: async (id, trialEndDate) => {
+    const { data } = await api.patch(`/superadmin/organizations/${id}/trial`, { trialEndDate });
+    return data;
+  },
+  updateOrganizationPlan: async (id, plan) => {
+    const { data } = await api.patch(`/superadmin/organizations/${id}/plan`, { plan });
+    return data;
+  },
+  getOrganizationDoctors: async (orgId) => {
+    const { data } = await api.get(`/superadmin/organizations/${orgId}/doctors`);
+    return data;
+  },
+  verifyDoctorSuperAdmin: async (doctorId) => {
+    const { data } = await api.patch(`/superadmin/doctors/${doctorId}/verify`);
+    return data;
+  },
+  rejectDoctorSuperAdmin: async (doctorId) => {
+    const { data } = await api.patch(`/superadmin/doctors/${doctorId}/reject`);
+    return data;
+  },
 };
 
 export const pharmacyApi = {

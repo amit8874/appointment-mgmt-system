@@ -72,6 +72,28 @@ export const checkSession = async (req, res) => {
       }
     }
 
+    // Add standardized organization object for UI branding
+    if (user.organizationId) {
+      userObj.organization = {
+        name: user.organizationId.name,
+        slug: user.organizationId.slug,
+        branding: user.organizationId.branding,
+        phone: user.organizationId.phone,
+        email: user.organizationId.email
+      };
+    }
+
+    // Add standardized organization object for UI branding
+    if (user.organizationId) {
+      userObj.organization = {
+        name: user.organizationId.name,
+        slug: user.organizationId.slug,
+        branding: user.organizationId.branding,
+        phone: user.organizationId.phone,
+        email: user.organizationId.email
+      };
+    }
+
     res.json({ message: 'Session is valid', user: userObj });
   } catch (error) {
     console.error('Check session error:', error);

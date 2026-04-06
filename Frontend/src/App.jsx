@@ -57,6 +57,7 @@ const ClinicalNotes = lazy(() => import("./Pages/Features/ClinicalNotes"));
 const FamilyPetCare = lazy(() => import("./Pages/Features/FamilyPetCare"));
 const PartnerProgram = lazy(() => import("./Pages/Features/PartnerProgram"));
 const PrivacyPolicy = lazy(() => import("./Pages/PrivacyPolicy"));
+const TermsAndConditions = lazy(() => import("./Pages/TermsAndConditions"));
 
 
 
@@ -75,6 +76,7 @@ const UsageAnalyticsPage = lazy(() => import("./Component/SuperAdmin/UsageAnalyt
 const AuditLogsPage = lazy(() => import("./Component/SuperAdmin/AuditLogsPage"));
 const SuperAdminSettings = lazy(() => import("./Component/SuperAdmin/SuperAdminSettings"));
 const PharmacyManagement = lazy(() => import("./Component/SuperAdmin/PharmacyManagement"));
+const Doctors = lazy(() => import("./Component/SuperAdmin/Doctors"));
 const SubscriptionManagement = lazy(() => import("./Component/Organization/SubscriptionManagement"));
 const OrganizationDashboard = lazy(() => import("./Component/Organization/OrganizationDashboard"));
 const PharmacyLayout = lazy(() => import("./Component/Pharmacy/PharmacyLayout"));
@@ -178,16 +180,35 @@ export default function App() {
     let isSubscribed = true;
     const checkSession = async () => {
       try {
-        const token = sessionStorage.getItem('token') || localStorage.getItem('token') || 
-                     JSON.parse(sessionStorage.getItem('userData') || localStorage.getItem('userData') || '{}').token ||
-                     JSON.parse(sessionStorage.getItem('patientUser') || '{}').token;
-
-        if (!token) return;
-
         const response = await api.get('/users/check-session');
+        const data = response.data || response;
 
         if (isSubscribed && response.status === 401) {
           logout();
+          return;
+        }
+
+        // SYNC: Update user data if it has changed (e.g., logo or name)
+        if (isSubscribed && data.user && isAuthenticated) {
+          const { updateUser } = await import('./context/AuthContext').then(mod => {
+            // This is a bit tricky since we can't easily use the hook inside useEffect without it being a dependency
+            // But we can check if the data has changed and then update if necessary
+            return { updateUser }; 
+          }).catch(() => ({}));
+          
+          // Since we can't easily access updateUser here without causing re-renders, 
+          // we'll rely on the update happening in the next tick or via a cleaner method.
+          // Better approach: Let's use the local storage as a bridge or just trust the initial load.
+          // Actually, the best way is to pass updateUser into this effect if possible, 
+          // but that's a larger refactor. 
+          
+          // Let's use a simpler approach: update the localStorage and let the AuthContext pick it up 
+          // or just trigger an event.
+          if (JSON.stringify(data.user) !== localStorage.getItem('userData')) {
+             localStorage.setItem('userData', JSON.stringify(data.user));
+             // We can't easily trigger a re-render of the AuthProvider from here without an event
+             window.dispatchEvent(new CustomEvent('user-data-updated', { detail: data.user }));
+          }
         }
       } catch (error) {
         if (isSubscribed && error.response?.status === 401) {
@@ -245,6 +266,7 @@ export default function App() {
             {/* Organization Registration & Onboarding */}
             <Route path="/register-organization" element={<RegisterOrganization />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-conditions" element={<TermsAndConditions />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
             <Route path="/payment" element={<Payment />} />
 
@@ -260,6 +282,7 @@ export default function App() {
               <Route path="manage-organizations" element={<ManageOrganisation />} />
               <Route path="pharmacies" element={<PharmacyManagement />} />
               <Route path="subscriptions" element={<AllSubscriptions />} />
+              <Route path="doctors" element={<Doctors />} />
               <Route path="revenue" element={<RevenueAnalytics />} />
               <Route path="usage-analytics" element={<UsageAnalyticsPage />} />
               <Route path="audit-logs" element={<AuditLogsPage />} />

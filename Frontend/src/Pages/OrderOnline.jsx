@@ -69,7 +69,7 @@ const OrderOnline = () => {
     const [loginMobile, setLoginMobile] = useState('');
     const [loginLoading, setLoginLoading] = useState(false);
     const [loginError, setLoginError] = useState('');
-    const [termsAccepted, setTermsAccepted] = useState(true);
+    const [termsAccepted, setTermsAccepted] = useState(false);
     const [isOtpSent, setIsOtpSent] = useState(false);
     const [loginOtp, setLoginOtp] = useState('');
     const [otpTimer, setOtpTimer] = useState(0);
@@ -450,7 +450,7 @@ const OrderOnline = () => {
                                         <div className="text-left hidden md:block">
                                             <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">Account</p>
                                             <p className="text-xs font-black text-slate-800 leading-none truncate max-w-[100px]">
-                                                {user?.mobile || user?.fullName || 'Active'}
+                                                {user?.mobile || user?.fullName || 'My Account'}
                                             </p>
                                         </div>
                                         <ChevronDown size={14} className="text-slate-400" />
@@ -1107,10 +1107,10 @@ const OrderOnline = () => {
                                             onChange={e => setTermsAccepted(e.target.checked)}
                                             className="w-4 h-4 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
                                         />
-                                        <label htmlFor="terms-login" className="text-[11px] font-bold text-slate-400 leading-snug">
+                                        <label htmlFor="terms-login" className="text-[11px] font-bold text-slate-400 leading-snug cursor-pointer select-none">
                                             By continuing, I agree to the{' '}
-                                            <span className="text-blue-600 cursor-pointer hover:underline">Terms &amp; Conditions</span>{' '}and{' '}
-                                            <span className="text-blue-600 cursor-pointer hover:underline">Privacy Policy</span>
+                                            <Link to="/terms-conditions" target="_blank" className="text-blue-600 cursor-pointer hover:underline">Terms &amp; Conditions</Link>{' '}and{' '}
+                                            <Link to="/privacy-policy" target="_blank" className="text-blue-600 cursor-pointer hover:underline">Privacy Policy</Link>
                                         </label>
                                     </div>
 

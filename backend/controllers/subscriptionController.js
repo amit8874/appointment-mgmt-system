@@ -1,5 +1,14 @@
 import Subscription from '../models/Subscription.js';
 import Organization from '../models/Organization.js';
+import Doctor from '../models/Doctor.js';
+import Receptionist from '../models/Receptionist.js';
+import User from '../models/User.js';
+import Appointment from '../models/Appointment.js';
+import PendingAppointment from '../models/PendingAppointment.js';
+import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
+import CancelledAppointment from '../models/CancelledAppointment.js';
+import Patient from '../models/PaitentEditProfile.js';
+import MedicalRecord from '../models/MedicalRecord.js';
 import { createOrder, verifyPayment as rzpVerifyPayment } from '../utils/razorpay.js';
 
 // Get all subscriptions (Super Admin only)
@@ -45,6 +54,85 @@ export const getMySubscription = async (req, res) => {
       return res.status(404).json({ message: 'Subscription not found' });
     }
 
+    // Calculate dynamic usage
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [
+      doctorCount,
+      receptionistCount,
+      patientCount,
+      pendingCount,
+      confirmedCount,
+      cancelledCount,
+      oldCount,
+      recordCountWithAttachment,
+      doctorsWithFiles,
+      receptionistsWithPhoto,
+      patientsWithReports,
+      totalUsersWithPhoto
+    ] = await Promise.all([
+      Doctor.countDocuments({ organizationId: req.tenantId }),
+      Receptionist.countDocuments({ organizationId: req.tenantId }),
+      Patient.countDocuments({ organizationId: req.tenantId }),
+      PendingAppointment.countDocuments({ organizationId: req.tenantId }),
+      ConfirmedAppointment.countDocuments({ organizationId: req.tenantId }),
+      CancelledAppointment.countDocuments({ organizationId: req.tenantId }),
+      Appointment.countDocuments({ organizationId: req.tenantId }),
+      MedicalRecord.countDocuments({ 
+        organizationId: req.tenantId, 
+        attachmentUrl: { $exists: true, $ne: '' } 
+      }),
+      Doctor.countDocuments({ 
+        organizationId: req.tenantId, 
+        $or: [
+          { photo: { $exists: true, $ne: '' } },
+          { certificateUrl: { $exists: true, $ne: '' } },
+          { idDocumentUrl: { $exists: true, $ne: '' } }
+        ] 
+      }),
+      Receptionist.countDocuments({ 
+        organizationId: req.tenantId, 
+        profilePhoto: { $exists: true, $ne: '' } 
+      }),
+      Patient.countDocuments({ 
+        organizationId: req.tenantId, 
+        'reports.0': { $exists: true } 
+      }),
+      User.countDocuments({ 
+        organizationId: req.tenantId, 
+        profilePicture: { $exists: true, $ne: '' } 
+      })
+    ]);
+
+    const totalAppointments = pendingCount + confirmedCount + cancelledCount + oldCount;
+    
+    // Comprehensive Storage Estimation in MB
+    // 1. Files & Media
+    const medicalRecordStorage = recordCountWithAttachment * 5; // 5MB avg for labs/scans
+    const profilePhotoStorage = (doctorsWithFiles + receptionistsWithPhoto + totalUsersWithPhoto) * 0.5; // 0.5MB avg
+    const patientReportsStorage = patientsWithReports * 2; // 2MB avg package
+    
+    // 2. Database Records (Baseline)
+    const totalDbRecords = doctorCount + receptionistCount + patientCount + totalAppointments + 50; // +50 for org/logs
+    const dbMetadataStorage = totalDbRecords * 0.01; // 10KB per record baseline
+    
+    // Total in GB
+    const totalStorageMB = medicalRecordStorage + profilePhotoStorage + patientReportsStorage + dbMetadataStorage + 0.5; // +0.5MB global baseline
+    const totalStorageGB = parseFloat((totalStorageMB / 1024).toFixed(3)); // 3 decimal places for precision
+
+    // Update usage object in the response (without necessarily saving to DB for performance)
+    subscription.usage = {
+      ...subscription.usage,
+      doctors: doctorCount,
+      receptionists: receptionistCount,
+      patients: patientCount,
+      appointmentsThisMonth: totalAppointments,
+      storageUsedGB: totalStorageGB,
+      lastResetDate: subscription.usage?.lastResetDate || new Date()
+    };
+
     res.json(subscription);
   } catch (error) {
     console.error('Get subscription error:', error);
@@ -73,9 +161,9 @@ export const upgradeSubscription = async (req, res) => {
 
     // Plan pricing (in INR)
     const pricing = {
-      basic: { monthly: 799, yearly: 7999 },
-      pro: { monthly: 1999, yearly: 19999 },
-      enterprise: { monthly: 3999, yearly: 39999 },
+      basic: { monthly: 299, yearly: 2999 },
+      pro: { monthly: 499, yearly: 4999 },
+      enterprise: { monthly: 699, yearly: 6999 },
     };
 
     const amount = pricing[plan][billingCycle];
@@ -293,44 +381,49 @@ export const getPlans = (req, res) => {
         appointmentsPerMonth: 100,
         patients: 500,
         storageGB: 1,
+        messaging: true,
         advancedAnalytics: false,
         customBranding: false,
         apiAccess: false,
       },
     },
     basic: {
-      name: 'Basic',
-      price: { monthly: 799, yearly: 7999 },
+      name: 'Basic Plan',
+      price: { monthly: 299, yearly: 2999 },
       billingCycle: ['monthly', 'yearly'],
       features: {
         doctors: 1,
-        receptionists: 0,
+        receptionists: 1,
         appointmentsPerMonth: 500,
         patients: 1000,
         storageGB: 5,
+        messaging: false,
+        aiFeatures: 'Basic AI Module (Limited Tokens)',
         advancedAnalytics: false,
         customBranding: false,
         apiAccess: false,
       },
     },
     pro: {
-      name: 'Standard',
-      price: { monthly: 1999, yearly: 19999 },
+      name: 'Standard Plan',
+      price: { monthly: 499, yearly: 4999 },
       billingCycle: ['monthly', 'yearly'],
       features: {
         doctors: 3,
-        receptionists: 2,
+        receptionists: 3,
         appointmentsPerMonth: 2000,
         patients: 5000,
         storageGB: 20,
+        messaging: true,
+        aiFeatures: 'Advanced AI Assistant (Limited Tokens)',
         advancedAnalytics: true,
         customBranding: false,
         apiAccess: false,
       },
     },
     enterprise: {
-      name: 'Premium',
-      price: { monthly: 3999, yearly: 39999 },
+      name: 'Premium Plan',
+      price: { monthly: 699, yearly: 6999 },
       billingCycle: ['monthly', 'yearly'],
       features: {
         doctors: -1, // Unlimited
@@ -338,11 +431,14 @@ export const getPlans = (req, res) => {
         appointmentsPerMonth: -1,
         patients: -1,
         storageGB: 100,
+        messaging: true,
+        aiFeatures: 'Full AI Suite (Unlimited Tokens)',
         advancedAnalytics: true,
         customBranding: true,
         apiAccess: true,
         smsReminders: true,
         reports: true,
+        multiClinic: true,
       },
     },
   };

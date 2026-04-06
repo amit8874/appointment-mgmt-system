@@ -21,6 +21,7 @@ const PharmacyRegistration = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     ownerName: '',
@@ -36,6 +37,10 @@ const PharmacyRegistration = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!agreed) {
+      toast.error("Please agree to the Terms and Conditions to continue.");
+      return;
+    }
     setLoading(true);
     try {
       await authApi.registerPharmacy(formData);
@@ -251,6 +256,19 @@ const PharmacyRegistration = () => {
                         onChange={(e) => setFormData({...formData, address: {...formData.address, zip: e.target.value.replace(/\D/g, '')}})}
                       />
                     </div>
+                  </div>
+
+                  <div className="flex items-start gap-4 p-4 border border-slate-100 rounded-2xl bg-slate-50/50">
+                    <input 
+                      type="checkbox" 
+                      id="pharmacy-terms" 
+                      checked={agreed}
+                      onChange={(e) => setAgreed(e.target.checked)}
+                      className="mt-1 w-5 h-5 text-orange-600 border-slate-300 rounded-lg focus:ring-orange-500 cursor-pointer"
+                    />
+                    <label htmlFor="pharmacy-terms" className="text-xs font-bold text-slate-500 leading-relaxed cursor-pointer select-none">
+                      As a pharmacy partner, I agree to Slotify Professional's <Link to="/terms-conditions" target="_blank" className="text-orange-600 hover:underline">Terms & Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-orange-600 hover:underline">Privacy Policy</Link> regarding data handling and service standards.
+                    </label>
                   </div>
 
                   <button 

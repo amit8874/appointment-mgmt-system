@@ -117,6 +117,8 @@ export const useDoctors = () => {
     } catch (error) {
       const errorMessage = error.response?.data?.message ||
         `Error ${doctorId ? 'updating' : 'adding'} doctor`;
+      // Re-throw the error so the UI can handle it (e.g. limit reached)
+      throw error;
     }
   }, [fetchDoctors, fetchDoctorCount]);
 

@@ -9,7 +9,6 @@ const billingSchema = new mongoose.Schema({
   },
   invoiceNumber: {
     type: String,
-    unique: true,
     sparse: true
   },
   billId: {
@@ -103,6 +102,7 @@ const billingSchema = new mongoose.Schema({
 
 // Indexes for performance
 billingSchema.index({ organizationId: 1, billId: 1 }, { unique: true });
+billingSchema.index({ organizationId: 1, invoiceNumber: 1 }, { unique: true, sparse: true });
 billingSchema.index({ organizationId: 1 });
 billingSchema.index({ organizationId: 1, patientId: 1 });
 

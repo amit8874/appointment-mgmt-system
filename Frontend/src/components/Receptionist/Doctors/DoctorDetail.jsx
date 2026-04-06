@@ -142,7 +142,7 @@ const DoctorDetail = () => {
                             <span className="p-1 rounded bg-gray-50 border border-gray-100">
                                 <Stethoscope size={14} />
                             </span>
-                            Clinic : <span className="text-gray-600">{doctor.department || 'Downtown Medical Clinic'}</span>
+                            Clinic : <span className="text-gray-600">{doctor.organization?.name || doctor.clinicName || 'Downtown Medical Clinic'}</span>
                         </div>
                         {doctor.status === 'Active' && (
                             <span className="px-2.5 py-1 bg-green-50 text-green-600 rounded-md text-[10px] uppercase font-bold tracking-wider border border-green-100 flex items-center gap-1.5">
@@ -227,9 +227,8 @@ const DoctorDetail = () => {
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-4">
                         <h2 className="text-xl font-bold text-gray-800">Short Bio</h2>
                         <p className="text-gray-500 text-sm leading-relaxed font-normal">
-                            Dr. {doctor.name.split(' ').pop()} has been practicing medicine for over {doctor.experience || '10'} years.
-                            {doctor.gender === 'Female' ? ' She' : ' He'} has extensive experience in managing chronic illnesses, preventive care,
-                            and treating a wide range of medical conditions for patients of all ages.
+                            {doctor.bio || `Dr. ${doctor.name.split(' ').pop()} has been practicing medicine for over ${doctor.experience || 'several'} years.
+                            ${doctor.gender === 'Female' ? ' She' : ' He'} has extensive experience in managing patient care and treating a wide range of medical conditions.`}
                         </p>
                         <button className="text-indigo-600 text-sm font-bold hover:text-indigo-700 flex items-center gap-1 transition-colors">
                             See More <ChevronLeft size={14} className="-rotate-90" />
@@ -245,12 +244,11 @@ const DoctorDetail = () => {
                         <div className="space-y-6">
                             {/* Detail Items */}
                             {[
-                                { label: 'Medical License Number', value: doctor.licenseNumber || 'ML566659898', icon: FileText },
-                                { label: 'Phone Number', value: doctor.phone || '+1 54546 45648', icon: Phone },
-                                { label: 'Email Address', value: doctor.email || 'john@example.com', icon: Mail },
-                                { label: 'Location', value: doctor.address || '4150 Hiney Road, Las Vegas, NV 89109', icon: MapPin },
-                                { label: 'DOB', value: doctor.dob ? new Date(doctor.dob).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '25 Jan 1990', icon: CalendarIcon },
-                                { label: 'Blood Group', value: doctor.bloodGroup || 'O +ve', icon: Droplet },
+                                { label: 'Medical License Number', value: doctor.licenseNumber || 'Not Available', icon: FileText },
+                                { label: 'Phone Number', value: doctor.phone || 'Not Available', icon: Phone },
+                                { label: 'Email Address', value: doctor.email || 'Not Available', icon: Mail },
+                                { label: 'Location', value: doctor.address || (doctor.addressInfo?.address1 ? `${doctor.addressInfo.address1}, ${doctor.addressInfo.city}` : 'Not Available'), icon: MapPin },
+                                { label: 'DOB', value: doctor.dob ? new Date(doctor.dob).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not Available', icon: CalendarIcon },
                             ].map((item, idx) => (
                                 <div key={idx} className="flex gap-4 group">
                                     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors flex-shrink-0 border border-gray-50">

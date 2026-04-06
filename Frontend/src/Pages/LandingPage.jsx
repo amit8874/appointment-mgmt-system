@@ -1114,24 +1114,24 @@ const LandingPage = () => {
               
               <div className="border-t border-dashed border-slate-200 pt-8 mb-8">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">₹799</span>
+                  <span className="text-4xl font-black text-slate-900">₹299</span>
                   <span className="text-slate-400 font-medium font-sm">per month + GST</span>
                 </div>
               </div>
 
-              <button onClick={() => navigate('/register-organization')} className="w-full py-3 px-6 rounded-full border-2 border-slate-100 text-slate-700 font-bold hover:bg-slate-50 transition-colors mb-8">
+              <button onClick={() => navigate('/register-organization')} className="w-full py-3 px-6 rounded-full border-2 border-slate-100 text-slate-700 font-bold hover:bg-slate-50 transition-colors mb-8 text-sm uppercase tracking-widest">
                  Start 14-Day Free Trial
               </button>
 
               <ul className="space-y-4 flex-1">
                 <PricingFeature text="1 Doctor Access" />
+                <PricingFeature text="Basic AI Assistance" isPlus />
                 <PricingFeature text="500 Monthly Appointments" />
                 <PricingFeature text="1,000 Patient Records" />
                 <PricingFeature text="Digital Prescriptions" />
-                <PricingFeature text="Basic Billing & Invoicing" />
+                <PricingFeature text="Basic Billing" />
                 <PricingFeature text="Secure Cloud Storage (5GB)" />
-                <PricingFeature text="QR-Verified Reports" />
-                <PricingFeature text="Phone & Email Support" />
+                <PricingFeature text="Email Support" />
               </ul>
             </motion.div>
 
@@ -1149,29 +1149,30 @@ const LandingPage = () => {
 
               <div className="mb-8">
                 <span className="text-blue-600 font-black text-sm uppercase tracking-widest block mb-1">Standard</span>
-                <span className="text-slate-900 font-bold text-lg">2–3 Doctors / Receptionist</span>
+                <span className="text-slate-900 font-bold text-lg">3 Doctors / Staff</span>
               </div>
               
               <div className="border-t border-dashed border-blue-200 pt-8 mb-8">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">₹1999</span>
+                  <span className="text-4xl font-black text-slate-900">₹499</span>
                   <span className="text-slate-400 font-medium font-sm">per month + GST</span>
                 </div>
               </div>
 
-              <button onClick={() => navigate('/register-organization')} className="w-full py-3 px-6 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20 mb-8">
+              <button onClick={() => navigate('/register-organization')} className="w-full py-3 px-6 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20 mb-8 text-sm uppercase tracking-widest">
                  Start 14-Day Free Trial
               </button>
 
               <ul className="space-y-4 flex-1">
                 <PricingFeature text="Everything in Basic" isPlus />
+                <PricingFeature text="Advanced AI Assistant" isPlus />
+                <PricingFeature text="Direct Patient Messaging" isPlus />
                 <PricingFeature text="Up to 3 Doctor Logins" />
-                <PricingFeature text="2 Receptionist Logins" />
+                <PricingFeature text="3 Staff Logins" />
                 <PricingFeature text="5,000 Patient Records" />
-                <PricingFeature text="2,000 Monthly Appointments" />
-                <PricingFeature text="Advanced Analytics Dashboard" />
-                <PricingFeature text="Dynamic QR Codes on Bills" />
-                <PricingFeature text="Inventory Management" />
+                <PricingFeature text="2,000 Appointments/mo" />
+                <PricingFeature text="Advanced Analytics" />
+                <PricingFeature text="Dynamic QR Codes" />
                 <PricingFeature text="20GB Secure Storage" />
               </ul>
             </motion.div>
@@ -1190,31 +1191,31 @@ const LandingPage = () => {
 
               <div className="mb-8">
                 <span className="text-orange-500 font-black text-sm uppercase tracking-widest block mb-1">Premium</span>
-                <span className="text-slate-900 font-bold text-lg">Multi-Doctor / Hospital</span>
+                <span className="text-slate-900 font-bold text-lg">Unlimited Practice</span>
               </div>
               
               <div className="border-t border-dashed border-slate-200 pt-8 mb-8">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">₹3999</span>
+                  <span className="text-4xl font-black text-slate-900">₹699</span>
                   <span className="text-slate-400 font-medium font-sm">per month + GST</span>
                 </div>
               </div>
 
-              <button onClick={() => navigate('/register-organization')} className="w-full py-3 px-6 rounded-full border-2 border-slate-100 text-slate-700 font-bold hover:bg-slate-50 transition-colors mb-8">
+              <button onClick={() => navigate('/register-organization')} className="w-full py-3 px-6 rounded-full border-2 border-slate-100 text-slate-700 font-bold hover:bg-slate-50 transition-colors mb-8 text-sm uppercase tracking-widest">
                  Start 14-Day Free Trial
               </button>
 
               <ul className="space-y-4 flex-1">
                 <PricingFeature text="Everything in Standard" isPlus />
-                <PricingFeature text="Unlimited Doctor Logins" />
-                <PricingFeature text="Unlimited Staff Logins" />
-                <PricingFeature text="SMS Reminders & Alerts" />
-                <PricingFeature text="Professional Medical Reports" />
-                <PricingFeature text="Chain of Clinic Management" />
-                <PricingFeature text="Custom Clinic Branding" />
-                <PricingFeature text="Telemedicine Module" />
+                <PricingFeature text="Unlimited AI Tokens" isPlus />
+                <PricingFeature text="Direct Patient Messaging" isPlus />
+                <PricingFeature text="Unlimited Doctors & Staff" />
+                <PricingFeature text="Multi-Clinic Management" isPlus />
+                <PricingFeature text="Chain of Clinics Support" />
+                <PricingFeature text="Custom Branding (White Label)" />
                 <PricingFeature text="Priority 24/7 Support" />
                 <PricingFeature text="100GB Secure Storage" />
+                <PricingFeature text="Full API Access" />
               </ul>
             </motion.div>
 
@@ -1228,7 +1229,7 @@ const LandingPage = () => {
             >
               <div className="mb-8">
                 <span className="text-slate-900 font-black text-sm uppercase tracking-widest block mb-1">Enterprise</span>
-                <span className="text-slate-900 font-bold text-lg">20,000+ / Chain of Clinics</span>
+                <span className="text-slate-900 font-bold text-lg">Hospital Chains</span>
               </div>
               
               <div className="border-t border-dashed border-slate-200 pt-8 mb-8">
@@ -1237,20 +1238,17 @@ const LandingPage = () => {
                 </div>
               </div>
 
-              <button className="w-full py-3 px-6 rounded-full border-2 border-slate-100 text-slate-700 font-bold hover:bg-slate-50 transition-colors mb-8">
+              <button className="w-full py-3 px-6 rounded-full border-2 border-slate-100 text-slate-700 font-bold hover:bg-slate-50 transition-colors mb-8 text-sm uppercase tracking-widest">
                  Contact Sales
               </button>
 
               <ul className="space-y-4 flex-1">
-                <PricingFeature text="All Leader Plan Features" isPlus />
-                <PricingFeature text="20,000+ Annual Appointments" />
-                <PricingFeature text="Chain of Clinics Management" />
-                <PricingFeature text="B2B Module" />
-                <PricingFeature text="Corporate Module" />
-                <PricingFeature text="Multi-Clinic Interfacing" />
-                <PricingFeature text="Marketing Team Management" />
+                <PricingFeature text="Everything in Premium" isPlus />
+                <PricingFeature text="Custom AI Model Training" isPlus />
+                <PricingFeature text="On-Premise Deployment" />
                 <PricingFeature text="Dedicated Account Manager" />
-                <PricingFeature text="Priority Support" />
+                <PricingFeature text="SLA Guaranteed Uptime" />
+                <PricingFeature text="Advanced Security Training" />
                 <PricingFeature text="And Many More..." />
               </ul>
             </motion.div>

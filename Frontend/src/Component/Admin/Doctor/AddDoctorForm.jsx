@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { centralDoctorApi, commonApi, centralSpecializationApi, centralCouncilApi, centralPracticeApi } from '../../../services/api';
 import { AnimatePresence, motion } from 'framer-motion';
+import LimitReachedModal from '../../../components/common/LimitReachedModal';
 
 const SectionTitle = ({ title, icon: Icon }) => (
     <div className="flex items-center gap-2 pb-2 mb-4 border-b border-gray-100 dark:border-gray-700">
@@ -45,6 +46,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
     const [activeTab, setActiveTab] = useState('basic'); // basic, professional, registration, identity, location, availability
     const [errors, setErrors] = useState({});
     const [completedSteps, setCompletedSteps] = useState([]);
+    const [limitReached, setLimitReached] = useState({ show: false, message: '', limit: 0 });
 
     const specDropdownRef = useRef(null);
     const councilDropdownRef = useRef(null);
@@ -311,7 +313,18 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
         try {
             if (onSave) await onSave(formData, doctor?.id);
             onClose();
-        } catch (error) { alert('Failed to save doctor.'); } finally { setLoading(false); }
+        } catch (error) { 
+            console.error("Save doctor error:", error);
+            if (error.response?.status === 403 && error.response?.data?.limitReached) {
+                setLimitReached({
+                    show: true,
+                    message: error.response.data.message,
+                    limit: error.response.data.limit
+                });
+            } else {
+                alert(error.response?.data?.message || 'Failed to save doctor.'); 
+            }
+        } finally { setLoading(false); }
     };
 
     if (!isOpen) return null;
@@ -332,7 +345,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 backdrop-blur-md bg-slate-900/40 z-50 flex items-center justify-center p-4">
+            <div key="add-doctor-modal-overlay" className="fixed inset-0 backdrop-blur-md bg-slate-900/40 z-50 flex items-center justify-center p-4">
                 <motion.div 
                     initial={{ opacity: 0, y: 20, scale: 0.98 }} 
                     animate={{ opacity: 1, y: 0, scale: 1 }} 
@@ -639,6 +652,15 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                     </div>
                 </motion.div>
             </div>
+            
+            <LimitReachedModal 
+                key="limit-reached-modal"
+                isOpen={limitReached.show}
+                onClose={() => setLimitReached(prev => ({ ...prev, show: false }))}
+                message={limitReached.message}
+                limit={limitReached.limit}
+                feature="Doctor"
+            />
         </AnimatePresence>
     );
 };

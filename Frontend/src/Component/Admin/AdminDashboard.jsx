@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarCheck, X, User, Users, Stethoscope, HandHeart, Wallet, BarChart3 } from 'lucide-react';
+import { CalendarCheck, X, User, Users, Stethoscope, HandHeart, Wallet, BarChart3, Lock } from 'lucide-react';
 import PatientForm from './Patient/PatientForm.jsx';
 import AddDoctorForm from './Doctor/AddDoctorForm.jsx';
 import ReceptionistForm from './Receptionist/ReceptionistForm.jsx';
@@ -62,6 +62,7 @@ const Admin = () => {
   const [revenueByDoctorData, setRevenueByDoctorData] = useState([]);
   const [monthlyIncomeExpenseData, setMonthlyIncomeExpenseData] = useState([]);
   const [recentAppointments, setRecentAppointments] = useState([]);
+  const [trialStatus, setTrialStatus] = useState(null);
 
   // For form
   const [activeModal, setActiveModal] = useState(null);
@@ -179,12 +180,25 @@ const Admin = () => {
     }
   };
 
+  const fetchTrialStatus = useCallback(async () => {
+    try {
+      const orgId = user?.organizationId?._id || user?.organizationId || user?.organization?._id;
+      if (!orgId || orgId === '[object Object]') return;
+
+      const data = await api.get(`/organizations/${orgId}/trial-status`);
+      setTrialStatus(data.data || data); // Handle both wrapped and unwrapped responses safely
+    } catch (error) {
+      console.error('Error fetching trial status in dashboard:', error);
+    }
+  }, [user]);
+
   // On mount
   useEffect(() => {
     const locationState = window.history.state?.usr; // Accessing state directly as location might not be updated yet or use hook
 
     if (isAuthenticated && user) {
       fetchAllData();
+      fetchTrialStatus();
       notificationsHook.fetchNotifications();
 
       // Check for rebookData in navigation state
@@ -280,6 +294,45 @@ const Admin = () => {
         {(user?.organizationId || user?.organization?._id) && (
           <TrialNotification organizationId={user?.organizationId?._id || user?.organizationId || user?.organization?._id} />
         )}
+        <AnimatePresence>
+          {trialStatus?.isTrialExpired && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] backdrop-blur-md bg-white/40 dark:bg-gray-900/60 flex items-center justify-center p-6 text-center"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                className="max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-gray-700 p-8"
+              >
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Lock className="w-8 h-8 text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-4 italic uppercase tracking-tight">Access Restricted</h2>
+                <p className="text-slate-600 dark:text-slate-400 mb-8 leading-relaxed font-medium">
+                  Your 14-day free trial has officially ended. To continue managing your clinic and serving patients, please choose a subscription plan.
+                </p>
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => navigate('/organization/subscription')}
+                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95 text-sm uppercase tracking-widest"
+                  >
+                     Select Plan & Unlock
+                  </button>
+                  <button 
+                    onClick={() => logout()}
+                    className="w-full py-3 bg-transparent text-slate-500 dark:text-slate-400 font-bold hover:text-slate-700 transition-all text-xs"
+                  >
+                    Log out
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="no-print">
           <Header
             isSidebarOpen={isSidebarOpen}
@@ -294,6 +347,7 @@ const Admin = () => {
             onLogout={() => setIsLogoutModalOpen(true)}
             navigate={navigate}
             user={user}
+            isTrialExpired={trialStatus?.isTrialExpired}
           />
         </div>
         <div className="flex flex-grow h-[calc(100vh-81px)] sm:h-[calc(100vh-89px)] overflow-hidden relative">
@@ -304,7 +358,10 @@ const Admin = () => {
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               user={user}
-              onDoctorAdd={doctorsHook.openDoctorForm}
+               onDoctorAdd={doctorsHook.openDoctorForm}
+              isTrialExpired={trialStatus?.isTrialExpired}
+              limits={trialStatus?.limits}
+              totalDoctors={Math.max(doctorsHook.totalDoctors, doctorsHook.doctors.length)}
             />
           </div>
 
@@ -316,7 +373,7 @@ const Admin = () => {
             ></div>
           )}
 
-          <main className="flex-1 overflow-y-auto p-0">
+          <main className="flex-1 overflow-y-auto p-0 relative">
             <MainContent
               activeTab={activeTab}
               setActiveTab={setActiveTab}
@@ -367,6 +424,7 @@ const Admin = () => {
               doctorsTotalPages={doctorsHook.totalPages}
               doctorsTotalItems={doctorsHook.totalDoctors}
               onDoctorsPageChange={doctorsHook.fetchDoctors}
+              limits={trialStatus?.limits}
             />
           </main>
         </div>

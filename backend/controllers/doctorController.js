@@ -3,6 +3,8 @@ import Counter from '../models/Counter.js';
 import Appointment from '../models/Appointment.js';
 import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
+import Review from '../models/Review.js';
+import Subscription from '../models/Subscription.js';
 
 // Helper function to generate time slots with range format
 const generateTimeSlots = (workingHours, intervalMinutes = 30) => {
@@ -38,8 +40,8 @@ const generateTimeSlots = (workingHours, intervalMinutes = 30) => {
       const endDisplayHours = endHours % 12 || 12;
       const endStr = `${endDisplayHours}:${endMinutes.toString().padStart(2, '0')}`;
       
-      // Create range format like "10:00-10:30 AM" or "10:00-11:00 AM"
-      const displayTime = `${startStr}-${endStr} ${startAmpm}`;
+      // Create range format like "10:00 AM - 10:30 AM" or "11:30 AM - 12:00 PM"
+      const displayTime = `${startStr} ${startAmpm} - ${endStr} ${endAmpm}`;
       slots.push(displayTime);
       
       current.setMinutes(current.getMinutes() + intervalMinutes);
@@ -126,7 +128,9 @@ export const getGlobalPublicDoctors = async (req, res) => {
         clinicName: displayClinic,
         phone: doctor.phone,
         status: doctor.status,
-        organizationId: doctor.organizationId
+        organizationId: doctor.organizationId,
+        likesPercentage: doctor.likesPercentage || 0,
+        totalStories: doctor.totalStories || 0
       };
     });
     
@@ -148,7 +152,7 @@ export const getSearchSuggestions = async (req, res) => {
     const regex = { $regex: q.trim(), $options: 'i' };
 
     // Find specializations and doctor names matching the query
-    const results = await Doctor.find({ status: 'Active' })
+    const results = await Doctor.find({ status: { $in: ['Active', 'Verified'] } })
       .or([{ name: regex }, { specialization: regex }])
       .select('name specialization')
       .limit(10);
@@ -183,7 +187,7 @@ export const getPublicDoctors = async (req, res) => {
     const { organizationId } = req.params;
     const doctors = await Doctor.find({ 
       organizationId,
-      status: 'Active' 
+      status: { $in: ['Active', 'Verified'] } 
     }).sort({ name: 1 });
 
     const formattedDoctors = doctors.map(doctor => ({
@@ -582,7 +586,7 @@ export const getAllDoctors = async (req, res) => {
 // Get doctor count
 export const getDoctorCount = async (req, res) => {
   try {
-    const count = await Doctor.countDocuments({ organizationId: req.tenantId, status: 'Active' });
+    const count = await Doctor.countDocuments({ organizationId: req.tenantId });
     res.json({ count });
   } catch (error) {
     console.error('Error fetching doctor count:', error);
@@ -598,6 +602,19 @@ export const createDoctor = async (req, res) => {
     // Validate required fields
     if (!doctorData.name || !doctorData.specialization) {
       return res.status(400).json({ message: 'Name and specialization are required' });
+    }
+
+    // Check subscription limits
+    const subscription = await Subscription.findOne({ organizationId: req.tenantId });
+    if (subscription && subscription.limits && subscription.limits.doctors !== -1) {
+      const currentDoctorCount = await Doctor.countDocuments({ organizationId: req.tenantId });
+      if (currentDoctorCount >= subscription.limits.doctors) {
+        return res.status(403).json({ 
+          message: 'Want more doctors to add? Upgrade your plan!',
+          limitReached: true,
+          limit: subscription.limits.doctors
+        });
+      }
     }
 
     // Generate doctor ID using counter if not provided
@@ -834,6 +851,62 @@ export const removeAvailabilityOverride = async (req, res) => {
     res.json({ message: 'Availability override removed successfully', availabilityOverrides: doctor.availabilityOverrides });
   } catch (error) {
     console.error('Error removing availability override:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+// Get all reviews for a specific doctor
+export const getDoctorReviews = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Find reviews for this doctorId
+    const reviews = await Review.find({ doctorId: id }).sort({ createdAt: -1 });
+
+    res.json(reviews);
+  } catch (error) {
+    console.error('Error fetching doctor reviews:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Add a review for a doctor
+export const addDoctorReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+    
+    // req.user has been populated by the authenticateToken middleware
+    const patientName = req.user.name;
+
+    if (!rating || !comment) {
+      return res.status(400).json({ message: 'Rating and comment are required' });
+    }
+
+    const newReview = new Review({
+      doctorId: id,
+      organizationId: req.user.organizationId || null,
+      patientName,
+      rating,
+      comment,
+      isLike: rating >= 4 // 4 or 5 stars count as a "Like"
+    });
+
+    await newReview.save();
+
+    // Recalculate and update Doctor stats
+    const allReviews = await Review.find({ doctorId: id });
+    const totalStories = allReviews.length;
+    const likes = allReviews.filter(r => r.isLike).length;
+    const likesPercentage = totalStories > 0 ? Math.round((likes / totalStories) * 100) : 0;
+
+    await Doctor.findOneAndUpdate(
+      { doctorId: id },
+      { totalStories, likesPercentage }
+    );
+
+    res.status(201).json(newReview);
+  } catch (error) {
+    console.error('Error adding doctor review:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

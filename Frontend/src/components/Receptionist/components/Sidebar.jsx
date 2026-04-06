@@ -34,15 +34,17 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
       >
         <div className="flex flex-col h-full p-4">
           {/* Logo */}
-          <div className="flex items-center justify-center mb-8 px-4 bg-transparent">
-            {user?.organization?.branding?.logo ? (
+          <div className="flex items-center justify-center mb-8 px-4 bg-transparent text-center">
+            {(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) ? (
               <img
-                src={user.organization.branding.logo}
-                alt="Organization Logo"
+                src={user?.organization?.branding?.logo || user?.organizationId?.branding?.logo}
+                alt="Clinic Logo"
                 className="h-16 w-auto object-contain"
               />
             ) : (
-              <h1 className="text-blue-600 text-2xl font-black italic tracking-tighter">SLOTIFY</h1>
+              <h1 className="text-blue-600 text-2xl font-black italic tracking-tighter uppercase">
+                {user?.organization?.name || user?.organizationId?.name || "SLOTIFY"}
+              </h1>
             )}
           </div>
 
@@ -91,18 +93,23 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                         {item.children.map((child) => (
                           <NavLink
                             key={child.name}
-                            to={child.href}
+                            to={child.disabled ? '#' : child.href}
+                            onClick={(e) => child.disabled && e.preventDefault()}
                             className={({ isActive }) =>
-                              `group flex items-center px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 transform hover:translate-x-1 ${isActive
+                              `group flex items-center px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 transform hover:translate-x-1 ${
+                                child.disabled
+                                ? 'text-gray-300 cursor-not-allowed opacity-50'
+                                : isActive
                                 ? 'bg-blue-500 text-white shadow-md font-black'
                                 : 'text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-blue-400'
                               }`
                             }
+                            title={child.disabled ? "UPGRADE TO ADD MORE DOCTORS" : ""}
                           >
                             {({ isActive }) => (
                               <>
                                 <child.icon
-                                  className={`mr-3 h-4 w-4 flex-shrink-0 ${isActive
+                                  className={`mr-3 h-4 w-4 flex-shrink-0 ${isActive && !child.disabled
                                     ? 'text-white'
                                     : 'text-blue-400 group-hover:text-blue-500'
                                     }`}
@@ -120,19 +127,24 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                   // Regular menu item without children
                   <NavLink
                     id={item.id}
-                    to={item.href}
+                    to={item.disabled ? '#' : item.href}
+                    onClick={(e) => item.disabled && e.preventDefault()}
                     className={({ isActive }) =>
-                      `group flex items-center px-4 py-3 text-sm rounded-2xl transition-all duration-300 transform hover:translate-x-1 ${isActive
+                      `group flex items-center px-4 py-3 text-sm rounded-2xl transition-all duration-300 transform hover:translate-x-1 ${
+                        item.disabled
+                        ? 'text-gray-400 cursor-not-allowed opacity-50'
+                        : isActive
                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50 font-bold'
                         : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-blue-400 font-medium'
                       }`
                     }
+                    title={item.disabled ? "UPGRADE TO ADD MORE DOCTORS" : ""}
                   >
                     {({ isActive }) => (
                       <>
-                        {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-3/4 w-1 bg-white rounded-full"></div>}
+                        {isActive && !item.disabled && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-3/4 w-1 bg-white rounded-full"></div>}
                         <item.icon
-                          className={`mr-3 h-5 w-5 flex-shrink-0 z-10 ${isActive
+                          className={`mr-3 h-5 w-5 flex-shrink-0 z-10 ${isActive && !item.disabled
                             ? 'text-white'
                             : 'text-blue-500 dark:text-blue-400'
                             }`}

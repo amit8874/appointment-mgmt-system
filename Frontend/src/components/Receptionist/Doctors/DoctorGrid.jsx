@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useOutletContext } from 'react-router-dom';
 import {
   Stethoscope, Search, PlusCircle, Edit2, Trash2, Eye,
   Calendar, Clock, MapPin, Mail, Phone, User, Briefcase,
@@ -55,6 +55,7 @@ const StatusBadge = ({ status }) => {
 
 const DoctorGrid = () => {
   const navigate = useNavigate();
+  const { limits, doctorCount: contextCount, limitsLoading } = useOutletContext() || {};
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -80,6 +81,9 @@ const DoctorGrid = () => {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+  
+  const currentCount = Math.max(doctors.length, contextCount || 0);
+  const isLimitReached = !limitsLoading && limits && typeof limits.doctors === 'number' && limits.doctors !== -1 && currentCount >= limits.doctors;
 
   if (loading) {
     return (
@@ -106,12 +110,28 @@ const DoctorGrid = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link to="/receptionist/add-doctor">
-            <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-md">
-              <PlusCircle size={18} />
-              <span className="text-sm font-medium">New Doctor</span>
-            </button>
-          </Link>
+          {isLimitReached ? (
+            <div className="relative group">
+              <button 
+                className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed opacity-70 shadow-md"
+                disabled={true}
+              >
+                <PlusCircle size={18} />
+                <span className="text-sm font-medium">New Doctor</span>
+              </button>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-black rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 uppercase tracking-widest border border-white/10">
+                UPGRADE TO ADD MORE DOCTOR
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          ) : (
+            <Link to="/receptionist/add-doctor">
+              <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-md">
+                <PlusCircle size={18} />
+                <span className="text-sm font-medium">New Doctor</span>
+              </button>
+            </Link>
+          )}
         </div>
       </div>
 

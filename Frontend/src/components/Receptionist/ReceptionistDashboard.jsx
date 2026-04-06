@@ -8,13 +8,17 @@ import Notification from './components/Notification';
 import { useAuth } from '../../context/AuthContext';
 import LogoutConfirmationModal from '../../components/common/LogoutConfirmationModal';
 import OnboardingTour from '../../components/common/OnboardingTour';
+import api, { centralDoctorApi } from '../../services/api';
 
 const ReceptionistLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 1024);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const { logout } = useAuth();
+  const [subscriptionLimits, setSubscriptionLimits] = useState(null);
+  const [doctorCount, setDoctorCount] = useState(0);
+  const [limitsLoading, setLimitsLoading] = useState(true);
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
 
   // Handle window resize to auto-hide sidebar on mobile
@@ -29,6 +33,36 @@ const ReceptionistLayout = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+  
+  const fetchSubscriptionLimits = async () => {
+    try {
+      setLimitsLoading(true);
+      const orgId = user?.organizationId?._id || user?.organizationId || user?.organization?._id;
+      if (!orgId || orgId === '[object Object]') {
+        setLimitsLoading(false);
+        return;
+      }
+      
+      const response = await api.get(`/organizations/${orgId}/trial-status`);
+      const data = response.data || response;
+      const limits = data.limits;
+      setSubscriptionLimits(limits);
+      
+      // Also fetch doctor count
+      const count = await centralDoctorApi.getCount();
+      setDoctorCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching subscription limits:', error);
+    } finally {
+      setLimitsLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    if (user) {
+      fetchSubscriptionLimits();
+    }
+  }, [user]);
 
   const navigation = [
     { name: 'New Appointment', href: '/receptionist', icon: Calendar },
@@ -37,7 +71,7 @@ const ReceptionistLayout = () => {
       icon: Calendar,
       children: [
         { name: 'Calendar View', href: '/receptionist/appointments', icon: Calendar },
-        { name: 'Track Appointment', href: '/receptionist/track-appointments', icon: Grid },
+        { name: 'Today Appointment', href: '/receptionist/track-appointments', icon: Grid },
       ]
     },
     { name: 'Patients', href: '/receptionist/patients', icon: Users },
@@ -48,11 +82,21 @@ const ReceptionistLayout = () => {
       icon: Stethoscope,
       children: [
         { name: 'Doctor', href: '/receptionist/doctor', icon: Stethoscope },
-        { name: 'Add Doctor', href: '/receptionist/add-doctor', icon: User },
+        { 
+          name: 'Add Doctor', 
+          href: '/receptionist/add-doctor', 
+          icon: User,
+          disabled: !limitsLoading && subscriptionLimits && subscriptionLimits.doctors !== -1 && doctorCount >= subscriptionLimits.doctors
+        },
         { name: 'Doctor Schedule', href: '/receptionist/doctor-schedule', icon: Calendar },
       ]
     },
-  ];
+  ].filter(item => {
+    if (item.name === 'Messages' && subscriptionLimits?.messaging === false) {
+      return false;
+    }
+    return true;
+  });
 
   const handleLogout = () => {
     logout();
@@ -121,7 +165,7 @@ const ReceptionistLayout = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 ">
               <AnimatePresence mode="wait">
                 <PageTransition>
-                  <Outlet />
+                  <Outlet context={{ limits: subscriptionLimits, doctorCount, limitsLoading }} />
                 </PageTransition>
               </AnimatePresence>
             </div>

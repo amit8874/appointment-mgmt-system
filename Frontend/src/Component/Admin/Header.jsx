@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { LogOut, UserCircle, Bell, Sun, Moon, Menu, ShieldCheck } from 'lucide-react';
 import { getNotifications, markAllAsRead, markAsRead } from '../../api/notificationApi';
 
-const Header = ({ toggleSidebar, isSidebarOpen, onLogout }) => {
+const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
@@ -98,6 +98,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout }) => {
   };
 
   const handleProfileClick = () => {
+    if (isTrialExpired) return;
     navigate('/admin-profile-page');
   };
 

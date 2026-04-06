@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, User, Calendar, ShieldCheck, Grid, Activity, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, User, Calendar, ShieldCheck, Grid, Activity, MessageSquare, Crown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NavItem from './NavItem.jsx';
 
@@ -10,7 +10,10 @@ const AdminSidebar = ({
   activeTab,
   setActiveTab,
   user,
-  onDoctorAdd
+  onDoctorAdd,
+  onDoctorAddProps,
+  limits,
+  totalDoctors
 }) => {
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
@@ -53,16 +56,23 @@ const AdminSidebar = ({
               <button
                 key={child.name}
                 onClick={() => {
+                  if (child.name === 'Add Doctor' && limits && limits.doctors !== -1 && (totalDoctors >= limits.doctors)) {
+                    return; // Prevent action if limit reached
+                  }
                   if (child.action) {
                     child.action();
                   } else {
                     setActiveTab(child.name);
                   }
                 }}
+                disabled={child.name === 'Add Doctor' && limits && limits.doctors !== -1 && (totalDoctors >= limits.doctors)}
                 className={`flex items-center w-full pl-6 pr-3 py-1.5 rounded-none transition-all duration-200 ${activeTab === child.name
                   ? 'bg-indigo-50/30 text-indigo-600 font-bold text-sm'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800 dark:text-gray-400 font-medium text-sm'
+                  : child.name === 'Add Doctor' && limits && limits.doctors !== -1 && (totalDoctors >= limits.doctors)
+                    ? 'text-gray-400 cursor-not-allowed opacity-50 font-medium text-sm'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800 dark:text-gray-400 font-medium text-sm'
                 }`}
+                title={child.name === 'Add Doctor' && limits && limits.doctors !== -1 && (totalDoctors >= limits.doctors) ? "UPGRADE TO ADD MORE DOCTORS" : ""}
               >
                 <child.icon className={`w-4 h-4 mr-2.5 ${activeTab === child.name ? 'text-indigo-600' : 'text-gray-400'}`} />
                 <span>{child.name}</span>
@@ -83,7 +93,7 @@ const AdminSidebar = ({
 
   const appointmentChildren = [
     { name: 'Calendar View', icon: Calendar },
-    { name: 'Track Appointment', icon: Activity },
+    { name: 'Today Appointment', icon: Activity },
   ];
 
   return (
@@ -104,7 +114,9 @@ const AdminSidebar = ({
         <NavItem id="tour-admin-new-appointment" name="New Appointment" icon={CalendarCheck} currentTab={activeTab} onClick={setActiveTab} />
         <NavItem id="tour-admin-analysis" name="Analysis" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} />
         <NavItem id="tour-admin-patients" name="Patients" icon={Users} currentTab={activeTab} onClick={setActiveTab} />
-        <NavItem id="tour-admin-messages" name="Messages" icon={MessageSquare} currentTab={activeTab} onClick={setActiveTab} />
+        {limits?.messaging !== false && (
+          <NavItem id="tour-admin-messages" name="Messages" icon={MessageSquare} currentTab={activeTab} onClick={setActiveTab} />
+        )}
 
         <h2 className="text-xs font-semibold uppercase text-gray-400 mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 mb-2 ml-3 tracking-wider">STAFF & RESOURCES</h2>
         
@@ -129,6 +141,15 @@ const AdminSidebar = ({
           <>
             <h2 className="text-xs font-semibold uppercase text-gray-400 mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 mb-2 ml-3 tracking-wider">ADMIN</h2>
             <NavItem id="tour-admin-users" name="User Management" icon={Users} currentTab={activeTab} onClick={setActiveTab} />
+            {user?.role === 'orgadmin' && (
+              <button
+                onClick={() => navigate('/organization/subscription')}
+                className="flex items-center w-full px-3 py-2.5 mt-1 rounded-none text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 font-bold transition-all duration-200"
+              >
+                <Crown className="w-5 h-5 mr-3 text-violet-600" />
+                <span className="text-base text-black">Billing & Subscription</span>
+              </button>
+            )}
             {user?.role === 'superadmin' && (
               <button
                 onClick={() => navigate('/superadmin/dashboard')}

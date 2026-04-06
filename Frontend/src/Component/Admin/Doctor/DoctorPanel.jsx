@@ -148,7 +148,9 @@ const DoctorPanel = ({
   totalPages,
   totalItems,
   itemsPerPage,
-  onPageChange
+  onPageChange,
+  canVerify = false,
+  limits
 }) => {
   const navigate = useNavigate();
 
@@ -225,8 +227,8 @@ const DoctorPanel = ({
   // Use the filtered doctors directly (already limited by server)
   const paginatedDoctors = filteredDoctors;
 
-
-
+  // Calculate if doctor limit is reached
+  const isLimitReached = limits && typeof limits.doctors === 'number' && limits.doctors !== -1 && (totalItems >= limits.doctors || filteredDoctors.length >= limits.doctors);
 
   return (
     <motion.div
@@ -252,13 +254,28 @@ const DoctorPanel = ({
 
         <div className="flex items-center gap-3">
           {/* Add Doctor Button */}
-          <button
-            onClick={onAddDoctor}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-md"
-          >
-            <PlusCircle size={18} />
-            <span className="text-sm font-medium">New Doctor</span>
-          </button>
+          <div className="relative group">
+            <button
+              onClick={isLimitReached ? null : onAddDoctor}
+              disabled={isLimitReached}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all shadow-md ${
+                isLimitReached 
+                ? "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-70" 
+                : "bg-indigo-600 text-white hover:bg-indigo-700"
+              }`}
+              title={isLimitReached ? "Upgrade plan to add more doctors" : "Register a new doctor"}
+            >
+              <PlusCircle size={18} />
+              <span className="text-sm font-medium">New Doctor</span>
+            </button>
+            
+            {isLimitReached && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                Upgrade to add more doctors
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-gray-900" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -310,7 +327,7 @@ const DoctorPanel = ({
               <div className="mt-4 flex justify-between items-center">
                 <StatusBadge status={doctor.status || 'Active'} />
                 <div className="flex gap-1.5">
-                  {doctor.status === 'Pending' && (
+                  {canVerify && doctor.status === 'Pending' && (
                     <>
                       <button
                         onClick={() => onVerifyDoctor && onVerifyDoctor(doctor.id)}
@@ -656,7 +673,7 @@ const DoctorPanel = ({
                 </div>
 
                 {/* Verification Footer (Only in Modal) */}
-                {selectedDoctor.status === 'Pending' && (
+                {canVerify && selectedDoctor.status === 'Pending' && (
                   <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
                     <button
                       onClick={() => {

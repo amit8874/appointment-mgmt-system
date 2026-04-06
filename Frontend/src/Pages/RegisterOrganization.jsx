@@ -42,6 +42,7 @@ const RegisterOrganization = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -67,6 +68,10 @@ const RegisterOrganization = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!agreed) {
+      setError('Please agree to the Terms and Conditions and Privacy Policy to continue.');
+      return;
+    }
     setError('');
 
     // Basic validation
@@ -248,6 +253,19 @@ const RegisterOrganization = () => {
               )}
             </AnimatePresence>
 
+            <div className="flex items-start gap-3 py-2 px-1">
+              <input 
+                type="checkbox" 
+                id="terms" 
+                checked={agreed} 
+                onChange={(e) => setAgreed(e.target.checked)}
+                className="mt-1 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+              />
+              <label htmlFor="terms" className="text-[11px] font-bold text-slate-500 leading-relaxed cursor-pointer select-none">
+                I agree to the <Link to="/terms-conditions" target="_blank" className="text-blue-600 hover:underline">Terms & Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</Link>
+              </label>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -263,12 +281,6 @@ const RegisterOrganization = () => {
               )}
             </button>
           </form>
-
-          <p className="mt-6 text-center text-xs text-slate-500 leading-relaxed font-medium">
-            By signing up, you agree to our{" "}
-            <a href="#" className="text-blue-600 font-bold hover:underline">Terms & Conditions</a> and{" "}
-            <a href="#" className="text-blue-600 font-bold hover:underline">Privacy Policy</a>.
-          </p>
 
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <p className="text-slate-500 text-sm font-medium">

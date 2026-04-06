@@ -67,11 +67,12 @@ const TrialNotification = ({ organizationId }) => {
       return () => clearInterval(timer);
     }
   }, [trialStatus?.planType, trialStatus?.trialStartDate, organizationId, fetchTrialStatus]);
-  // Auto-hide after 10 seconds unless it's an important notification
+  // Auto-hide after 10 seconds unless it's a persistent notification
   useEffect(() => {
     if (isVisible && !isLoading && trialStatus) {
-      // Don't auto-hide for expired or reset notifications as they need attention
-      if (trialStatus.isTrialExpired || trialStatus.needsResetNotification) {
+      const content = getMessage();
+      // Don't auto-hide persistent notifications (expired, near-expiry, etc.)
+      if (content?.persistent || trialStatus.needsResetNotification) {
         return;
       }
 
@@ -80,7 +81,7 @@ const TrialNotification = ({ organizationId }) => {
       }, 10000);
       return () => clearTimeout(timer);
     }
-  }, [isVisible, isLoading, trialStatus?.isTrialExpired, trialStatus?.needsResetNotification]);
+  }, [isVisible, isLoading, trialStatus]);
 
   const handleClose = () => {
     setIsAnimating(true);
@@ -112,25 +113,26 @@ const TrialNotification = ({ organizationId }) => {
   const getMessage = () => {
     if (!trialStatus) return null;
 
-    // 1. DATA RESET NOTIFICATION (Highest Priority)
+    // 1. TRIAL EXPIRED (Critical)
+    if (trialStatus.isTrialExpired) {
+      return {
+        type: 'error',
+        title: '🔒 Access Restricted',
+        message: 'Your free trial has officially expired. Please subscribe to a plan to continue managing your clinic.',
+        buttonText: 'See Pricing Plans',
+        buttonAction: () => window.location.href = '/organization/subscription',
+        persistent: true
+      };
+    }
+
+    // 2. DATA RESET NOTIFICATION
     if (trialStatus.needsResetNotification) {
       return {
         type: 'reset',
         title: 'Trial Data Reset',
-        message: 'Your free trial operational data (appointments, patients, etc.) has been reset as per the 24-hour policy.',
+        message: 'Your free trial operational data has been reset as per the 24-hour policy.',
         buttonText: 'Got it',
         buttonAction: handleDismissReset
-      };
-    }
-
-    // 2. TRIAL EXPIRED
-    if (trialStatus.isTrialExpired) {
-      return {
-        type: 'error',
-        title: 'Trial Expired',
-        message: 'Your 14-day free trial has expired. Please upgrade to continue using the platform.',
-        buttonText: 'Upgrade Now',
-        buttonAction: () => window.location.href = '/organization/subscription'
       };
     }
 
@@ -138,53 +140,58 @@ const TrialNotification = ({ organizationId }) => {
     if (trialStatus.isManualOverride) {
       return {
         type: 'success',
-        title: 'Trial Extended',
-        message: `Your trial has been extended for ${trialStatus.daysRemaining} days and will expire on ${formatDate(trialStatus.trialEndDate)}.`,
+        title: '✨ Trial Extended',
+        message: `Your trial has been extended! You have ${trialStatus.daysRemaining} days remaining until ${formatDate(trialStatus.trialEndDate)}.`,
         buttonText: null,
-        buttonAction: null
+        buttonAction: null,
+        persistent: false
       };
     }
 
-    // 4. FREE TRIAL WITH RESET TIMER
+    // 4. FREE AUTO-RESET TIMER
     if (trialStatus.planType === 'FREE_TRIAL') {
       return {
         type: 'timer',
-        title: 'Trial Auto-Reset Active',
-        message: `Your clinical data resets every 24 hours to keep the system fast. Next reset in: ${timeLeft}`,
-        buttonText: 'Upgrade to Save Data',
-        buttonAction: () => window.location.href = '/organization/subscription'
+        title: '⚡ 24h Auto-Reset Active',
+        message: `Free trial data resets daily. Next reset in: ${timeLeft}. Upgrade to save your data forever.`,
+        buttonText: 'Upgrade Now',
+        buttonAction: () => window.location.href = '/organization/subscription',
+        persistent: false
       };
     }
 
-    // 4. LEGACY 14-DAY TRIAL MESSAGES
-    const { daysRemaining, trialDays, trialEndDate } = trialStatus;
+    // 5. 14-DAY TRIAL COUNTDOWN
+    const { daysRemaining, trialEndDate } = trialStatus;
 
     if (daysRemaining === 1) {
       return {
         type: 'warning',
-        title: 'Trial Ending Tomorrow',
-        message: `You have 1 day left in your free trial.\nTrial will end on: ${formatDate(trialEndDate)}`,
-        buttonText: 'Upgrade Now',
-        buttonAction: () => window.location.href = '/organization/subscription'
+        title: '⚠️ Last Day of Trial',
+        message: 'Your free trial ends tomorrow. Choose a plan today to prevent any service interruption.',
+        buttonText: 'Keep My Data',
+        buttonAction: () => window.location.href = '/organization/subscription',
+        persistent: true
       };
     }
 
     if (daysRemaining <= 3) {
       return {
         type: 'warning',
-        title: 'Trial Ending Soon',
-        message: `You have ${daysRemaining} days left in your free trial.\nTrial will end on: ${formatDate(trialEndDate)}`,
-        buttonText: 'Upgrade Now',
-        buttonAction: () => window.location.href = '/organization/subscription'
+        title: '⏳ Trial Ending Soon',
+        message: `Only ${daysRemaining} days left in your trial. Ensure your clinic stays online by selecting a pricing plan.`,
+        buttonText: 'Choose Plan',
+        buttonAction: () => window.location.href = '/organization/subscription',
+        persistent: true
       };
     }
 
     return {
       type: 'info',
-      title: 'Trial Active',
-      message: `You have ${daysRemaining} days left in your free trial.`,
+      title: '👋 Trial Active',
+      message: `Welcome! You have ${daysRemaining} days left to explore all premium features for free.`,
       buttonText: null,
-      buttonAction: null
+      buttonAction: null,
+      persistent: false
     };
   };
 

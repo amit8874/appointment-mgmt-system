@@ -49,7 +49,7 @@ const ChatBot = () => {
   // Get organizationId from user, URL, or localStorage
   const getOrganizationId = () => {
     const path = window.location.pathname;
-    
+
     // 1. Explicit Clinic/Booking context in URL
     const urlParams = new URLSearchParams(window.location.search);
     const fromUrl = urlParams.get('orgId') || urlParams.get('organizationId');
@@ -99,12 +99,12 @@ const ChatBot = () => {
   const handleQuickAction = (text) => {
     setInputValue(text);
     setShowQuickActions(false);
-    
+
     // Use a small delay to ensure state updates before submitting
     setTimeout(() => {
       const form = document.getElementById('chatbot-form');
       if (form) {
-        const fakeEvent = { preventDefault: () => {} };
+        const fakeEvent = { preventDefault: () => { } };
         handleSend(fakeEvent, text);
       }
     }, 100);
@@ -135,24 +135,24 @@ const ChatBot = () => {
       } : null;
 
       const response = await chatbotApi.chat(currentInput, history, organizationId, userContext);
-      
+
       const botText = response.text;
-      
+
       const displayTemplate = botText.trim();
 
-      setMessages(prev => [...prev, { 
-        id: Date.now() + 1, 
-        text: displayTemplate, 
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        text: displayTemplate,
         sender: 'bot',
         messageType: response.messageType || 'text',
         metadata: response.metadata || null
       }]);
     } catch (error) {
       console.error("AI Chat Error:", error);
-      setMessages(prev => [...prev, { 
-        id: Date.now() + 1, 
-        text: "I'm having a little trouble connecting right now. Could you please try again?", 
-        sender: 'bot' 
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        text: "I'm having a little trouble connecting right now. Could you please try again?",
+        sender: 'bot'
       }]);
     } finally {
       setIsLoading(false);
@@ -175,22 +175,22 @@ const ChatBot = () => {
               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/10 rounded-full -mr-16 -mt-16 pointer-events-none"></div>
               <div className="flex items-center gap-3 relative z-10">
                 <div className="relative">
-                  <img 
-                    src="/assets/chatbot/maya.png" 
-                    alt="Maya" 
+                  <img
+                    src="/assets/chatbot/maya.png"
+                    alt="Maya"
                     className="w-12 h-12 rounded-full border-2 border-white/30 shadow-lg object-cover"
                   />
                   <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white"></div>
                 </div>
                 <div>
-                  <h4 className="font-black text-lg leading-tight tracking-tight">Maya</h4>
+                  <h4 className="font-black text-lg leading-tight tracking-tight">Maya AI</h4>
                   <p className="text-blue-200 text-xs font-bold flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
                     Online Buddy
                   </p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setIsOpen(false)}
                 className="hover:bg-white/10 p-2 rounded-full transition-all active:scale-90"
                 title="Slide Down"
@@ -202,17 +202,16 @@ const ChatBot = () => {
             {/* Chat Messages */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/80">
               {messages.map((msg) => (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  key={msg.id} 
+                  key={msg.id}
                   className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`max-w-[85%] p-4 rounded-2xl text-sm font-semibold shadow-sm ${
-                    msg.sender === 'user' 
-                      ? 'bg-[#00386a] text-white rounded-tr-none' 
+                  <div className={`max-w-[85%] p-4 rounded-2xl text-sm font-semibold shadow-sm ${msg.sender === 'user'
+                      ? 'bg-[#00386a] text-white rounded-tr-none'
                       : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
-                  }`}>
+                    }`}>
                     <div className="markdown-content">
                       <ReactMarkdown>
                         {msg.text}
@@ -221,9 +220,9 @@ const ChatBot = () => {
 
                     {/* Interactive UI */}
                     {msg.sender === 'bot' && msg.messageType === 'options' && msg.metadata?.options && (
-                      <ChatActionOptions 
-                        options={msg.metadata.options} 
-                        onSelect={(val) => handleSend(null, val)} 
+                      <ChatActionOptions
+                        options={msg.metadata.options}
+                        onSelect={(val) => handleSend(null, val)}
                       />
                     )}
 
@@ -237,35 +236,35 @@ const ChatBot = () => {
                   </div>
                 </motion.div>
               ))}
-              
+
               {showQuickActions && messages.length === 1 && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="flex flex-wrap gap-2 pt-2 px-2"
                 >
-                  <button 
+                  <button
                     onClick={() => handleQuickAction("Book a doctor appointment")}
                     className="bg-blue-600 text-white px-4 py-2 rounded-full text-xs font-black shadow-lg shadow-blue-200 flex items-center gap-2 border border-blue-500 hover:bg-blue-700 transition-all"
                   >
                     <Calendar size={14} className="fill-white" />
                     Book Appointment
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleQuickAction("What are the features of Slotify?")}
                     className="bg-white border border-blue-200 text-[#00386a] px-4 py-2 rounded-full text-xs font-bold hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
                   >
                     <Info size={14} />
                     Explore Features
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleQuickAction("Tell me about the pricing plans.")}
                     className="bg-white border border-blue-200 text-[#00386a] px-4 py-2 rounded-full text-xs font-bold hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
                   >
                     <CreditCard size={14} />
                     Pricing Plans
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleQuickAction("How can I register my clinic?")}
                     className="bg-white border border-blue-200 text-[#00386a] px-4 py-2 rounded-full text-xs font-bold hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
                   >
@@ -277,7 +276,7 @@ const ChatBot = () => {
 
 
               {isLoading && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="flex justify-start"
@@ -291,75 +290,78 @@ const ChatBot = () => {
             </div>
 
             <div className="p-4 bg-white border-t border-slate-100">
-                <form id="chatbot-form" onSubmit={handleSend} className="flex items-start gap-2 bg-slate-100 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
-                  <textarea
-                    rows="1"
-                    value={inputValue}
-                    onChange={(e) => {
-                      setInputValue(e.target.value);
+              <form id="chatbot-form" onSubmit={handleSend} className="flex items-start gap-2 bg-slate-100 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+                <textarea
+                  rows="1"
+                  value={inputValue}
+                  onChange={(e) => {
+                    setInputValue(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = e.target.scrollHeight + 'px';
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend(e);
                       e.target.style.height = 'auto';
-                      e.target.style.height = e.target.scrollHeight + 'px';
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend(e);
-                        e.target.style.height = 'auto';
-                      }
-                    }}
-                    placeholder="Ask me anything..."
-                    className="flex-1 bg-transparent border-none px-2 py-2 text-sm outline-none transition-all placeholder:text-slate-400 font-bold text-slate-700 resize-none max-h-32 overflow-y-auto"
-                  />
-                  <button 
-                    type="submit"
-                    className="bg-[#00386a] text-white p-2.5 rounded-lg hover:bg-[#002b52] transition-all shadow-lg active:scale-90 flex items-center justify-center shrink-0 mt-0.5"
-                  >
-                    <Send size={18} />
-                  </button>
-                </form>
-              <p className="text-[10px] text-center text-slate-400 mt-2 font-bold uppercase tracking-widest">Powered by Slotify AI</p>
+                    }
+                  }}
+                  placeholder="Ask me anything..."
+                  className="flex-1 bg-transparent border-none px-2 py-2 text-sm outline-none transition-all placeholder:text-slate-400 font-bold text-slate-700 resize-none max-h-32 overflow-y-auto"
+                />
+                <button
+                  type="submit"
+                  className="bg-[#00386a] text-white p-2.5 rounded-lg hover:bg-[#002b52] transition-all shadow-lg active:scale-90 flex items-center justify-center shrink-0 mt-0.5"
+                >
+                  <Send size={18} />
+                </button>
+              </form>
+              <div className="mt-2 text-center space-y-1.5">
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Powered by Slotify AI</p>
+                <p className="text-[9px] text-slate-400/70 font-bold leading-none">Maya can make mistakes. Check important info</p>
+              </div>
             </div>
           </motion.div>
         ) : (
           <motion.div className="flex flex-col items-end gap-3">
-             <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="bg-white px-5 py-3 rounded-2xl shadow-xl border border-slate-100 text-slate-700 text-sm font-bold flex items-center gap-2 mb-2"
-             >
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                How can I help you?
-             </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white px-5 py-3 rounded-2xl shadow-xl border border-slate-100 text-slate-700 text-sm font-bold flex items-center gap-2 mb-2"
+            >
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              How can I help you?
+            </motion.div>
 
-             {/* Rotating rainbow ring wrapper */}
-             <div
-               style={{
-                 borderRadius: '50%',
-                 padding: '3px',
-                 background: 'conic-gradient(#b30000, #bf5e00, #8a8a00, #005200, #00008b, #1a006b, #4b0082, #b30000)',
-                 animation: 'maya-spin 2.5s linear infinite',
-               }}
-             >
-               <motion.button
-                 whileHover={{ scale: 1.08 }}
-                 whileTap={{ scale: 0.92 }}
-                 onClick={() => setIsOpen(true)}
-                 style={{
-                   display: 'block',
-                   borderRadius: '50%',
-                   border: '2px solid white',
-                   overflow: 'hidden',
-                   boxShadow: '0 8px 30px rgba(0,0,0,0.35)',
-                   animation: 'maya-counter-spin 2.5s linear infinite',
-                 }}
-               >
-                 <img 
-                   src="/assets/chatbot/maya.png" 
-                   alt="Chat" 
-                   className="w-16 h-16 object-cover"
-                 />
-               </motion.button>
-             </div>
+            {/* Rotating rainbow ring wrapper */}
+            <div
+              style={{
+                borderRadius: '50%',
+                padding: '3px',
+                background: 'conic-gradient(#b30000, #bf5e00, #8a8a00, #005200, #00008b, #1a006b, #4b0082, #b30000)',
+                animation: 'maya-spin 2.5s linear infinite',
+              }}
+            >
+              <motion.button
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                onClick={() => setIsOpen(true)}
+                style={{
+                  display: 'block',
+                  borderRadius: '50%',
+                  border: '2px solid white',
+                  overflow: 'hidden',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.35)',
+                  animation: 'maya-counter-spin 2.5s linear infinite',
+                }}
+              >
+                <img
+                  src="/assets/chatbot/maya.png"
+                  alt="Chat"
+                  className="w-16 h-16 object-cover"
+                />
+              </motion.button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

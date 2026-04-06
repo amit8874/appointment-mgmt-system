@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const PublicHeader = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productMenuOpen, setProductMenuOpen] = useState(false);
+  const [mobileProductOpen, setMobileProductOpen] = useState(false);
 
   const features = [
     { title: "Scheduling", icon: <Calendar size={18} className="text-indigo-500" />, desc: "Appointment management", to: "/features/scheduling" },
@@ -194,7 +195,57 @@ const PublicHeader = () => {
         </div>
 
         {/* Drawer Nav Links */}
-        <nav className="flex flex-col gap-3 px-5 py-6">
+        <nav className="flex flex-col gap-3 px-5 py-6 overflow-y-auto max-h-[calc(100vh-250px)] scrollbar-hide">
+          {/* Product Menu Mobile */}
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={() => setMobileProductOpen(!mobileProductOpen)}
+              className={`flex items-center justify-between w-full px-5 py-4 rounded-2xl transition-all active:scale-95 ${mobileProductOpen ? 'bg-indigo-50 border border-indigo-100 shadow-sm' : 'bg-slate-50 border border-slate-100'}`}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${mobileProductOpen ? 'bg-indigo-600 shadow-lg shadow-indigo-500/30' : 'bg-slate-200'}`}>
+                  <Layout size={18} className={mobileProductOpen ? 'text-white' : 'text-slate-600'} />
+                </div>
+                <div className="text-left">
+                  <p className="font-black text-slate-800 text-sm tracking-tight">Product</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Browse Features</p>
+                </div>
+              </div>
+              <ChevronDown size={18} className={`text-slate-400 transition-transform duration-300 ${mobileProductOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+              {mobileProductOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden bg-slate-50/50 rounded-2xl border border-slate-100/50 mt-1"
+                >
+                  <div className="p-2 grid grid-cols-1 gap-1">
+                    {features.map((f, i) => (
+                      <Link
+                        key={i}
+                        to={f.to}
+                        onClick={() => {
+                          setSidebarOpen(false);
+                          setMobileProductOpen(false);
+                        }}
+                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-white transition-all active:scale-95"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center">
+                          {f.icon}
+                        </div>
+                        <p className="text-xs font-bold text-slate-700">{f.title}</p>
+                      </Link>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <a
             href="/#pricing"
             onClick={() => setSidebarOpen(false)}

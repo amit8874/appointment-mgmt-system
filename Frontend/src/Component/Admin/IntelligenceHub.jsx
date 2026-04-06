@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Brain, TrendingUp, Users, Calendar, AlertTriangle, Lightbulb, RefreshCw, ChevronRight, BarChart3 } from 'lucide-react';
-import { analyticsApi } from '../../../services/api';
+import { analyticsApi } from '../../services/api';
 import { toast } from 'react-toastify';
 
 const IntelligenceHub = () => {

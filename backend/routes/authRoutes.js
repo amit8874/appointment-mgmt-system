@@ -1,5 +1,5 @@
 import express from 'express';
-import { sendOtp, verifyOtp } from '../controllers/authController.js';
+import { sendOtp, verifyOtp, quickLogin } from '../controllers/authController.js';
 import { login, signup, superAdminLogin, createUser, deleteUser, updateUserProfile, updateUserPassword } from '../controllers/userController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -10,6 +10,9 @@ router.post('/send-otp', sendOtp);
 
 // POST /api/auth/verify-otp - Verify OTP
 router.post('/verify-otp', verifyOtp);
+
+// POST /api/auth/quick-login - Quick login with Name and Mobile
+router.post('/quick-login', quickLogin);
 
 // Alternative paths to bypass IIS issues with /api/users/
 router.post('/login', login);

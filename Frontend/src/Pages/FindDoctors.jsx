@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import { 
   Search, MapPin, Star, Clock, Heart, 
   Filter, ChevronDown, ChevronRight, Stethoscope, 
   Award, Languages, Calendar, Phone,
-  ThumbsUp, Smartphone, CheckCircle, Shield
+  ThumbsUp, Smartphone, CheckCircle, Shield, X
 } from "lucide-react";
 import { motion } from "framer-motion";
 import api from "../services/api";
+import { useAuth } from "../context/AuthContext";
 import PublicHeader from "../components/Shared/PublicHeader";
 import PublicFooter from "../components/Shared/PublicFooter";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 
 const SlotSelector = ({ doctorId, onSelect }) => {
   const [availabilitySummary, setAvailabilitySummary] = useState([]);
@@ -197,6 +198,311 @@ const ContactClinic = ({ phone }) => {
   );
 };
 
+const PatientStoriesModal = ({ doctor, isOpen, onClose }) => {
+  const { isAuthenticated, user, login: authLogin } = useAuth();
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Review Form State
+  const [comment, setComment] = useState("");
+  const [rating, setRating] = useState(5);
+  const [name, setName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [agreed, setAgreed] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && doctor) {
+      fetchReviews();
+    }
+    // Pre-fill name/mobile if user is already logged in
+    if (user) {
+      setName(user.name || "");
+      setMobile(user.mobile || "");
+    } else {
+      setName("");
+      setMobile("");
+    }
+  }, [isOpen, doctor, user]);
+
+  const fetchReviews = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get(`/doctors/${doctor._id}/reviews`);
+      setReviews(res.data);
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!agreed) {
+      setLoginError("Please agree to the Terms and Conditions to continue.");
+      setIsSubmitting(false);
+      return;
+    }
+    setIsSubmitting(true);
+    setLoginError("");
+
+    try {
+      let currentUser = user;
+      
+      // 1. Handle Quick Login if not authenticated
+      if (!isAuthenticated) {
+        if (!name || !mobile || mobile.length < 10) {
+          setLoginError("Please provide both name and 10-digit mobile number.");
+          setIsSubmitting(false);
+          return;
+        }
+        
+        const loginRes = await api.post('/auth/quick-login', { name, mobile });
+        authLogin(loginRes.data); // Update AuthContext
+        currentUser = loginRes.data.user;
+      }
+
+      // 2. Submit Review
+      // Get the fresh token from local/session storage since authLogin might not have populated it in state instantly
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      
+      await api.post(`/doctors/${doctor._id}/reviews`, { 
+        rating, 
+        comment 
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      // 3. Clear form and refresh list
+      setComment("");
+      setRating(5);
+      fetchReviews();
+      alert("Review submitted successfully!");
+    } catch (err) {
+      console.error("Submission failed:", err);
+      setLoginError(err.response?.data?.message || "Failed to submit review. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl rounded-none border border-slate-200 overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-white sticky top-0 z-10">
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 leading-none">Patient Stories</h2>
+            <p className="text-sm text-slate-500 font-bold mt-2">Verified feedback for Dr. {doctor.name}</p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600 focus:outline-none"
+          >
+            <X size={28} />
+          </button>
+        </div>
+
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          {/* Left Side: Reviews List */}
+          <div className="flex-[1.5] overflow-y-auto p-8 border-r border-slate-100 bg-slate-50/30">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-8">Existing Stories</h3>
+            {loading ? (
+              <div className="py-20 flex flex-col items-center justify-center gap-3">
+                <div className="w-10 h-10 border-4 border-[#14bef0] border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Loading Stories...</span>
+              </div>
+            ) : reviews.length === 0 ? (
+              <div className="py-20 text-center border-2 border-dashed border-slate-100 bg-white">
+                <p className="text-slate-400 font-bold">Be the first to share your experience with Dr. {doctor.name}</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {reviews.map((review, idx) => (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    key={review._id || idx} 
+                    className="bg-white p-6 border border-slate-100 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-black text-xs border border-blue-100">
+                          {review.patientName ? review.patientName[0].toUpperCase() : 'P'}
+                        </div>
+                        <span className="font-black text-slate-900 text-sm">{review.patientName}</span>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        {[...Array(5)].map((_, i) => (
+                          <Star 
+                            key={i} 
+                            size={14} 
+                            className={i < review.rating ? "text-yellow-400 fill-yellow-400" : "text-slate-200"} 
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-slate-600 leading-relaxed text-sm font-medium italic">
+                      "{review.comment}"
+                    </p>
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-50 pt-3">
+                       <span className="text-[10px] text-emerald-600 font-black uppercase tracking-widest flex items-center gap-1">
+                         <CheckCircle size={10} /> Verified Patient
+                       </span>
+                       <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                        {new Date(review.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right Side: Review Submission Form */}
+          <div className="flex-1 overflow-y-auto p-8 bg-white border-t lg:border-t-0 border-slate-100">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-8">Write a Review</h3>
+            
+            <form onSubmit={handleSubmitReview} className="space-y-6">
+              {!isAuthenticated && (
+                <div className="p-4 bg-blue-50 border border-blue-100 mb-6">
+                   <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1 flex items-center gap-2">
+                     <Shield size={12} /> Identify Yourself
+                   </p>
+                   <p className="text-xs text-blue-500 font-bold">To keep stories real, we need your name and mobile. No OTP required!</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {!isAuthenticated ? (
+                  <>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Full Name</label>
+                      <input 
+                        type="text" 
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Your Name (e.g. Amit)"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-none text-sm font-bold text-slate-800 outline-none focus:border-[#14bef0] transition-colors"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Mobile Number</label>
+                      <input 
+                        type="tel" 
+                        value={mobile}
+                        onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0,10))}
+                        placeholder="10-digit mobile"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-none text-sm font-bold text-slate-800 outline-none focus:border-[#14bef0] transition-colors"
+                        required
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-4 bg-slate-50 border border-slate-100 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#14bef0]/10 flex items-center justify-center text-[#14bef0] font-black">
+                      {user.name ? user.name[0].toUpperCase() : 'U'}
+                    </div>
+                    <div>
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Posting as</p>
+                       <p className="text-sm font-black text-slate-800 leading-none">{user.name}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Rating</label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((num) => (
+                      <button
+                        type="button"
+                        key={num}
+                        onClick={() => setRating(num)}
+                        className={`p-1 transition-all ${rating >= num ? "text-yellow-400" : "text-slate-200"}`}
+                      >
+                        <Star size={24} fill={rating >= num ? "currentColor" : "none"} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Your Story</label>
+                  <textarea 
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="Describe your experience with the doctor..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-none text-sm font-bold text-slate-800 outline-none focus:border-[#14bef0] transition-colors min-h-[150px] resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="flex items-start gap-3 py-2">
+                  <input 
+                    type="checkbox" 
+                    id="modal-terms" 
+                    checked={agreed} 
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    className="mt-1 w-4 h-4 text-[#14bef0] border-slate-300 rounded focus:ring-[#14bef0] cursor-pointer"
+                  />
+                  <label htmlFor="modal-terms" className="text-[10px] font-bold text-slate-500 leading-relaxed cursor-pointer select-none">
+                    I agree to the <Link to="/terms-conditions" target="_blank" className="text-[#14bef0] hover:underline">Terms & Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-[#14bef0] hover:underline">Privacy Policy</Link>
+                  </label>
+                </div>
+              </div>
+
+              {loginError && (
+                <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">{loginError}</p>
+              )}
+
+              <button 
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-4 bg-[#14bef0] text-white font-black text-xs uppercase tracking-[0.2em] hover:bg-[#12abcd] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    SUBMITTING...
+                  </>
+                ) : (
+                  isAuthenticated ? "SUMBIT STORY" : "LOGIN & SUBMIT STORY"
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 border-t border-slate-50 bg-slate-50/50 flex justify-between items-center bg-white">
+          <div className="flex items-center gap-2">
+            <CheckCircle size={16} className="text-emerald-500" />
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">100% Secure & Verified Feedback</span>
+          </div>
+          <button 
+            onClick={onClose}
+            className="px-8 py-2.5 border-2 border-slate-900 text-slate-900 font-black text-xs uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all rounded-none"
+          >
+            CLOSE
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+
 const FindDoctors = () => {
 
   const location = useLocation();
@@ -230,6 +536,10 @@ const FindDoctors = () => {
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [isFetchingLocations, setIsFetchingLocations] = useState(false);
+
+  // Patient Stories State
+  const [isStoriesModalOpen, setIsStoriesModalOpen] = useState(false);
+  const [selectedDoctorForStories, setSelectedDoctorForStories] = useState(null);
 
 
 
@@ -616,10 +926,16 @@ const FindDoctors = () => {
 
                     <div className="mt-3 flex items-center gap-3">
                        <div className="flex items-center gap-1.5 px-2 py-1 bg-green-600 text-white rounded text-xs font-bold uppercase tracking-tighter">
-                          <ThumbsUp size={12} fill="white" /> 89%
+                          <ThumbsUp size={12} fill="white" /> {doctor.likesPercentage || 89}%
                        </div>
-                       <div className="text-slate-600 text-sm font-bold border-b border-dotted border-slate-400 cursor-pointer hover:text-slate-900">
-                          19 Patient Stories
+                       <div 
+                        onClick={() => {
+                          setSelectedDoctorForStories(doctor);
+                          setIsStoriesModalOpen(true);
+                        }}
+                        className="text-slate-600 text-sm font-bold border-b border-dotted border-slate-400 cursor-pointer hover:text-slate-900"
+                       >
+                          {doctor.totalStories || 0} Patient Stories
                        </div>
                     </div>
                   </div>
@@ -735,6 +1051,16 @@ const FindDoctors = () => {
       </div>
 
       <PublicFooter />
+
+      {/* Patient Stories Modal */}
+      <PatientStoriesModal 
+        doctor={selectedDoctorForStories}
+        isOpen={isStoriesModalOpen}
+        onClose={() => {
+          setIsStoriesModalOpen(false);
+          setSelectedDoctorForStories(null);
+        }}
+      />
     </div>
   );
 };

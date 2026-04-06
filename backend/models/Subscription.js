@@ -67,7 +67,7 @@ const subscriptionSchema = new mongoose.Schema({
   limits: {
     doctors: {
       type: Number,
-      default: 5, // Free plan: 5 doctors
+      default: 1, // Free plan: 1 doctor
     },
     receptionists: {
       type: Number,
@@ -84,6 +84,10 @@ const subscriptionSchema = new mongoose.Schema({
     storageGB: {
       type: Number,
       default: 1, // Free plan: 1GB storage
+    },
+    messaging: {
+      type: Boolean,
+      default: true,
     },
   },
   // Usage tracking
@@ -169,25 +173,28 @@ subscriptionSchema.index({ endDate: 1 });
 subscriptionSchema.statics.getPlanLimits = function (plan) {
   const limits = {
     free: {
-      doctors: 5,
+      doctors: 1,
       receptionists: 3,
       appointmentsPerMonth: 100,
       patients: 500,
       storageGB: 1,
+      messaging: true,
     },
     basic: {
       doctors: 1,
-      receptionists: 0,
+      receptionists: 1,
       appointmentsPerMonth: 500,
       patients: 1000,
       storageGB: 5,
+      messaging: false,
     },
     pro: {
       doctors: 3,
-      receptionists: 2,
+      receptionists: 3,
       appointmentsPerMonth: 2000,
       patients: 5000,
       storageGB: 20,
+      messaging: true,
     },
     enterprise: {
       doctors: -1, // Unlimited
@@ -195,6 +202,7 @@ subscriptionSchema.statics.getPlanLimits = function (plan) {
       appointmentsPerMonth: -1,
       patients: -1,
       storageGB: 100,
+      messaging: true,
     },
   };
   return limits[plan] || limits.free;

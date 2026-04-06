@@ -270,6 +270,14 @@ const doctorSchema = new mongoose.Schema({
     hours: String,
     editable: Boolean,
   }],
+  likesPercentage: {
+    type: Number,
+    default: 0,
+  },
+  totalStories: {
+    type: Number,
+    default: 0,
+  },
   availabilityOverrides: [
     {
       date: { type: String, required: true }, // Format: YYYY-MM-DD

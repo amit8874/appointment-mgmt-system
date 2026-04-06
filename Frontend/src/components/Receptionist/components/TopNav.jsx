@@ -31,13 +31,7 @@ const TopNav = ({ sidebarOpen, setSidebarOpen, notifications, unreadCount, onNot
           )}
         </button>
 
-        {user?.organization?.branding?.logo && (
-          <img
-            src={user.organization.branding.logo}
-            alt="Organization Logo"
-            className="h-8 max-w-[120px] object-contain mr-4"
-          />
-        )}
+        {/* Logo removed from header as per user request (kept in sidebar only) */}
 
         {/* Search bar */}
         <div className="flex-1 max-w-2xl mx-4">

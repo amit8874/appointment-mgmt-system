@@ -33,13 +33,18 @@ export const getDashboard = async (req, res) => {
       Appointment.countDocuments(),
     ]);
 
-    // Calculate revenue (simplified - in production, aggregate from payment history)
+    // Calculate revenue from actual payment history
     const revenueTrendData = await Subscription.aggregate([
-      { $match: { status: 'active' } },
+      { $unwind: "$paymentHistory" },
+      {
+        $match: {
+          "paymentHistory.status": "success",
+        },
+      },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m", date: "$startDate" } },
-          total: { $sum: "$amount" },
+          _id: { $dateToString: { format: "%Y-%m", date: "$paymentHistory.date" } },
+          total: { $sum: "$paymentHistory.amount" },
         },
       },
       { $sort: { _id: 1 } },
@@ -283,11 +288,12 @@ export const getRevenue = async (req, res) => {
   try {
     const { period = 'month' } = req.query;
 
-    // Aggregate revenue by period
+    // Aggregate revenue by period from paymentHistory
     const revenueData = await Subscription.aggregate([
+      { $unwind: "$paymentHistory" },
       {
         $match: {
-          status: 'active',
+          "paymentHistory.status": "success",
         },
       },
       {
@@ -295,30 +301,35 @@ export const getRevenue = async (req, res) => {
           _id: {
             $dateToString: {
               format: period === 'month' ? '%Y-%m' : '%Y',
-              date: '$startDate',
+              date: "$paymentHistory.date",
             },
           },
-          total: { $sum: '$amount' },
+          total: { $sum: "$paymentHistory.amount" },
           count: { $sum: 1 },
         },
       },
       { $sort: { _id: 1 } },
     ]);
 
-    // Total revenue
-    const totalRevenue = await Subscription.aggregate([
-      { $match: { status: 'active' } },
+    // Total revenue across all history
+    const totalRevenueResult = await Subscription.aggregate([
+      { $unwind: "$paymentHistory" },
+      {
+        $match: {
+          "paymentHistory.status": "success",
+        },
+      },
       {
         $group: {
           _id: null,
-          total: { $sum: '$amount' },
+          total: { $sum: "$paymentHistory.amount" },
         },
       },
     ]);
 
     res.json({
       revenueData,
-      totalRevenue: totalRevenue[0]?.total || 0,
+      totalRevenue: totalRevenueResult[0]?.total || 0,
     });
   } catch (error) {
     console.error('Get revenue error:', error);
@@ -738,6 +749,248 @@ export const approvePharmacy = async (req, res) => {
     });
   } catch (error) {
     console.error('Pharmacy approval error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc    Update organization trial period
+ * @route   PATCH /api/superadmin/organizations/:id/trial
+ * @access  Super Admin
+ */
+export const updateTrialPeriod = async (req, res) => {
+  try {
+    const { trialEndDate } = req.body;
+    if (!trialEndDate) {
+      return res.status(400).json({ message: 'Trial end date is required' });
+    }
+
+    const newDate = new Date(trialEndDate);
+    if (isNaN(newDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid date format' });
+    }
+
+    const organization = await Organization.findById(req.params.id);
+    if (!organization) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+
+    const oldTrialEndDate = organization.trialEndDate;
+    organization.trialEndDate = newDate;
+
+    // Handle reactivation context
+    const now = new Date();
+    if (newDate > now) {
+      organization.isTrialActive = true;
+      // If we're setting a future trial date, the status must reflect that it's in trial
+      if (organization.status !== 'active') {
+        organization.status = 'trial';
+      }
+    } else {
+      // If set to past or today, it's expired
+      organization.isTrialActive = false;
+      organization.status = 'inactive';
+    }
+
+    await organization.save();
+
+    // Sync with Subscription model
+    const subscription = await Subscription.findOne({ organizationId: organization._id });
+    if (subscription) {
+      subscription.trialEndDate = newDate;
+      if (newDate > now) {
+        if (subscription.status === 'expired' || subscription.status === 'inactive') {
+          subscription.status = 'trial';
+        }
+      } else {
+        // Force expiration status on the subscription as well
+        subscription.status = 'expired';
+      }
+      await subscription.save();
+    }
+
+    // Log the configuration change
+    await AuditLog.create({
+      adminId: req.user.id,
+      action: 'UPDATE_TRIAL_PERIOD',
+      targetType: 'Organization',
+      targetId: organization._id,
+      details: { 
+        oldTrialEndDate, 
+        newTrialEndDate: newDate,
+        newStatus: organization.status
+      },
+      ipAddress: req.ip
+    });
+
+    res.json({ 
+      message: 'Trial period updated successfully', 
+      organization: {
+        _id: organization._id,
+        name: organization.name,
+        trialEndDate: organization.trialEndDate,
+        status: organization.status,
+        isTrialActive: organization.isTrialActive
+      } 
+    });
+  } catch (error) {
+    console.error('Update trial period error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc    Manually upgrade organization plan (No Charge)
+ * @route   PATCH /api/superadmin/organizations/:id/plan
+ * @access  Super Admin
+ */
+export const manualUpgradePlan = async (req, res) => {
+  try {
+    const { plan } = req.body;
+    if (!['basic', 'pro', 'enterprise'].includes(plan)) {
+      return res.status(400).json({ message: 'Invalid plan type' });
+    }
+
+    const organization = await Organization.findById(req.params.id);
+    if (!organization) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+
+    // 1. Update Subscription
+    const subscription = await Subscription.findOne({ organizationId: organization._id });
+    if (!subscription) {
+      return res.status(404).json({ message: 'Subscription not found' });
+    }
+
+    const planLimits = Subscription.getPlanLimits(plan);
+    const planName = plan === 'pro' ? 'Standard Plan' : (plan === 'enterprise' ? 'Premium Plan' : 'Basic Plan');
+
+    subscription.plan = plan;
+    subscription.planName = planName;
+    subscription.limits = planLimits;
+    subscription.amount = 0; // Manual upgrade is free
+    subscription.status = 'active';
+    subscription.isManualOverride = true;
+    subscription.overrideNote = `Manual upgrade to ${planName} by Super Admin`;
+    
+    // Set expiry to 1 month from now
+    const endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + 1);
+    subscription.endDate = endDate;
+    subscription.nextBillingDate = endDate;
+    subscription.startDate = new Date();
+
+    await subscription.save();
+
+    // 2. Update Organization
+    organization.status = 'active';
+    organization.isTrialActive = false;
+    organization.planType = 'PAID';
+    await organization.save();
+
+    // 3. Log the action
+    await AuditLog.create({
+      adminId: req.user.id,
+      action: 'MANUAL_PLAN_UPGRADE',
+      targetType: 'Organization',
+      targetId: organization._id,
+      details: { plan, planName, expiry: endDate },
+      ipAddress: req.ip
+    });
+
+
+    res.json({
+      message: `Organization successfully upgraded to ${planName}`,
+      organization,
+      subscription
+    });
+  } catch (error) {
+    console.error('Manual plan upgrade error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc    Get all doctors for a specific organization
+ * @route   GET /api/superadmin/organizations/:id/doctors
+ * @access  Super Admin
+ */
+export const getOrganizationDoctors = async (req, res) => {
+  try {
+    const doctors = await Doctor.find({ organizationId: req.params.id })
+      .sort({ createdAt: -1 });
+    
+    res.json(doctors);
+  } catch (error) {
+    console.error('Get organization doctors error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc    Verify a doctor by Super Admin
+ * @route   PATCH /api/superadmin/doctors/:id/verify
+ * @access  Super Admin
+ */
+export const verifyDoctorBySuperAdmin = async (req, res) => {
+  try {
+    const doctor = await Doctor.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: 'Verified' } },
+      { new: true }
+    );
+
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    // Log the action
+    await AuditLog.create({
+      adminId: req.user.id,
+      action: 'DOCTOR_VERIFY_SUPERADMIN',
+      targetType: 'Doctor',
+      targetId: doctor._id,
+      details: { doctorName: doctor.name, organizationId: doctor.organizationId },
+      ipAddress: req.ip
+    });
+
+    res.json({ message: 'Doctor verified successfully', doctor });
+  } catch (error) {
+    console.error('Verify doctor error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc    Reject a doctor by Super Admin
+ * @route   PATCH /api/superadmin/doctors/:id/reject
+ * @access  Super Admin
+ */
+export const rejectDoctorBySuperAdmin = async (req, res) => {
+  try {
+    const doctor = await Doctor.findByIdAndUpdate(
+      req.params.id,
+      { $set: { status: 'Rejected' } },
+      { new: true }
+    );
+
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    // Log the action
+    await AuditLog.create({
+      adminId: req.user.id,
+      action: 'DOCTOR_REJECT_SUPERADMIN',
+      targetType: 'Doctor',
+      targetId: doctor._id,
+      details: { doctorName: doctor.name, organizationId: doctor.organizationId },
+      ipAddress: req.ip
+    });
+
+    res.json({ message: 'Doctor rejected successfully', doctor });
+  } catch (error) {
+    console.error('Reject doctor error:', error);
     res.status(500).json({ message: error.message });
   }
 };

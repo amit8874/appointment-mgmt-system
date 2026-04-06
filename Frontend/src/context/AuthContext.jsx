@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }) => {
     const token = sessionToken || localToken; // Prefer sessionStorage, fallback to localStorage
 
     const role = sessionStorage.getItem('role') || localStorage.getItem('role');
-    const patientUser = sessionStorage.getItem('patientUser');
+    const patientUser = sessionStorage.getItem('patientUser') || localStorage.getItem('patientUser');
     const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
 
     if (token && role) {
@@ -48,6 +48,20 @@ export const AuthProvider = ({ children }) => {
       setUser(userDataParsed);
     }
     setLoading(false);
+
+    // Listen for manual user data updates from background tasks
+    const handleUserDataUpdated = (event) => {
+      if (event.detail) {
+        setUser(oldUser => ({ ...oldUser, ...event.detail }));
+        // Sync storage as well
+        localStorage.setItem('userData', JSON.stringify({ ...JSON.parse(localStorage.getItem('userData') || '{}'), ...event.detail }));
+      }
+    };
+
+    window.addEventListener('user-data-updated', handleUserDataUpdated);
+    return () => {
+      window.removeEventListener('user-data-updated', handleUserDataUpdated);
+    };
   }, []);
 
   const login = (userData) => {
@@ -106,6 +120,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     localStorage.removeItem('userData');
+    localStorage.removeItem('patientUser');
+    localStorage.removeItem('userName');
     // Clear tenantSlug to prevent stale tenant data
     localStorage.removeItem('tenantSlug');
   };

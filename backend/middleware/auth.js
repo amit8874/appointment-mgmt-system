@@ -58,12 +58,31 @@ export const authenticateToken = async (req, res, next) => {
           console.log(`[AUTH] Organization ${user.organizationId} not found for user ${user.name}`);
           return res.status(403).json({ message: 'Your organization account is suspended or inactive' });
         }
-        if (org.status === 'suspended' || org.status === 'inactive') {
-          console.log(`[AUTH] Organization ${org.name} is ${org.status} for user ${user.name}`);
+        if (org.status === 'suspended') {
+          console.log(`[AUTH] Organization ${org.name} is suspended for user ${user.name}`);
           return res.status(403).json({ 
             message: 'account_deactivated',
-            details: 'Your account has been suspended or deactivated by the administrator. Please contact support for more details.'
+            details: 'Your account has been suspended by the administrator. Please contact support for more details.'
           });
+        }
+
+        if (org.status === 'inactive') {
+          // Check if this is an expired trial - if so, allow access so the 
+          // TrialLockdown blur can show up and give the user payment options
+          const now = new Date();
+          const trialEnd = org.trialEndDate ? new Date(org.trialEndDate) : null;
+          
+          if (trialEnd && trialEnd <= now) {
+            // It's an expired trial. Allow request to proceed.
+            // The frontend TrialNotification component will handle the UI lock.
+          } else {
+            // It's a manual deactivation
+            console.log(`[AUTH] Organization ${org.name} is inactive (deactivated) for user ${user.name}`);
+            return res.status(403).json({ 
+              message: 'account_deactivated',
+              details: 'Your account has been deactivated. Please contact support for more details.'
+            });
+          }
         }
       } catch (orgError) {
         // If organization lookup fails, allow the request to proceed

@@ -13,7 +13,12 @@ import {
   impersonateUser,
   getPharmacies,
   createPharmacy,
-  updatePharmacyStatus
+  updatePharmacyStatus,
+  updateTrialPeriod,
+  manualUpgradePlan,
+  getOrganizationDoctors,
+  verifyDoctorBySuperAdmin,
+  rejectDoctorBySuperAdmin,
 } from '../controllers/superAdminController.js';
 
 const router = express.Router();
@@ -77,6 +82,19 @@ router.get('/revenue', getRevenue);
 router.patch('/organizations/:id/status', updateOrganizationStatus);
 
 /**
+ * @route   PATCH /api/superadmin/organizations/:id/trial
+ * @desc    Update organization trial period
+ * @access  Super Admin
+ */
+router.patch('/organizations/:id/trial', updateTrialPeriod);
+/**
+ * @route   PATCH /api/superadmin/organizations/:id/plan
+ * @desc    Manually upgrade organization plan (No Charge)
+ * @access  Super Admin
+ */
+router.patch('/organizations/:id/plan', manualUpgradePlan);
+
+/**
  * @route   PUT /api/superadmin/organizations/:orgId/subscription/override
  * @desc    Manual subscription override
  * @access  Super Admin
@@ -131,5 +149,26 @@ router.patch('/pharmacies/:id/status', updatePharmacyStatus);
  * @access  Super Admin
  */
 router.post('/pharmacies/:id/approve', approvePharmacy);
+
+/**
+ * @route   GET /api/superadmin/organizations/:id/doctors
+ * @desc    Get all doctors for a specific organization
+ * @access  Super Admin
+ */
+router.get('/organizations/:id/doctors', getOrganizationDoctors);
+
+/**
+ * @route   PATCH /api/superadmin/doctors/:id/verify
+ * @desc    Verify a doctor
+ * @access  Super Admin
+ */
+router.patch('/doctors/:id/verify', verifyDoctorBySuperAdmin);
+
+/**
+ * @route   PATCH /api/superadmin/doctors/:id/reject
+ * @desc    Reject a doctor
+ * @access  Super Admin
+ */
+router.patch('/doctors/:id/reject', rejectDoctorBySuperAdmin);
 
 export default router;

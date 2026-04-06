@@ -67,6 +67,7 @@ const MainContent = ({
   doctorsTotalPages,
   onDoctorsPageChange,
   doctorsTotalItems,
+  limits,
   recentAppointments = []
 }) => {
   const content = useMemo(() => {
@@ -149,6 +150,7 @@ const MainContent = ({
             totalItems={doctorsTotalItems}
             itemsPerPage={15}
             onPageChange={onDoctorsPageChange}
+            limits={limits}
           />
         );
       case 'Doctor Schedule':
@@ -179,7 +181,7 @@ const MainContent = ({
             rebookData={rebookData}
           />
         );
-      case 'Track Appointment':
+      case 'Today Appointment':
         return <TrackAppointmentView />;
       case 'Billing & Payments':
         return <BillingDashboard />;

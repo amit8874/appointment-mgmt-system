@@ -1,4 +1,4 @@
-import Organization from '../models/Organization.js';
+﻿import Organization from '../models/Organization.js';
 import User from '../models/User.js';
 import Subscription from '../models/Subscription.js';
 import bcrypt from 'bcryptjs';
@@ -384,7 +384,7 @@ export const getOrganizationStats = async (req, res) => {
     // Check access
     const userOrgId = req.user.organizationId?._id ? req.user.organizationId._id.toString() : req.user.organizationId?.toString();
     if (req.user.role !== 'superadmin' && 
-        (req.user.role !== 'orgadmin' || userOrgId !== orgId)) {
+        userOrgId !== orgId) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -433,7 +433,7 @@ export const getTrialStatus = async (req, res) => {
     // Check access
     const userOrgId = req.user.organizationId?._id ? req.user.organizationId._id.toString() : req.user.organizationId?.toString();
     if (req.user.role !== 'superadmin' && 
-        (req.user.role !== 'orgadmin' || userOrgId !== orgId)) {
+        userOrgId !== orgId) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -486,6 +486,8 @@ export const getTrialStatus = async (req, res) => {
         isTrialActive: false,
         status: 'inactive'
       });
+      // Ensure the return flag matches the update
+      isTrialExpired = true;
     }
 
     res.json({
@@ -500,6 +502,7 @@ export const getTrialStatus = async (req, res) => {
       lastDataResetAt: organization.lastDataResetAt,
       needsResetNotification: organization.needsResetNotification || false,
       isManualOverride: subscription?.isManualOverride || false,
+      limits: subscription?.limits || Subscription.getPlanLimits(organization.planType === 'FREE_TRIAL' ? 'free' : (subscription?.plan || 'free')),
     });
   } catch (error) {
     console.error('Get trial status error:', error);

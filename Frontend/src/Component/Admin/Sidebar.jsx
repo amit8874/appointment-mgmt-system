@@ -87,7 +87,7 @@ const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }
 
   const appointmentChildren = [
     { name: 'Calendar View', icon: Calendar },
-    { name: 'Track Appointment', icon: Activity },
+    { name: 'Today Appointment', icon: Activity },
   ];
 
   return (

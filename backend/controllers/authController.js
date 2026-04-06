@@ -111,3 +111,59 @@ export const verifyOtp = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+export const quickLogin = async (req, res) => {
+  try {
+    const { name, mobile } = req.body;
+
+    if (!mobile || !/^\d{10}$/.test(mobile)) {
+      return res.status(400).json({ message: 'Valid 10-digit phone number required' });
+    }
+    if (!name) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+
+    // Find or Create User
+    let user = await User.findOne({ mobile });
+
+    if (!user) {
+      user = new User({
+        name,
+        mobile,
+        role: 'patient',
+        password: Math.random().toString(36).slice(-10),
+        organizationId: req.tenantId || null
+      });
+      await user.save();
+      console.log(`[Auth] New patient user created via Quick Login: ${user._id}`);
+    } else {
+      // Update name if it's a patient and name was placeholder or missing
+      if (user.role === 'patient' && (!user.name || user.name.startsWith('Patient '))) {
+        user.name = name;
+        await user.save();
+      }
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      { id: user._id, role: user.role, organizationId: user.organizationId },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '30d' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Quick login successful',
+      token,
+      user: {
+        _id: user._id,
+        mobile: user.mobile,
+        name: user.name,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Error during quick login:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

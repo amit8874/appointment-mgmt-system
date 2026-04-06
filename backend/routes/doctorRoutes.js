@@ -17,7 +17,9 @@ import {
   getDoctorAvailabilitySummary,
   getPublicDoctorCheckoutDetails,
   updateAvailabilityOverride,
-  removeAvailabilityOverride
+  removeAvailabilityOverride,
+  getDoctorReviews,
+  addDoctorReview
 } from '../controllers/doctorController.js';
 
 
@@ -34,11 +36,17 @@ router.get('/public/suggestions', getSearchSuggestions);
 // GET /api/doctors/:id/availability-summary - Get availability summary for the next 7 days
 router.get('/:id/availability-summary', getDoctorAvailabilitySummary);
 
+// GET /api/doctors/:id/reviews - Get all reviews for a specific doctor
+router.get('/:id/reviews', getDoctorReviews);
+
 // GET /api/doctors/public/checkout-details/:id - Get doctor & clinic info for checkout (Public)
 router.get('/public/checkout-details/:id', getPublicDoctorCheckoutDetails);
 
 
 
+
+// POST /api/doctors/:id/reviews - Add a review for a doctor (Requires Auth)
+router.post('/:id/reviews', authenticateToken, addDoctorReview);
 
 // GET /api/doctors/public/:organizationId - Get all doctors for a specific org (Public)
 router.get('/public/:organizationId', getPublicDoctors);

@@ -346,7 +346,7 @@ const TrackAppointmentView = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-gray-800">Track Appointments</h1>
+              <h1 className="text-2xl font-semibold text-gray-800">Today's Appointments</h1>
               <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 rounded-full text-blue-600 text-xs font-bold shadow-sm">
                 <Timer size={14} className="animate-pulse" />
                 <span>LIVE: {format(currentTime, 'hh:mm:ss a')}</span>

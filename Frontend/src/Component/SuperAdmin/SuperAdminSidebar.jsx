@@ -12,7 +12,8 @@ import {
   ChevronRight,
   History,
   Store,
-  Activity
+  Activity,
+  Stethoscope
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -35,6 +36,12 @@ const SuperAdminSidebar = ({ isSidebarOpen, toggleSidebar }) => {
       name: 'Organizations', 
       icon: Building2,
       color: 'text-indigo-500' 
+    },
+    { 
+      path: '/superadmin/doctors', 
+      name: 'Doctors', 
+      icon: Stethoscope,
+      color: 'text-sky-500'
     },
     { 
       path: '/superadmin/subscriptions', 

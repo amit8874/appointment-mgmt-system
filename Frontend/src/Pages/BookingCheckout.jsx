@@ -461,16 +461,15 @@ const BookingCheckout = () => {
                 </div>
 
                 <div className="space-y-1 mb-8">
-                   <p className="text-sm font-medium text-slate-700">Your appointment ID is <span className="font-black text-slate-900">{confirmedAppointment.shortId}</span></p>
                    <p className="text-xs text-slate-500 leading-relaxed">We have sent you an email and SMS with the details.</p>
-                   <p className="text-xs text-slate-500">This appointment is covered under <span className="text-[#9333ea] font-black italic">Prime</span> <ShieldCheck size={14} className="inline text-[#9333ea] fill-white" /></p>
+                   <p className="text-xs text-slate-500">This appointment is covered under <span className="text-[#9333ea] font-black italic">Premium</span> <ShieldCheck size={14} className="inline text-[#9333ea] fill-white" /></p>
                 </div>
 
-                {/* Prime Benefits Box */}
+                {/* Premium Benefits Box */}
                 <div className="bg-[#fdfaff] border border-purple-100 rounded p-6 mb-10 relative overflow-hidden">
                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-full -mr-16 -mt-16 opacity-50" />
                    <h2 className="text-xl font-bold text-[#9333ea] mb-6 flex items-center gap-1">
-                      Prime <CheckCircle size={18} fill="#9333ea" className="text-white" /> benefits
+                      Premium <CheckCircle size={18} fill="#9333ea" className="text-white" /> benefits
                    </h2>
                    <p className="text-xs font-bold text-slate-400 mb-6 tracking-tight">Our promise to you</p>
                    <ul className="space-y-4 relative z-10">
