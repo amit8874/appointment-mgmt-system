@@ -289,9 +289,11 @@ export const getDoctorSlots = async (req, res) => {
     doctorIdSearch.push(doctor._id.toString());
 
     const bookedQuery = { 
+      organizationId: doctor.organizationId,
       doctorId: { $in: doctorIdSearch }, 
       date: date 
     };
+
 
     const [bookedPending, bookedConfirmed, bookedOld] = await Promise.all([
       PendingAppointment.find(bookedQuery).select('time'),

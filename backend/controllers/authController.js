@@ -23,11 +23,13 @@ export const sendOtp = async (req, res) => {
     // Sanitize phone for WhatsApp
     const sanitizedPhone = sanitizePhone(phone);
 
+    const appName = process.env.APP_NAME || 'Slotify';
+
     // Send OTP via WhatsApp
     try {
       await sendWhatsAppMessage(
         sanitizedPhone, 
-        `🔑 Your Slotify OTP is: ${otp}. Do not share it with anyone. Valid for 5 minutes.`
+        `🔑 Your ${appName} OTP is: ${otp}. Do not share it with anyone. Valid for 5 minutes.`
       );
       console.log(`[Auth] OTP for ${phone} sent via WhatsApp: ${otp}`);
     } catch (wsError) {
@@ -83,10 +85,12 @@ export const verifyOtp = async (req, res) => {
       // 3. Send Success Message via WhatsApp as requested by user
       const sanitizedPhone = sanitizePhone(phone);
       try {
+        const appName = process.env.APP_NAME || 'Slotify';
         await sendWhatsAppMessage(
           sanitizedPhone, 
-          "Thank you for registering on slotify an Appointment Management Platform go and book you first appointment with th doctor ."
+          `Thank you for registering on ${appName}, an Appointment Management Platform. Go and book your first appointment with the doctor.`
         );
+
       } catch (wsError) {
         console.error('[Auth] Failed to send Welcome WhatsApp:', wsError.message);
       }

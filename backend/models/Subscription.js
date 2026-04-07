@@ -174,7 +174,7 @@ subscriptionSchema.statics.getPlanLimits = function (plan) {
   const limits = {
     free: {
       doctors: 1,
-      receptionists: 3,
+      receptionists: 1,
       appointmentsPerMonth: 100,
       patients: 500,
       storageGB: 1,

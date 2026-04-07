@@ -1,12 +1,11 @@
-// Razorpay integration utility
-// Install razorpay: npm install razorpay
+import Razorpay from 'razorpay';
+import crypto from 'crypto';
 
 let razorpayInstance = null;
 
 export const getRazorpayInstance = () => {
   if (!razorpayInstance && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
     try {
-      const Razorpay = require('razorpay');
       razorpayInstance = new Razorpay({
         key_id: process.env.RAZORPAY_KEY_ID,
         key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -34,7 +33,7 @@ export const createOrder = async (amount, currency = 'INR', notes = {}) => {
     }
 
     const options = {
-      amount: amount * 100, // Razorpay expects amount in paise
+      amount: Math.round(amount * 100), // Razorpay expects amount in paise, ensure integer
       currency,
       receipt: `receipt_${Date.now()}`,
       notes,
@@ -57,11 +56,8 @@ export const createOrder = async (amount, currency = 'INR', notes = {}) => {
  */
 export const verifyPayment = (orderId, paymentId, signature) => {
   try {
-    const crypto = require('crypto');
-    const razorpay = getRazorpayInstance();
-    
-    if (!razorpay) {
-      throw new Error('Razorpay not configured');
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      throw new Error('Razorpay secret not configured');
     }
 
     const text = `${orderId}|${paymentId}`;
@@ -78,7 +74,7 @@ export const verifyPayment = (orderId, paymentId, signature) => {
 };
 
 /**
- * Capture payment
+ * Capture payment (optional, usually handled by checkout)
  * @param {String} paymentId - Razorpay payment ID
  * @param {Number} amount - Amount in INR
  * @returns {Promise<Object>} Captured payment
@@ -91,7 +87,7 @@ export const capturePayment = async (paymentId, amount) => {
       throw new Error('Razorpay not configured');
     }
 
-    const payment = await razorpay.payments.capture(paymentId, amount * 100);
+    const payment = await razorpay.payments.capture(paymentId, Math.round(amount * 100));
     return payment;
   } catch (error) {
     console.error('Capture payment error:', error);

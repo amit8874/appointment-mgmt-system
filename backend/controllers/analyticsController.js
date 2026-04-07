@@ -8,6 +8,7 @@ import PendingAppointment from "../models/PendingAppointment.js";
 import ConfirmedAppointment from "../models/ConfirmedAppointment.js";
 import CancelledAppointment from "../models/CancelledAppointment.js";
 import Doctor from "../models/Doctor.js";
+import Patient from "../models/PaitentEditProfile.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 
@@ -293,15 +294,64 @@ export const getDashboard = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(10);
 
-    // 2. Quick Stats
-    const totalAppointments = await Appointment.countDocuments({ organizationId });
-    const totalRevenue = await Billing.aggregate([
-      { $match: { organizationId: new mongoose.Types.ObjectId(organizationId), status: 'Paid' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } }
+    // 2. Calculate "This Month" start date
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    // 3. Quick Stats (Aggregate All Collections)
+    const [
+      totalDoctors,
+      totalPatients,
+      
+      // All Appointment Counts
+      mainAppts,
+      pendingAppts,
+      confirmedAppts,
+      cancelledAppts,
+
+      // Monthly Growth (All collections)
+      mainThisMonth,
+      pendingThisMonth,
+      confirmedThisMonth,
+      cancelledThisMonth,
+
+      totalRevenue
+    ] = await Promise.all([
+      Doctor.countDocuments({ organizationId }),
+      Patient.countDocuments({ organizationId }),
+      
+      // Total counts
+      Appointment.countDocuments({ organizationId }),
+      PendingAppointment.countDocuments({ organizationId }),
+      ConfirmedAppointment.countDocuments({ organizationId }),
+      CancelledAppointment.countDocuments({ organizationId }),
+
+      // Monthly counts
+      Appointment.countDocuments({ organizationId, createdAt: { $gte: monthStart } }),
+      PendingAppointment.countDocuments({ organizationId, createdAt: { $gte: monthStart } }),
+      ConfirmedAppointment.countDocuments({ organizationId, createdAt: { $gte: monthStart } }),
+      CancelledAppointment.countDocuments({ organizationId, createdAt: { $gte: monthStart } }),
+
+      Billing.aggregate([
+        { $match: { organizationId: new mongoose.Types.ObjectId(organizationId), status: 'Paid' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ])
     ]);
+
+    const totalAppointments = (mainAppts || 0) + (pendingAppts || 0) + (confirmedAppts || 0) + (cancelledAppts || 0);
+    const appointmentsThisMonth = (mainThisMonth || 0) + (pendingThisMonth || 0) + (confirmedThisMonth || 0) + (cancelledThisMonth || 0);
 
     res.json({
       recentAppointments,
+      overview: {
+        totalDoctors,
+        totalPatients,
+        totalAppointments,
+        appointmentsThisMonth,
+        totalRevenue: totalRevenue[0]?.total || 0
+      },
+      // Backward compatibility for generic stats
       stats: {
         totalAppointments,
         totalRevenue: totalRevenue[0]?.total || 0

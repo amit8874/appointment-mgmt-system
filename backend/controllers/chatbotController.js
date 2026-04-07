@@ -159,7 +159,7 @@ export const chatWithMaya = async (req, res) => {
               id: d._id,
               name: d.name,
               specialization: d.specialization,
-              hospital: d.serviceLocation?.practiceName || "Slotify Clinic",
+              hospital: d.serviceLocation?.practiceName || `${process.env.APP_NAME || "Our"} Clinic`,
               city: d.addressInfo?.city || d.serviceLocation?.address?.city,
               photo: d.photo,
               experience: d.experience,
@@ -176,7 +176,8 @@ export const chatWithMaya = async (req, res) => {
     }
 
     // Default AI Response
-    let systemPrompt = `You are Maya, the expert AI Guide for Slotify.
+    const appName = process.env.APP_NAME || "Our Clinic";
+    let systemPrompt = `You are Maya, the expert AI Guide for ${appName}.
 ${contextInfo}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🛡️ APPOINTMENT FLOW:

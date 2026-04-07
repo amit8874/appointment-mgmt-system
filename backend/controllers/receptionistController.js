@@ -1,5 +1,6 @@
 import Receptionist from '../models/Receptionist.js';
 import Counter from '../models/Counter.js';
+import Subscription from '../models/Subscription.js';
 
 // GET /api/receptionists - Get all receptionists
 export const getAllReceptionists = async (req, res) => {
@@ -46,6 +47,21 @@ export const getReceptionistCount = async (req, res) => {
 // POST /api/receptionists - Add a new receptionist
 export const addReceptionist = async (req, res) => {
   try {
+    // Check subscription limits
+    const subscription = await Subscription.findOne({ organizationId: req.tenantId });
+    const currentCount = await Receptionist.countDocuments({ 
+      organizationId: req.tenantId, 
+      status: 'Active' 
+    });
+
+    const limit = subscription?.limits?.receptionists || 1;
+    
+    if (limit !== -1 && currentCount >= limit) {
+      return res.status(403).json({ 
+        message: `Receptionist limit reached for your ${subscription?.planName || 'Free'} plan. Please upgrade to add more.` 
+      });
+    }
+
     const {
       name,
       gender,

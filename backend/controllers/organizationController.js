@@ -1,4 +1,4 @@
-﻿import Organization from '../models/Organization.js';
+import Organization from '../models/Organization.js';
 import User from '../models/User.js';
 import Subscription from '../models/Subscription.js';
 import bcrypt from 'bcryptjs';
@@ -160,16 +160,14 @@ export const registerOrganization = async (req, res) => {
       throw orgError;
     }
 
-    // Update owner's organizationId
-    owner.organizationId = organization._id;
-    await owner.save();
-
-    // Create subscription based on chosen plan
+    // Create subscription based on chosen plan - strictly default to 'free'
     const chosenPlan = plan || 'free';
+    const isFree = chosenPlan === 'free';
+    
     const subscription = new Subscription({
       organizationId: organization._id,
       plan: chosenPlan,
-      planName: chosenPlan === 'free' ? 'Free Trial' : `${chosenPlan.charAt(0).toUpperCase() + chosenPlan.slice(1)} Plan`,
+      planName: isFree ? 'Free Trial' : `${chosenPlan.charAt(0).toUpperCase() + chosenPlan.slice(1)} Plan`,
       status: 'trial',
       startDate: new Date(),
       trialEndDate: organization.trialEndDate,

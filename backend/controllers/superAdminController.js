@@ -4,6 +4,9 @@ import Subscription from '../models/Subscription.js';
 import User from '../models/User.js';
 import Doctor from '../models/Doctor.js';
 import Appointment from '../models/Appointment.js';
+import PendingAppointment from '../models/PendingAppointment.js';
+import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
+import CancelledAppointment from '../models/CancelledAppointment.js';
 import AuditLog from '../models/AuditLog.js';
 import Pharmacy from '../models/Pharmacy.js';
 import Notification from '../models/Notification.js';
@@ -21,6 +24,9 @@ export const getDashboard = async (req, res) => {
       totalDoctors,
       totalPatients,
       totalAppointments,
+      totalPending,
+      totalConfirmed,
+      totalCancelled,
     ] = await Promise.all([
       Organization.countDocuments(),
       Organization.countDocuments({ status: 'active' }),
@@ -31,7 +37,13 @@ export const getDashboard = async (req, res) => {
       Doctor.countDocuments(),
       User.countDocuments({ role: 'patient' }),
       Appointment.countDocuments(),
+      PendingAppointment.countDocuments(),
+      ConfirmedAppointment.countDocuments(),
+      CancelledAppointment.countDocuments(),
     ]);
+
+    // Sum all appointment types for a true global count
+    const totalAppointmentsCombined = (totalAppointments || 0) + (totalPending || 0) + (totalConfirmed || 0) + (totalCancelled || 0);
 
     // Calculate revenue from actual payment history
     const revenueTrendData = await Subscription.aggregate([
@@ -103,18 +115,71 @@ export const getDashboard = async (req, res) => {
 
     // Churn Analytics: At-risk organizations (expiring in next 7 days or inactive)
     const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setHours(23, 59, 59, 999);
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-    const atRiskOrganizations = await Organization.find({
-      status: { $in: ['active', 'trial'] },
-      $or: [
-        { trialEndDate: { $lte: sevenDaysFromNow, $gte: new Date() } },
-        { 'subscriptionId.endDate': { $lte: sevenDaysFromNow, $gte: new Date() } }
-      ]
-    })
-    .populate('ownerId', 'name email phone')
-    .populate('subscriptionId')
-    .limit(10);
+    const atRiskOrganizations = await Organization.aggregate([
+      // Only check organizations currently in trial or active
+      { $match: { status: { $in: ['active', 'trial'] } } },
+      // Join with Subscriptions
+      {
+        $lookup: {
+          from: "subscriptions",
+          localField: "subscriptionId",
+          foreignField: "_id",
+          as: "subscription"
+        }
+      },
+      { $unwind: { path: "$subscription", preserveNullAndEmptyArrays: true } },
+      // Filter for organizations with upcoming expiration
+      {
+        $match: {
+          $or: [
+            // If in trial, check trial end date
+            { 
+              $and: [
+                { status: "trial" },
+                { trialEndDate: { $lte: sevenDaysFromNow, $gte: new Date() } }
+              ] 
+            },
+            // If active, check subscription end date
+            { 
+              $and: [
+                { status: "active" },
+                { "subscription.endDate": { $lte: sevenDaysFromNow, $gte: new Date() } }
+              ] 
+            }
+          ]
+        }
+      },
+      // Sort by urgency, most near expiration first
+      { $sort: { "subscription.endDate": 1, trialEndDate: 1 } },
+      { $limit: 10 },
+      // Project fields for frontend table
+      {
+        $lookup: {
+          from: "users",
+          localField: "ownerId",
+          foreignField: "_id",
+          as: "owner"
+        }
+      },
+      { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          name: 1,
+          slug: 1,
+          status: 1,
+          trialEndDate: 1,
+          "subscriptionId": "$subscription",
+          "ownerId": { 
+            name: "$owner.name", 
+            email: "$owner.email", 
+            phone: "$owner.phone" 
+          }
+        }
+      }
+    ]);
 
     // Revenue Forecasting (Simplified)
     // Based on active subscriptions monthly revenue + 10% expected growth
@@ -131,7 +196,7 @@ export const getDashboard = async (req, res) => {
         totalUsers,
         totalDoctors,
         totalPatients,
-        totalAppointments,
+        totalAppointments: totalAppointmentsCombined,
         revenueThisMonth: currentMonthlyRevenue,
         revenueThisYear: revenueTrendData.reduce((acc, curr) => acc + curr.total, 0) || 0,
         forecastedRevenue,
@@ -262,6 +327,7 @@ export const getSubscriptions = async (req, res) => {
 
     if (status) query.status = status;
     if (plan) query.plan = plan;
+    else query.plan = { $ne: 'free' }; // Only show paid/upgraded plans by default
 
     const subscriptions = await Subscription.find(query)
       .populate('organizationId', 'name email slug')
@@ -290,25 +356,45 @@ export const getRevenue = async (req, res) => {
 
     // Aggregate revenue by period from paymentHistory
     const revenueData = await Subscription.aggregate([
+      // First, filter for successful payments to keep aggregation lean
       { $unwind: "$paymentHistory" },
       {
         $match: {
           "paymentHistory.status": "success",
         },
       },
+      // Join with Organization - using a more robust lookup
       {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: period === 'month' ? '%Y-%m' : '%Y',
-              date: "$paymentHistory.date",
+        $lookup: {
+          from: "organizations",
+          let: { orgId: "$organizationId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$orgId" }]
+                }
+              }
             },
-          },
-          total: { $sum: "$paymentHistory.amount" },
-          count: { $sum: 1 },
-        },
+            { $project: { name: 1, phone: 1, _id: 0 } }
+          ],
+          as: "orgInfo"
+        }
       },
-      { $sort: { _id: 1 } },
+      { $unwind: { path: "$orgInfo", preserveNullAndEmptyArrays: true } },
+      { 
+        $project: { 
+          period: { $dateToString: { format: "%Y-%m-%d", date: "$paymentHistory.date" } },
+          organizationName: { $ifNull: ["$orgInfo.name", "Unknown Clinic"] },
+          organizationPhone: { $ifNull: ["$orgInfo.phone", ""] },
+          planName: { $ifNull: ["$planName", "Pro"] },
+          amount: { $ifNull: ["$paymentHistory.amount", 0] },
+          expiryDate: { $ifNull: ["$endDate", "$trialEndDate"] }, // Fallback to trial end if no end date
+          status: { $ifNull: ["$status", "active"] },
+          _id: 0 
+        } 
+      },
+      { $sort: { period: -1 } },
     ]);
 
     // Total revenue across all history
@@ -401,7 +487,24 @@ export const overrideSubscription = async (req, res) => {
     if (planName) subscription.planName = planName;
     if (amount !== undefined) subscription.amount = amount;
     if (status) subscription.status = status;
-    if (endDate) subscription.endDate = new Date(endDate);
+    // Calculate default endDate if not provided based on plan/billing cycle
+    if (!endDate && plan) {
+      const futureDate = new Date();
+      // Check if plan name or description implies a yearly cycle
+      const isYearly = plan.toLowerCase().includes('year') || 
+                       (planName && planName.toLowerCase().includes('year')) ||
+                       (req.body.billingCycle === 'yearly');
+      
+      if (isYearly) {
+        futureDate.setFullYear(futureDate.getFullYear() + 1);
+      } else {
+        futureDate.setDate(futureDate.getDate() + 30);
+      }
+      subscription.endDate = futureDate;
+    } else if (endDate) {
+      subscription.endDate = new Date(endDate);
+    }
+
     if (trialEndDate) subscription.trialEndDate = new Date(trialEndDate);
     
     subscription.isManualOverride = true;
@@ -416,14 +519,19 @@ export const overrideSubscription = async (req, res) => {
       if (trialEndDate) org.trialEndDate = new Date(trialEndDate);
       if (status) org.status = status;
       
+      // If upgraded to active, expire trial
+      if (status === 'active' || (plan && plan !== 'free')) {
+        org.isTrialActive = false;
+        // If they were inactive/trial, set to active
+        if (org.status === 'trial' || org.status === 'inactive') {
+          org.status = 'active';
+        }
+      }
+      
       // Clear inactive/suspended statuses if we extend trial to future
       if (trialEndDate && new Date(trialEndDate) > new Date()) {
          org.isTrialActive = true;
          if (org.status === 'inactive') org.status = 'trial';
-      }
-      // If setting to active, clear trial explicitly
-      if (status === 'active') {
-         org.isTrialActive = false;
       }
       
       await org.save();

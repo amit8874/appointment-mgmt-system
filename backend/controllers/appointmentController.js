@@ -15,7 +15,8 @@ import { generatePatientId } from '../utils/idGenerator.js';
 export const getDoctorAppointments = async (req, res) => {
   try {
     const { doctorId } = req.params;
-    const query = { doctorId };
+    const organizationId = req.tenantId;
+    const query = { doctorId, organizationId };
     
     const [pending, confirmed, cancelled, oldAppointments] = await Promise.all([
       PendingAppointment.find(query).sort({ createdAt: -1 }),
@@ -23,6 +24,7 @@ export const getDoctorAppointments = async (req, res) => {
       CancelledAppointment.find(query).sort({ createdAt: -1 }),
       OldAppointment.find(query).sort({ createdAt: -1 })
     ]);
+
 
     const all = [
       ...pending.map(app => ({ ...app.toObject(), status: 'pending' })),

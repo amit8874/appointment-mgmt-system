@@ -1,5 +1,6 @@
 import Subscription from '../models/Subscription.js';
 import Organization from '../models/Organization.js';
+import Payment from '../models/Payment.js';
 import Doctor from '../models/Doctor.js';
 import Receptionist from '../models/Receptionist.js';
 import User from '../models/User.js';
@@ -10,6 +11,66 @@ import CancelledAppointment from '../models/CancelledAppointment.js';
 import Patient from '../models/PaitentEditProfile.js';
 import MedicalRecord from '../models/MedicalRecord.js';
 import { createOrder, verifyPayment as rzpVerifyPayment } from '../utils/razorpay.js';
+
+// Plan Configuration & Pricing (Single source of truth)
+const PLAN_CONFIG = {
+  free: {
+    name: 'Free Trial',
+    price: { monthly: 0, yearly: 0 },
+    features: {
+      doctors: 1,
+      receptionists: 1,
+      appointmentsPerMonth: 100,
+      patients: 500,
+      storageGB: 1,
+      messaging: true,
+      aiFeatures: 'Basic AI Module (Trial)',
+    }
+  },
+  basic: {
+    name: 'Basic Plan',
+    price: { monthly: 299, yearly: 2999 },
+    features: {
+      doctors: 1,
+      receptionists: 1,
+      appointmentsPerMonth: 500,
+      patients: 1000,
+      storageGB: 5,
+      messaging: false,
+      aiFeatures: 'Basic AI Module (Limited Tokens)',
+    }
+  },
+  pro: {
+    name: 'Standard Plan',
+    price: { monthly: 499, yearly: 4999 },
+    features: {
+      doctors: 3,
+      receptionists: 3,
+      appointmentsPerMonth: 2000,
+      patients: 5000,
+      storageGB: 20,
+      messaging: true,
+      aiFeatures: 'Advanced AI Assistant (Limited Tokens)',
+      advancedAnalytics: true,
+    }
+  },
+  enterprise: {
+    name: 'Premium Plan',
+    price: { monthly: 699, yearly: 6999 },
+    features: {
+      doctors: -1, // Unlimited
+      receptionists: -1,
+      appointmentsPerMonth: -1,
+      patients: -1,
+      storageGB: 100,
+      messaging: true,
+      aiFeatures: 'Full AI Suite (Unlimited Tokens)',
+      advancedAnalytics: true,
+      customBranding: true,
+      apiAccess: true,
+    }
+  }
+};
 
 // Get all subscriptions (Super Admin only)
 export const getSubscriptions = async (req, res) => {
@@ -48,17 +109,13 @@ export const getMySubscription = async (req, res) => {
     }
 
     const subscription = await Subscription.findOne({ organizationId: req.tenantId })
-      .populate('organizationId', 'name email slug');
+      .populate('organizationId', 'name email slug trialStartDate trialEndDate');
 
     if (!subscription) {
       return res.status(404).json({ message: 'Subscription not found' });
     }
 
     // Calculate dynamic usage
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
     const [
       doctorCount,
       receptionistCount,
@@ -109,20 +166,15 @@ export const getMySubscription = async (req, res) => {
     const totalAppointments = pendingCount + confirmedCount + cancelledCount + oldCount;
     
     // Comprehensive Storage Estimation in MB
-    // 1. Files & Media
-    const medicalRecordStorage = recordCountWithAttachment * 5; // 5MB avg for labs/scans
-    const profilePhotoStorage = (doctorsWithFiles + receptionistsWithPhoto + totalUsersWithPhoto) * 0.5; // 0.5MB avg
-    const patientReportsStorage = patientsWithReports * 2; // 2MB avg package
+    const medicalRecordStorage = recordCountWithAttachment * 5; 
+    const profilePhotoStorage = (doctorsWithFiles + receptionistsWithPhoto + totalUsersWithPhoto) * 0.5; 
+    const patientReportsStorage = patientsWithReports * 2; 
+    const totalDbRecords = doctorCount + receptionistCount + patientCount + totalAppointments + 50; 
+    const dbMetadataStorage = totalDbRecords * 0.01; 
     
-    // 2. Database Records (Baseline)
-    const totalDbRecords = doctorCount + receptionistCount + patientCount + totalAppointments + 50; // +50 for org/logs
-    const dbMetadataStorage = totalDbRecords * 0.01; // 10KB per record baseline
-    
-    // Total in GB
-    const totalStorageMB = medicalRecordStorage + profilePhotoStorage + patientReportsStorage + dbMetadataStorage + 0.5; // +0.5MB global baseline
-    const totalStorageGB = parseFloat((totalStorageMB / 1024).toFixed(3)); // 3 decimal places for precision
+    const totalStorageMB = medicalRecordStorage + profilePhotoStorage + patientReportsStorage + dbMetadataStorage + 0.5; 
+    const totalStorageGB = parseFloat((totalStorageMB / 1024).toFixed(3)); 
 
-    // Update usage object in the response (without necessarily saving to DB for performance)
     subscription.usage = {
       ...subscription.usage,
       doctors: doctorCount,
@@ -145,8 +197,8 @@ export const upgradeSubscription = async (req, res) => {
   try {
     const { plan, billingCycle } = req.body;
 
-    if (!['basic', 'pro', 'enterprise'].includes(plan)) {
-      return res.status(400).json({ message: 'Invalid plan' });
+    if (!PLAN_CONFIG[plan]) {
+      return res.status(400).json({ message: 'Invalid plan selected' });
     }
 
     if (!['monthly', 'yearly'].includes(billingCycle)) {
@@ -156,71 +208,49 @@ export const upgradeSubscription = async (req, res) => {
     const subscription = await Subscription.findOne({ organizationId: req.tenantId });
 
     if (!subscription) {
-      return res.status(404).json({ message: 'Subscription not found' });
+      return res.status(404).json({ message: 'Subscription record not found' });
     }
 
-    // Plan pricing (in INR)
-    const pricing = {
-      basic: { monthly: 299, yearly: 2999 },
-      pro: { monthly: 499, yearly: 4999 },
-      enterprise: { monthly: 699, yearly: 6999 },
-    };
+    // Resolve amount from server-side config (NEVER trust frontend amount)
+    const amount = PLAN_CONFIG[plan].price[billingCycle];
+    
+    // Create Razorpay order
+    const razorpayOrder = await createOrder(amount, 'INR', {
+      organizationId: req.tenantId.toString(),
+      subscriptionId: subscription._id.toString(),
+      plan,
+      billingCycle,
+    });
 
-    const amount = pricing[plan][billingCycle];
-    const planLimits = Subscription.getPlanLimits(plan);
+    // Log the payment creation
+    await Payment.create({
+      organizationId: req.tenantId,
+      subscriptionId: subscription._id,
+      planName: PLAN_CONFIG[plan].name,
+      amount,
+      razorpayOrderId: razorpayOrder.id,
+      status: 'created',
+      notes: { billingCycle }
+    });
 
-    // Update subscription
-    subscription.plan = plan;
-    subscription.planName = plan.charAt(0).toUpperCase() + plan.slice(1);
-    subscription.billingCycle = billingCycle;
-    subscription.amount = amount;
-    subscription.status = 'active';
-    subscription.startDate = new Date();
-    subscription.limits = planLimits;
-
-    // Calculate end date
-    const endDate = new Date();
-    if (billingCycle === 'monthly') {
-      endDate.setMonth(endDate.getMonth() + 1);
-    } else {
-      endDate.setFullYear(endDate.getFullYear() + 1);
-    }
-    subscription.endDate = endDate;
-    subscription.nextBillingDate = endDate;
-
+    // Update subscription with pending order ID
+    subscription.orderId = razorpayOrder.id;
     await subscription.save();
 
-    // Create Razorpay order
-    let razorpayOrder = null;
-    try {
-      razorpayOrder = await createOrder(amount, 'INR', {
-        organizationId: req.tenantId.toString(),
-        subscriptionId: subscription._id.toString(),
-        plan,
-        billingCycle,
-      });
-
-      // Update subscription with order ID
-      subscription.orderId = razorpayOrder.id;
-      subscription.status = 'past_due'; // Will be active after payment
-      await subscription.save();
-    } catch (razorpayError) {
-      console.error('Razorpay order creation error:', razorpayError);
-      // Continue even if Razorpay fails (for development/testing)
-    }
-
     res.json({
-      message: 'Subscription upgrade initiated',
-      subscription,
-      paymentRequired: true,
-      amount,
-      currency: 'INR',
-      razorpayOrder: razorpayOrder ? {
+      success: true,
+      order: {
         id: razorpayOrder.id,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
-        key: process.env.RAZORPAY_KEY_ID, // Frontend needs this
-      } : null,
+        key: process.env.RAZORPAY_KEY_ID,
+      },
+      planMeta: {
+        name: PLAN_CONFIG[plan].name,
+        plan,
+        billingCycle,
+        amount
+      }
     });
   } catch (error) {
     console.error('Upgrade subscription error:', error);
@@ -253,34 +283,62 @@ export const cancelSubscription = async (req, res) => {
 // Verify Razorpay payment
 export const verifyPayment = async (req, res) => {
   try {
-    const { orderId, paymentId, signature } = req.body;
+    const { orderId, paymentId, signature, plan, billingCycle } = req.body;
 
     if (!orderId || !paymentId || !signature) {
-      return res.status(400).json({ message: 'Missing payment details' });
+      return res.status(400).json({ message: 'Missing payment signature details' });
     }
 
-    // Verify payment signature
+    // 1. Securely verify signature
     const isValid = rzpVerifyPayment(orderId, paymentId, signature);
 
     if (!isValid) {
-      return res.status(400).json({ message: 'Invalid payment signature' });
+      // Log failed attempt
+      await Payment.findOneAndUpdate(
+        { razorpayOrderId: orderId },
+        { status: 'failed', notes: { error: 'Invalid signature', paymentId } }
+      );
+      return res.status(400).json({ message: 'Payment verification failed: Invalid signature' });
     }
 
-    // Find subscription by orderId
-    const subscription = await Subscription.findOne({ orderId, organizationId: req.tenantId });
-
+    // 2. Find and update subscription
+    const subscription = await Subscription.findOne({ organizationId: req.tenantId });
     if (!subscription) {
-      return res.status(404).json({ message: 'Subscription not found' });
+      return res.status(404).json({ message: 'Subscription not found during verification' });
     }
 
-    // Update subscription
-    subscription.status = 'active';
-    subscription.paymentId = paymentId;
+    const planData = PLAN_CONFIG[plan];
+    if (!planData) {
+      return res.status(400).json({ message: 'Invalid plan during verification' });
+    }
 
-    // Add to payment history
+    // 3. Update subscription details
+    subscription.plan = plan;
+    subscription.planName = planData.name;
+    subscription.billingCycle = billingCycle;
+    subscription.amount = planData.price[billingCycle];
+    subscription.status = 'active';
+    subscription.startDate = new Date();
+    subscription.paymentId = paymentId;
+    subscription.orderId = orderId;
+    
+    // Set expiry (30 days for monthly, 365 for yearly)
+    const expiry = new Date();
+    if (billingCycle === 'monthly') {
+      expiry.setDate(expiry.getDate() + 30);
+    } else {
+      expiry.setDate(expiry.getDate() + 365);
+    }
+    subscription.endDate = expiry;
+    subscription.nextBillingDate = expiry;
+
+    // Apply plan limits
+    subscription.limits = Subscription.getPlanLimits(plan);
+
+    // Add to internal history
     subscription.paymentHistory.push({
       amount: subscription.amount,
-      currency: subscription.currency,
+      currency: 'INR',
       date: new Date(),
       paymentId,
       orderId,
@@ -289,16 +347,27 @@ export const verifyPayment = async (req, res) => {
 
     await subscription.save();
 
-    // Update organization status
-    const organization = await Organization.findById(req.tenantId);
-    if (organization) {
-      organization.status = 'active';
-      await organization.save();
-    }
+    // 4. Update core Payment log
+    await Payment.findOneAndUpdate(
+      { razorpayOrderId: orderId },
+      { 
+        status: 'paid', 
+        razorpayPaymentId: paymentId, 
+        razorpaySignature: signature,
+        updatedAt: new Date()
+      }
+    );
+
+    // 5. Update organization status
+    await Organization.findByIdAndUpdate(req.tenantId, { 
+      status: 'active',
+      planType: 'PAID'
+    });
 
     res.json({
-      message: 'Payment verified and subscription activated',
-      subscription,
+      success: true,
+      message: 'Subscription activated successfully',
+      subscription
     });
   } catch (error) {
     console.error('Verify payment error:', error);
@@ -306,10 +375,9 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
-// Handle payment webhook from Razorpay
+// Handle payment webhook from Razorpay (for robustness)
 export const paymentWebhook = async (req, res) => {
   try {
-    // Verify webhook signature (recommended in production)
     const crypto = await import('crypto');
     const razorpaySignature = req.headers['x-razorpay-signature'];
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
@@ -329,33 +397,33 @@ export const paymentWebhook = async (req, res) => {
     const { event, payload } = req.body;
 
     if (event === 'payment.captured') {
-      const { order_id, id: payment_id, amount } = payload.payment.entity;
+      const { order_id, id: payment_id, amount, notes } = payload.payment.entity;
 
-      // Find subscription by orderId
-      const subscription = await Subscription.findOne({ orderId: order_id });
+      // Webhook fallback logic if frontend verification fails
+      const payment = await Payment.findOne({ razorpayOrderId: order_id });
+      if (payment && payment.status !== 'paid') {
+        const subscription = await Subscription.findById(payment.subscriptionId);
+        if (subscription) {
+          subscription.status = 'active';
+          subscription.paymentId = payment_id;
+          subscription.paymentHistory.push({
+            amount: amount / 100,
+            currency: 'INR',
+            date: new Date(),
+            paymentId: payment_id,
+            orderId: order_id,
+            status: 'success',
+          });
+          await subscription.save();
+          
+          payment.status = 'paid';
+          payment.razorpayPaymentId = payment_id;
+          await payment.save();
 
-      if (subscription) {
-        // Update subscription
-        subscription.status = 'active';
-        subscription.paymentId = payment_id;
-
-        // Add to payment history
-        subscription.paymentHistory.push({
-          amount: amount / 100, // Razorpay amounts are in paise
-          currency: 'INR',
-          date: new Date(),
-          paymentId: payment_id,
-          orderId: order_id,
-          status: 'success',
-        });
-
-        await subscription.save();
-
-        // Update organization status
-        const organization = await Organization.findById(subscription.organizationId);
-        if (organization) {
-          organization.status = 'active';
-          await organization.save();
+          await Organization.findByIdAndUpdate(subscription.organizationId, { 
+            status: 'active',
+            planType: 'PAID'
+          });
         }
       }
     }
@@ -369,78 +437,26 @@ export const paymentWebhook = async (req, res) => {
 
 // Get available subscription plans
 export const getPlans = (req, res) => {
+  // Map internal PLAN_CONFIG to UI-friendly structure
   const plans = {
     free: {
-      name: 'Free Trial',
-      price: 0,
-      billingCycle: 'trial',
-      duration: '14 days',
-      features: {
-        doctors: 5,
-        receptionists: 3,
-        appointmentsPerMonth: 100,
-        patients: 500,
-        storageGB: 1,
-        messaging: true,
-        advancedAnalytics: false,
-        customBranding: false,
-        apiAccess: false,
-      },
+      ...PLAN_CONFIG.free,
+      description: 'Experience Slotify Professional'
     },
     basic: {
-      name: 'Basic Plan',
-      price: { monthly: 299, yearly: 2999 },
-      billingCycle: ['monthly', 'yearly'],
-      features: {
-        doctors: 1,
-        receptionists: 1,
-        appointmentsPerMonth: 500,
-        patients: 1000,
-        storageGB: 5,
-        messaging: false,
-        aiFeatures: 'Basic AI Module (Limited Tokens)',
-        advancedAnalytics: false,
-        customBranding: false,
-        apiAccess: false,
-      },
+      ...PLAN_CONFIG.basic,
+      description: 'Ideal for small clinics'
     },
     pro: {
-      name: 'Standard Plan',
-      price: { monthly: 499, yearly: 4999 },
-      billingCycle: ['monthly', 'yearly'],
-      features: {
-        doctors: 3,
-        receptionists: 3,
-        appointmentsPerMonth: 2000,
-        patients: 5000,
-        storageGB: 20,
-        messaging: true,
-        aiFeatures: 'Advanced AI Assistant (Limited Tokens)',
-        advancedAnalytics: true,
-        customBranding: false,
-        apiAccess: false,
-      },
+      ...PLAN_CONFIG.pro,
+      name: 'Standard Plan', // UI display name
+      description: 'Best for growing practices'
     },
     enterprise: {
-      name: 'Premium Plan',
-      price: { monthly: 699, yearly: 6999 },
-      billingCycle: ['monthly', 'yearly'],
-      features: {
-        doctors: -1, // Unlimited
-        receptionists: -1,
-        appointmentsPerMonth: -1,
-        patients: -1,
-        storageGB: 100,
-        messaging: true,
-        aiFeatures: 'Full AI Suite (Unlimited Tokens)',
-        advancedAnalytics: true,
-        customBranding: true,
-        apiAccess: true,
-        smsReminders: true,
-        reports: true,
-        multiClinic: true,
-      },
-    },
+      ...PLAN_CONFIG.enterprise,
+      name: 'Premium Plan', // UI display name
+      description: 'Full power for large hospitals'
+    }
   };
 
   res.json(plans);
