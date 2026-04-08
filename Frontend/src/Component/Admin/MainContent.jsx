@@ -172,6 +172,7 @@ const MainContent = ({
             onEditReceptionist={openReceptionistForm}
             onDeleteReceptionist={handleDeleteReceptionist}
             refreshReceptionists={() => { }}
+            limits={limits}
           />
         );
       case 'Appointment Mgmt':
@@ -190,7 +191,7 @@ const MainContent = ({
       case 'Slotify Intelligence':
         return <IntelligenceHub />;
       case 'User Management':
-        return <UserManagementPanel />;
+        return <UserManagementPanel limits={limits} />;
       case 'Messages':
         return (
           <div className="p-4 sm:p-6 h-full">

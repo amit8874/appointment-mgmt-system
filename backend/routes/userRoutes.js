@@ -14,7 +14,9 @@ import {
   updateUserPassword,
   createAdmin,
   createUser,
-  deleteUser
+  deleteUser,
+  getUserSessions,
+  revokeSession
 } from '../controllers/userController.js';
 
 const router = express.Router();
@@ -32,6 +34,10 @@ router.get('/', authenticateToken, requireTenant, getAllUsers);
 // @desc    Check if session is valid
 // @route   GET /api/users/check-session
 router.get('/check-session', authenticateToken, checkSession);
+
+// Session Management
+router.get('/me/sessions', authenticateToken, getUserSessions);
+router.delete('/me/sessions/:sessionId', authenticateToken, revokeSession);
 
 // @desc    Get single user (requires auth)
 // @route   GET /api/users/:id

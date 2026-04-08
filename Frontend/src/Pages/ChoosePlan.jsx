@@ -10,86 +10,182 @@ import {
   Headset,
   Calendar,
   Sparkles,
-  LayoutDashboard
+  LayoutDashboard,
+  ShieldCheck,
+  Clock
 } from 'lucide-react';
 import { subscriptionApi } from '../services/api';
-import RegistrationSuccessModal from '../Component/RegistrationSuccessModal';
+import { useAuth } from '../context/AuthContext';
+import { getPaymentPrefillDetails, validatePaymentDetails } from '../utils/paymentUtils';
+import toast from 'react-hot-toast';
 
 const ChoosePlan = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const organization = location.state?.organization;
+  const { user } = useAuth();
+  const organizationData = location.state?.organization;
   
   const [plans, setPlans] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [trialDays, setTrialDays] = useState(14);
+  const [trialInfo, setTrialInfo] = useState(null);
 
   useEffect(() => {
     fetchPlans();
-    // Auto-select free trial plan
-    setSelectedPlan('free');
-    
-    // Calculate trial days if organization has trialEndDate
-    if (organization?.trialEndDate) {
-      const endDate = new Date(organization.trialEndDate);
-      const startDate = new Date(organization.trialStartDate || Date.now());
-      const days = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
-      setTrialDays(days);
+    fetchTrialStatus();
+  }, [organizationData]);
+
+  const fetchTrialStatus = async () => {
+    try {
+      const mySub = await subscriptionApi.getMySubscription();
+      if (mySub && mySub.organizationId) {
+        const endDate = new Date(mySub.organizationId.trialEndDate || mySub.endDate);
+        const now = new Date();
+        const diffTime = endDate - now;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        setTrialInfo({
+          daysRemaining: diffDays > 0 ? diffDays : 0,
+          isTrial: mySub.status === 'trial',
+          planName: mySub.planName
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch trial status:', err);
     }
-  }, [organization]);
+  };
 
   const fetchPlans = async () => {
     try {
       const data = await subscriptionApi.getPlans();
-      setPlans(data);
-      // Default to free trial
-      setSelectedPlan('free');
+      // Remove 'free' from plans list for display
+      const { free, ...paidPlans } = data;
+      setPlans(paidPlans);
+      // Auto-select first paid plan (Basic)
+      setSelectedPlan('basic');
     } catch (err) {
       setError('Failed to load plans');
+      toast.error('Failed to load pricing plans');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleContinue = async () => {
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handlePayment = async () => {
     if (!selectedPlan) {
       setError('Please select a plan');
       return;
     }
 
-    if (selectedPlan === 'free') {
-      // Free trial - show success modal
-      setTrialDays(14); // Default trial days
-      setShowSuccessModal(true);
-      return;
-    }
+    setProcessing(true);
+    setError('');
 
-    // Paid plan - proceed to payment
     try {
-      setLoading(true);
+      // 1. Resolve and Validate Prefill Details
+      const prefillDetails = getPaymentPrefillDetails(user, organizationData);
+      const validationError = validatePaymentDetails(prefillDetails);
+      
+      if (validationError) {
+        toast.error(validationError, { duration: 5000 });
+        setProcessing(false);
+        return;
+      }
+
+      // 2. Create Razorpay order via backend
       const response = await subscriptionApi.upgrade({
         plan: selectedPlan,
         billingCycle,
       });
 
-      // Store payment details
-      localStorage.setItem('pendingPayment', JSON.stringify({
-        orderId: response.razorpayOrder?.id,
-        amount: response.amount,
-        plan: selectedPlan,
-        billingCycle,
-      }));
+      if (!response.success || !response.order) {
+        throw new Error(response.message || 'Failed to initialize payment');
+      }
 
-      // Redirect to payment page
-      navigate('/payment', { state: { paymentData: response } });
+      // 3. Load Razorpay Script
+      const res = await loadRazorpayScript();
+      if (!res) {
+        toast.error('Razorpay SDK failed to load. Are you online?');
+        setProcessing(false);
+        return;
+      }
+
+      // 4. Open Razorpay Checkout
+      const options = {
+        key: response.order.key,
+        amount: response.order.amount,
+        currency: response.order.currency,
+        name: 'Slotify',
+        description: `${response.planMeta.name} - ${billingCycle} Subscription`,
+        image: '/logo.png', // Logo for Razorpay popup
+        order_id: response.order.id,
+        handler: async function (rzpResponse) {
+          try {
+            toast.loading('Verifying payment...', { id: 'payment-verify' });
+            
+            // 5. Verify Payment with Backend
+            const verifyRes = await subscriptionApi.verifyPayment({
+              orderId: response.order.id,
+              paymentId: rzpResponse.razorpay_payment_id,
+              signature: rzpResponse.razorpay_signature,
+              plan: selectedPlan,
+              billingCycle
+            });
+
+            if (verifyRes.success) {
+              toast.success('Subscription activated successfully!', { id: 'payment-verify' });
+              // Redirect to dashboard or success page
+              setTimeout(() => navigate('/organization-dashboard', { state: { paymentSuccess: true } }), 2000);
+            } else {
+              toast.error(verifyRes.message || 'Payment verification failed', { id: 'payment-verify' });
+            }
+          } catch (err) {
+            console.error('Verification error:', err);
+            toast.error('An error occurred during verification', { id: 'payment-verify' });
+          } finally {
+            setProcessing(false);
+          }
+        },
+        prefill: {
+          name: prefillDetails.name,
+          email: prefillDetails.email,
+          contact: prefillDetails.contact,
+        },
+        notes: {
+          clinicId: user?.organizationId?._id || user?.organizationId || organizationData?._id || 'unknown',
+          userId: user?._id || 'unknown',
+          planName: response.planMeta.name,
+          clinicName: organizationData?.name || user?.organization?.name || 'Slotify Customer'
+        },
+        theme: {
+          color: '#7C3AED', // Violet 600
+        },
+        modal: {
+          ondismiss: function () {
+            setProcessing(false);
+          },
+        },
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to initiate payment');
-    } finally {
-      setLoading(false);
+      console.error('Payment initialization error:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to initiate payment');
+      toast.error('Failed to initiate payment');
+      setProcessing(false);
     }
   };
 
@@ -114,30 +210,44 @@ const ChoosePlan = () => {
 
       <div className="max-w-6xl mx-auto relative z-10">
         <div className="text-center mb-12">
-          <motion.div
-             initial={{ opacity: 0, scale: 0.8 }}
-             animate={{ opacity: 1, scale: 1 }}
-             transition={{ duration: 0.5 }}
-             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 mb-6"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span className="text-sm font-semibold tracking-wide uppercase">Select Your Plan</span>
-          </motion.div>
+          {trialInfo && trialInfo.isTrial && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-8 backdrop-blur-sm"
+            >
+              <Clock className="w-5 h-5" />
+              <div className="text-left">
+                <p className="text-xs font-bold uppercase tracking-wider opacity-70">Current Status</p>
+                <p className="text-sm font-semibold">Free Trial: {trialInfo.daysRemaining} days remaining</p>
+              </div>
+            </motion.div>
+          )}
+
+          <div className="flex flex-col items-center gap-4 mb-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="text-sm font-semibold tracking-wide uppercase">Upgrade Your Clinic</span>
+            </motion.div>
+          </div>
+
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, duration: 0.5 }}
             className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent"
           >
-            Choose Your Medical Journey
+            Choose Your Premium Journey
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
             className="text-gray-400 max-w-2xl mx-auto text-lg"
           >
-            Start with our 14-day free trial or upgrade to unlock unlimited potential for your clinic.
+            Unlock advanced AI features, unlimited doctors, and custom branding to take your clinic to the next level.
           </motion.p>
         </div>
 
@@ -160,7 +270,6 @@ const ChoosePlan = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
           className="flex justify-center mb-12"
         >
           <div className="bg-gray-800/60 p-1.5 rounded-xl border border-white/5 inline-flex relative shadow-2xl backdrop-blur-sm">
@@ -170,7 +279,7 @@ const ChoosePlan = () => {
                 billingCycle === 'monthly' ? 'text-white' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              Monthly billing
+              Monthly
             </button>
             <button
               onClick={() => setBillingCycle('yearly')}
@@ -178,29 +287,28 @@ const ChoosePlan = () => {
                 billingCycle === 'yearly' ? 'text-white' : 'text-gray-400 hover:text-gray-200'
               }`}
             >
-              Annual billing
+              Annual
               <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2 py-0.5 rounded-full border border-emerald-500/20">
-                Save 17%
+                -17%
               </span>
             </button>
 
-            {/* Sliding Pill Background */}
             <div 
-              className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-violet-600 rounded-lg shadow-md transition-all duration-300 ease-out z-0`}
+              className="absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-violet-600 rounded-lg shadow-md transition-all duration-300 ease-out z-0"
               style={{ 
-                left: billingCycle === 'monthly' ? '6px' : 'calc(50% + 14px)' // Adjusted spacing slightly for annual button size
+                left: billingCycle === 'monthly' ? '6px' : 'calc(50%)' 
               }}
             />
           </div>
         </motion.div>
 
         {/* Plans Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
           {plans && Object.entries(plans).map(([key, plan], index) => (
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + (index * 0.1) }}
+              transition={{ delay: index * 0.1 }}
               key={key}
             >
               <PlanCard
@@ -214,68 +322,64 @@ const ChoosePlan = () => {
           ))}
         </div>
 
-        {/* Selected Plan Details & Actions */}
+        {/* Selected Plan Summary & CTA */}
         <AnimatePresence mode="wait">
           {selectedPlan && planData && (
             <motion.div 
               key={selectedPlan}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
               className="max-w-4xl mx-auto"
             >
-              <div className="bg-gray-800/40 backdrop-blur-xl border border-white/10 rounded-2xl p-6 md:p-8 mb-8 shadow-2xl relative overflow-hidden">
+              <div className="bg-gray-800/40 backdrop-blur-xl border border-white/10 rounded-2xl p-8 mb-8 shadow-2xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/5 rounded-full blur-[60px] pointer-events-none" />
                 
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                  <LayoutDashboard className="w-6 h-6 text-violet-400" />
-                  What's included in {planData.name}
-                </h2>
-                
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                  <DetailItem icon={Users} label="Doctors" value={planData.features.doctors} />
-                  <DetailItem icon={Headset} label="Receptionists" value={planData.features.receptionists} />
-                  <DetailItem icon={Calendar} label="Appointments/Mo" value={planData.features.appointmentsPerMonth} formatNumber />
-                  <DetailItem icon={Users} label="Patients" value={planData.features.patients} formatNumber />
-                  <DetailItem icon={Database} label="Storage" value={`${planData.features.storageGB} GB`} isString />
-                  
-                  <div className="flex flex-col">
-                    <p className="text-sm text-gray-400 mb-1 flex items-center gap-2">
-                       <Sparkles className="w-4 h-4 text-emerald-400" />
-                       Advanced Features
-                    </p>
-                    <p className="text-lg font-semibold text-white flex gap-2">
-                      {planData.features.advancedAnalytics ? (
-                        <span className="px-2 py-1 bg-violet-500/20 text-violet-300 rounded text-xs border border-violet-500/20">Analytics</span>
-                      ) : null}
-                      {planData.features.customBranding ? (
-                        <span className="px-2 py-1 bg-pink-500/20 text-pink-300 rounded text-xs border border-pink-500/20">Branding</span>
-                      ) : null}
-                      {(!planData.features.advancedAnalytics && !planData.features.customBranding) && (
-                         <span className="text-gray-500 font-normal">Standard</span>
-                      )}
-                    </p>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                  <div>
+                    <h2 className="text-2xl font-bold flex items-center gap-3 mb-2">
+                       {planData.name} Summary
+                    </h2>
+                    <p className="text-gray-400">Complete payment to activate your premium features immediately.</p>
                   </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-400 uppercase tracking-wider mb-1">Total Amount</p>
+                    <p className="text-3xl font-extrabold text-white">₹{billingCycle === 'monthly' ? planData.price.monthly : planData.price.yearly}</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <DetailItem icon={Users} label="Doctors" value={planData.features.doctors} />
+                  <DetailItem icon={Headset} label="Staff" value={planData.features.receptionists} />
+                  <DetailItem icon={Calendar} label="Appointments" value={planData.features.appointmentsPerMonth} formatNumber />
+                  <DetailItem icon={ShieldCheck} label="Security" value="Enterprise" isString />
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
                 <button
-                  onClick={() => navigate('/register-organization')}
+                  onClick={() => navigate(-1)}
                   className="px-8 py-4 border border-gray-600/50 rounded-xl hover:bg-white/5 text-gray-300 transition-colors w-full sm:w-auto font-medium"
                 >
-                  Back to Details
+                  Change Details
                 </button>
                 <button
-                  onClick={handleContinue}
-                  disabled={loading || !selectedPlan}
-                  className="relative group px-8 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] disabled:opacity-50 transition-all overflow-hidden flex items-center justify-center w-full sm:w-auto font-semibold"
+                  onClick={handlePayment}
+                  disabled={processing || !selectedPlan}
+                  className="relative group px-12 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] disabled:opacity-50 transition-all overflow-hidden flex items-center justify-center w-full sm:w-auto font-bold text-lg"
                 >
                   <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span className="relative flex items-center gap-2">
-                    {loading ? 'Processing...' : selectedPlan === 'free' ? 'Start Free Trial Now' : 'Continue to Payment'}
-                    {!loading && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
+                    {processing ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        Pay ₹{billingCycle === 'monthly' ? planData.price.monthly : planData.price.yearly}
+                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
                   </span>
                 </button>
               </div>
@@ -284,14 +388,6 @@ const ChoosePlan = () => {
         </AnimatePresence>
 
       </div>
-
-      {/* Success Modal */}
-      <RegistrationSuccessModal
-        isOpen={showSuccessModal}
-        onClose={() => setShowSuccessModal(false)}
-        trialDays={trialDays}
-        organizationName={organization?.name}
-      />
     </div>
   );
 };
@@ -307,8 +403,8 @@ const DetailItem = ({ icon: Icon, label, value, formatNumber, isString }) => {
 
   return (
     <div className="flex flex-col">
-      <p className="text-sm text-gray-400 mb-1 flex items-center gap-2">
-        <Icon className="w-4 h-4 text-gray-500" />
+      <p className="text-xs text-gray-500 mb-1 flex items-center gap-2 font-bold uppercase tracking-wider">
+        <Icon className="w-3 h-3" />
         {label}
       </p>
       <p className="text-lg font-semibold text-white">
@@ -319,95 +415,72 @@ const DetailItem = ({ icon: Icon, label, value, formatNumber, isString }) => {
 }
 
 const PlanCard = ({ planKey, plan, billingCycle, isSelected, onSelect }) => {
-  const price = planKey === 'free' ? 0 : billingCycle === 'monthly' ? plan.price.monthly : plan.price.yearly;
-  const isPremium = planKey === 'pro' || planKey === 'enterprise';
+  const price = billingCycle === 'monthly' ? plan.price.monthly : plan.price.yearly;
+  const isPremium = planKey === 'enterprise';
 
   return (
     <div
       onClick={onSelect}
-      className={`relative bg-gray-900/40 backdrop-blur-xl rounded-2xl p-6 cursor-pointer transition-all duration-300 border ${
+      className={`relative bg-gray-900/40 backdrop-blur-xl rounded-2xl p-8 cursor-pointer transition-all duration-500 border ${
         isSelected 
-          ? 'border-violet-500 shadow-[0_0_30px_rgba(139,92,246,0.3)] scale-[1.02] transform' 
+          ? 'border-violet-500 shadow-[0_0_40px_rgba(139,92,246,0.2)] scale-[1.05] transform' 
           : 'border-white/5 hover:border-white/20 hover:bg-gray-800/60'
       }`}
     >
-      {/* Popular Badge */}
       {planKey === 'pro' && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-          MOST POPULAR
+        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[10px] font-black tracking-widest px-4 py-1.5 rounded-full shadow-xl border border-violet-400/30">
+          RECOMMENDED
         </div>
       )}
 
-      {/* Selected Indicator Ring */}
-      <div className={`absolute top-4 right-4 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-        isSelected ? 'border-violet-500 bg-violet-500/20' : 'border-gray-600'
-      }`}>
-        {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-violet-400" />}
-      </div>
-
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          {isPremium ? <Crown className="w-5 h-5 text-amber-400" /> : <Database className="w-5 h-5 text-emerald-400" />}
-          <h3 className="text-xl font-bold text-white capitalize">{plan.name}</h3>
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-4">
+          <div className={`p-2.5 rounded-xl ${isSelected ? 'bg-violet-500/20 text-violet-400' : 'bg-gray-800 text-gray-500'}`}>
+            {isPremium ? <Crown className="w-6 h-6" /> : <Database className="w-6 h-6" />}
+          </div>
+          <h3 className="text-2xl font-black text-white">{plan.name}</h3>
         </div>
         
-        {planKey !== 'free' ? (
-          <div className="mt-4 flex items-end">
-            <span className="text-4xl font-extrabold text-white">₹{price.toLocaleString('en-IN')}</span>
-            <span className="text-gray-400 mb-1 ml-1 text-sm">/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
-          </div>
-        ) : (
-          <div className="mt-4">
-            <span className="text-4xl font-extrabold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">Free</span>
-            <p className="text-sm text-gray-400 mt-1">{plan.duration}</p>
-          </div>
-        )}
+        <div className="flex items-end gap-1">
+          <span className="text-5xl font-black text-white tracking-tighter">₹{price.toLocaleString('en-IN')}</span>
+          <span className="text-gray-500 mb-1.5 font-medium">/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
+        </div>
+        <p className="text-gray-400 mt-2 text-sm ml-1">{plan.description}</p>
       </div>
 
-      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-gray-700 to-transparent mb-6" />
+      <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-gray-700 to-transparent mb-8" />
 
-      <ul className="space-y-4">
-        <FeatureItem 
-          text={`${plan.features.doctors === -1 ? 'Unlimited' : plan.features.doctors} Doctors`} 
-        />
-        <FeatureItem 
-          text={`${plan.features.receptionists === -1 ? 'Unlimited' : plan.features.receptionists} Receptionists`} 
-        />
-        <FeatureItem 
-          text={`${plan.features.appointmentsPerMonth === -1 ? 'Unlimited' : plan.features.appointmentsPerMonth.toLocaleString()} Appointments/Mo`} 
-        />
-        <FeatureItem 
-          text={`${plan.features.patients === -1 ? 'Unlimited' : plan.features.patients.toLocaleString()} Patients`} 
-        />
-        <FeatureItem 
-          text={`${plan.features.storageGB} GB Secure Storage`} 
-        />
-        
-        {plan.features.advancedAnalytics ? (
-          <FeatureItem text="Advanced Analytics Dashboard" />
-        ) : (
-          <FeatureItem text="Basic Analytics" disabled />
-        )}
-        
-        {plan.features.customBranding ? (
-          <FeatureItem text="Custom Clinic Branding" />
-        ) : (
-           <FeatureItem text="Custom Clinic Branding" disabled />
-        )}
+      <ul className="space-y-4 mb-8">
+        <FeatureItem text={`${plan.features.doctors === -1 ? 'Unlimited' : plan.features.doctors} Doctors`} />
+        <FeatureItem text={`${plan.features.receptionists === -1 ? 'Unlimited' : plan.features.receptionists} Staff Members`} />
+        <FeatureItem text={`${plan.features.appointmentsPerMonth === -1 ? 'Unlimited' : plan.features.appointmentsPerMonth.toLocaleString()} Appointments/mo`} />
+        <FeatureItem text={`${plan.features.patients === -1 ? 'Unlimited' : plan.features.patients.toLocaleString()} Patients`} />
+        <FeatureItem text={plan.aiFeatures} highlighted />
+        {plan.features.advancedAnalytics && <FeatureItem text="Advanced Clinical Analytics" />}
+        {plan.features.customBranding && <FeatureItem text="Custom White-Label Branding" />}
       </ul>
+
+      <div className={`w-full py-4 rounded-xl text-center font-bold transition-all ${
+        isSelected 
+          ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30' 
+          : 'bg-white/5 text-gray-400 group-hover:bg-white/10'
+      }`}>
+        {isSelected ? 'Plan Selected' : 'Select Plan'}
+      </div>
     </div>
   );
 };
 
-const FeatureItem = ({ text, disabled = false }) => (
-  <li className={`flex items-start gap-3 ${disabled ? 'opacity-40 grayscale' : ''}`}>
-    <div className="mt-0.5 min-w-5">
-      <CheckCircle2 className={`w-5 h-5 ${disabled ? 'text-gray-500' : 'text-violet-400'}`} />
+const FeatureItem = ({ text, highlighted = false }) => (
+  <li className="flex items-start gap-3">
+    <div className={`mt-1 flex-shrink-0 ${highlighted ? 'text-emerald-400' : 'text-violet-500'}`}>
+      <CheckCircle2 className="w-4 h-4" />
     </div>
-    <span className={`text-sm ${disabled ? 'text-gray-500' : 'text-gray-300 leading-tight'}`}>
+    <span className={`text-sm leading-snug ${highlighted ? 'text-emerald-300 font-semibold' : 'text-gray-300'}`}>
       {text}
     </span>
   </li>
 );
 
 export default ChoosePlan;
+;

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { LogOut, UserCircle, Bell, Sun, Moon, Menu, ShieldCheck } from 'lucide-react';
 import { getNotifications, markAllAsRead, markAsRead } from '../../api/notificationApi';
+import { organizationApi } from '../../services/api';
 
 const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
   const navigate = useNavigate();
@@ -11,6 +12,12 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [planInfo, setPlanInfo] = useState({
+    plan: user?.organization?.plan || 'free',
+    planName: user?.organization?.planName || 'Free Trial',
+    status: user?.organization?.status || 'trial'
+  });
+  const [planLoading, setPlanLoading] = useState(false);
 
   // Theme toggle logic
   useEffect(() => {
@@ -50,9 +57,31 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
 
   useEffect(() => {
     fetchNotificationsData();
+    fetchPlanStatus();
     const notificationInterval = setInterval(fetchNotificationsData, 30000);
     return () => clearInterval(notificationInterval);
   }, []);
+
+  const fetchPlanStatus = async () => {
+    const orgId = user?.organizationId || user?.organization?._id;
+    if (!orgId) return;
+
+    try {
+      setPlanLoading(true);
+      const data = await organizationApi.getTrialStatus(orgId);
+      if (data) {
+        setPlanInfo({
+          plan: data.plan,
+          planName: data.planName,
+          status: data.status
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch plan status:', err);
+    } finally {
+      setPlanLoading(false);
+    }
+  };
 
   const formatTimeAgo = (dateString) => {
     const now = new Date();
@@ -142,6 +171,32 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
             <span className="hidden sm:inline">Super Admin</span>
           </button>
         )}
+
+        {/* Subscription Plan Badge */}
+        {!planLoading && (
+          <div className={`hidden sm:flex items-center px-3 py-1 rounded-full border shadow-sm transition-all duration-300 ${
+            planInfo.plan === 'enterprise'
+              ? 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-400'
+              : planInfo.plan === 'pro'
+              ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400'
+              : planInfo.plan === 'basic'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-400'
+              : (planInfo.status === 'trial' || planInfo.plan === 'free')
+              ? 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-400'
+              : 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-400'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full mr-2 animate-pulse ${
+              planInfo.plan === 'enterprise' ? 'bg-purple-500' :
+              planInfo.plan === 'pro' ? 'bg-blue-500' :
+              planInfo.plan === 'basic' ? 'bg-emerald-500' :
+              (planInfo.status === 'trial' || planInfo.plan === 'free') ? 'bg-amber-500' : 'bg-rose-500'
+            }`}></span>
+            <span className="text-[10px] font-black uppercase tracking-widest leading-none">
+              {planInfo.status === 'inactive' || planInfo.status === 'suspended' ? 'EXPIRED' : planInfo.planName.replace(' Plan', '').toUpperCase()}
+            </span>
+          </div>
+        )}
+
         <button
           onClick={toggleTheme}
           className="p-2 rounded-xl border border-gray-300 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 Transition-all shadow-sm"

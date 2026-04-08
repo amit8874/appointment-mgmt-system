@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Organization from '../models/Organization.js';
+import Session from '../models/Session.js';
 
 // Middleware to verify JWT token
 export const authenticateToken = async (req, res, next) => {
@@ -38,6 +39,38 @@ export const authenticateToken = async (req, res, next) => {
     if (!user) {
       console.log(`[AUTH] User not found for decoded ID: ${decoded.id} (Role: ${decoded.role}) at ${req.method} ${req.url}`);
       return res.status(401).json({ message: 'Session invalid - user record not found' });
+    }
+
+    // Verify session in the database
+    let session = await Session.findOne({ token: token, userId: user._id });
+    
+    if (session && session.isRevoked) {
+      console.log(`[AUTH] Session explicitly revoked for user ${user.name}`);
+      return res.status(401).json({ message: 'Session revoked. Please login again.' });
+    }
+
+    if (!session && !token.startsWith('token_')) {
+      // Auto-recreate session for valid JWTs that were issued before session tracking was added
+      // or if the session record was somehow lost.
+      try {
+        session = await Session.create({
+          userId: user._id,
+          organizationId: user.organizationId?._id || user.organizationId || null,
+          token: token,
+          userAgent: req.get('User-Agent') || 'Legacy/Unknown',
+          ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+          deviceInfo: 'Restored Session',
+          lastActive: new Date()
+        });
+        console.log(`[AUTH] Auto-created session record for existing valid token: ${user.name}`);
+      } catch (sessionError) {
+        console.error('[AUTH] Failed to auto-create session:', sessionError);
+        // If it's a conflict or other error, we still let them in because JWT is valid
+      }
+    } else if (session) {
+      // Update session last active time
+      session.lastActive = new Date();
+      session.save().catch(err => console.error('[AUTH] Failed to update session lastActive:', err));
     }
 
     // Check if password was changed after this token was issued

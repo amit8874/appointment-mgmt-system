@@ -3,7 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import PharmacySidebar from './PharmacySidebar.jsx';
 import BroadcastAlertModal from './BroadcastAlertModal.jsx';
 import QuoteAcceptedModal from './QuoteAcceptedModal.jsx';
-import { pharmacyApi } from '../../services/api';
+import { pharmacyApi, getSocketUrl } from '../../services/api';
 import { toast } from 'react-toastify';
 import { Menu, Store } from 'lucide-react';
 import { io } from 'socket.io-client';
@@ -24,12 +24,10 @@ const PharmacyLayout = () => {
     if (!user?._id && !user?.id) return;
 
     const pharmacyId = user._id || user.id;
-    let socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    if (socketUrl.endsWith('/api')) {
-      socketUrl = socketUrl.replace('/api', '');
-    }
+    const socketUrl = getSocketUrl();
     
     const socket = io(socketUrl);
+
     socketRef.current = socket;
 
     socket.on('connect', () => {

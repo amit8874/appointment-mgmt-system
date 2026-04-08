@@ -53,6 +53,22 @@ const organizationSchema = new mongoose.Schema({
     clinicName: String, // Display name
     footerText: String,
   },
+  // New clinic fields
+  clinicType: {
+    type: String,
+    enum: ['General', 'Dental', 'Eye', 'Skin', 'Pediatric', 'Pet', 'Other'],
+    default: 'General',
+  },
+  registrationNumber: String,
+  gstNumber: String,
+  consultationFee: {
+    type: Number,
+    default: 0,
+  },
+  doctorCapacity: {
+    type: Number,
+    default: 0,
+  },
   // Clinic settings
   settings: {
     timezone: {

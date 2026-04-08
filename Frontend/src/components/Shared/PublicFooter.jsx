@@ -10,7 +10,7 @@ const PublicFooter = () => {
 
           <div>
             <h4 className="font-black mb-3 text-slate-200">
-Slotify</h4>
+{import.meta.env.VITE_APP_NAME || 'Slotify'}</h4>
             <ul className="space-y-3 text-sm font-medium text-slate-300">
               <li><a href="#" className="hover:text-white transition-colors">About</a></li>
               <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
@@ -39,8 +39,8 @@ For doctors</h4>
             <h4 className="font-black mb-3 text-slate-200">
 For clinics</h4>
             <ul className="space-y-3 text-sm font-medium text-slate-300">
-              <li><a href="#" className="hover:text-white transition-colors">Ray by Slotify</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Slotify Reach</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">Ray by {import.meta.env.VITE_APP_NAME || 'Slotify'}</a></li>
+              <li><a href="#" className="hover:text-white transition-colors">{import.meta.env.VITE_APP_NAME || 'Slotify'} Reach</a></li>
             </ul>
           </div>
           <div>
@@ -63,9 +63,10 @@ Social</h4>
 
         <div className="flex flex-col items-center border-t border-slate-700 pt-8">
           <div className="flex items-center gap-2 mb-4">
-             <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto mb-2" />
+             <img src="/logo.png" alt={`${import.meta.env.VITE_APP_NAME || 'Slotify'} Logo`} className="h-20 w-auto mb-2" />
           </div>
-          <p className="text-sm text-slate-400 font-bold">Copyright © 2026, Slotify. All rights reserved.</p>
+          <p className="text-sm text-slate-400 font-bold">Copyright © 2026, {import.meta.env.VITE_APP_NAME || 'Slotify'}. All rights reserved.</p>
+
         </div>
       </div>
     </footer>

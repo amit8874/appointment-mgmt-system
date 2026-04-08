@@ -23,6 +23,7 @@ import {
   FileText
 } from 'lucide-react';
 import { format, isSameDay, parse, addMinutes } from 'date-fns';
+import { getSocketUrl } from '../../../services/api';
 import api from '../../../services/api';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../../context/AuthContext';
@@ -74,11 +75,9 @@ const TrackAppointmentView = () => {
     fetchTodayAppointments();
     
     // Initialize Socket.io
-    let socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    if (socketUrl.endsWith('/api')) {
-      socketUrl = socketUrl.replace('/api', '');
-    }
+    const socketUrl = getSocketUrl();
     const socket = io(socketUrl);
+
     socketRef.current = socket;
 
     socket.on('connect', () => {

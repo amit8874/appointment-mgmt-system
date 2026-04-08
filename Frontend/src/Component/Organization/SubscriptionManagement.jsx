@@ -149,7 +149,7 @@ const SubscriptionManagement = () => {
       </section>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 -mt-16 relative z-20">
+      <div className="max-w-7xl mx-auto px-6 -mt-16 relative z-20">
         {/* Usage Overview */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-16">
           <UsageCard icon={Stethoscope} label="Doctors" used={subscription?.usage?.doctors} total={subscription?.limits?.doctors} />
@@ -176,9 +176,8 @@ const SubscriptionManagement = () => {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
             {plans && Object.entries(plans)
-              .filter(([key]) => key !== 'free')
               .map(([key, plan]) => (
                 <PricingCard 
                   key={key}
@@ -187,6 +186,7 @@ const SubscriptionManagement = () => {
                   billingCycle={activeBillingCycle}
                   isCurrent={currentPlan === key}
                   onUpgrade={() => handleUpgrade(key, activeBillingCycle)}
+                  status={subscription?.status}
                 />
               ))}
           </div>
@@ -233,24 +233,26 @@ const UsageCard = ({ icon: Icon, label, used = 0, total = 0, unit = '' }) => {
   );
 };
 
-const PricingCard = ({ planKey, plan, billingCycle, isCurrent, onUpgrade }) => {
+const PricingCard = ({ planKey, plan, billingCycle, isCurrent, onUpgrade, status }) => {
   const price = billingCycle === 'monthly' ? plan.price.monthly : Math.floor(plan.price.yearly / 12);
   const totalYearly = plan.price.yearly;
 
   return (
-    <div className={`relative bg-white rounded-[2.5rem] p-10 border-2 transition-all group overflow-hidden ${isCurrent ? 'border-indigo-600 shadow-2xl scale-105 z-10' : 'border-slate-100 hover:border-indigo-200 shadow-xl shadow-slate-50'}`}>
+    <div className={`relative bg-white rounded-[2.5rem] p-6 border-2 transition-all group overflow-hidden ${isCurrent ? 'border-indigo-600 shadow-2xl scale-105 z-10' : 'border-slate-100 hover:border-indigo-200 shadow-xl shadow-slate-50'}`}>
       {planKey === 'pro' && (
         <div className="absolute top-6 right-[-35px] rotate-45 bg-indigo-600 text-white text-[10px] font-black px-12 py-1 uppercase tracking-widest shadow-lg">
           Best Value
         </div>
       )}
 
-      <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tight mb-2">{plan.name}</h3>
+      <h3 className="text-xl font-black text-slate-900 uppercase italic tracking-tight mb-1">{plan.name}</h3>
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-8">Professional Practice</p>
 
-      <div className="flex items-end gap-1 mb-8">
-        <span className="text-5xl font-black text-slate-900 leading-none">₹{price.toLocaleString('en-IN')}</span>
-        <span className="text-slate-400 font-bold mb-1">/mo</span>
+      <div className="flex items-end gap-1 mb-6">
+        <span className="text-4xl font-black text-slate-900 leading-none">
+          {price === 0 ? 'FREE' : `₹${price.toLocaleString('en-IN')}`}
+        </span>
+        {price !== 0 && <span className="text-slate-400 font-bold mb-1">/mo</span>}
       </div>
 
       {billingCycle === 'yearly' && (
@@ -275,7 +277,11 @@ const PricingCard = ({ planKey, plan, billingCycle, isCurrent, onUpgrade }) => {
         onClick={onUpgrade}
         className={`w-full py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest ${isCurrent ? 'bg-slate-100 text-slate-400' : 'bg-indigo-600 text-white hover:bg-slate-900 shadow-lg shadow-indigo-600/20 active:scale-95 group-hover:bg-indigo-700'}`}
       >
-        {isCurrent ? <><CheckCircle2 size={18} /> Active Plan</> : <>Upgrade Now <ArrowRight size={18} /></>}
+        {isCurrent ? (
+          <><CheckCircle2 size={18} /> {status === 'trial' ? 'Current Trial' : 'Active Plan'}</>
+        ) : (
+          <>Upgrade Now <ArrowRight size={18} /></>
+        )}
       </button>
     </div>
   );

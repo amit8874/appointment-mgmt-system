@@ -5,6 +5,17 @@ import { useNavigate } from 'react-router-dom';
 const Organizations = () => {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    all: 0,
+    expired: 0,
+    deactivated: 0,
+    activated: 0,
+    new: 0,
+    trialActive: 0,
+    free: 0,
+    upgraded: 0
+  });
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({ status: '', search: '', page: 1 });
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1, currentPage: 1 });
@@ -19,8 +30,24 @@ const Organizations = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    fetchStats();
+  }, []);
+
+  useEffect(() => {
     fetchOrganizations();
   }, [filters]);
+
+  const fetchStats = async () => {
+    try {
+      setStatsLoading(true);
+      const data = await superAdminApi.getOrganizationStats();
+      setStats(data);
+    } catch (err) {
+      console.error('Failed to fetch stats:', err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
   const fetchOrganizations = async () => {
     try {
@@ -44,6 +71,7 @@ const Organizations = () => {
       setProcessingId(orgId);
       await superAdminApi.updateOrganizationStatus(orgId, newStatus);
       fetchOrganizations();
+      fetchStats();
     } catch (err) {
       alert('Failed to update status: ' + err.message);
     } finally {
@@ -60,6 +88,7 @@ const Organizations = () => {
       await superAdminApi.updateTrialPeriod(selectedOrg._id, newTrialEndDate);
       setShowTrialModal(false);
       fetchOrganizations();
+      fetchStats();
       alert('Trial period updated successfully');
     } catch (err) {
       alert('Failed to update trial period: ' + err.message);
@@ -77,6 +106,7 @@ const Organizations = () => {
       await superAdminApi.updateOrganizationPlan(selectedOrg._id, selectedPlan);
       setShowPlanModal(false);
       fetchOrganizations();
+      fetchStats();
       alert(`Organization successfully upgraded to ${selectedPlan.toUpperCase()} plan`);
     } catch (err) {
       alert('Failed to upgrade plan: ' + err.message);
@@ -122,11 +152,11 @@ const Organizations = () => {
     if (org.isTrialActive === false && org.status !== 'active') {
       return 'Trial Expired';
     }
-    if (org.isTrialActive && org.status === 'trial') {
+    if (org.status === 'trial') {
       return 'Trial Active';
     }
     if (org.status === 'active') {
-      return 'Active';
+      return 'Upgraded';
     }
     if (org.status === 'inactive' || org.status === 'suspended') {
       return 'Deactivated';
@@ -136,6 +166,7 @@ const Organizations = () => {
 
   const getStatusBadgeClass = (status) => {
     switch (status) {
+      case 'Upgraded':
       case 'Active':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'Deactivated':
@@ -193,6 +224,88 @@ const Organizations = () => {
           </div>
         </div>
 
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
+          {[
+            { id: '', label: 'All', count: stats.all, color: 'indigo', icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            )},
+            { id: 'expired', label: 'Expired', count: stats.expired, color: 'orange', icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )},
+            { id: 'inactive', label: 'Deactivated', count: stats.deactivated, color: 'red', icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            )},
+            { id: 'active', label: 'Activated', count: stats.activated, color: 'green', icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )},
+            { id: 'new', label: 'New', count: stats.new, color: 'teal', icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )},
+            { id: 'trial', label: 'Trial Active', count: stats.trialActive, color: 'amber', icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            )},
+            { id: 'free', label: 'Free', count: stats.free, color: 'slate', icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            )},
+            { id: 'upgraded', label: 'Upgraded', count: stats.upgraded, color: 'purple', icon: (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" />
+              </svg>
+            )}
+          ].map((stat) => {
+            const colors = {
+              indigo: { border: 'border-indigo-500', bg: 'bg-indigo-50', ring: 'ring-indigo-500/20', iconBg: 'bg-indigo-100', iconText: 'text-indigo-600', text: 'text-indigo-700', subBg: 'bg-indigo-500/5' },
+              orange: { border: 'border-orange-500', bg: 'bg-orange-50', ring: 'ring-orange-500/20', iconBg: 'bg-orange-100', iconText: 'text-orange-600', text: 'text-orange-700', subBg: 'bg-orange-500/5' },
+              red: { border: 'border-red-500', bg: 'bg-red-50', ring: 'ring-red-500/20', iconBg: 'bg-red-100', iconText: 'text-red-600', text: 'text-red-700', subBg: 'bg-red-500/5' },
+              green: { border: 'border-green-500', bg: 'bg-green-50', ring: 'ring-green-500/20', iconBg: 'bg-green-100', iconText: 'text-green-600', text: 'text-green-700', subBg: 'bg-green-500/5' },
+              teal: { border: 'border-teal-500', bg: 'bg-teal-50', ring: 'ring-teal-500/20', iconBg: 'bg-teal-100', iconText: 'text-teal-600', text: 'text-teal-700', subBg: 'bg-teal-500/5' },
+              amber: { border: 'border-amber-500', bg: 'bg-amber-50', ring: 'ring-amber-500/20', iconBg: 'bg-amber-100', iconText: 'text-amber-600', text: 'text-amber-700', subBg: 'bg-amber-500/5' },
+              slate: { border: 'border-slate-500', bg: 'bg-slate-50', ring: 'ring-slate-500/20', iconBg: 'bg-slate-100', iconText: 'text-slate-600', text: 'text-slate-700', subBg: 'bg-slate-500/5' },
+              purple: { border: 'border-purple-500', bg: 'bg-purple-50', ring: 'ring-purple-500/20', iconBg: 'bg-purple-100', iconText: 'text-purple-600', text: 'text-purple-700', subBg: 'bg-purple-500/5' }
+            };
+            const c = colors[stat.color];
+            const isActive = filters.status === stat.id;
+
+            return (
+              <button
+                key={stat.id}
+                onClick={() => setFilters({ ...filters, status: stat.id, page: 1 })}
+                className={`relative overflow-hidden group p-4 rounded-2xl border transition-all duration-300 ${
+                  isActive 
+                    ? `${c.border} ${c.bg} shadow-md ring-2 ${c.ring}`
+                    : 'border-white bg-white hover:border-gray-200 shadow-sm hover:shadow-md'
+                }`}
+              >
+                <div className={`p-2 rounded-xl ${c.iconBg} ${c.iconText} inline-block mb-2 group-hover:scale-110 transition-transform duration-300`}>
+                  {stat.icon}
+                </div>
+                <div className="flex flex-col text-left">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{stat.label}</span>
+                  <span className={`text-2xl font-black ${isActive ? c.text : 'text-gray-900'}`}>
+                    {statsLoading ? '...' : (stat.count || 0)}
+                  </span>
+                </div>
+                <div className={`absolute -right-2 -bottom-2 w-12 h-12 ${c.subBg} rounded-full group-hover:scale-150 transition-transform duration-500`}></div>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -216,8 +329,12 @@ const Organizations = () => {
               <option value="">All Status</option>
               <option value="active">Active</option>
               <option value="inactive">Deactivated</option>
+              <option value="suspended">Suspended</option>
               <option value="trial">Trial Active</option>
               <option value="expired">Trial Expired</option>
+              <option value="new">New</option>
+              <option value="free">Free Plan</option>
+              <option value="upgraded">Paid Plan</option>
             </select>
             <div className="md:col-span-2 flex items-center justify-end">
               <span className="text-sm text-gray-500">
@@ -235,8 +352,8 @@ const Organizations = () => {
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Organization Name</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Trial Start Date</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Trial End Date</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Start Date</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Expiry / End Date</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Activation Control</th>
                 </tr>
@@ -244,7 +361,7 @@ const Organizations = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {organizations.map((org) => {
                   const displayStatus = getDisplayStatus(org);
-                  const isActive = displayStatus === 'Active';
+                  const isActive = displayStatus === 'Upgraded' || displayStatus === 'Active';
                   const isProcessing = processingId === org._id;
                   
                   return (
@@ -263,10 +380,20 @@ const Organizations = () => {
                         <div className="text-sm text-gray-500">{org.email}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{formatDate(org.trialStartDate)}</div>
+                        <div className="text-sm text-gray-900">
+                          {formatDate(org.status === 'trial' ? org.trialStartDate : (org.subscriptionId?.startDate || org.trialStartDate))}
+                        </div>
+                        <div className="text-[10px] uppercase font-bold text-gray-400">
+                          {org.status === 'trial' ? 'Trial Start' : 'Upgrade Start'}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{formatDate(org.trialEndDate)}</div>
+                        <div className="text-sm font-bold text-indigo-600">
+                          {formatDate(org.status === 'trial' ? org.trialEndDate : (org.subscriptionId?.endDate || org.subscriptionId?.nextBillingDate))}
+                        </div>
+                        <div className="text-[10px] uppercase font-bold text-gray-400">
+                          {org.status === 'trial' ? 'Trial End Date' : 'Upgrade End Date'}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeClass(displayStatus)}`}>

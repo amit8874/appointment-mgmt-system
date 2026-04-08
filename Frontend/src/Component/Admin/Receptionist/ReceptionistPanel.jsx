@@ -3,7 +3,7 @@ import {
   User, Search, PlusCircle, Edit2, Trash2, Eye, 
   Calendar, Clock, MapPin, Mail, Phone, Briefcase,
   CheckCircle2, XCircle, Clock3, Filter,
-  ChevronDown, ChevronUp, X, UserCircle
+  ChevronDown, ChevronUp, X, UserCircle, Lock
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Pagination from "../../../components/common/Pagination";
@@ -46,8 +46,10 @@ const ReceptionistPanel = ({
   receptionists = [],
   receptionistsLoading,
   receptionistsError,
-  refreshReceptionists
+  refreshReceptionists,
+  limits
 }) => {
+  const isLimitReached = (receptionists || []).length >= (limits?.receptionists || 1) && limits?.receptionists !== -1;
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedReceptionist, setSelectedReceptionist] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -122,12 +124,33 @@ const ReceptionistPanel = ({
           </p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
-          <button
-            onClick={() => openReceptionistForm(null)}
-            className="flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-xl text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap"
+          <div 
+            className="group relative"
+            title={isLimitReached ? `Receptionist limit reached for your plan. Please upgrade to add more.` : ""}
           >
-            <PlusCircle className="w-5 h-5 mr-2" /> Add Receptionist
-          </button>
+            <button
+              onClick={() => !isLimitReached && openReceptionistForm(null)}
+              disabled={isLimitReached}
+              className={`flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-xl text-white transition-all duration-200 
+                ${isLimitReached 
+                  ? "bg-gray-400 cursor-not-allowed opacity-75" 
+                  : "bg-blue-600 hover:bg-blue-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"} 
+                whitespace-nowrap`}
+            >
+              {isLimitReached ? (
+                <Lock className="w-5 h-5 mr-2" />
+              ) : (
+                <PlusCircle className="w-5 h-5 mr-2" />
+              )}
+              Add Receptionist
+            </button>
+            {isLimitReached && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 shadow-xl">
+                Plan limit reached: {limits?.receptionists} Receptionist(s) Max
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-gray-900"></div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

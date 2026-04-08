@@ -21,6 +21,14 @@ export const organizationApi = {
     const { data } = await api.get(`/organizations/${id}/stats`);
     return data;
   },
+  getMySessions: async () => {
+    const { data } = await api.get('/users/me/sessions');
+    return data;
+  },
+  revokeSession: async (sessionId) => {
+    const { data } = await api.delete(`/users/me/sessions/${sessionId}`);
+    return data;
+  },
 };
 
 export default organizationApi;

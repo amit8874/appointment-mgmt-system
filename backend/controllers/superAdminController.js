@@ -229,15 +229,26 @@ export const getOrganizations = async (req, res) => {
 
     if (status) {
       if (status === 'expired') {
-        // Trial expired: isTrialActive is false and status is not active
-        query.$or = [
-          { isTrialActive: false, status: { $ne: 'active' } },
-          { trialEndDate: { $lt: new Date() }, status: 'trial' }
-        ];
-      } else if (status === 'trial') {
-        // Trial active
+        // Trial expired: status is trial but end date has passed
         query.status = 'trial';
-        query.isTrialActive = true;
+        query.trialEndDate = { $lt: new Date() };
+      } else if (status === 'trial') {
+        // Trial active: status is trial and end date is in future
+        query.status = 'trial';
+        query.trialEndDate = { $gte: new Date() };
+      } else if (status === 'new') {
+        // Created in last 3 days
+        const last3Days = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        query.createdAt = { $gte: last3Days };
+      } else if (status === 'free') {
+        // Free Trial plan
+        query.planType = 'FREE_TRIAL';
+      } else if (status === 'upgraded') {
+        // Paid plan
+        query.planType = 'PAID';
+      } else if (status === 'inactive') {
+        // Deactivated
+        query.status = { $in: ['inactive', 'suspended'] };
       } else {
         query.status = status;
       }
@@ -268,6 +279,69 @@ export const getOrganizations = async (req, res) => {
     });
   } catch (error) {
     console.error('Get organizations error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get organization statistics for filter boxes
+export const getOrganizationStats = async (req, res) => {
+  try {
+    const now = new Date();
+    const last3Days = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+    const [
+      total,
+      expired,
+      deactivated,
+      activated,
+      newOrgs,
+      trialActive,
+      free,
+      upgraded
+    ] = await Promise.all([
+      // 1. All
+      Organization.countDocuments(),
+      
+      // 2. Expired: Specifically organizations in trial status whose end date has passed
+      Organization.countDocuments({ 
+        status: 'trial', 
+        trialEndDate: { $lt: now } 
+      }),
+      
+      // 3. Deactivated: Manually inactive or suspended organizations
+      Organization.countDocuments({ status: { $in: ['inactive', 'suspended'] } }),
+      
+      // 4. Activated: Organizations with active status (paid/upgraded)
+      Organization.countDocuments({ status: 'active' }),
+      
+      // 5. New: Created in last 3 days
+      Organization.countDocuments({ createdAt: { $gte: last3Days } }),
+      
+      // 6. Trial Active: Organizations in trial status whose end date is in the future
+      Organization.countDocuments({ 
+        status: 'trial', 
+        trialEndDate: { $gte: now } 
+      }),
+      
+      // 7. Free: Based on organization planType
+      Organization.countDocuments({ planType: 'FREE_TRIAL' }),
+      
+      // 8. Upgraded: Based on organization planType
+      Organization.countDocuments({ planType: 'PAID' })
+    ]);
+
+    res.json({
+      all: total,
+      expired,
+      deactivated,
+      activated,
+      new: newOrgs,
+      trialActive,
+      free,
+      upgraded
+    });
+  } catch (error) {
+    console.error('Get organization stats error:', error);
     res.status(500).json({ message: error.message });
   }
 };

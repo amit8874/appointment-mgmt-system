@@ -6,6 +6,11 @@ const auditLogSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization',
+    required: false, // Optional for backward compatibility but recommended for new logs
+  },
   action: {
     type: String, // e.g., 'OVERRIDE_SUBSCRIPTION', 'UPDATE_ORG_STATUS', 'LOGIN'
     required: true,

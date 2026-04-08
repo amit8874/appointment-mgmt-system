@@ -1,13 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Trash2, Edit, Eye, EyeOff, X, User, Search, Activity, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit, Eye, EyeOff, X, User, Search, Activity, Loader2, Lock } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
 import Pagination from '../../components/common/Pagination';
 
-const UserManagementPanel = () => {
+const UserManagementPanel = ({ limits }) => {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
+  
+  const receptionistCount = users.filter(u => u.role === 'receptionist').length;
+  const doctorCount = users.filter(u => u.role === 'doctor').length;
+  
+  const isReceptionistFull = receptionistCount >= (limits?.receptionists || 1) && limits?.receptionists !== -1;
+  const isDoctorFull = doctorCount >= (limits?.doctors || 1) && limits?.doctors !== -1;
+
+  // The button is "Full" if primarily the receptionist limit is reached (per user request)
+  // or if both are capped.
+  const isFull = isReceptionistFull;
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -152,13 +162,35 @@ const UserManagementPanel = () => {
           </h1>
           <p className="text-slate-500 text-sm mt-1 font-medium text-slate-400">Manage Doctors, Receptionists and Patients</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold transition-all shadow-lg shadow-blue-500/25 active:scale-95 group"
+        <div 
+          className="group relative"
+          title={isFull ? `Staff limit reached for your ${user?.organizationId?.planName || 'current'} plan. Please upgrade to add more.` : ""}
         >
-          <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-          Add User
-        </button>
+          <button
+            onClick={() => !isFull && setIsModalOpen(true)}
+            disabled={isFull}
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all shadow-lg active:scale-95 group 
+              ${isFull 
+                ? "bg-slate-400 cursor-not-allowed opacity-75 text-white shadow-none" 
+                : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/25"}`}
+          >
+            {isFull ? (
+              <Lock size={20} className="text-white/80" />
+            ) : (
+              <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+            )}
+            Add User
+          </button>
+          {isFull && (
+            <div className="absolute bottom-full right-0 mb-3 px-4 py-3 bg-slate-900 text-white text-xs rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-50 shadow-2xl border border-slate-700 min-w-[200px]">
+              <p className="font-black uppercase tracking-widest mb-1 italic text-blue-400">Limit Reached</p>
+              <p className="font-medium opacity-90 leading-relaxed">
+                Maximum {limits?.receptionists} Receptionist(s) allowed on your plan.
+              </p>
+              <div className="absolute top-full right-8 border-8 border-transparent border-t-slate-900"></div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 shadow-xl border border-gray-100 dark:border-gray-700 p-6 rounded-2xl">

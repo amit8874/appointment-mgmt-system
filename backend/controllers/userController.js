@@ -5,6 +5,10 @@ import User from '../models/User.js';
 import Patient from '../models/PaitentEditProfile.js';
 import Receptionist from '../models/Receptionist.js';
 import Notification from '../models/Notification.js';
+import Organization from '../models/Organization.js';
+import AuditLog from '../models/AuditLog.js';
+import Session from '../models/Session.js';
+import { parseUA } from '../utils/uaParser.js';
 import { generatePatientId } from '../utils/idGenerator.js';
 
 // Update patient profile (requires auth)
@@ -51,7 +55,10 @@ export const checkSession = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
       .select('-password')
-      .populate('organizationId', 'phone email address name branding slug subdomain');
+      .populate({
+        path: 'organizationId',
+        populate: { path: 'subscriptionId' }
+      });
     
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -79,18 +86,9 @@ export const checkSession = async (req, res) => {
         slug: user.organizationId.slug,
         branding: user.organizationId.branding,
         phone: user.organizationId.phone,
-        email: user.organizationId.email
-      };
-    }
-
-    // Add standardized organization object for UI branding
-    if (user.organizationId) {
-      userObj.organization = {
-        name: user.organizationId.name,
-        slug: user.organizationId.slug,
-        branding: user.organizationId.branding,
-        phone: user.organizationId.phone,
-        email: user.organizationId.email
+        email: user.organizationId.email,
+        plan: user.organizationId.subscriptionId?.plan || (user.organizationId.planType === 'PAID' ? 'basic' : 'free'),
+        planName: user.organizationId.subscriptionId?.planName || (user.organizationId.planType === 'PAID' ? 'Active Plan' : 'Free Trial')
       };
     }
 
@@ -473,7 +471,10 @@ export const adminLogin = async (req, res) => {
 
     // Populate organization info for tenant isolation
     try {
-      await user.populate('organizationId');
+      await user.populate({
+        path: 'organizationId',
+        populate: { path: 'subscriptionId' }
+      });
     } catch (populateError) {
       console.error('Error populating organization:', populateError);
       // Continue without organization data if populate fails
@@ -485,6 +486,22 @@ export const adminLogin = async (req, res) => {
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '24h' }
     );
+
+    // Create a new session tracking record
+    try {
+      await Session.create({
+        userId: user._id,
+        organizationId: user.organizationId?._id || user.organizationId || null,
+        token: token,
+        userAgent: req.get('User-Agent') || 'Unknown',
+        ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+        deviceInfo: parseUA(req.get('User-Agent')),
+        lastActive: new Date()
+      });
+    } catch (sessionError) {
+      console.error('Failed to create session record:', sessionError);
+      // Don't block login if session tracking fails
+    }
 
     res.json({
       message: 'Admin login successful',
@@ -503,7 +520,9 @@ export const adminLogin = async (req, res) => {
           branding: user.organizationId.branding,
           address: user.organizationId.address,
           phone: user.organizationId.phone,
-          email: user.organizationId.email
+          email: user.organizationId.email,
+          plan: user.organizationId.subscriptionId?.plan || (user.organizationId.planType === 'PAID' ? 'basic' : 'free'),
+          planName: user.organizationId.subscriptionId?.planName || (user.organizationId.planType === 'PAID' ? 'Active Plan' : 'Free Trial')
         } : null
       }
     });
@@ -573,6 +592,20 @@ export const superAdminLogin = async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    // Create a new session tracking record
+    try {
+      await Session.create({
+        userId: user._id,
+        token: token,
+        userAgent: req.get('User-Agent') || 'Unknown',
+        ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+        deviceInfo: parseUA(req.get('User-Agent')),
+        lastActive: new Date()
+      });
+    } catch (sessionError) {
+      console.error('Failed to create session record:', sessionError);
+    }
+
     res.json({
       message: 'Super Admin login successful',
       token,
@@ -616,6 +649,17 @@ export const updateUserProfile = async (req, res) => {
       userObj.mobile = updatedUser.organizationId.phone || '';
     }
     
+    // Log the update
+    await AuditLog.create({
+      adminId: req.user.id,
+      organizationId: updatedUser.organizationId?._id || updatedUser.organizationId,
+      action: 'UPDATE_PROFILE',
+      targetType: 'User',
+      targetId: updatedUser._id,
+      details: { updatedFields: Object.keys(filteredUpdateData) },
+      ipAddress: req.ip
+    });
+
     res.json(userObj);
   } catch (error) {
     console.error('Update profile error:', error);
@@ -644,6 +688,16 @@ export const updateUserPassword = async (req, res) => {
     user.password = newPassword; // Let User model pre-save hook handle hashing
     user.passwordLastChanged = new Date();
     await user.save();
+
+    // Log the password change
+    await AuditLog.create({
+      adminId: req.user.id,
+      organizationId: user.organizationId,
+      action: 'PASSWORD_CHANGE',
+      targetType: 'User',
+      targetId: user._id,
+      ipAddress: req.ip
+    });
 
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
@@ -933,5 +987,49 @@ export const deleteUser = async (req, res) => {
   } catch (error) {
     console.error('[DeleteUser] Critical Error:', error);
     res.status(500).json({ message: error.message });
+  }
+};
+
+// GET Current User Sessions
+export const getUserSessions = async (req, res) => {
+  try {
+    const sessions = await Session.find({ 
+      userId: req.user.id,
+      isRevoked: false 
+    }).sort({ lastActive: -1 });
+
+    const authHeader = req.headers['authorization'];
+    const currentToken = authHeader && authHeader.split(' ')[1];
+
+    res.json(sessions.map(session => ({
+      id: session._id,
+      device: session.deviceInfo || 'Unknown Device',
+      ip: session.ipAddress || '0.0.0.0',
+      lastActive: session.lastActive,
+      isCurrent: session.token === currentToken
+    })));
+  } catch (error) {
+    console.error('Error fetching sessions:', error);
+    res.status(500).json({ message: 'Failed to fetch sessions' });
+  }
+};
+
+// Revoke a specific session
+export const revokeSession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const session = await Session.findOne({ _id: sessionId, userId: req.user.id });
+
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+
+    session.isRevoked = true;
+    await session.save();
+
+    res.json({ message: 'Session revoked successfully' });
+  } catch (error) {
+    console.error('Error revoking session:', error);
+    res.status(500).json({ message: 'Failed to revoke session' });
   }
 };

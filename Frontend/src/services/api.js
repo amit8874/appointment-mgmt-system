@@ -2,6 +2,18 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+/**
+ * Normalized socket URL from API_BASE_URL
+ * This avoids hardcoding localhost and ensures consistency between HTTP and WS
+ */
+export const getSocketUrl = () => {
+  let url = API_BASE_URL;
+  if (url.endsWith('/api')) {
+    url = url.replace('/api', '');
+  }
+  return url;
+};
+
 // Detect tenant from subdomain or localStorage
 const getTenantSlug = () => {
   const hostname = window.location.hostname;
@@ -15,6 +27,7 @@ const getTenantSlug = () => {
   
   return subdomain;
 };
+
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -483,6 +496,18 @@ export const organizationApi = {
     const { data } = await api.get(`/organizations/${id}`);
     return data;
   },
+  updateBranding: async (orgId, brandingData) => {
+    const { data } = await api.put(`/organizations/${orgId}/branding`, brandingData);
+    return data;
+  },
+  getMySessions: async () => {
+    const { data } = await api.get('/users/me/sessions');
+    return data;
+  },
+  revokeSession: async (sessionId) => {
+    const { data } = await api.delete(`/users/me/sessions/${sessionId}`);
+    return data;
+  },
   update: async (id, orgData) => {
     const { data } = await api.put(`/organizations/${id}`, orgData);
     return data;
@@ -601,6 +626,10 @@ export const superAdminApi = {
   },
   getOrganizationDoctors: async (orgId) => {
     const { data } = await api.get(`/superadmin/organizations/${orgId}/doctors`);
+    return data;
+  },
+  getOrganizationStats: async () => {
+    const { data } = await api.get('/superadmin/organizations/stats');
     return data;
   },
   verifyDoctorSuperAdmin: async (doctorId) => {
@@ -811,6 +840,10 @@ export const analyticsApi = {
   },
   getPredictiveInsights: async (timeRange = 90) => {
     const { data } = await api.get(`/analytics/predictive?timeRange=${timeRange}`);
+    return data;
+  },
+  getActivityLogs: async (params = {}) => {
+    const { data } = await api.get('/analytics/activity-logs', { params });
     return data;
   }
 };

@@ -50,13 +50,14 @@ const TrialModal = ({ isOpen, onClose }) => {
     nextStep();
   };
 
-  const handleSubmitSecurity = (e) => {
+  const handleSubmitSecurity = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
-    setShowPlans(true);
+    // Default to registering with free plan directly
+    await registerAndLogin('free');
   };
 
   const handleSelectPlan = async (planId) => {
@@ -340,9 +341,26 @@ const TrialModal = ({ isOpen, onClose }) => {
                             </div>
                           )}
                         </div>
-                        <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-blue-500/20 transition-all flex items-center justify-center gap-2 group mt-6">
-                          Start Free Trail
-                          <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                        <button 
+                          type="submit" 
+                          disabled={loading}
+                          className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-blue-500/20 transition-all flex items-center justify-center gap-2 group mt-6"
+                        >
+                          {loading ? (
+                            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              Start Free Trial
+                              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                            </>
+                          )}
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setShowPlans(true)}
+                          className="w-full py-2 text-slate-400 hover:text-blue-600 font-bold text-xs transition-all flex items-center justify-center gap-1 mt-2"
+                        >
+                          <Star size={12} /> Compare all plans
                         </button>
                       </form>
                     </motion.div>
@@ -365,9 +383,20 @@ const TrialModal = ({ isOpen, onClose }) => {
 
                     <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide mb-6">
                       <PlanCard 
+                        id="free"
+                        title="Free Trial"
+                        price="FREE"
+                        desc="Try all premium features for 14 days"
+                        features={["Full Access (14 Days)", "1 Doctor Login", "All Premium Features", "No Card Required"]}
+                        onSelect={handleSelectPlan}
+                        loading={loading}
+                        highlight
+                        icon={<ShieldCheck className="text-blue-200" size={24} />}
+                      />
+                      <PlanCard 
                         id="basic"
                         title="Basic"
-                        price="799/mo"
+                        price="299/mo"
                         desc="Perfect for solo doctors & small practices"
                         features={["1 Doctor Login", "500 Appointments/mo", "1,000 Patient Records", "Cloud Storage"]}
                         onSelect={handleSelectPlan}
@@ -377,18 +406,17 @@ const TrialModal = ({ isOpen, onClose }) => {
                       <PlanCard 
                         id="pro"
                         title="Standard"
-                        price="1999/mo"
+                        price="499/mo"
                         desc="Enhanced features for growing clinics"
                         features={["Up to 3 Doctors", "2 Receptionists", "2,000 Appointments/mo", "Advanced Analytics"]}
                         onSelect={handleSelectPlan}
                         loading={loading}
-                        highlight
                         icon={<Star className="text-amber-400" size={24} />}
                       />
                       <PlanCard 
                         id="enterprise"
                         title="Premium"
-                        price="3999/mo"
+                        price="699/mo"
                         desc="Full hospital & multi-doctor management"
                         features={["Unlimited Everything", "SMS Reminders", "Professional Reports", "Custom Branding"]}
                         onSelect={handleSelectPlan}

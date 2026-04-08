@@ -19,6 +19,7 @@ import {
   getOrganizationDoctors,
   verifyDoctorBySuperAdmin,
   rejectDoctorBySuperAdmin,
+  getOrganizationStats,
 } from '../controllers/superAdminController.js';
 
 const router = express.Router();
@@ -46,12 +47,14 @@ router.use(requireSuperAdmin);
  */
 router.get('/dashboard', getDashboard);
 
+router.get('/organizations', getOrganizations);
+
 /**
- * @route   GET /api/superadmin/organizations
- * @desc    Get all organizations with filters
+ * @route   GET /api/superadmin/organizations/stats
+ * @desc    Get organization statistics for filters
  * @access  Super Admin
  */
-router.get('/organizations', getOrganizations);
+router.get('/organizations/stats', getOrganizationStats);
 
 /**
  * @route   GET /api/superadmin/organizations/all-with-credentials

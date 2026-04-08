@@ -9,6 +9,7 @@ import ConfirmedAppointment from "../models/ConfirmedAppointment.js";
 import CancelledAppointment from "../models/CancelledAppointment.js";
 import Doctor from "../models/Doctor.js";
 import Patient from "../models/PaitentEditProfile.js";
+import AuditLog from "../models/AuditLog.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 
@@ -316,6 +317,7 @@ export const getDashboard = async (req, res) => {
       confirmedThisMonth,
       cancelledThisMonth,
 
+      totalMonthlyRevenue,
       totalRevenue
     ] = await Promise.all([
       Doctor.countDocuments({ organizationId }),
@@ -334,6 +336,14 @@ export const getDashboard = async (req, res) => {
       CancelledAppointment.countDocuments({ organizationId, createdAt: { $gte: monthStart } }),
 
       Billing.aggregate([
+        { $match: { 
+            organizationId: new mongoose.Types.ObjectId(organizationId), 
+            status: 'Paid',
+            createdAt: { $gte: monthStart }
+        } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]),
+      Billing.aggregate([
         { $match: { organizationId: new mongoose.Types.ObjectId(organizationId), status: 'Paid' } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ])
@@ -349,6 +359,7 @@ export const getDashboard = async (req, res) => {
         totalPatients,
         totalAppointments,
         appointmentsThisMonth,
+        revenueThisMonth: totalMonthlyRevenue[0]?.total || 0,
         totalRevenue: totalRevenue[0]?.total || 0
       },
       // Backward compatibility for generic stats
@@ -469,5 +480,72 @@ Keep it professional, data-driven, and short.`;
   } catch (error) {
     console.error("Predictive Error:", error);
     res.status(500).json({ message: "Failed to generate AI insights." });
+  }
+};
+
+// GET Activity Logs for the Current Organization
+export const getActivityLogs = async (req, res) => {
+  try {
+    const organizationId = req.tenantId;
+    const { action, limit = 50, page = 1 } = req.query;
+
+    if (!organizationId) {
+      console.warn("[getActivityLogs] No organizationId found in request");
+      return res.status(400).json({ message: "Organization ID is required" });
+    }
+
+    console.log(`[getActivityLogs] Fetching logs for organizationId: ${organizationId} (Type: ${typeof organizationId})`);
+
+    // Ensure we have a valid ObjectId
+    let orgObjectId;
+    try {
+      if (mongoose.isValidObjectId(organizationId)) {
+        orgObjectId = new mongoose.Types.ObjectId(organizationId.toString());
+      } else {
+        console.error(`Invalid Organization ID format: ${organizationId}`);
+        return res.status(400).json({ message: "Invalid Organization ID format" });
+      }
+    } catch (err) {
+      console.error(`Error converting Organization ID: ${err.message}`);
+      return res.status(400).json({ message: "Invalid Organization ID" });
+    }
+
+    const query = { organizationId: orgObjectId };
+    if (action && action !== 'all') {
+      // Map frontend categories to backend actions
+      const actionMap = {
+        'security': ['PASSWORD_CHANGE', 'LOGIN', 'LOGOUT', '2FA_TOGGLE'],
+        'profile': ['UPDATE_PROFILE', 'UPDATE_CLINIC_DETAILS', 'LOGO_UPLOAD'],
+        'billing': ['UPGRADE_PLAN', 'CANCEL_SUBSCRIPTION', 'PAYMENT_SUCCESS']
+      };
+      if (actionMap[action]) {
+        query.action = { $in: actionMap[action] };
+      }
+    }
+
+    const logs = await AuditLog.find(query)
+      .populate('adminId', 'name email')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    const total = await AuditLog.countDocuments(query);
+
+    res.json({
+      logs: logs.map(log => ({
+        id: log._id,
+        action: log.action,
+        adminName: log.adminId?.name || 'Unknown',
+        time: log.createdAt,
+        ip: log.ipAddress,
+        details: log.details,
+        targetType: log.targetType
+      })),
+      total,
+      pages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error("Error fetching activity logs:", error);
+    res.status(500).json({ message: "Failed to fetch activity logs." });
   }
 };

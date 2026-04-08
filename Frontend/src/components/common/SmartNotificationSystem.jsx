@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { format, isSameDay, parse, subMinutes, addMinutes, isAfter, isBefore } from 'date-fns';
+import { getSocketUrl } from '../../services/api';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -124,12 +125,9 @@ const SmartNotificationSystem = () => {
 
     const orgIdStr = String(orgId);
 
-    let socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    if (socketUrl.endsWith('/api')) {
-      socketUrl = socketUrl.replace('/api', '');
-    }
-    
+    const socketUrl = getSocketUrl();
     const socket = io(socketUrl);
+
     socketRef.current = socket;
 
     socket.on('connect', () => {

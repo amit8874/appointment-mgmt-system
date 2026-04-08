@@ -16,7 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../context/AuthContext';
-import { messageApi } from '../../services/api';
+import { messageApi, getSocketUrl } from '../../services/api';
 import { ChatActionOptions, DoctorChatCard } from './components/ChatInteraction';
 
 const PatientChatView = () => {
@@ -31,12 +31,10 @@ const PatientChatView = () => {
 
   // Initialize Socket
   useEffect(() => {
-    let socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    if (socketUrl.endsWith('/api')) {
-      socketUrl = socketUrl.replace('/api', '');
-    }
+    const socketUrl = getSocketUrl();
     
     socketRef.current = io(socketUrl);
+
     const socket = socketRef.current;
     
     socket.on('connect', () => {

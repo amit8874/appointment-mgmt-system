@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import { sendWhatsAppMessage } from '../services/whatsappService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
 import User from '../models/User.js';
+import Session from '../models/Session.js';
+import { parseUA } from '../utils/uaParser.js';
 
 // In-memory store for OTPs (For production, use Redis or a DB)
 const otpStore = new Map();
@@ -82,6 +84,21 @@ export const verifyOtp = async (req, res) => {
         { expiresIn: '24h' }
       );
 
+      // Create a new session tracking record
+      try {
+        await Session.create({
+          userId: user._id,
+          organizationId: user.organizationId || null,
+          token: token,
+          userAgent: req.get('User-Agent') || 'Unknown',
+          ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+          deviceInfo: parseUA(req.get('User-Agent')),
+          lastActive: new Date()
+        });
+      } catch (sessionError) {
+        console.error('Failed to create session record:', sessionError);
+      }
+
       // 3. Send Success Message via WhatsApp as requested by user
       const sanitizedPhone = sanitizePhone(phone);
       try {
@@ -154,6 +171,21 @@ export const quickLogin = async (req, res) => {
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '30d' }
     );
+
+    // Create a new session tracking record
+    try {
+      await Session.create({
+        userId: user._id,
+        organizationId: user.organizationId || null,
+        token: token,
+        userAgent: req.get('User-Agent') || 'Unknown',
+        ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+        deviceInfo: parseUA(req.get('User-Agent')),
+        lastActive: new Date()
+      });
+    } catch (sessionError) {
+      console.error('Failed to create session record:', sessionError);
+    }
 
     res.json({
       success: true,

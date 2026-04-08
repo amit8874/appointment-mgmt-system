@@ -1,6 +1,7 @@
 import Organization from '../models/Organization.js';
 import User from '../models/User.js';
 import Subscription from '../models/Subscription.js';
+import AuditLog from '../models/AuditLog.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -333,6 +334,11 @@ export const updateOrganization = async (req, res) => {
       address,
       branding,
       settings,
+      clinicType,
+      registrationNumber,
+      gstNumber,
+      consultationFee,
+      doctorCapacity,
     } = req.body;
 
     if (name) organization.name = name;
@@ -340,8 +346,25 @@ export const updateOrganization = async (req, res) => {
     if (address) organization.address = address;
     if (branding) organization.branding = { ...organization.branding, ...branding };
     if (settings) organization.settings = { ...organization.settings, ...settings };
+    if (clinicType) organization.clinicType = clinicType;
+    if (registrationNumber) organization.registrationNumber = registrationNumber;
+    if (gstNumber) organization.gstNumber = gstNumber;
+    if (consultationFee !== undefined) organization.consultationFee = consultationFee;
+    if (doctorCapacity !== undefined) organization.doctorCapacity = doctorCapacity;
 
     await organization.save();
+
+    // Log the update
+    const isLogoUpdate = branding && branding.logo;
+    await AuditLog.create({
+      adminId: req.user.id,
+      organizationId: organization._id,
+      action: isLogoUpdate ? 'LOGO_UPLOAD' : 'UPDATE_CLINIC_DETAILS',
+      targetType: 'Organization',
+      targetId: organization._id,
+      details: { updatedFields: Object.keys(req.body) },
+      ipAddress: req.ip
+    });
 
     res.json({ message: 'Organization updated successfully', organization });
   } catch (error) {
@@ -495,8 +518,10 @@ export const getTrialStatus = async (req, res) => {
       trialDays: organization.trialDays || 14,
       daysRemaining: Math.max(0, daysRemaining),
       isTrialExpired,
-      status: organization.status,
-      planType: organization.planType || 'FREE_TRIAL',
+      status: (subscription?.plan && subscription.plan !== 'free') ? 'active' : organization.status,
+      planType: (subscription?.plan && subscription.plan !== 'free') ? 'PAID' : (organization.planType || 'FREE_TRIAL'),
+      plan: subscription?.plan || 'free',
+      planName: subscription?.planName || (organization.planType === 'FREE_TRIAL' ? 'Free Trial' : 'Active Plan'),
       lastDataResetAt: organization.lastDataResetAt,
       needsResetNotification: organization.needsResetNotification || false,
       isManualOverride: subscription?.isManualOverride || false,

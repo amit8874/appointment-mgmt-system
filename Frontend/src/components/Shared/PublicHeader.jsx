@@ -90,7 +90,8 @@ const PublicHeader = () => {
                                 </div>
                                 <div className="leading-tight">
                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Powered by</p>
-                                  <p className="text-lg font-black text-indigo-950">Slotify AI</p>
+                                  <p className="text-lg font-black text-indigo-950">{import.meta.env.VITE_APP_NAME || 'Slotify'} AI</p>
+
                                 </div>
                               </div>
 
