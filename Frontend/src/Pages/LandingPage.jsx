@@ -458,7 +458,7 @@ const LandingPage = () => {
       </section>
 
       {/* Stakeholders Section */}
-      <section className="py-16 px-4 bg-[#f8fafc]">
+      <section className="pt-16 pb-8 px-4 bg-[#f8fafc]">
 
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10">
@@ -747,7 +747,7 @@ const LandingPage = () => {
       </section>
 
       {/* Pharmacy Partner Section */}
-      <section className="py-24 px-4 bg-white relative overflow-hidden">
+      <section className="pt-8 pb-24 px-4 bg-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row items-center gap-16">
             <motion.div 

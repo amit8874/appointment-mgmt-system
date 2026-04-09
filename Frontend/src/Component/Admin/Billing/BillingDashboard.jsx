@@ -43,8 +43,8 @@ const InvoiceList = React.memo(({
   itemsPerPage
 }) => (
   <>
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-4 md:mb-0">
+    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-3 border-b pb-2">
+      <h2 className="text-lg font-black text-gray-800 mb-1 md:mb-0">
         Invoice List ({filteredInvoices.length} Found)
       </h2>
       <button
@@ -57,7 +57,7 @@ const InvoiceList = React.memo(({
     </div>
 
     {/* NEW: Summary Cards */}
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
       {summaryMetrics.map(metric => (
         <SummaryCard
           key={metric.title}
@@ -70,7 +70,7 @@ const InvoiceList = React.memo(({
     </div>
 
     {/* NEW: Filtering & Search Bar */}
-    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+    <div className="flex flex-col sm:flex-row justify-between items-center mb-3 gap-3">
 
       {/* Filter Tabs */}
       <div className="flex space-x-2 text-black bg-gray-200 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
@@ -771,7 +771,7 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
 
 // --- Summary Card Component ---
 const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
-  <div className={`p-5 rounded-xl shadow-md border-t-4 ${colorClass} bg-white transition duration-300 hover:shadow-xl`}>
+  <div className={`p-4 rounded-xl shadow-md border-t-4 ${colorClass} bg-white transition duration-300 hover:shadow-xl`}>
     <div className="flex items-center">
       <div className={`p-2 rounded-full mr-3 bg-opacity-20 flex-shrink-0`}>
         <Icon className="w-6 h-6" />
@@ -1248,27 +1248,27 @@ const BillingDashboard = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 sm:p-10 font-['Inter'] print:bg-white print:p-0">
+    <div className="min-h-screen bg-gray-100 p-2 sm:p-4 font-['Inter'] print:bg-white print:p-0">
 
       {/* Header and Title (Hidden on Print) */}
-      <header className="mb-10 print:hidden">
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tighter">
+      <header className="mb-3 print:hidden">
+        <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
           Billing & Payments
         </h1>
-        <p className="mt-2 text-xl text-gray-500">
+        <p className="text-[11px] sm:text-xs text-gray-400 font-bold uppercase tracking-wider">
           Centralized financial management for patient services.
         </p>
       </header>
 
       {/* Status Message Display */}
       {statusMessage && (
-        <div className={`mb-8 p-4 ${statusMessage.startsWith('Error') ? 'bg-red-100 text-red-800 border-red-200' : 'bg-blue-100 text-blue-800 border-blue-200'} rounded-xl shadow-lg border transition-opacity duration-300`}>
+        <div className={`mb-3 p-3 ${statusMessage.startsWith('Error') ? 'bg-red-50 text-red-800 border-red-100' : 'bg-blue-50 text-blue-800 border-blue-100'} rounded-lg shadow-sm border text-xs font-bold transition-opacity duration-300`}>
           {statusMessage}
         </div>
       )}
 
       {/* Main Card Container (Hidden on Print) */}
-      <div className="bg-white rounded-xl shadow-2xl p-6 sm:p-10 print:hidden">
+      <div className="bg-white rounded-xl shadow-lg p-3 sm:p-5 print:hidden">
 
         {viewMode === 'list' ? (
           <InvoiceList

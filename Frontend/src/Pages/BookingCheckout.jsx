@@ -226,7 +226,14 @@ const BookingCheckout = () => {
                 <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
                   {bookingData.clinic.address}
                 </p>
-                <button className="text-[#14bef0] text-xs font-bold mt-1 hover:underline flex items-center gap-1">
+                <button 
+                  onClick={() => {
+                    const query = encodeURIComponent(`${bookingData.clinic.name}, ${bookingData.clinic.address}`);
+                    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+                  }}
+                  className="text-[#14bef0] text-xs font-bold mt-1 hover:underline flex items-center gap-1"
+                >
+                  <ExternalLink size={12} />
                   Get Directions
                 </button>
               </div>

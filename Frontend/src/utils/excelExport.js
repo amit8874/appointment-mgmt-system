@@ -55,3 +55,51 @@ export const exportPatientsToExcel = (patients) => {
   // Download the file
   XLSX.writeFile(workbook, filename);
 };
+
+/**
+ * Exports doctor data to an Excel file.
+ * @param {Array} doctors - The list of doctor objects to export.
+ */
+export const exportDoctorsToExcel = (doctors) => {
+  if (!doctors || doctors.length === 0) {
+    alert("No data available to export");
+    return;
+  }
+
+  // Transform data for Excel
+  const excelData = doctors.map((d) => ({
+    "Doctor ID": d.id || d._id || "-",
+    "Full Name": d.name || "Unknown",
+    "Specialization": d.specialization || "-",
+    "Department": d.department || "General",
+    "Phone": d.phone || "-",
+    "Email": d.email || "-",
+    "Availability": Object.entries(d.availability || {})
+      .filter(([_, value]) => value === true || value === 'true')
+      .map(([day, _]) => day.charAt(0).toUpperCase() + day.slice(1))
+      .join(', ') || "-"
+  }));
+
+  // Create worksheet
+  const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+  // Set column widths
+  const wscols = [
+    { wch: 20 }, // ID
+    { wch: 25 }, // Name
+    { wch: 25 }, // Specialization
+    { wch: 20 }, // Department
+    { wch: 15 }, // Phone
+    { wch: 25 }, // Email
+    { wch: 40 }  // Availability
+  ];
+  worksheet['!cols'] = wscols;
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Doctors");
+
+  const dateStr = new Date().toISOString().split('T')[0];
+  const filename = `Doctors_Schedule_${dateStr}.xlsx`;
+
+  XLSX.writeFile(workbook, filename);
+};

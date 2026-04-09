@@ -260,10 +260,11 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
         </div>
 
         <button
-          className="hidden lg:flex items-center px-3 py-1.5 rounded-xl border border-gray-300 bg-slate-50 text-sm font-medium text-gray-700 hover:bg-slate-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 group Transition-all shadow-sm"
+          className="flex items-center px-1.5 sm:px-3 py-1.5 rounded-xl border border-gray-300 bg-slate-50 text-xs sm:text-sm font-medium text-gray-700 hover:bg-slate-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 group Transition-all shadow-sm"
           onClick={handleProfileClick}
+          title="My Profile"
         >
-          <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mr-2 ring-1 ring-gray-200 dark:ring-gray-600 overflow-hidden">
+          <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center sm:mr-2 ring-1 ring-gray-200 dark:ring-gray-600 overflow-hidden">
             {user?.profilePicture ? (
               <img
                 src={user.profilePicture}
@@ -276,7 +277,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
               </span>
             )}
           </div>
-          {user?.name || 'My Profile'}
+          <span className="hidden sm:inline-block max-w-[100px] truncate">{user?.name || 'Profile'}</span>
         </button>
         <button
           onClick={onLogout}

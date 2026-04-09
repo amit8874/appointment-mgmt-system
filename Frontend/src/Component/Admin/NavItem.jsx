@@ -1,13 +1,16 @@
 import React from 'react';
 import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3 } from 'lucide-react';
 
-const NavItem = ({ id, name, icon: Icon, currentTab, onClick }) => {
+const NavItem = ({ id, name, icon: Icon, currentTab, onClick, toggleSidebar }) => {
   const isActive = currentTab === name;
 
   // Add logic to close sidebar on click in mobile view and reset selectedDoctor
   const handleClick = () => {
     onClick(name);
-    // Sidebar closes automatically via overlay click, so no need to call toggleSidebar
+    // Automatically close sidebar if toggleSidebar is provided (usually on mobile)
+    if (toggleSidebar && window.innerWidth < 1024) {
+      toggleSidebar();
+    }
   };
 
   return (

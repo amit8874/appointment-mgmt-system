@@ -99,3 +99,46 @@ Response should ONLY contain the refined message text. No explanations or extra 
     });
   }
 };
+
+/**
+ * Sends bulk WhatsApp messages to multiple recipients.
+ */
+export const bulkSendWhatsApp = async (req, res) => {
+  try {
+    const { recipients, message } = req.body;
+
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+      return res.status(400).json({ success: false, message: "A list of recipients is required." });
+    }
+    if (!message) {
+      return res.status(400).json({ success: false, message: "Message is required." });
+    }
+
+    console.log(`[WhatsApp Controller] Starting bulk send for ${recipients.length} recipients.`);
+
+    const results = [];
+    for (const recipient of recipients) {
+      try {
+        const sanitizedPhone = sanitizePhone(recipient.phone);
+        const result = await sendWhatsAppMessage(sanitizedPhone, message);
+        results.push({ phone: recipient.phone, success: true, data: result });
+      } catch (err) {
+        console.error(`[WhatsApp Controller] Error sending to ${recipient.phone}:`, err.message);
+        results.push({ phone: recipient.phone, success: false, error: err.message });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Bulk send completed: ${results.filter(r => r.success).length} successful, ${results.filter(r => !r.success).length} failed.`,
+      results,
+    });
+  } catch (error) {
+    console.error(`[WhatsApp Controller] Bulk send error:`, error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred during bulk sending.",
+      error: error.message,
+    });
+  }
+};

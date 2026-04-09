@@ -1,5 +1,6 @@
 import WhatsAppModal from "../../../components/common/WhatsAppModal";
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, MessageCircle, Download } from "lucide-react";
+import BulkWhatsAppModal from "../../../components/common/BulkWhatsAppModal";
+import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, MessageCircle, Download, Users } from "lucide-react";
 import { exportPatientsToExcel } from "../../../utils/excelExport";
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -33,6 +34,7 @@ const PatientPanel = ({
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
   const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
   const [selectedPatientForWhatsapp, setSelectedPatientForWhatsapp] = useState(null);
+  const [bulkWhatsappModalOpen, setBulkWhatsappModalOpen] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
@@ -423,6 +425,14 @@ const PatientPanel = ({
             />
           </div>
           <button
+            onClick={() => setBulkWhatsappModalOpen(true)}
+            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 font-bold text-sm"
+            title="Bulk WhatsApp Message"
+          >
+            <Users className="w-5 h-5 mr-2" />
+            Bulk Message
+          </button>
+          <button
             onClick={() => exportPatientsToExcel(patients)}
             className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 font-bold text-sm"
             title="Export to Excel"
@@ -771,6 +781,12 @@ const PatientPanel = ({
         isOpen={whatsappModalOpen}
         onClose={() => setWhatsappModalOpen(false)}
         patient={selectedPatientForWhatsapp}
+      />
+      {/* Bulk WhatsApp Modal */}
+      <BulkWhatsAppModal
+        isOpen={bulkWhatsappModalOpen}
+        onClose={() => setBulkWhatsappModalOpen(false)}
+        patients={patients}
       />
     </motion.div>
   );

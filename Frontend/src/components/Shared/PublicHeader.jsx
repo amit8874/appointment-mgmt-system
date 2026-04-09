@@ -15,13 +15,13 @@ const PublicHeader = () => {
     { title: "Health Records", icon: <ShieldPlus size={18} className="text-emerald-500" />, desc: "Secure vitals tracking", to: "/features/health-records" },
     { title: "Billing", icon: <ClipboardList size={18} className="text-orange-500" />, desc: "Invoicing & revenue", to: "/features/billing" },
     { title: "Compliance", icon: <Lock size={18} className="text-slate-500" />, desc: "HIPAA & security", to: "/features/compliance" },
-    { title: "TeleEmergency 24*7", icon: <AlertCircle size={18} className="text-red-500" />, desc: "Immediate online care", to: "/features/tele-emergency" },
+    { title: "TeleEmergency 24*7", icon: <AlertCircle size={18} className="text-red-500" />, desc: "Immediate online care", to: "/features/tele-emergency", isComingSoon: true },
     { title: "Communications", icon: <MessageSquare size={18} className="text-sky-500" />, desc: "Secure messaging", to: "/features/communications" },
     { title: "Payments", icon: <CreditCard size={18} className="text-violet-500" />, desc: "Online collection", to: "/features/payments" },
     { title: "Telehealth", icon: <Video size={18} className="text-rose-500" />, desc: "Remote consultations", to: "/features/telehealth" },
     { title: "Clinical Notes", icon: <PenTool size={18} className="text-amber-500" />, desc: "Smart note taking", to: "/features/clinical-notes" },
-    { title: "Family & Pet Care", icon: <Heart size={18} className="text-rose-500" />, desc: "One platform for everyone", to: "/features/family-pet-care" },
-    { title: "Partner Program", icon: <TrendingUp size={18} className="text-emerald-500" />, desc: "Earn by referring clinics", to: "/features/partner-program" }
+    { title: "Family & Pet Care", icon: <Heart size={18} className="text-rose-500" />, desc: "One platform for everyone", to: "/features/family-pet-care", isComingSoon: true },
+    { title: "Partner Program", icon: <TrendingUp size={18} className="text-emerald-500" />, desc: "Earn by referring clinics", to: "/features/partner-program", isComingSoon: true }
   ];
 
   return (
@@ -59,21 +59,39 @@ const PublicHeader = () => {
                           <div className="flex-1 p-8">
                             <h3 className="text-sm font-black text-slate-900 mb-8 uppercase tracking-widest px-2">Features</h3>
                             <div className="grid grid-cols-3 gap-x-4 gap-y-2">
-                              {features.map((f, i) => (
-                                <Link 
-                                  key={i} 
-                                  to={f.to} 
-                                  className="group/item flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 transition-all active:scale-95"
-                                >
-                                  <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center group-hover/item:shadow-md transition-all">
-                                    {f.icon}
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-bold text-slate-800 group-hover/item:text-blue-600 transition-colors">{f.title}</p>
-                                    <p className="text-[10px] text-slate-400 font-medium">{f.desc}</p>
-                                  </div>
-                                </Link>
-                              ))}
+                              {features.map((f, i) => {
+                                const Comp = f.isComingSoon ? 'div' : Link;
+                                return (
+                                  <Comp 
+                                    key={i} 
+                                    to={!f.isComingSoon ? f.to : undefined} 
+                                    className={`group/item flex items-center gap-3 p-3 rounded-2xl transition-all relative ${f.isComingSoon ? 'cursor-not-allowed' : 'hover:bg-slate-50 active:scale-95'}`}
+                                  >
+                                    <div className={`w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-100 flex items-center justify-center group-hover/item:shadow-md transition-all ${f.isComingSoon ? 'grayscale-[0.5]' : ''}`}>
+                                      {f.icon}
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <p className={`text-sm font-bold transition-colors ${f.isComingSoon ? 'text-slate-500' : 'text-slate-800 group-hover/item:text-blue-600'}`}>{f.title}</p>
+                                        {f.isComingSoon && (
+                                          <span className="text-[7px] font-black bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-full uppercase tracking-tighter border border-slate-200/50">Soon</span>
+                                        )}
+                                      </div>
+                                      <p className="text-[10px] text-slate-400 font-medium">{f.desc}</p>
+                                    </div>
+
+                                    {/* Coming Soon Overlay on Hover */}
+                                    {f.isComingSoon && (
+                                      <div className="absolute inset-x-0 -bottom-1 opacity-0 group-hover/item:opacity-100 transition-all translate-y-2 group-hover/item:translate-y-0 pointer-events-none z-20 flex justify-center">
+                                         <div className="bg-slate-900 text-white text-[9px] font-bold px-3 py-1.5 rounded-lg shadow-xl flex items-center gap-2">
+                                            <Sparkles size={10} className="text-blue-400" />
+                                            Feature Coming Soon
+                                         </div>
+                                      </div>
+                                    )}
+                                  </Comp>
+                                );
+                              })}
                             </div>
                           </div>
 
@@ -225,22 +243,32 @@ const PublicHeader = () => {
                   className="overflow-hidden bg-slate-50/50 rounded-2xl border border-slate-100/50 mt-1"
                 >
                   <div className="p-2 grid grid-cols-1 gap-1">
-                    {features.map((f, i) => (
-                      <Link
-                        key={i}
-                        to={f.to}
-                        onClick={() => {
-                          setSidebarOpen(false);
-                          setMobileProductOpen(false);
-                        }}
-                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-white transition-all active:scale-95"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center">
-                          {f.icon}
-                        </div>
-                        <p className="text-xs font-bold text-slate-700">{f.title}</p>
-                      </Link>
-                    ))}
+                    {features.map((f, i) => {
+                      const Comp = f.isComingSoon ? 'div' : Link;
+                      return (
+                        <Comp
+                          key={i}
+                          to={!f.isComingSoon ? f.to : undefined}
+                          onClick={() => {
+                            if (!f.isComingSoon) {
+                              setSidebarOpen(false);
+                              setMobileProductOpen(false);
+                            }
+                          }}
+                          className={`flex items-center justify-between p-3 rounded-xl transition-all ${f.isComingSoon ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white active:scale-95'}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center">
+                              {f.icon}
+                            </div>
+                            <p className="text-xs font-bold text-slate-700">{f.title}</p>
+                          </div>
+                          {f.isComingSoon && (
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-full">Soon</span>
+                          )}
+                        </Comp>
+                      );
+                    })}
                   </div>
                 </motion.div>
               )}

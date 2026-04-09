@@ -907,5 +907,9 @@ export const whatsappApi = {
   improve: async (text, patientName) => {
     const { data } = await api.post('/whatsapp/improve-message', { text, patientName });
     return data;
+  },
+  bulkSend: async (recipients, message) => {
+    const { data } = await api.post('/whatsapp/bulk-send', { recipients, message });
+    return data;
   }
 };

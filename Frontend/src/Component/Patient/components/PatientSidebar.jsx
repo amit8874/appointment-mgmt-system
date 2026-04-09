@@ -55,6 +55,9 @@ const PatientSidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) =
                                 id={item.id}
                                 key={item.name}
                                 to={item.href}
+                                onClick={() => {
+                                    if (window.innerWidth <= 1024) setSidebarOpen(false);
+                                }}
                                 end={item.href === '/patient-dashboard'}
                                 className={({ isActive }) =>
                                     `group flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors duration-200 ${isActive
@@ -97,7 +100,10 @@ const PatientSidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) =
                                     <button
                                         type="button"
                                         className="text-xs font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
-                                        onClick={() => navigate('/patient-dashboard/profile')}
+                                        onClick={() => {
+                                            navigate('/patient-dashboard/profile');
+                                            if (window.innerWidth <= 1024) setSidebarOpen(false);
+                                        }}
                                     >
                                         View profile
                                     </button>

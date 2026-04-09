@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
     Search,
@@ -17,9 +17,12 @@ import {
     FileText,
     Droplet,
     Clock,
-    X
+    X,
+    ChevronDown,
+    Check
 } from 'lucide-react';
 import { centralDoctorApi } from '../../../services/api';
+import { exportDoctorsToExcel } from '../../../utils/excelExport';
 
 /* ─────────────────────────────────────────────
    INLINE DOCTOR DETAIL MODAL (Calendar button)
@@ -376,18 +379,55 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
 const AdminDoctorSchedule = ({ doctors = [], doctorsLoading, doctorsError }) => {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortBy, setSortBy] = useState('recent');
+    const [departmentFilter, setDepartmentFilter] = useState('All');
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [isSortOpen, setIsSortOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const [scheduleDoctor, setScheduleDoctor] = useState(null); // for Calendar modal
+    const [scheduleDoctor, setScheduleDoctor] = useState(null); 
+    const filterRef = useRef(null);
+    const sortRef = useRef(null);
     const doctorsPerPage = 10;
 
     const loading = doctorsLoading;
 
+    // Get unique departments
+    const departments = useMemo(() => {
+        const deps = doctors.map(d => d.department).filter(Boolean);
+        return ['All', ...new Set(deps)];
+    }, [doctors]);
 
-    const filteredDoctors = doctors.filter(doctor =>
-        doctor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doctor.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Handle outside clicks for dropdowns
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (filterRef.current && !filterRef.current.contains(event.target)) setIsFilterOpen(false);
+            if (sortRef.current && !sortRef.current.contains(event.target)) setIsSortOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Filter and Sort Logic
+    const filteredAndSortedDoctors = useMemo(() => {
+        let result = doctors.filter(doctor =>
+            (doctor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            doctor.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+            (departmentFilter === 'All' || doctor.department === departmentFilter)
+        );
+
+        // Sort logic
+        result.sort((a, b) => {
+            if (sortBy === 'name') return a.name.localeCompare(b.name);
+            if (sortBy === 'department') return (a.department || '').localeCompare(b.department || '');
+            if (sortBy === 'recent') return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            return 0;
+        });
+
+        return result;
+    }, [doctors, searchTerm, departmentFilter, sortBy]);
+
+    const filteredDoctors = filteredAndSortedDoctors;
 
     const indexOfLastDoctor = currentPage * doctorsPerPage;
     const indexOfFirstDoctor = indexOfLastDoctor - doctorsPerPage;
@@ -440,12 +480,12 @@ const AdminDoctorSchedule = ({ doctors = [], doctorsLoading, doctorsError }) => 
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
+                        <button 
+                            onClick={() => exportDoctorsToExcel(filteredDoctors)}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20"
+                        >
                             <Download size={18} />
-                            <span className="text-sm font-medium">Export</span>
-                        </button>
-                        <button className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
-                            <MoreVertical size={18} />
+                            <span className="text-sm font-bold">Export Schedule</span>
                         </button>
                     </div>
                 </div>
@@ -464,13 +504,92 @@ const AdminDoctorSchedule = ({ doctors = [], doctorsLoading, doctorsError }) => 
                     </div>
 
                     <div className="flex items-center gap-3 w-full md:w-auto">
-                        <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shadow-sm flex-1 md:flex-none justify-center">
-                            <Filter size={18} />
-                            <span className="text-sm font-medium">Filters</span>
-                        </button>
-                        <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 shadow-sm flex-1 md:flex-none justify-center">
-                            <span className="text-sm font-medium">Sort By : Recent</span>
-                            <ChevronRight size={16} className="rotate-90" />
+                        {/* Filter Dropdown */}
+                        <div className="relative" ref={filterRef}>
+                            <button 
+                                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
+                                    departmentFilter !== 'All' 
+                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-600' 
+                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                } shadow-sm`}
+                            >
+                                <Filter size={18} />
+                                {departmentFilter === 'All' ? 'Filters' : departmentFilter}
+                                <ChevronDown size={16} className={`transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            <AnimatePresence>
+                                {isFilterOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: 10 }}
+                                        className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2"
+                                    >
+                                        <p className="px-4 py-1 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">By Department</p>
+                                        {departments.map(dept => (
+                                            <button
+                                                key={dept}
+                                                onClick={() => {
+                                                    setDepartmentFilter(dept);
+                                                    setIsFilterOpen(false);
+                                                }}
+                                                className={`w-full text-left px-4 py-2 text-sm font-bold flex items-center justify-between transition-colors ${
+                                                    departmentFilter === dept ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                {dept}
+                                                {departmentFilter === dept && <Check size={14} />}
+                                            </button>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Sort Dropdown */}
+                        <div className="relative" ref={sortRef}>
+                            <button 
+                                onClick={() => setIsSortOpen(!isSortOpen)}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 shadow-sm transition-all"
+                            >
+                                <span className="text-sm font-bold flex items-center gap-2">
+                                    Sort By : {sortBy.charAt(0).toUpperCase() + sortBy.slice(1)}
+                                </span>
+                                <ChevronDown size={16} className={`transition-transform ${isSortOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            <AnimatePresence>
+                                {isSortOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: 10 }}
+                                        className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-xl z-50 py-2"
+                                    >
+                                        {[
+                                            { id: 'recent', label: 'Recently Added' },
+                                            { id: 'name', label: 'Doctor Name' },
+                                            { id: 'department', label: 'Department' }
+                                        ].map(item => (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => {
+                                                    setSortBy(item.id);
+                                                    setIsSortOpen(false);
+                                                }}
+                                                className={`w-full text-left px-4 py-2 text-sm font-bold flex items-center justify-between transition-colors ${
+                                                    sortBy === item.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                {item.label}
+                                                {sortBy === item.id && <Check size={14} />}
+                                            </button>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                     </div>
                 </div>

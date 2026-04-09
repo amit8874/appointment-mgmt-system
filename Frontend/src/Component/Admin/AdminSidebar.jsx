@@ -64,6 +64,10 @@ const AdminSidebar = ({
                   } else {
                     setActiveTab(child.name);
                   }
+                  // Close sidebar on mobile
+                  if (window.innerWidth < 1024) {
+                    toggleSidebar();
+                  }
                 }}
                 disabled={child.name === 'Add Doctor' && limits && limits.doctors !== -1 && (totalDoctors >= limits.doctors)}
                 className={`flex items-center w-full pl-6 pr-3 py-1.5 rounded-none transition-all duration-200 ${activeTab === child.name
@@ -111,11 +115,11 @@ const AdminSidebar = ({
 
       <nav className="space-y-1">
         <h2 className="text-xs font-semibold uppercase text-gray-400 mb-2 ml-3 tracking-wider">MAIN</h2>
-        <NavItem id="tour-admin-new-appointment" name="New Appointment" icon={CalendarCheck} currentTab={activeTab} onClick={setActiveTab} />
-        <NavItem id="tour-admin-analysis" name="Analysis" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} />
-        <NavItem id="tour-admin-patients" name="Patients" icon={Users} currentTab={activeTab} onClick={setActiveTab} />
+        <NavItem id="tour-admin-new-appointment" name="New Appointment" icon={CalendarCheck} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} />
+        <NavItem id="tour-admin-analysis" name="Analysis" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} />
+        <NavItem id="tour-admin-patients" name="Patients" icon={Users} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} />
         {limits?.messaging !== false && (
-          <NavItem id="tour-admin-messages" name="Messages" icon={MessageSquare} currentTab={activeTab} onClick={setActiveTab} />
+          <NavItem id="tour-admin-messages" name="Messages" icon={MessageSquare} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} />
         )}
 
         <h2 className="text-xs font-semibold uppercase text-gray-400 mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 mb-2 ml-3 tracking-wider">STAFF & RESOURCES</h2>
@@ -135,15 +139,18 @@ const AdminSidebar = ({
           icon={CalendarCheck}
           children={appointmentChildren}
         />
-        <NavItem id="tour-admin-billing" name="Billing & Payments" icon={Wallet} currentTab={activeTab} onClick={setActiveTab} />
-        <NavItem id="tour-admin-reports" name="Reports & Analytics" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} />
+        <NavItem id="tour-admin-billing" name="Billing & Payments" icon={Wallet} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} />
+        <NavItem id="tour-admin-reports" name="Reports & Analytics" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} />
         {(user?.role === 'superadmin' || user?.role === 'orgadmin' || user?.role === 'admin') && (
           <>
             <h2 className="text-xs font-semibold uppercase text-gray-400 mt-4 pt-4 border-t border-gray-50 dark:border-gray-700/50 mb-2 ml-3 tracking-wider">ADMIN</h2>
-            <NavItem id="tour-admin-users" name="User Management" icon={Users} currentTab={activeTab} onClick={setActiveTab} />
+            <NavItem id="tour-admin-users" name="User Management" icon={Users} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} />
             {user?.role === 'orgadmin' && (
               <button
-                onClick={() => navigate('/organization/subscription')}
+                onClick={() => {
+                  navigate('/organization/subscription');
+                  if (window.innerWidth < 1024) toggleSidebar();
+                }}
                 className="flex items-center w-full px-3 py-2.5 mt-1 rounded-none text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 font-bold transition-all duration-200"
               >
                 <Crown className="w-5 h-5 mr-3 text-violet-600" />
@@ -152,7 +159,10 @@ const AdminSidebar = ({
             )}
             {user?.role === 'superadmin' && (
               <button
-                onClick={() => navigate('/superadmin/dashboard')}
+                onClick={() => {
+                  navigate('/superadmin/dashboard');
+                  if (window.innerWidth < 1024) toggleSidebar();
+                }}
                 className="flex items-center w-full px-3 py-2.5 mt-1 rounded-none text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 font-bold transition-all duration-200"
               >
                 <ShieldCheck className="w-5 h-5 mr-3 text-indigo-600" />
@@ -161,6 +171,34 @@ const AdminSidebar = ({
             )}
           </>
         )}
+
+        {/* Profile Section for Mobile Visibility */}
+        <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+          <button
+            onClick={() => {
+              navigate('/admin-profile-page');
+              if (window.innerWidth < 1024) toggleSidebar();
+            }}
+            className="flex items-center w-full px-3 py-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 transition-all hover:bg-indigo-100 group"
+          >
+            <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-indigo-600/20 overflow-hidden mr-3">
+              {user?.profilePicture ? (
+                <img src={user.profilePicture} alt="" className="w-full h-full object-cover" />
+              ) : (
+                user?.name?.charAt(0).toUpperCase() || 'A'
+              )}
+            </div>
+            <div className="text-left overflow-hidden">
+              <p className="text-sm font-black text-slate-900 dark:text-white truncate uppercase tracking-tighter">
+                {user?.name || 'My Profile'}
+              </p>
+              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">
+                View Account
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 ml-auto text-indigo-300 group-hover:text-indigo-600 transition-colors" />
+          </button>
+        </div>
       </nav>
     </aside>
   );

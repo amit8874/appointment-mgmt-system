@@ -94,7 +94,13 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                           <NavLink
                             key={child.name}
                             to={child.disabled ? '#' : child.href}
-                            onClick={(e) => child.disabled && e.preventDefault()}
+                            onClick={(e) => {
+                              if (child.disabled) {
+                                e.preventDefault();
+                                return;
+                              }
+                              if (window.innerWidth <= 1024) setSidebarOpen(false);
+                            }}
                             className={({ isActive }) =>
                               `group flex items-center px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 transform hover:translate-x-1 ${
                                 child.disabled
@@ -128,7 +134,13 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                   <NavLink
                     id={item.id}
                     to={item.disabled ? '#' : item.href}
-                    onClick={(e) => item.disabled && e.preventDefault()}
+                    onClick={(e) => {
+                      if (item.disabled) {
+                        e.preventDefault();
+                        return;
+                      }
+                      if (window.innerWidth <= 1024) setSidebarOpen(false);
+                    }}
                     className={({ isActive }) =>
                       `group flex items-center px-4 py-3 text-sm rounded-2xl transition-all duration-300 transform hover:translate-x-1 ${
                         item.disabled
