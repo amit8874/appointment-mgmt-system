@@ -52,10 +52,10 @@ const AdminDashboardPanel = ({
     
     // Bundle the dashboard data context securely
     const dashboardData = {
-       stats: stats.map(s => ({ name: s.name, count: s.count })),
-       appointmentTrendsData: appointmentTrendsData.slice(-7), // last 7 days
-       revenueByDoctorData,
-       monthlyIncomeExpenseData: monthlyIncomeExpenseData.slice(-3), // last 3 months
+       stats: (stats || []).map(s => ({ name: s.name, count: s.count })),
+       appointmentTrendsData: (appointmentTrendsData || []).slice(-7), // last 7 days
+       revenueByDoctorData: revenueByDoctorData || [],
+       monthlyIncomeExpenseData: (monthlyIncomeExpenseData || []).slice(-3), // last 3 months
     };
 
     try {
@@ -182,9 +182,9 @@ const AdminDashboardPanel = ({
   }, [allBills, activePaymentFilter, revenueByDoctorData]);
 
   const filteredStats = React.useMemo(() => {
-    if (activePaymentFilter === "All") return stats;
+    if (activePaymentFilter === "All") return stats || [];
 
-    return stats.map(stat => {
+    return (stats || []).map(stat => {
       if (stat.name === "Total Revenue") {
         const filteredTotal = allBills
           .filter(bill => bill.status === "Paid" && bill.paymentMethod?.toLowerCase() === activePaymentFilter.toLowerCase())
@@ -271,7 +271,7 @@ const AdminDashboardPanel = ({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
-        {filteredStats.length > 0 ? filteredStats.map((stat, index) => (
+        {(filteredStats || []).length > 0 ? (filteredStats || []).map((stat, index) => (
           <motion.div
             key={stat.name}
             className={`flex items-center p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl transition-all duration-300 hover:shadow-3xl dark:hover:shadow-gray-700/50 border border-gray-100 dark:border-gray-700 ${stat.link ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700' : ''} min-h-[100px]`}

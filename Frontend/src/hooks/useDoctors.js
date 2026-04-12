@@ -36,6 +36,7 @@ export const useDoctors = () => {
       return uniqueData;
     } catch (error) {
       setDoctorsError('Error loading doctors');
+      return [];
     } finally {
       setDoctorsLoading(false);
     }
@@ -49,6 +50,7 @@ export const useDoctors = () => {
       setTotalDoctors(count);
     } catch (error) {
       // Handle error silently or set error state if needed
+      return 0;
     } finally {
       setDoctorsCountLoading(false);
     }

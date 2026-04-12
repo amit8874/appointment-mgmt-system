@@ -105,6 +105,11 @@ export const requireTenant = (req, res, next) => {
     return next();
   }
 
+  // Fallback: If tenantId wasn't detected but we have an authenticated user, use their organizationId
+  if (!req.tenantId && req.user && req.user.organizationId) {
+    req.tenantId = req.user.organizationId;
+  }
+
   if (!req.tenantId) {
     return res.status(400).json({ 
       message: 'Tenant not detected. Please provide tenant information via subdomain, header, or query parameter.' 

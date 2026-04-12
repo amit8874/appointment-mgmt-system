@@ -229,8 +229,8 @@ const Admin = () => {
       const today = new Date();
       const localDate = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
       const response = await api.get(`/appointments?date=${localDate}`);
-      const appointments = response.data;
-      return appointments.length;
+      const appointments = response.data || [];
+      return Array.isArray(appointments) ? appointments.length : 0;
     } catch (error) {
       return 0;
     }
@@ -361,7 +361,7 @@ const Admin = () => {
                onDoctorAdd={doctorsHook.openDoctorForm}
               isTrialExpired={trialStatus?.isTrialExpired}
               limits={trialStatus?.limits}
-              totalDoctors={Math.max(doctorsHook.totalDoctors, doctorsHook.doctors.length)}
+              totalDoctors={Math.max(doctorsHook.totalDoctors || 0, (doctorsHook.doctors || []).length)}
             />
           </div>
 

@@ -31,6 +31,7 @@ export const usePatients = () => {
       }
     } catch (error) {
       setPatientsError('Error loading patients');
+      return [];
     } finally {
       setPatientsLoading(false);
     }

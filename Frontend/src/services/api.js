@@ -19,8 +19,11 @@ const getTenantSlug = () => {
   const hostname = window.location.hostname;
   const subdomain = hostname.split('.')[0];
   
-  // Skip common subdomains
-  if (subdomain === 'www' || subdomain === 'app' || subdomain === 'api' || subdomain === 'localhost' || subdomain === '127') {
+  // Check if it's an IP address
+  const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname);
+  
+  // Skip common subdomains or handles IP addresses
+  if (isIP || subdomain === 'www' || subdomain === 'app' || subdomain === 'api' || subdomain === 'localhost' || subdomain === '127') {
     // Check localStorage for tenant
     return localStorage.getItem('tenantSlug') || null;
   }

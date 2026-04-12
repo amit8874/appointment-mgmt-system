@@ -21,6 +21,7 @@ export const useReceptionists = () => {
       return data || [];
     } catch (error) {
       setReceptionistsError('Error loading receptionists');
+      return [];
     } finally {
       setReceptionistsLoading(false);
     }
