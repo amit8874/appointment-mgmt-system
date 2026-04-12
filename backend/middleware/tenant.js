@@ -28,10 +28,10 @@ export const detectTenant = async (req, res, next) => {
       sourceUrl = host;
     }
 
-    const subdomain = sourceUrl.split('.')[0];
+    // Skip 'www' and common subdomains, and definitely skip IP addresses
+    const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(sourceUrl);
     
-    // Skip 'www' and common subdomains
-    if (subdomain && subdomain !== 'www' && subdomain !== 'api' && subdomain !== 'app' && subdomain !== 'localhost' && subdomain !== '127') {
+    if (!isIP && subdomain && subdomain !== 'www' && subdomain !== 'api' && subdomain !== 'app' && subdomain !== 'localhost' && subdomain !== '127') {
       const org = await Organization.findOne({ subdomain: subdomain });
       if (org) {
         tenantId = org._id;
@@ -40,8 +40,8 @@ export const detectTenant = async (req, res, next) => {
     }
 
     // Method 2: Check X-Tenant-ID header
-    if (!tenantId && req.headers['x-tenant-id']) {
-      const tenantHeader = req.headers['x-tenant-id'];
+    const tenantHeader = req.headers['x-tenant-id'];
+    if (!tenantId && tenantHeader && tenantHeader !== 'null' && tenantHeader !== 'undefined' && tenantHeader !== '[object Object]') {
       // Check if it's a valid MongoDB ObjectId or a slug
       if (tenantHeader.match(/^[0-9a-fA-F]{24}$/)) {
         // It's an ObjectId, use directly
@@ -107,7 +107,7 @@ export const requireTenant = (req, res, next) => {
 
   // Fallback: If tenantId wasn't detected but we have an authenticated user, use their organizationId
   if (!req.tenantId && req.user && req.user.organizationId) {
-    req.tenantId = req.user.organizationId;
+    req.tenantId = req.user.organizationId._id || req.user.organizationId;
   }
 
   if (!req.tenantId) {
