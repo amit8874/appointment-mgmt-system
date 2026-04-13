@@ -17,7 +17,7 @@ const Compliance = () => {
       icon={Lock}
       color="slate"
       benefits={benefits}
-      aiHighlight="Slotify AI constantly monitors access logs for unusual patterns, providing proactive defense against unauthorized data breaches."
+      aiHighlight="Oviaan AI constantly monitors access logs for unusual patterns, providing proactive defense against unauthorized data breaches."
     />
   );
 };

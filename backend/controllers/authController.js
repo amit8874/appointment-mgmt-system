@@ -25,7 +25,7 @@ export const sendOtp = async (req, res) => {
     // Sanitize phone for WhatsApp
     const sanitizedPhone = sanitizePhone(phone);
 
-    const appName = process.env.APP_NAME || 'Slotify';
+    const appName = process.env.APP_NAME || 'Oviaan';
 
     // Send OTP via WhatsApp
     try {
@@ -102,7 +102,7 @@ export const verifyOtp = async (req, res) => {
       // 3. Send Success Message via WhatsApp as requested by user
       const sanitizedPhone = sanitizePhone(phone);
       try {
-        const appName = process.env.APP_NAME || 'Slotify';
+        const appName = process.env.APP_NAME || 'Oviaan';
         await sendWhatsAppMessage(
           sanitizedPhone, 
           `Thank you for registering on ${appName}, an Appointment Management Platform. Go and book your first appointment with the doctor.`

@@ -182,6 +182,11 @@ export const registerOrganization = async (req, res) => {
     organization.subscriptionId = subscription._id;
     await organization.save();
 
+    // IMPORTANT: Link the owner user to the new organization in the database!
+    // This was previously missing, causing "organizationId: null" issues.
+    owner.organizationId = organization._id;
+    await owner.save();
+
 
     // Generate JWT token for auto-login
     const token = jwt.sign(

@@ -17,7 +17,7 @@ const Communications = () => {
       icon={MessageSquare}
       color="indigo"
       benefits={benefits}
-      aiHighlight="Slotify AI can summarize long conversation threads for physicians, ensuring they get the key points before they enter the room."
+      aiHighlight="Oviaan AI can summarize long conversation threads for physicians, ensuring they get the key points before they enter the room."
     />
   );
 };

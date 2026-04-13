@@ -433,7 +433,7 @@ const OrderOnline = () => {
             <header className="fixed top-0 left-0 right-0 bg-white z-[100] border-b border-slate-100 shadow-sm overflow-visible">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between overflow-visible">
                     <Link to="/" className="flex items-center gap-2 group">
-                        <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
+                        <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
                     </Link>
 
                     <div className="flex items-center gap-4 md:gap-8 overflow-visible">
@@ -765,19 +765,7 @@ const OrderOnline = () => {
                         <div className="flex-1 h-px bg-slate-100" />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto text-center lg:text-left">
-                        <motion.div 
-                            whileHover={{ y: -5 }}
-                            className="bg-[#eef5fd] p-5 rounded-2xl border border-blue-100 shadow-sm flex flex-col md:flex-row items-center gap-6 group cursor-pointer transition-all hover:shadow-xl hover:shadow-blue-500/5"
-                        >
-                            <div className="w-14 h-14 bg-white text-blue-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform text-2xl font-bold">
-                                <Phone size={28} />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight">Call 09240250346</h3>
-                                <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">to place order</p>
-                            </div>
-                        </motion.div>
+                    <div className="max-w-xl mx-auto">
 
                         <motion.div 
                             whileHover={{ y: -5 }}
@@ -835,14 +823,14 @@ const OrderOnline = () => {
             <footer className="border-t border-slate-100 py-12 px-4">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
                     <Link to="/" className="flex items-center gap-2 group opacity-80 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
-                        <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
+                        <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto" />
                     </Link>
                     <div className="flex gap-8 text-sm font-bold text-slate-400">
                         <a href="#" className="hover:text-emerald-600 transition-colors">Privacy Policy</a>
                         <a href="#" className="hover:text-emerald-600 transition-colors">Terms of Service</a>
                         <a href="#" className="hover:text-emerald-600 transition-colors">Help Center</a>
                     </div>
-                    <p className="text-sm text-slate-400 font-medium">© 2026 Slotify Health. All rights reserved.</p>
+                    <p className="text-sm text-slate-400 font-medium">© 2026 Oviaan Health. All rights reserved.</p>
                 </div>
             </footer>
             {/* Prescription Details Modal */}
@@ -894,7 +882,7 @@ const OrderOnline = () => {
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2 mb-10">
-                                        <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
+                                        <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto" />
                                     </div>
 
                                 </div>

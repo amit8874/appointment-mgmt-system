@@ -441,7 +441,7 @@ export const getPlans = (req, res) => {
   const plans = {
     free: {
       ...PLAN_CONFIG.free,
-      description: 'Experience Slotify Professional'
+      description: 'Experience Oviaan Professional'
     },
     basic: {
       ...PLAN_CONFIG.basic,

@@ -188,7 +188,7 @@ const MainContent = ({
         return <BillingDashboard />;
       case 'Reports & Analytics':
         return <ReportsPanel />;
-      case 'Slotify Intelligence':
+      case 'Oviaan Intelligence':
         return <IntelligenceHub />;
       case 'User Management':
         return <UserManagementPanel limits={limits} />;

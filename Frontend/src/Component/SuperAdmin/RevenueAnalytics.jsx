@@ -42,7 +42,7 @@ const RevenueAnalytics = () => {
 
   const formatWhatsAppLink = (phone, orgName, days) => {
     const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const message = `Hello ${orgName}, your Slotify plan ${days <= 0 ? 'has expired' : `is expiring in ${days} days`}. Please renew to avoid any service interruption.`;
+    const message = `Hello ${orgName}, your Oviaan plan ${days <= 0 ? 'has expired' : `is expiring in ${days} days`}. Please renew to avoid any service interruption.`;
     return `https://wa.me/${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 

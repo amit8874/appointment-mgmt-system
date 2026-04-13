@@ -124,7 +124,7 @@ const SuperAdminSidebar = ({ isSidebarOpen, toggleSidebar }) => {
           {/* Logo Section */}
           <div className="p-6 border-b border-gray-50">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
+              <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto" />
               <div>
                 <h1 className="text-lg font-bold text-gray-900 leading-tight">Super Admin</h1>
                 <p className="text-xs font-medium text-indigo-500 uppercase tracking-widest">Control Panel</p>

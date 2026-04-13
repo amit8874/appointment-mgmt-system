@@ -94,7 +94,7 @@ const PrivacyPolicy = () => {
           </motion.div>
           <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-6">Privacy Policy</h1>
           <p className="text-lg text-slate-500 font-medium max-w-2xl mx-auto">
-            At Slotify Professional, we prioritize the privacy and security of patient data. 
+            At Oviaan Professional, we prioritize the privacy and security of patient data. 
             This policy outlines how we handle healthcare information with the highest clinical standards.
           </p>
         </div>
@@ -137,7 +137,7 @@ const PrivacyPolicy = () => {
               please reach out to our Data Protection team.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="mailto:privacy@slotify.pro" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">
+              <a href="mailto:privacy@Oviaan.pro" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">
                 <MessageSquare size={18} />
                 Email Support
               </a>
@@ -150,7 +150,7 @@ const PrivacyPolicy = () => {
           
           <div className="text-center py-8">
             <p className="text-slate-400 text-sm font-medium">
-              Last Updated: April 5, 2026 • © {new Date().getFullYear()} Slotify Professional
+              Last Updated: April 5, 2026 • © {new Date().getFullYear()} Oviaan Professional
             </p>
           </div>
         </div>

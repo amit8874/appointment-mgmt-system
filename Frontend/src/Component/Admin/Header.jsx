@@ -156,7 +156,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
           </span>
         </div>
         ) : (
-          <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
+          <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto" />
         )}
       </div>
 

@@ -132,7 +132,7 @@ const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }
           onToggle={() => toggleExpand('Appointment Mgmt')}
         />
         <NavItem name="Billing & Payments" icon={Wallet} currentTab={activeTab} onClick={setActiveTab} />
-        <NavItem name="Slotify Intelligence" icon={Brain} currentTab={activeTab} onClick={setActiveTab} />
+        <NavItem name="Oviaan Intelligence" icon={Brain} currentTab={activeTab} onClick={setActiveTab} />
         {(user?.role === 'superadmin' || user?.role === 'orgadmin' || user?.role === 'admin') && (
           <>
             <h2 className="text-xs font-extrabold uppercase text-gray-400 mt-8 pt-4 border-t border-gray-100 dark:border-gray-700 mb-5 ml-4 tracking-wider">ADMIN</h2>

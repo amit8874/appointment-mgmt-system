@@ -43,7 +43,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
               />
             ) : (
               <h1 className="text-blue-600 text-2xl font-black italic tracking-tighter uppercase">
-                {user?.organization?.name || user?.organizationId?.name || "SLOTIFY"}
+                {user?.organization?.name || user?.organizationId?.name || "Oviaan"}
               </h1>
             )}
           </div>

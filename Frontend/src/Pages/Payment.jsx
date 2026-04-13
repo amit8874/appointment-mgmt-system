@@ -38,7 +38,7 @@ const Payment = () => {
       key: paymentData.razorpayOrder.key,
       amount: paymentData.razorpayOrder.amount,
       currency: paymentData.razorpayOrder.currency,
-      name: 'Slotify',
+      name: 'Oviaan',
       description: `Subscription: ${paymentData.subscription.planName}`,
       order_id: paymentData.razorpayOrder.id,
       handler: async function (response) {

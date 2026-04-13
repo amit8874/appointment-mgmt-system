@@ -300,7 +300,7 @@ const FamilyPetCare = () => {
               </div>
               <div className="pt-6">
                 <Link to="/register-organization" className="text-blue-600 font-black text-xl flex items-center gap-2 group">
-                  Join the Slotify Family today <ChevronRight className="group-hover:translate-x-2 transition-transform" />
+                  Join the Oviaan Family today <ChevronRight className="group-hover:translate-x-2 transition-transform" />
                 </Link>
               </div>
            </div>

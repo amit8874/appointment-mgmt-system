@@ -443,7 +443,7 @@ export const getPredictiveInsights = async (req, res) => {
     };
 
     // 5. Query Groq for Analysis
-    const prompt = `You are "Slotify Intelligence", a high-end medical business analyst. 
+    const prompt = `You are "Oviaan Intelligence", a high-end medical business analyst. 
 Analyze the following clinic data from the last ${timeRange} days and provide clear, actionable predictions.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

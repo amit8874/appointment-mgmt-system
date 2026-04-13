@@ -134,7 +134,7 @@ const TeleEmergency = () => {
         <div className="flex flex-col lg:flex-row items-center gap-16">
           <div className="lg:w-1/2 space-y-8">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg font-black text-xs uppercase tracking-widest">
-              Slotify AI Augmented
+              Oviaan AI Augmented
             </div>
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-tight">
                Expert Medical Guidance and Support.

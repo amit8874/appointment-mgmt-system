@@ -17,7 +17,7 @@ const Scheduling = () => {
       icon={Calendar}
       color="blue"
       benefits={benefits}
-      aiHighlight="Slotify AI learns your practice patterns to predict peak hours and suggest optimal staffing levels before you even ask."
+      aiHighlight="Oviaan AI learns your practice patterns to predict peak hours and suggest optimal staffing levels before you even ask."
     />
   );
 };

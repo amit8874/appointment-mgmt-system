@@ -115,7 +115,7 @@ const SubscriptionManagement = () => {
                 {isTrial ? 'Trial Period' : 'Your Subscription'}
               </h1>
               <p className="text-indigo-200 font-medium max-w-xl">
-                Manage your clinic's billing, upgrade your features, and keep your practice running smoothly with Slotify Professional.
+                Manage your clinic's billing, upgrade your features, and keep your practice running smoothly with Oviaan Professional.
               </p>
             </div>
 

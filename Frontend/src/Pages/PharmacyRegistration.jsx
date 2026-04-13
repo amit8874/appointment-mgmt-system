@@ -76,7 +76,7 @@ const PharmacyRegistration = () => {
             </h2>
             
             <p className="text-slate-500 font-medium mb-12 leading-relaxed text-lg px-4">
-              Thank you for partnering with Slotify. Our team is reviewing your application. You'll receive your official dashboard credentials via email within **24-48 hours**.
+              Thank you for partnering with Oviaan. Our team is reviewing your application. You'll receive your official dashboard credentials via email within **24-48 hours**.
             </p>
             
             <div className="flex flex-col gap-4">
@@ -87,7 +87,7 @@ const PharmacyRegistration = () => {
                 Back to Home Page
               </Link>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4">
-                Need help? <a href="mailto:support@slotify.com" className="text-emerald-500 underline underline-offset-4">Contact Support</a>
+                Need help? <a href="mailto:support@Oviaan.com" className="text-emerald-500 underline underline-offset-4">Contact Support</a>
               </p>
             </div>
           </motion.div>
@@ -267,7 +267,7 @@ const PharmacyRegistration = () => {
                       className="mt-1 w-5 h-5 text-orange-600 border-slate-300 rounded-lg focus:ring-orange-500 cursor-pointer"
                     />
                     <label htmlFor="pharmacy-terms" className="text-xs font-bold text-slate-500 leading-relaxed cursor-pointer select-none">
-                      As a pharmacy partner, I agree to Slotify Professional's <Link to="/terms-conditions" target="_blank" className="text-orange-600 hover:underline">Terms & Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-orange-600 hover:underline">Privacy Policy</Link> regarding data handling and service standards.
+                      As a pharmacy partner, I agree to Oviaan Professional's <Link to="/terms-conditions" target="_blank" className="text-orange-600 hover:underline">Terms & Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-orange-600 hover:underline">Privacy Policy</Link> regarding data handling and service standards.
                     </label>
                   </div>
 

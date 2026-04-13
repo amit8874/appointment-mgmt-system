@@ -84,7 +84,7 @@ const WhatsAppModal = ({ isOpen, onClose, patient }) => {
                 </div>
                 <div>
                   <h3 className="text-xl font-black tracking-tight">WhatsApp Patient</h3>
-                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Powered by Slotify Intelligence</p>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Powered by Oviaan Intelligence</p>
                 </div>
               </div>
               <button 

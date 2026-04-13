@@ -17,7 +17,7 @@ const HealthRecords = () => {
       icon={ShieldPlus}
       color="emerald"
       benefits={benefits}
-      aiHighlight="Slotify AI flags vital signs that deviate from historical norms, alerting your team to potential issues before they become emergencies."
+      aiHighlight="Oviaan AI flags vital signs that deviate from historical norms, alerting your team to potential issues before they become emergencies."
     />
   );
 };

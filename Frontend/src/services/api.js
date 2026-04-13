@@ -160,15 +160,27 @@ api.interceptors.response.use(
     if (error.response) {
       // Handle specific status codes
       if (error.response.status === 401) {
-        // Only log if it's NOT a known endpoint that may legitimately fire before token is ready or during session cleanup
+        // Only log and redirect if it's NOT a known endpoint that may legitimately fire during login
         const url = error.config.url || '';
         const isCheckSession = url.endsWith('/users/check-session');
         const isTrialStatus = url.includes('/trial-status');
         const isLogin = url.includes('/login') || url.includes('/superadmin-login');
         
         if (!isCheckSession && !isTrialStatus && !isLogin) {
-
-          console.error('[API] Unauthorized access - redirecting or clearing session');
+          console.error('[API] Unauthorized access - clearing session and redirecting to login');
+          
+          // Clear all authentication data
+          localStorage.removeItem('token');
+          sessionStorage.removeItem('token');
+          localStorage.removeItem('userData');
+          sessionStorage.removeItem('userData');
+          localStorage.removeItem('patientUser');
+          sessionStorage.removeItem('patientUser');
+          
+          // Redirect to login page if we're not already there
+          if (!window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+          }
         }
       } else if (error.response.status === 404) {
         console.error('Resource not found');

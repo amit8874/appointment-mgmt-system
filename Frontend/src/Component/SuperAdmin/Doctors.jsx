@@ -378,7 +378,7 @@ const Doctors = () => {
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{org.name}</h3>
-                      <p className="text-xs text-slate-500 font-medium">{org.subdomain}.slotify.in</p>
+                      <p className="text-xs text-slate-500 font-medium">{org.subdomain}.Oviaan.in</p>
                     </div>
                   </div>
                   <div className="space-y-3 pt-3 border-t border-slate-50">

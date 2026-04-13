@@ -93,7 +93,7 @@ const Login = () => {
           {/* Logo & Header */}
           <div className="flex flex-col items-center mb-8 text-center">
              <Link to="/" className="flex items-center gap-2 mb-8 group">
-                <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
+                <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
              </Link>
              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Log In</h2>
              <p className="text-slate-400 font-medium text-sm mt-1">Welcome back! Please enter your details.</p>
@@ -217,7 +217,7 @@ const Login = () => {
 
       {/* Footer info */}
       <footer className="mt-8 text-center text-slate-400 text-xs font-medium relative z-10 pb-4">
-        <p>Copyright @ 2026 Slotify Professional</p>
+        <p>Copyright @ 2026 Oviaan Professional</p>
         <div className="flex gap-4 justify-center mt-2">
           <Link to="/privacy-policy" className="hover:text-blue-500 transition-colors">Privacy Policy</Link>
           <Link to="/terms-conditions" className="hover:text-blue-500 transition-colors">Terms of Service</Link>

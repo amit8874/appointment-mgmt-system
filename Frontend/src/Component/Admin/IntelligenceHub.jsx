@@ -58,7 +58,7 @@ const IntelligenceHub = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-gray-50 flex items-center gap-3">
-            <Brain className="w-10 h-10 text-blue-600" /> Slotify Intelligence
+            <Brain className="w-10 h-10 text-blue-600" /> Oviaan Intelligence
           </h2>
           <p className="mt-2 text-gray-600 dark:text-gray-400">AI-powered forecasts and strategic clinic insights.</p>
         </div>

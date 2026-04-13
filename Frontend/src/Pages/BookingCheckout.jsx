@@ -142,7 +142,7 @@ const BookingCheckout = () => {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 md:px-20 py-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-1 cursor-pointer" onClick={() => navigate('/')}>
-          <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
+          <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto" />
         </div>
         
         <div className="flex items-center gap-6">
@@ -445,7 +445,7 @@ const BookingCheckout = () => {
                         <p className="text-[10px] font-medium text-slate-400">Updates will be sent to +91{mobileNumber}</p>
                      </div>
                      <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                        By booking this appointment, you agree to Slotify's <span className="text-[#14bef0] cursor-pointer hover:underline">Terms and Conditions</span>.<br />
+                        By booking this appointment, you agree to Oviaan's <span className="text-[#14bef0] cursor-pointer hover:underline">Terms and Conditions</span>.<br />
                         You can also Pre-pay for this appointment by selecting Pay Online option. You can read our <span className="text-[#14bef0] cursor-pointer hover:underline">payment FAQs</span>.
                      </p>
                   </div>

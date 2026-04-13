@@ -17,7 +17,7 @@ const Payments = () => {
       icon={CreditCard}
       color="purple"
       benefits={benefits}
-      aiHighlight="The Slotify smart settlement AI identifies and resolves discrepancies in your payout logs automatically, ensuring every cent is accounted for."
+      aiHighlight="The Oviaan smart settlement AI identifies and resolves discrepancies in your payout logs automatically, ensuring every cent is accounted for."
     />
   );
 };

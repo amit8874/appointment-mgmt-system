@@ -23,7 +23,7 @@ const PartnerProgram = () => {
   const steps = [
     { 
       title: "Join the Partner Program", 
-      desc: "Sign up as a Slotify partner in less than 2 minutes. No hidden fees or complex requirements.",
+      desc: "Sign up as a Oviaan partner in less than 2 minutes. No hidden fees or complex requirements.",
       icon: <Users className="text-blue-600" />
     },
     { 
@@ -32,7 +32,7 @@ const PartnerProgram = () => {
       icon: <Globe className="text-emerald-600" />
     },
     { 
-      title: "Clinic Registers on Slotify", 
+      title: "Clinic Registers on Oviaan", 
       desc: "Once a clinic signs up using your link, our team verifies their registration.",
       icon: <CheckCircle2 className="text-orange-500" />
     },
@@ -73,7 +73,7 @@ const PartnerProgram = () => {
                 className="inline-flex items-center gap-2 px-5 py-2 bg-blue-100 text-blue-800 rounded-full font-black text-xs uppercase tracking-widest border border-blue-200"
               >
                 <TrendingUp size={14} className="text-emerald-600" />
-                Slotify Partner Program
+                Oviaan Partner Program
               </motion.div>
               
               <h1 className="text-5xl md:text-7xl font-black text-[#00386a] leading-[1.05] tracking-tight">
@@ -81,7 +81,7 @@ const PartnerProgram = () => {
               </h1>
               
               <p className="text-xl text-slate-600 font-medium leading-relaxed max-w-xl mx-auto lg:mx-0">
-                Join the Slotify Partner Program and earn rewards by connecting clinics and pet clinics to modern healthcare solutions. Turn your network into income.
+                Join the Oviaan Partner Program and earn rewards by connecting clinics and pet clinics to modern healthcare solutions. Turn your network into income.
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-5 pt-4">
@@ -149,11 +149,11 @@ const PartnerProgram = () => {
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
            <div className="lg:w-1/2 space-y-8">
              <h2 className="text-4xl md:text-6xl font-black text-[#00386a] leading-tight tracking-tighter italic">Be the Bridge — <br/>And Get Rewarded.</h2>
-             <p className="text-xl text-slate-600 font-medium font-sans">Help clinics discover Slotify and earn rewards for every successful referral.</p>
+             <p className="text-xl text-slate-600 font-medium font-sans">Help clinics discover Oviaan and earn rewards for every successful referral.</p>
              <div className="space-y-4">
                 {[
                   "Refer clinics or pet clinics in your area",
-                  "Help them register on Slotify in minutes",
+                  "Help them register on Oviaan in minutes",
                   "Earn base rewards and recurring commissions"
                 ].map((item, idx) => (
                   <div key={idx} className="flex items-center gap-4 group cursor-default">
@@ -289,7 +289,7 @@ const PartnerProgram = () => {
            <div className="space-y-8 order-1 lg:order-2">
               <h2 className="text-4xl md:text-7xl font-black text-[#00386a] tracking-tighter italic leading-tight">A Platform <br/><span className="text-emerald-600">Clinics Trust.</span></h2>
               <p className="text-2xl text-slate-500 font-medium leading-relaxed">
-                Slotify helps clinics manage appointments, patients, pharmacy, and even emergency care — all in one unified, cloud-based platform. 
+                Oviaan helps clinics manage appointments, patients, pharmacy, and even emergency care — all in one unified, cloud-based platform. 
               </p>
               <div className="flex items-center gap-6 pt-4">
                  <div className="flex -space-x-4">
@@ -311,7 +311,7 @@ const PartnerProgram = () => {
            <div className="lg:w-1/2 space-y-8 relative z-10 text-center lg:text-left">
               <h2 className="text-5xl md:text-7xl font-black text-white leading-[1.1] tracking-tighter italic">Start Earning Today.</h2>
               <p className="text-xl text-blue-100 font-medium leading-relaxed opacity-90">
-                 Join the Slotify Partner Program and turn your network into income. Help us revolutionize clinic management across the globe.
+                 Join the Oviaan Partner Program and turn your network into income. Help us revolutionize clinic management across the globe.
               </p>
               <Link 
                 to="/register-organization"

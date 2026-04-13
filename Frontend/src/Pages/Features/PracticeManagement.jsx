@@ -13,11 +13,11 @@ const PracticeManagement = () => {
     <FeatureLayout
       title="Practice Management"
       subtitle="The Command Center for Care"
-      description="Every tool your practice needs to operate efficiently at any scale. From inventory to billing and beyond, Slotify has you covered."
+      description="Every tool your practice needs to operate efficiently at any scale. From inventory to billing and beyond, Oviaan has you covered."
       icon={Layout}
       color="slate"
       benefits={benefits}
-      aiHighlight="Slotify AI highlights your most profitable services and maps out patient demographics to help you grow your business intentionally."
+      aiHighlight="Oviaan AI highlights your most profitable services and maps out patient demographics to help you grow your business intentionally."
     />
   );
 };

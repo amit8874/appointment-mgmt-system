@@ -150,7 +150,7 @@ const TrialModal = ({ isOpen, onClose }) => {
           <div className="md:w-5/12 bg-gradient-to-br from-[#00386a] to-[#005bb5] p-10 text-white relative flex flex-col justify-between hidden md:flex">
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-12">
-                <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
+                <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto" />
               </div>
               
               <h2 className="text-4xl font-black mb-6 leading-tight">

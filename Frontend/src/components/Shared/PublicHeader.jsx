@@ -32,7 +32,7 @@ const PublicHeader = () => {
           {/* Left Section: Logo + Pricing (desktop) */}
           <div className="flex items-center gap-10">
               <Link to="/" className="flex items-center gap-2 group">
-                 <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
+                 <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
               </Link>
 
               <nav className="hidden md:flex items-center gap-6">
@@ -95,7 +95,7 @@ const PublicHeader = () => {
                             </div>
                           </div>
 
-                          {/* Right Side: Slotify AI */}
+                          {/* Right Side: Oviaan AI */}
                           <div className="w-[280px] bg-slate-50/50 border-l border-slate-100 p-8 flex flex-col relative overflow-hidden">
                             {/* Decorative Glow */}
                             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-400/10 rounded-full blur-[40px] -mr-16 -mt-16" />
@@ -108,7 +108,7 @@ const PublicHeader = () => {
                                 </div>
                                 <div className="leading-tight">
                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Powered by</p>
-                                  <p className="text-lg font-black text-indigo-950">{import.meta.env.VITE_APP_NAME || 'Slotify'} AI</p>
+                                  <p className="text-lg font-black text-indigo-950">{import.meta.env.VITE_APP_NAME || 'Oviaan'} AI</p>
 
                                 </div>
                               </div>

@@ -119,7 +119,7 @@ const FeatureLayout = ({
       <section className="py-24 bg-[#f8fafc]">
         <div className="max-w-7xl mx-auto px-6">
            <div className="text-center mb-16 space-y-4">
-              <h2 className="text-4xl font-black text-slate-900 tracking-tight">Why Choose Slotify {title}?</h2>
+              <h2 className="text-4xl font-black text-slate-900 tracking-tight">Why Choose Oviaan {title}?</h2>
               <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Industry Leading Features & Support</p>
            </div>
 
@@ -152,7 +152,7 @@ const FeatureLayout = ({
                  <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/40">
                     <Sparkles size={24} className="text-white animate-pulse" />
                  </div>
-                 <h2 className="text-2xl font-black text-white uppercase tracking-wider italic">Powered by Slotify AI</h2>
+                 <h2 className="text-2xl font-black text-white uppercase tracking-wider italic">Powered by Oviaan AI</h2>
               </div>
               <p className="text-3xl md:text-5xl font-black text-white leading-tight">
                 Self-Optimizing {title} Workflow.
@@ -162,7 +162,7 @@ const FeatureLayout = ({
               </p>
               <div className="pt-4">
                  <button className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 backdrop-blur-md transition-all font-bold">
-                   Learn more about Slotify AI
+                   Learn more about Oviaan AI
                  </button>
               </div>
            </div>
@@ -191,7 +191,7 @@ const FeatureLayout = ({
       <section className="py-24 px-6">
         <div className={`max-w-5xl mx-auto bg-gradient-to-r ${gradient} rounded-[2.5rem] p-12 text-center text-white space-y-8 shadow-2xl shadow-blue-600/20`}>
            <h2 className="text-4xl md:text-5xl font-black">Ready to modernize your {title.toLowerCase()}?</h2>
-           <p className="text-xl font-bold opacity-90">Join 500+ practices already using Slotify to grow.</p>
+           <p className="text-xl font-bold opacity-90">Join 500+ practices already using Oviaan to grow.</p>
            <div className="pt-4">
              <Link 
               to="/register-organization"

@@ -59,7 +59,7 @@ export const improveWhatsAppMessage = async (req, res) => {
       return res.status(400).json({ success: false, message: "Message text is required." });
     }
 
-    const systemPrompt = `You are a professional medical administrative assistant for Slotify. 
+    const systemPrompt = `You are a professional medical administrative assistant for Oviaan. 
 Your goal is to refine the user's rough notes into a professional, clear, and polite WhatsApp message for a patient.
 Keep the tone helpful and concise. If a patient's name is provided, use it gracefully.
 

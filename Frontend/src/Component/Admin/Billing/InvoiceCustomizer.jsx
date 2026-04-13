@@ -48,10 +48,10 @@ const InvoiceCustomizer = () => {
   };
 
   const dummyClinicInfo = {
-    name: 'Slotify Healthcare Center',
+    name: 'Oviaan Healthcare Center',
     address: '123, Medical Square, Digital City, IND',
     phone: '+91 98765 43210',
-    email: 'contact@slotifyclinic.com',
+    email: 'contact@Oviaanclinic.com',
     branding: {
         logo: 'https://cdn-icons-png.flaticon.com/512/2864/2864239.png'
     }

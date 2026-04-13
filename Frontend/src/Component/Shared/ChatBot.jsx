@@ -251,7 +251,7 @@ const ChatBot = () => {
                     Book Appointment
                   </button>
                   <button
-                    onClick={() => handleQuickAction("What are the features of Slotify?")}
+                    onClick={() => handleQuickAction("What are the features of Oviaan?")}
                     className="bg-white border border-blue-200 text-[#00386a] px-4 py-2 rounded-full text-xs font-bold hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
                   >
                     <Info size={14} />
@@ -317,7 +317,7 @@ const ChatBot = () => {
                 </button>
               </form>
               <div className="mt-2 text-center space-y-1.5">
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Powered by Slotify AI</p>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Powered by Oviaan AI</p>
                 <p className="text-[9px] text-slate-400/70 font-bold leading-none">Maya can make mistakes. Check important info</p>
               </div>
             </div>

@@ -17,7 +17,7 @@ const Telehealth = () => {
       icon={Video}
       color="cyan"
       benefits={benefits}
-      aiHighlight="Slotify AI can automatically transcribe your telehealth visits and suggest ICD-10 and CPT codes for faster billing."
+      aiHighlight="Oviaan AI can automatically transcribe your telehealth visits and suggest ICD-10 and CPT codes for faster billing."
     />
   );
 };

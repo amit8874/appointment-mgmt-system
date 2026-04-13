@@ -409,7 +409,7 @@ const LandingPage = () => {
             viewport={{ once: true }}
             className="inline-flex items-center gap-3 px-6 py-3 bg-white/80 backdrop-blur-md border border-slate-200 rounded-full mb-10 shadow-sm"
           >
-            <img src="/logo.png" alt="Slotify Logo" className="h-20 w-auto" />
+            <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto" />
             <span className="text-sm font-bold text-slate-700 tracking-tight">AI-Powered Management Software</span>
           </motion.div>
 
@@ -420,7 +420,7 @@ const LandingPage = () => {
             transition={{ delay: 0.1 }}
             className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-6 leading-[1.2]"
           >
-            All-in-One Smart Slotify Management Software
+            All-in-One Smart Oviaan Management Software
           </motion.h2>
 
 
@@ -761,7 +761,7 @@ const LandingPage = () => {
                 <span className="text-sm font-bold text-orange-700 uppercase tracking-wider">Pharmacy Partnership</span>
               </div>
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.1]">
-                Grow Your Pharmacy Business with <span className="text-orange-600">Slotify</span>
+                Grow Your Pharmacy Business with <span className="text-orange-600">Oviaan</span>
               </h2>
               <div className="space-y-4">
                 {[
@@ -1032,7 +1032,7 @@ const LandingPage = () => {
               to="/register-organization" 
               className="inline-flex items-center gap-2 px-10 py-4 bg-white text-blue-600 font-bold text-lg rounded-2xl hover:bg-slate-50 transition-all shadow-xl shadow-black/20"
             >
-              Partner with Slotify
+              Partner with Oviaan
               <ChevronRight size={20} />
             </Link>
           </motion.div>

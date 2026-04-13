@@ -17,7 +17,7 @@ const Billing = () => {
       icon={ClipboardList}
       color="orange"
       benefits={benefits}
-      aiHighlight="The Slotify Billing engine automatically identifies billing code inconsistencies before they reach the insurance payer or patient."
+      aiHighlight="The Oviaan Billing engine automatically identifies billing code inconsistencies before they reach the insurance payer or patient."
     />
   );
 };

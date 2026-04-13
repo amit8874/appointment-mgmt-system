@@ -127,7 +127,7 @@ const ChoosePlan = () => {
         key: response.order.key,
         amount: response.order.amount,
         currency: response.order.currency,
-        name: 'Slotify',
+        name: 'Oviaan',
         description: `${response.planMeta.name} - ${billingCycle} Subscription`,
         image: '/logo.png', // Logo for Razorpay popup
         order_id: response.order.id,
@@ -167,7 +167,7 @@ const ChoosePlan = () => {
           clinicId: user?.organizationId?._id || user?.organizationId || organizationData?._id || 'unknown',
           userId: user?._id || 'unknown',
           planName: response.planMeta.name,
-          clinicName: organizationData?.name || user?.organization?.name || 'Slotify Customer'
+          clinicName: organizationData?.name || user?.organization?.name || 'Oviaan Customer'
         },
         theme: {
           color: '#7C3AED', // Violet 600

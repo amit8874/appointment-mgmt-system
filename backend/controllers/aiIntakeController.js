@@ -15,7 +15,7 @@ export const parseIntakeTranscript = async (req, res) => {
       return res.status(400).json({ message: 'Transcript is required' });
     }
 
-    const systemPrompt = `You are an expert AI receptionist assistant for Slotify.
+    const systemPrompt = `You are an expert AI receptionist assistant for Oviaan.
 Your explicit job is to extract patient intake details from a potentially messy voice transcript.
 You MUST securely extract the data and return it as a JSON object. Return NOTHING ELSE except the raw JSON. Do not wrap it in markdown block quotes.
 
