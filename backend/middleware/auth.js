@@ -50,8 +50,7 @@ export const authenticateToken = async (req, res, next) => {
     }
 
     if (!session && !token.startsWith('token_')) {
-      // Auto-recreate session for valid JWTs that were issued before session tracking was added
-      // or if the session record was somehow lost.
+      // Auto-recreate session for valid JWTs
       try {
         session = await Session.create({
           userId: user._id,
@@ -62,10 +61,14 @@ export const authenticateToken = async (req, res, next) => {
           deviceInfo: 'Restored Session',
           lastActive: new Date()
         });
-        console.log(`[AUTH] Auto-created session record for existing valid token: ${user.name}`);
+        console.log(`[AUTH] Auto-created session for ${user.name} (Org: ${user.organizationId?._id || 'None'})`);
       } catch (sessionError) {
-        console.error('[AUTH] Failed to auto-create session:', sessionError);
-        // If it's a conflict or other error, we still let them in because JWT is valid
+        // If it's a duplicate key error (code 11000), it means another request created the session simultaneously
+        if (sessionError.code === 11000) {
+          session = await Session.findOne({ token: token });
+        } else {
+          console.error('[AUTH] Failed to auto-create session:', sessionError.message);
+        }
       }
     } else if (session) {
       // Update session last active time

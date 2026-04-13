@@ -17,14 +17,12 @@ export const getSocketUrl = () => {
 // Detect tenant from subdomain or localStorage
 const getTenantSlug = () => {
   const hostname = window.location.hostname;
-  const subdomain = hostname.includes('.') ? hostname.split('.')[0] : null;
   
   // Check if it's an IP address
   const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostname);
   
-  // Skip common subdomains OR handles IP addresses
-  if (isIP || !subdomain || subdomain === 'www' || subdomain === 'app' || subdomain === 'api' || subdomain === 'localhost' || subdomain === '127' || hostname === 'localhost') {
-    // Check localStorage for tenant (set during login)
+  // If it's an IP or localhost, check localStorage only
+  if (isIP || hostname === 'localhost' || hostname === '127.0.0.1') {
     const storedSlug = localStorage.getItem('tenantSlug');
     if (storedSlug && storedSlug !== 'null' && storedSlug !== 'undefined') {
       return storedSlug;
@@ -32,7 +30,21 @@ const getTenantSlug = () => {
     return null;
   }
   
-  return subdomain;
+  // Extract subdomain for real domains
+  const parts = hostname.split('.');
+  // If it's a domain like clinic.myapp.com (3+ parts), the first part is the subdomain
+  // If it's myapp.com (2 parts), there's no subdomain (unless we treat it as apex)
+  if (parts.length >= 2) {
+    const subdomain = parts[0];
+    const commonSubdomains = ['www', 'app', 'api', 'admin', 'portal'];
+    if (!commonSubdomains.includes(subdomain.toLowerCase())) {
+      return subdomain;
+    }
+  }
+
+  // Fallback to localStorage for anything else
+  const storedSlug = localStorage.getItem('tenantSlug');
+  return (storedSlug && storedSlug !== 'null' && storedSlug !== 'undefined') ? storedSlug : null;
 };
 
 

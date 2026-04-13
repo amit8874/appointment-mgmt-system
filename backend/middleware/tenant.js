@@ -30,12 +30,14 @@ export const detectTenant = async (req, res, next) => {
 
     // Skip 'www' and common subdomains, and definitely skip IP addresses
     const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(sourceUrl);
+    const subdomain = sourceUrl.includes('.') ? sourceUrl.split('.')[0] : null;
     
-    if (!isIP && subdomain && subdomain !== 'www' && subdomain !== 'api' && subdomain !== 'app' && subdomain !== 'localhost' && subdomain !== '127') {
+    if (!isIP && subdomain && !['www', 'api', 'app', 'localhost', '127'].includes(subdomain.toLowerCase())) {
       const org = await Organization.findOne({ subdomain: subdomain });
       if (org) {
         tenantId = org._id;
         tenantSlug = org.slug;
+        console.log(`[TENANT] Detected tenant from subdomain: ${tenantSlug} (${tenantId})`);
       }
     }
 
