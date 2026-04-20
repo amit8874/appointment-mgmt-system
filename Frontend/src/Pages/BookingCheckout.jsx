@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
+import { CheckoutSkeleton } from '../components/Shared/CheckoutSkeletons';
 
 const STEPS = {
   MOBILE_ENTRY: 'MOBILE_ENTRY',
@@ -120,11 +121,7 @@ const BookingCheckout = () => {
 
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-12 h-12 border-4 border-[#14bef0] border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <CheckoutSkeleton />;
   }
 
   if (!bookingData) {

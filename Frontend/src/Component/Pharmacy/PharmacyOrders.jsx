@@ -20,6 +20,7 @@ import { pharmacyApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import PrescriptionQuoteModal from './PrescriptionQuoteModal';
 import DispenseMedicineModal from './DispenseMedicineModal';
+import { TableSkeleton } from '../../components/Shared/DashboardSkeletons';
 
 const PharmacyOrders = () => {
   const [activeTab, setActiveTab] = useState('standard'); // 'standard', 'prescriptions'
@@ -175,11 +176,11 @@ const PharmacyOrders = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
-                            [1, 2, 3, 4, 5].map(i => (
-                                <tr key={i} className="animate-pulse">
-                                    <td colSpan="6" className="px-5 py-4"><div className="h-4 bg-slate-100 rounded w-full"></div></td>
-                                </tr>
-                            ))
+                            <tr>
+                                <td colSpan="6" className="px-5 py-4">
+                                    <TableSkeleton rows={10} cols={6} />
+                                </td>
+                            </tr>
                         ) : filteredOrders.length > 0 ? (
                             filteredOrders.map((order) => (
                                 <tr key={order._id} className="hover:bg-slate-50/50 transition-colors group">
@@ -264,11 +265,11 @@ const PharmacyOrders = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
-                            [1, 2, 3, 4, 5].map(i => (
-                                <tr key={i} className="animate-pulse">
-                                    <td colSpan="7" className="px-5 py-4"><div className="h-4 bg-slate-100 rounded w-full"></div></td>
-                                </tr>
-                            ))
+                            <tr>
+                                <td colSpan="7" className="px-5 py-4">
+                                    <TableSkeleton rows={10} cols={7} />
+                                </td>
+                            </tr>
                         ) : prescriptions.length > 0 ? (
                             prescriptions.map((pres) => (
                                 <tr key={pres._id} className="hover:bg-slate-50/50 transition-colors group">

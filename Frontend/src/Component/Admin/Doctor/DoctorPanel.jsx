@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Pagination from "../../../components/common/Pagination";
+import { DoctorCardSkeleton } from "../../../components/Shared/DoctorSkeletons";
 
 // Sub-components
 const InfoCard = ({ title, children, icon: Icon, className = "" }) => (
@@ -283,7 +284,9 @@ const DoctorPanel = ({
 
       {/* Doctor Grid View */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {paginatedDoctors.length > 0 ? (
+        {doctorsLoading ? (
+          [1, 2, 3, 4, 5, 6].map(i => <DoctorCardSkeleton key={i} />)
+        ) : paginatedDoctors.length > 0 ? (
           paginatedDoctors.map((doctor) => (
             <div key={doctor.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow relative group">
 

@@ -10,6 +10,8 @@ import {
 import { usageAnalyticsApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
+import { StatCardSkeleton, ChartSkeleton, TableSkeleton } from '../../components/Shared/DashboardSkeletons';
+import Skeleton from '../../components/Shared/Skeleton';
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6'];
 
@@ -37,8 +39,22 @@ const UsageAnalytics = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      <div className="p-1 space-y-6 animate-pulse">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton width="300px" height="32px" />
+            <Skeleton width="100%" height="8px" />
+          </div>
+          <Skeleton width="120px" height="44px" className="rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ChartSkeleton />
+            <ChartSkeleton />
+        </div>
+        <TableSkeleton rows={8} cols={5} />
       </div>
     );
   }

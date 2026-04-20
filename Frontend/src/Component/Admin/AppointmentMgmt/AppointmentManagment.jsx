@@ -359,28 +359,28 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
   // --- Rendering Helpers ---
   const renderHeader = () => {
     return (
-      <div className="flex items-center justify-between px-6 py-4 bg-white/80 backdrop-blur-md rounded-t-3xl border-b border-slate-100">
-        <div className="flex items-center gap-6">
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight min-w-[200px]">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 md:px-6 py-4 bg-white/80 backdrop-blur-md rounded-t-3xl border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+          <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight text-center md:text-left min-w-[180px]">
             {format(currentMonth, view === 'day' ? 'MMMM d, yyyy' : 'MMMM yyyy')}
           </h2>
-          <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+          <div className="flex bg-slate-100 p-1 rounded-2xl gap-1 mx-auto md:mx-0">
             <button onClick={prev} className="p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <ChevronLeft size={20} className="text-slate-600" />
+              <ChevronLeft size={18} className="text-slate-600" />
             </button>
-            <button onClick={goToToday} className="px-4 text-xs font-bold text-slate-500 hover:text-blue-600 uppercase tracking-wider">Today</button>
+            <button onClick={goToToday} className="px-3 md:px-4 text-[10px] font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest">Today</button>
             <button onClick={next} className="p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <ChevronRight size={20} className="text-slate-600" />
+              <ChevronRight size={18} className="text-slate-600" />
             </button>
           </div>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+        <div className="flex bg-slate-100 p-1 rounded-2xl gap-1 w-full md:w-auto overflow-x-auto scrollbar-hide">
           {['month', 'week', 'day'].map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`px-5 py-2 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${view === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              className={`flex-1 md:flex-none px-4 md:px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${view === v ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400 hover:text-slate-600'
                 }`}
             >
               {v}
@@ -424,7 +424,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
 
         days.push(
           <div
-            className={`min-h-[140px] bg-white border-r border-b border-slate-100 p-3 group transition-all hover:bg-blue-50/20 cursor-pointer relative ${!isCurrentMonth ? "bg-slate-50/50 opacity-40 shadow-inner" : ""
+            className={`min-h-[80px] md:min-h-[140px] bg-white border-r border-b border-slate-100 p-2 md:p-3 group transition-all hover:bg-blue-50/20 cursor-pointer relative ${!isCurrentMonth ? "bg-slate-50/50 opacity-40 shadow-inner" : ""
               }`}
             key={day.toString()}
             onClick={() => onDateClick(cloneDay)}
@@ -533,8 +533,8 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
     const hours = Array.from({ length: 24 }, (_, i) => i);
 
     return (
-      <div className="bg-white rounded-b-3xl overflow-hidden shadow-sm flex flex-col">
-        <div className="grid grid-cols-[80px_1fr] bg-slate-50/50 border-b border-slate-100">
+      <div className="bg-white rounded-b-3xl overflow-hidden shadow-sm flex flex-col overflow-x-auto">
+        <div className="grid grid-cols-[60px_1fr] md:grid-cols-[80px_1fr] bg-slate-50/50 border-b border-slate-100 min-w-[600px] md:min-w-0">
           <div className="py-4 border-r border-slate-100" />
           <div className="grid grid-cols-7">
             {days.map((day, i) => (
@@ -550,7 +550,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
           <div className="grid grid-cols-[80px_1fr]">
             <div className="bg-slate-50/30">
               {hours.map(hour => (
-                <div key={hour} className="h-20 border-r border-b border-slate-50 flex items-center justify-center text-[10px] font-bold text-slate-400">
+                <div key={hour} className="h-16 md:h-20 border-r border-b border-slate-50 flex items-center justify-center text-[9px] md:text-[10px] font-bold text-slate-400">
                   {format(setHours(new Date(), hour), 'hh:mm a')}
                 </div>
               ))}
@@ -561,7 +561,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
                   {hours.map(hour => (
                     <div
                       key={hour}
-                      className="h-20 border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer group relative"
+                      className="h-16 md:h-20 border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer group relative"
                       onClick={() => handleSelectSlot(setHours(day, hour))}
                     >
                       <div className="absolute inset-0 flex flex-col gap-1 p-1">
@@ -600,20 +600,20 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
 
     return (
       <div className="bg-white rounded-b-3xl overflow-hidden shadow-sm flex flex-col">
-        <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-4 md:p-6 bg-slate-50/50 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex flex-col items-center justify-center border border-slate-100">
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">{format(currentMonth, 'MMM')}</span>
-              <span className="text-xl font-black text-slate-800">{format(currentMonth, 'd')}</span>
+            <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-2xl shadow-sm flex flex-col items-center justify-center border border-slate-100">
+              <span className="text-[9px] md:text-[10px] font-black text-blue-600 uppercase tracking-tighter">{format(currentMonth, 'MMM')}</span>
+              <span className="text-lg md:text-xl font-black text-slate-800">{format(currentMonth, 'd')}</span>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-800">{format(currentMonth, 'EEEE')}</h3>
-              <p className="text-sm text-slate-400 font-medium">{dayAppointments.length} Appointments Scheduled</p>
+              <h3 className="text-base md:text-lg font-bold text-slate-800">{format(currentMonth, 'EEEE')}</h3>
+              <p className="text-xs md:text-sm text-slate-400 font-medium">{dayAppointments.length} Appointments</p>
             </div>
           </div>
           <button
             onClick={() => handleSelectSlot(currentMonth)}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all"
           >
             <UserPlus size={18} />
             Book Slot
@@ -621,10 +621,10 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
         </div>
 
         <div className="flex-1 overflow-y-auto max-h-[600px] scrollbar-hide">
-          <div className="grid grid-cols-[100px_1fr]">
+          <div className="grid grid-cols-[70px_1fr] md:grid-cols-[100px_1fr]">
             <div className="bg-slate-50/20 border-r border-slate-100">
               {hours.map(hour => (
-                <div key={hour} className="h-24 flex items-center justify-center text-xs font-black text-slate-400 border-b border-slate-50">
+                <div key={hour} className="h-24 flex items-center justify-center text-[10px] md:text-xs font-black text-slate-400 border-b border-slate-50">
                   {format(setHours(new Date(), hour), 'hh:00 a')}
                 </div>
               ))}
@@ -683,7 +683,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
       <ToastContainer position="bottom-right" theme="colored" />
 
       {!isEmbedded && (
-        <div className="mb-10 grid grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="mb-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
           <StatCard 
             title="Total Appts" 
             value={stats.total} 

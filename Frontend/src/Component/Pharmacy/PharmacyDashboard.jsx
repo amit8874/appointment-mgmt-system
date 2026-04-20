@@ -12,6 +12,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { pharmacyApi } from '../../services/api';
 import { toast } from 'react-toastify';
+import { StatCardSkeleton, TableSkeleton } from '../../components/Shared/DashboardSkeletons';
+import Skeleton from '../../components/Shared/Skeleton';
 
 const PharmacyDashboard = () => {
   const { user } = useAuth();
@@ -52,6 +54,42 @@ const PharmacyDashboard = () => {
   ];
 
   const recentOrders = data.recentOrders;
+
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton width="300px" height="32px" />
+            <Skeleton width="100%" height="16px" />
+          </div>
+          <Skeleton width="140px" height="40px" className="rounded-xl" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2">
+                <TableSkeleton rows={5} cols={4} />
+            </div>
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 space-y-6">
+                <Skeleton width="150px" height="24px" />
+                <Skeleton width="100%" height="80px" className="rounded-2xl" />
+                <div className="space-y-3">
+                    <div className="flex justify-between">
+                        <Skeleton width="80px" height="12px" />
+                        <Skeleton width="40px" height="12px" />
+                    </div>
+                    <Skeleton width="100%" height="8px" className="rounded-full" />
+                </div>
+                <Skeleton width="100%" height="48px" className="rounded-2xl" />
+            </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

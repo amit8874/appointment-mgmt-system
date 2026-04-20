@@ -9,6 +9,7 @@ import api from "../../../services/api";
 import { toast } from "react-toastify";
 import Pagination from "../../../components/common/Pagination";
 import PaymentModeModal from "../../../components/common/PaymentModeModal";
+import { TableSkeleton } from "../../../components/Shared/DashboardSkeletons";
 
 const PatientPanel = ({
   onViewPatient,
@@ -470,11 +471,8 @@ const PatientPanel = ({
         </div>
 
         {patientsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent"></div>
-            <span className="ml-3 text-gray-700 dark:text-gray-300 text-lg">
-              Loading patients...
-            </span>
+          <div className="p-4">
+            <TableSkeleton rows={10} cols={8} />
           </div>
         ) : patientsError ? (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 max-w-2xl mx-auto text-center">

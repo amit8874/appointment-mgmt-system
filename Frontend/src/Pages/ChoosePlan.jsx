@@ -15,6 +15,7 @@ import {
   Clock
 } from 'lucide-react';
 import { subscriptionApi } from '../services/api';
+import Skeleton from '../components/Shared/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { getPaymentPrefillDetails, validatePaymentDetails } from '../utils/paymentUtils';
 import toast from 'react-hot-toast';
@@ -191,10 +192,33 @@ const ChoosePlan = () => {
 
   if (loading && !plans) {
     return (
-      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <div className="w-16 h-16 border-4 border-violet-500/30 border-t-violet-500 rounded-full animate-spin"></div>
-          <p className="mt-4 text-violet-400 font-medium">Loading premium plans...</p>
+      <div className="min-h-screen bg-[#0B0F19] py-12 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <Skeleton className="w-48 h-10 mx-auto rounded-full bg-white/5 mb-6" />
+            <Skeleton className="w-64 h-12 mx-auto rounded-lg bg-white/5 mb-4" />
+            <Skeleton className="w-96 h-6 mx-auto rounded-lg bg-white/5" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-gray-900/40 border border-white/5 rounded-2xl p-8 space-y-6">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-10 h-10 rounded-xl bg-white/5" />
+                  <Skeleton className="w-32 h-6 rounded-lg bg-white/10" />
+                </div>
+                <Skeleton className="w-full h-12 rounded-lg bg-white/5" />
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map(j => (
+                    <div key={j} className="flex gap-3">
+                      <Skeleton className="w-4 h-4 rounded-full bg-white/5" />
+                      <Skeleton className="w-full h-4 rounded-lg bg-white/5" />
+                    </div>
+                  ))}
+                </div>
+                <Skeleton className="w-full h-14 rounded-xl bg-white/10" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );

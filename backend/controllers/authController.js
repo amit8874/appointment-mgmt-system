@@ -10,10 +10,31 @@ const otpStore = new Map();
 
 export const sendOtp = async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, role } = req.body;
 
     if (!phone || !/^\d{10}$/.test(phone)) {
       return res.status(400).json({ message: 'Valid 10-digit phone number required' });
+    }
+
+    // Optional: Check if user exists for this role to avoid sending OTP to wrong person
+    if (role) {
+      const normalizedRole = String(role).toLowerCase().trim();
+      let roleFilter = {};
+      
+      if (normalizedRole === 'staff') {
+        roleFilter = { role: { $in: ['receptionist', 'admin', 'doctor'] } };
+      } else if (normalizedRole === 'admin') {
+        roleFilter = { role: { $in: ['admin', 'orgadmin', 'superadmin', 'doctor'] } };
+      } else if (normalizedRole === 'pharmacy') {
+        roleFilter = { role: 'pharmacy' };
+      } else if (normalizedRole === 'patient') {
+        roleFilter = { role: 'patient' };
+      }
+
+      const userExists = await User.findOne({ mobile: phone, ...roleFilter });
+      if (!userExists && normalizedRole !== 'patient') {
+        return res.status(404).json({ message: `No ${role} account found with this mobile number.` });
+      }
     }
 
     // Generate random 6-digit OTP
@@ -36,7 +57,6 @@ export const sendOtp = async (req, res) => {
       console.log(`[Auth] OTP for ${phone} sent via WhatsApp: ${otp}`);
     } catch (wsError) {
       console.error('[Auth] Failed to send WhatsApp OTP:', wsError.message);
-      // Fallback for demo: just log it
     }
 
     res.json({ success: true, message: 'OTP sent successfully via WhatsApp', phone });
@@ -48,7 +68,7 @@ export const sendOtp = async (req, res) => {
 
 export const verifyOtp = async (req, res) => {
   try {
-    const { phone, otp } = req.body;
+    const { phone, otp, role } = req.body;
 
     if (!phone || !otp) {
       return res.status(400).json({ message: 'Phone and OTP required' });
@@ -61,25 +81,53 @@ export const verifyOtp = async (req, res) => {
       // Clear OTP after successful use
       otpStore.delete(phone);
 
-      // 1. Find or Create the User in database to avoid CastErrors later
-      let user = await User.findOne({ mobile: phone });
+      const normalizedRole = String(role || 'patient').toLowerCase().trim();
+      let roleFilter = {};
       
-      if (!user) {
-        // Create a new patient user if they don't exist
-        user = new User({
-          name: `Patient ${phone.slice(-4)}`, // Placeholder name
-          mobile: phone,
-          role: 'patient',
-          password: Math.random().toString(36).slice(-10), // Random password for OTP-only users
-          organizationId: req.tenantId || null // Use tenant if available
-        });
-        await user.save();
-        console.log(`[Auth] New user created via OTP: ${user._id}`);
+      if (normalizedRole === 'staff') {
+        roleFilter = { role: { $in: ['receptionist', 'admin', 'doctor'] } };
+      } else if (normalizedRole === 'admin') {
+        roleFilter = { role: { $in: ['admin', 'orgadmin', 'superadmin', 'doctor'] } };
+      } else if (normalizedRole === 'pharmacy') {
+        roleFilter = { role: 'pharmacy' };
+      } else if (normalizedRole === 'patient') {
+        roleFilter = { role: 'patient' };
       }
 
-      // 2. Generate standard JWT token (matching userController format)
+      // 1. Find the User with the specific role
+      let user = await User.findOne({ mobile: phone, ...roleFilter }).populate('organizationId');
+      
+      if (!user) {
+        // IMPORTANT: Check if the user exists with ANY role before creating a new patient
+        const existingAnyRoleBody = await User.findOne({ mobile: phone });
+        
+        if (existingAnyRoleBody) {
+          return res.status(401).json({ 
+            success: false, 
+            message: `Access denied. This account is registered as ${existingAnyRoleBody.role}. Please switch to the correct tab (User/Staff/Admin) to log in.` 
+          });
+        }
+
+        // If no user at all exists, and it's a patient, create them
+        if (normalizedRole === 'patient') {
+          user = new User({
+            name: `Patient ${phone.slice(-4)}`,
+            mobile: phone,
+            role: 'patient',
+            password: Math.random().toString(36).slice(-10),
+            organizationId: req.tenantId || null
+          });
+          await user.save();
+          console.log(`[Auth] New patient user created via OTP: ${user._id}`);
+        } else {
+          // For other roles, they MUST exist
+          return res.status(404).json({ success: false, message: 'Account not found for this role.' });
+        }
+      }
+
+      // 2. Generate standard JWT token
       const token = jwt.sign(
-        { id: user._id, role: user.role, organizationId: user.organizationId },
+        { id: user._id, role: user.role, organizationId: user.organizationId?._id || user.organizationId || null },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '24h' }
       );
@@ -88,7 +136,7 @@ export const verifyOtp = async (req, res) => {
       try {
         await Session.create({
           userId: user._id,
-          organizationId: user.organizationId || null,
+          organizationId: user.organizationId?._id || user.organizationId || null,
           token: token,
           userAgent: req.get('User-Agent') || 'Unknown',
           ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
@@ -97,19 +145,6 @@ export const verifyOtp = async (req, res) => {
         });
       } catch (sessionError) {
         console.error('Failed to create session record:', sessionError);
-      }
-
-      // 3. Send Success Message via WhatsApp as requested by user
-      const sanitizedPhone = sanitizePhone(phone);
-      try {
-        const appName = process.env.APP_NAME || 'Oviaan';
-        await sendWhatsAppMessage(
-          sanitizedPhone, 
-          `Thank you for registering on ${appName}, an Appointment Management Platform. Go and book your first appointment with the doctor.`
-        );
-
-      } catch (wsError) {
-        console.error('[Auth] Failed to send Welcome WhatsApp:', wsError.message);
       }
 
       res.json({
@@ -121,6 +156,12 @@ export const verifyOtp = async (req, res) => {
           mobile: user.mobile, 
           name: user.name,
           role: user.role,
+          organizationId: user.organizationId?._id || user.organizationId || null,
+          organization: user.organizationId ? {
+            name: user.organizationId.name,
+            branding: user.organizationId.branding,
+            slug: user.organizationId.slug
+          } : null,
           isVerified: true 
         }
       });

@@ -58,6 +58,14 @@ const FamilyPetCare = lazy(() => import("./Pages/Features/FamilyPetCare"));
 const PartnerProgram = lazy(() => import("./Pages/Features/PartnerProgram"));
 const PrivacyPolicy = lazy(() => import("./Pages/PrivacyPolicy"));
 const TermsAndConditions = lazy(() => import("./Pages/TermsAndConditions"));
+const About = lazy(() => import("./Pages/About"));
+const Blog = lazy(() => import("./Pages/Blog"));
+const Careers = lazy(() => import("./Pages/Careers"));
+const Press = lazy(() => import("./Pages/Press"));
+const Contact = lazy(() => import("./Pages/Contact"));
+const DoctorProfile = lazy(() => import("./Pages/Services/DoctorProfile"));
+const RayByOviaan = lazy(() => import("./Pages/Services/RayByOviaan"));
+const OviaanReach = lazy(() => import("./Pages/Services/OviaanReach"));
 
 
 
@@ -270,6 +278,18 @@ export default function App() {
           <Route path="/terms-conditions" element={<TermsAndConditions />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
             <Route path="/payment" element={<Payment />} />
+
+            {/* Company Pages */}
+            <Route path="/about" element={<About />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/careers" element={<Careers />} />
+            <Route path="/press" element={<Press />} />
+            <Route path="/contact" element={<Contact />} />
+
+            {/* Services Pages */}
+            <Route path="/services/doctor-profile" element={<DoctorProfile />} />
+            <Route path="/services/ray" element={<RayByOviaan />} />
+            <Route path="/services/reach" element={<OviaanReach />} />
 
             {/* Super Admin Routes */}
             <Route path="/superadmin" element={<SuperAdminLogin />} />

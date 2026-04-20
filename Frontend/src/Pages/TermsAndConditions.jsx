@@ -31,11 +31,11 @@ const TermsAndConditions = () => {
       title: "2. Scope of Service",
       content: (
         <div className="space-y-3 text-slate-600">
-          <p>Oviaan Professional is an appointment management and clinic operations platform.</p>
+          <p>Oviaan Professional is a B2B Software-as-a-Service (SaaS) Practice Management System designed for clinics, diagnostic labs, and healthcare practitioners.</p>
           <ul className="list-disc pl-5 space-y-2">
-            <li>We do not provide medical services directly.</li>
-            <li>We facilitate scheduling and record-keeping between patients and healthcare providers.</li>
-            <li>Clinical outcomes are the sole responsibility of the attending healthcare provider.</li>
+            <li><strong>Software Only:</strong> We provide administrative tools for scheduling, record-keeping, and internal clinic operations.</li>
+            <li><strong>No Medical Services:</strong> We do not provide medical services, professional advice, or clinical treatments directly.</li>
+            <li><strong>Professional Responsibility:</strong> All clinical outcomes and medical decisions remain the sole responsibility of the licensed healthcare provider using the platform.</li>
           </ul>
         </div>
       )
@@ -73,6 +73,20 @@ const TermsAndConditions = () => {
           The software, including the Maya AI engine, UI designs, and brand assets, are the exclusive property 
           of Oviaan. Unauthorized reproduction or reverse engineering is strictly prohibited.
         </p>
+      )
+    },
+    {
+      icon: <FileText className="text-rose-500" />,
+      title: "6. Pharmaceutical Management Disclaimer",
+      content: (
+        <div className="space-y-3 text-slate-600">
+          <p>The platform includes modules for internal inventory and pharmacy management for our business clients.</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>Not an Online Pharmacy:</strong> Oviaan is a technology provider and does NOT operate as an online pharmacy, nor do we sell, distribute, or dispense medicines of any kind.</li>
+            <li><strong>No Retail Sales:</strong> We do not facilitate the retail sale of medicines to the general public via the platform's standard payment systems.</li>
+            <li><strong>Independent Compliance:</strong> All pharmaceutical inventory and prescription fulfillment are managed independently by licensed, third-party pharmacies who are solely responsible for compliance with the Drugs and Cosmetics Act and other regional regulations.</li>
+          </ul>
+        </div>
       )
     }
   ];

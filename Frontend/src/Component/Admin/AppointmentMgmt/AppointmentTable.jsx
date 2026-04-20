@@ -22,11 +22,13 @@ import {
   ShieldCheck,
   ShieldAlert,
   ShieldX,
-  Brain
+  Brain,
+  Users
 } from "lucide-react";
 import api from "../../../services/api";
 import AppointmentManagement from "./AppointmentManagment.jsx";
 import Pagination from "../../../components/common/Pagination";
+import BulkWhatsAppModal from "../../../components/common/BulkWhatsAppModal";
 
 export default function AppointmentTable({ rebookData }) {
   const [appointments, setAppointments] = useState([]);
@@ -40,6 +42,7 @@ export default function AppointmentTable({ rebookData }) {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [viewMode, setViewMode] = useState("list"); // 'list' or 'calendar'
+  const [bulkWhatsappModalOpen, setBulkWhatsappModalOpen] = useState(false);
 
   // Handle re-booking from navigation state
   useEffect(() => {
@@ -298,45 +301,58 @@ export default function AppointmentTable({ rebookData }) {
       <div className="max-w-7xl mx-auto">
 
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-700">Appointments</h1>
-            <p className="text-gray-500 mt-1">
-              Dashboard <span className="mx-2">/</span> Appointments
-            </p>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="text-center md:text-left">
+            <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Appointments</h1>
+            <nav className="flex items-center justify-center md:justify-start gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+              <span>Dashboard</span>
+              <span className="text-slate-200">/</span>
+              <span className="text-indigo-600">Appointments</span>
+            </nav>
           </div>
-          <div className="flex items-center gap-3">
+          
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {/* View Toggle */}
-            <div className="flex items-center bg-white border rounded-lg p-1 shadow-sm">
+            <div className="flex items-center bg-slate-100 p-1 rounded-2xl shadow-inner w-full sm:w-auto">
               <button
                 onClick={() => setViewMode("list")}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-all ${viewMode === "list"
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "text-gray-600 hover:bg-gray-100"
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${viewMode === "list"
+                  ? "bg-white text-indigo-600 shadow-lg"
+                  : "text-slate-400 hover:text-slate-600"
                   }`}
               >
                 <List className="w-4 h-4" />
-                <span className="text-sm font-medium">List View</span>
+                <span>List View</span>
               </button>
               <button
                 onClick={() => setViewMode("calendar")}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-all ${viewMode === "calendar"
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "text-gray-600 hover:bg-gray-100"
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${viewMode === "calendar"
+                  ? "bg-white text-indigo-600 shadow-lg"
+                  : "text-slate-400 hover:text-slate-600"
                   }`}
               >
                 <CalendarDays className="w-4 h-4" />
-                <span className="text-sm font-medium">Calendar View</span>
+                <span>Calendar View</span>
               </button>
             </div>
 
-            <button
-              onClick={fetchAppointments}
-              className="p-2 bg-white border rounded-lg hover:bg-gray-50 flex items-center gap-2 text-gray-600 shadow-sm"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span className="text-sm font-medium">Refresh</span>
-            </button>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                onClick={fetchAppointments}
+                className="flex-1 sm:flex-none p-3 bg-white border border-slate-100 rounded-2xl hover:bg-slate-50 flex items-center justify-center gap-2 text-slate-400 transition-all shadow-sm group"
+              >
+                <RefreshCw className={`w-4 h-4 group-hover:rotate-180 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="text-[10px] font-black uppercase tracking-widest sm:hidden lg:inline">Refresh</span>
+              </button>
+              
+              <button
+                onClick={() => setBulkWhatsappModalOpen(true)}
+                className="flex-[2] sm:flex-none px-6 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Users className="w-4 h-4" />
+                <span>Bulk Message</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -734,6 +750,18 @@ export default function AppointmentTable({ rebookData }) {
           </div>
         </div>
       )}
+
+      {/* Bulk WhatsApp Modal */}
+      <BulkWhatsAppModal
+        isOpen={bulkWhatsappModalOpen}
+        onClose={() => setBulkWhatsappModalOpen(false)}
+        patients={appointments.map(app => ({
+          _id: app._id,
+          name: app.patientName,
+          patientId: app.patientId,
+          phone: app.patientPhone
+        }))}
+      />
     </div>
   );
 }

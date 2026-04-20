@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SuperAdminSidebar from './SuperAdminSidebar.jsx';
+import { TableSkeleton } from '../../components/Shared/DashboardSkeletons';
 
 const AuditLogsPage = () => {
   const [logs, setLogs] = useState([]);
@@ -115,11 +116,11 @@ const AuditLogsPage = () => {
                 <tbody className="divide-y divide-gray-50">
                   <AnimatePresence mode="popLayout">
                     {loading ? (
-                      Array(5).fill(0).map((_, i) => (
-                        <tr key={i} className="animate-pulse">
-                          <td colSpan="5" className="px-6 py-8 h-20 bg-gray-50/30"></td>
-                        </tr>
-                      ))
+                       <tr>
+                         <td colSpan="5" className="px-6 py-4">
+                           <TableSkeleton rows={10} cols={5} />
+                         </td>
+                       </tr>
                     ) : (
                       logs.map((log) => (
                         <motion.tr 

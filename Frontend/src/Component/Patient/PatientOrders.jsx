@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 
 import QuoteComparison from './QuoteComparison';
+import { OrderHistorySkeleton } from '../../components/Shared/OrderSkeletons';
+import Skeleton from '../../components/Shared/Skeleton';
 
 
 const PatientOrders = () => {
@@ -180,10 +182,7 @@ const PatientOrders = () => {
 
             <main className="max-w-3xl mx-auto px-4 pt-8">
                 {isLoading ? (
-                    <div className="flex flex-col items-center justify-center py-20 gap-4">
-                        <Loader2 size={40} className="text-blue-600 animate-spin" />
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Updating your orders...</p>
-                    </div>
+                    <OrderHistorySkeleton />
                 ) : !hasOrders ? (
                     <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm">
                         <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 mx-auto mb-4">
@@ -343,7 +342,7 @@ const PatientOrders = () => {
                                         </div>
                                     ) : (
                                         <div className="py-8 px-6 bg-blue-50/50 rounded-2xl border border-blue-100/50 flex flex-col items-center gap-3 text-center mb-6">
-                                            <Loader2 size={24} className="text-blue-500 animate-spin" />
+                                            <Skeleton width="24px" height="24px" circle className="animate-spin border-2 border-blue-500 border-t-transparent" />
                                             <p className="text-[11px] font-black text-blue-700 uppercase tracking-widest">Broadcasting to nearby pharmacies...</p>
                                         </div>
                                     )}

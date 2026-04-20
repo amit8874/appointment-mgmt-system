@@ -22,6 +22,7 @@ import { pharmacyApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import MedicineUsageHistoryModal from './MedicineUsageHistoryModal';
 import QuickDispenseModal from './QuickDispenseModal';
+import { TableSkeleton } from '../../components/Shared/DashboardSkeletons';
 
 const PharmacyInventory = () => {
   const [inventory, setInventory] = useState([]);
@@ -178,11 +179,11 @@ const PharmacyInventory = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                [1, 2, 3, 4, 5].map(i => (
-                    <tr key={i} className="animate-pulse">
-                        <td colSpan="6" className="px-5 py-4"><div className="h-4 bg-slate-100 rounded w-full"></div></td>
-                    </tr>
-                ))
+                <tr>
+                    <td colSpan="6" className="px-5 py-4">
+                        <TableSkeleton rows={10} cols={6} />
+                    </td>
+                </tr>
               ) : inventory.length > 0 ? (
                 inventory.map((item) => (
                     <tr key={item._id} className="hover:bg-slate-50/50 transition-colors group">

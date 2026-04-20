@@ -32,6 +32,7 @@ import PublicFooter from '../components/Shared/PublicFooter';
 
 import TrialModal from '../Component/Shared/TrialModal';
 import ChatBot from '../Component/Shared/ChatBot';
+import Skeleton from '../components/Shared/Skeleton';
 
 const SpecialtyCard = ({ image, name, onClick }) => (
   <motion.div 
@@ -94,7 +95,7 @@ const PricingFeature = ({ text, isPlus = false }) => (
 );
 
 const LandingPage = () => {
-  const [locationName, setLocationName] = useState("Fetching location...");
+  const [locationName, setLocationName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -285,7 +286,7 @@ const LandingPage = () => {
 
       {/* Appointment Hero */}
       <section className="relative z-[60]">
-        <div className="relative pt-60 pb-16 px-4 text-center"
+        <div className="relative pt-32 md:pt-48 lg:pt-60 pb-16 px-4 text-center"
           style={{ background: 'linear-gradient(180deg, #c5ceff 0%, #dce3ff 60%, #ffffff 100%)' }}>
           
           {/* Curved bottom dipping down - Moved before content for better stacking */}
@@ -296,8 +297,8 @@ const LandingPage = () => {
           </div>
 
           <div className="max-w-6xl mx-auto px-4 relative z-20 search-container">
-            <h1 className="text-5xl font-bold text-[#1a2563] mb-12 tracking-tight text-center">Book an Appointment</h1>
-            <div className="bg-white p-7 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-100 flex flex-col lg:flex-row items-stretch gap-4">
+            <h1 className="text-4xl md:text-5xl font-bold text-[#1a2563] mb-8 md:mb-12 tracking-tight text-center">Book an Appointment</h1>
+            <div className="bg-white p-4 md:p-7 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-100 flex flex-col lg:flex-row items-stretch gap-4">
 
             <div className="flex-1 relative group">
               <div className="flex items-center px-5 py-4 border border-slate-400 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 transition-all bg-white">
@@ -338,20 +339,23 @@ const LandingPage = () => {
               <div className="flex items-center px-5 py-4 border border-slate-400 rounded-lg focus-within:ring-2 focus-within:ring-blue-500 transition-all bg-white">
                 <MapPin size={22} className={`mr-3 shrink-0 ${isGpsDetected ? 'text-emerald-500' : 'text-[#00386a]'}`} />
                 <div className="flex-1 min-w-0">
-                  {/* Removed "Live Location" label as per user request */}
-                  <input
-                    type="text"
-                    placeholder="Search city or area..."
-                    className="w-full bg-transparent text-slate-800 font-bold outline-none placeholder:text-slate-400 text-sm"
-                    value={cityInput}
-                    onChange={(e) => {
-                      setCityInput(e.target.value);
-                      setShowCitySuggestions(true);
-                      setIsGpsDetected(false); // user is manually overriding
-                    }}
-                    onFocus={() => setShowCitySuggestions(true)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  />
+                  {isDetecting || !cityInput ? (
+                    <Skeleton className="w-32 h-6 rounded" />
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Search city or area..."
+                      className="w-full bg-transparent text-slate-800 font-bold outline-none placeholder:text-slate-400 text-sm"
+                      value={cityInput}
+                      onChange={(e) => {
+                        setCityInput(e.target.value);
+                        setShowCitySuggestions(true);
+                        setIsGpsDetected(false); // user is manually overriding
+                      }}
+                      onFocus={() => setShowCitySuggestions(true)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    />
+                  )}
                 </div>
                 {/* Re-detect GPS button */}
                 <button
@@ -465,283 +469,288 @@ const LandingPage = () => {
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">One Platform for Every Stakeholder</h2>
           </div>
 
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-            <StakeholderCard 
-              title="Organization Login"
-              description="Referral doctors can view reports and receive alerts for critical values."
-              delay={0.1}
-              content={
-                <div className="space-y-4">
-                  <motion.div 
-                    animate={{ x: [0, 5, 0] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                    className="flex items-center gap-2 p-2 bg-white rounded-lg shadow-sm border border-slate-50"
-                  >
-                    <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-400 font-bold">V</div>
-                    <div>
-                      <div className="text-[10px] font-black text-slate-800">Dr Vaidya Acharya</div>
-                      <div className="text-[8px] text-slate-400 font-medium">@ All Medical Lab</div>
-                    </div>
-                  </motion.div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">This Month Analytics</span>
-                      <motion.div
-                        animate={{ opacity: [0.3, 1, 0.3] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      >
-                        <Search size={10} className="text-slate-300" />
-                      </motion.div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                       <div className="p-3 bg-white rounded-xl border border-slate-100 relative overflow-hidden">
-                          <motion.div 
-                            initial={{ x: "-100%" }}
-                            animate={{ x: "100%" }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                            className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-50/50 to-transparent w-1/2 skew-x-12"
-                          />
-                          <div className="text-[14px] font-black text-slate-900">₹12,450</div>
-                          <div className="text-[8px] text-slate-400 font-bold uppercase">Total Amount</div>
-                       </div>
-                       <motion.div 
-                         whileHover={{ scale: 1.02 }}
-                         animate={{ backgroundColor: ["#2563eb", "#1d4ed8", "#2563eb"] }}
-                         transition={{ duration: 3, repeat: Infinity }}
-                         className="p-3 bg-blue-600 rounded-xl text-white flex flex-col justify-center items-center cursor-pointer"
-                       >
-                          <div className="text-[8px] font-bold">Export Excel</div>
-                       </motion.div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                       <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-100">
-                          <motion.div
-                            animate={{ opacity: [1, 0.7, 1] }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
-                            className="text-[12px] font-black text-slate-900"
-                          >₹7,320</motion.div>
-                          <div className="text-[8px] text-slate-500 font-bold uppercase">Amount Paid</div>
-                       </div>
-                       <div className="p-3 bg-red-50 rounded-xl border border-red-100">
-                          <motion.div
-                            animate={{ opacity: [1, 0.5, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                            className="text-[12px] font-black text-slate-900"
-                          >₹1,630</motion.div>
-                          <div className="text-[8px] text-slate-500 font-bold uppercase">Amount Due</div>
-                       </div>
-                    </div>
-                  </div>
-                </div>
-              }
-            />
-
-
-            <StakeholderCard 
-              title="Receptionist Login"
-              description="Each patient gets a personal profile with 24/7 access to their reports."
-              delay={0.2}
-              content={
-                <div className="space-y-4">
-                  <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 overflow-x-auto md:overflow-x-visible scrollbar-hide snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0 pb-8 md:pb-0">
+            <div className="min-w-[85vw] sm:min-w-[60vw] md:min-w-0 snap-center">
+              <StakeholderCard 
+                title="Organization Login"
+                description="Referral doctors can view reports and receive alerts for critical values."
+                delay={0.1}
+                content={
+                  <div className="space-y-4">
+                    <motion.div 
+                      animate={{ x: [0, 5, 0] }}
+                      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                      className="flex items-center gap-2 p-2 bg-white rounded-lg shadow-sm border border-slate-50"
+                    >
+                      <div className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-400 font-bold">V</div>
                       <div>
-                        <div className="text-xs font-black text-slate-800">Adarsh Sharma</div>
-                        <div className="text-[8px] text-slate-400 font-medium">Male | 22 yrs</div>
+                        <div className="text-[10px] font-black text-slate-800">Dr Vaidya Acharya</div>
+                        <div className="text-[8px] text-slate-400 font-medium">@ All Medical Lab</div>
                       </div>
-                      <motion.div 
-                        animate={{ scale: [1, 1.2, 1] }} 
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="w-2 h-2 rounded-full bg-green-500" 
-                      />
+                    </motion.div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black text-slate-400 uppercase">This Month Analytics</span>
+                        <motion.div
+                          animate={{ opacity: [0.3, 1, 0.3] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        >
+                          <Search size={10} className="text-slate-300" />
+                        </motion.div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-3 bg-white rounded-xl border border-slate-100 relative overflow-hidden">
+                            <motion.div 
+                              initial={{ x: "-100%" }}
+                              animate={{ x: "100%" }}
+                              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                              className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-50/50 to-transparent w-1/2 skew-x-12"
+                            />
+                            <div className="text-[14px] font-black text-slate-900">₹12,450</div>
+                            <div className="text-[8px] text-slate-400 font-bold uppercase">Total Amount</div>
+                        </div>
+                        <motion.div 
+                          whileHover={{ scale: 1.02 }}
+                          animate={{ backgroundColor: ["#2563eb", "#1d4ed8", "#2563eb"] }}
+                          transition={{ duration: 3, repeat: Infinity }}
+                          className="p-3 bg-blue-600 rounded-xl text-white flex flex-col justify-center items-center cursor-pointer"
+                        >
+                            <div className="text-[8px] font-bold">Export Excel</div>
+                        </motion.div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-100">
+                            <motion.div
+                              animate={{ opacity: [1, 0.7, 1] }}
+                              transition={{ duration: 1.5, repeat: Infinity }}
+                              className="text-[12px] font-black text-slate-900"
+                            >₹7,320</motion.div>
+                            <div className="text-[8px] text-slate-500 font-bold uppercase">Amount Paid</div>
+                        </div>
+                        <div className="p-3 bg-red-50 rounded-xl border border-red-100">
+                            <motion.div
+                              animate={{ opacity: [1, 0.5, 1] }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                              className="text-[12px] font-black text-slate-900"
+                            >₹1,630</motion.div>
+                            <div className="text-[8px] text-slate-500 font-bold uppercase">Amount Due</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-4 relative max-h-[180px] overflow-hidden">
-                      <motion.div 
-                        animate={{ y: [0, -40, 0] }}
-                        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                        className="space-y-4"
-                      >
-                        {[
-                          { status: 'Booking', time: '18 Dec 2023 07:24 PM', color: 'bg-green-500' },
-                          { status: 'Process Done', time: '18 Dec 2023 08:15 PM', color: 'bg-green-500' },
-                          { status: 'Result Added', time: '19 Dec 2023 10:30 AM', color: 'bg-green-500' },
-                          { status: 'Result Check', time: '19 Dec 2023 11:00 AM', color: 'bg-green-500' },
-                          { status: 'Delivered', time: '19 Dec 2023 12:45 PM', color: 'bg-blue-500' }
-                        ].map((item, i) => (
-                          <div key={i} className="flex gap-3 relative">
-                            <div className={`w-3.5 h-3.5 rounded-full ${item.color} flex items-center justify-center shrink-0 mt-0.5 shadow-sm`}>
-                              <div className="w-1 h-1 bg-white rounded-full"/>
+                  </div>
+                }
+              />
+            </div>
+
+            <div className="min-w-[85vw] sm:min-w-[60vw] md:min-w-0 snap-center">
+              <StakeholderCard 
+                title="Receptionist Login"
+                description="Each patient gets a personal profile with 24/7 access to their reports."
+                delay={0.2}
+                content={
+                  <div className="space-y-4">
+                    <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <div className="text-xs font-black text-slate-800">Adarsh Sharma</div>
+                          <div className="text-[8px] text-slate-400 font-medium">Male | 22 yrs</div>
+                        </div>
+                        <motion.div 
+                          animate={{ scale: [1, 1.2, 1] }} 
+                          transition={{ duration: 2, repeat: Infinity }}
+                          className="w-2 h-2 rounded-full bg-green-500" 
+                        />
+                      </div>
+                      <div className="space-y-4 relative max-h-[180px] overflow-hidden">
+                        <motion.div 
+                          animate={{ y: [0, -40, 0] }}
+                          transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                          className="space-y-4"
+                        >
+                          {[
+                            { status: 'Booking', time: '18 Dec 2023 07:24 PM', color: 'bg-green-500' },
+                            { status: 'Process Done', time: '18 Dec 2023 08:15 PM', color: 'bg-green-500' },
+                            { status: 'Result Added', time: '19 Dec 2023 10:30 AM', color: 'bg-green-500' },
+                            { status: 'Result Check', time: '19 Dec 2023 11:00 AM', color: 'bg-green-500' },
+                            { status: 'Delivered', time: '19 Dec 2023 12:45 PM', color: 'bg-blue-500' }
+                          ].map((item, i) => (
+                            <div key={i} className="flex gap-3 relative">
+                              <div className={`w-3.5 h-3.5 rounded-full ${item.color} flex items-center justify-center shrink-0 mt-0.5 shadow-sm`}>
+                                <div className="w-1 h-1 bg-white rounded-full"/>
+                              </div>
+                              <div>
+                                <div className="text-[10px] font-black text-slate-800">{item.status}</div>
+                                <div className="text-[8px] text-slate-400 font-medium">{item.time}</div>
+                              </div>
                             </div>
-                            <div>
-                              <div className="text-[10px] font-black text-slate-800">{item.status}</div>
-                              <div className="text-[8px] text-slate-400 font-medium">{item.time}</div>
-                            </div>
+                          ))}
+                        </motion.div>
+                      </div>
+                    </div>
+                  </div>
+                }
+              />
+            </div>
+
+            <div className="min-w-[85vw] sm:min-w-[60vw] md:min-w-0 snap-center">
+              <StakeholderCard 
+                title="Doctor Login"
+                description="Corporate clients can track and download reports transparently."
+                delay={0.3}
+                content={
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 p-2 bg-white rounded-lg shadow-sm border border-slate-50">
+                      <Shield size={12} className="text-slate-400" />
+                      <div className="text-[10px] font-black text-slate-800">Google Employee List</div>
+                    </div>
+                    <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+                        <table className="w-full">
+                          <thead className="bg-slate-50 border-b border-slate-100">
+                              <tr>
+                                <th className="text-[8px] font-black text-slate-400 text-left p-2 uppercase">Employee</th>
+                                <th className="text-[8px] font-black text-slate-400 text-left p-2 uppercase">Status</th>
+                              </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                              {[
+                                { name: 'Ajay Singh', status: 'Pending', color: 'text-blue-500 bg-blue-50', delay: 0 },
+                                { name: 'Bheem Jain', status: 'Partial', color: 'text-purple-500 bg-purple-50', delay: 1 },
+                                { name: 'Clea Joy', status: 'Completed', color: 'text-green-500 bg-green-50', delay: 2 },
+                                { name: 'Divya Kohli', status: 'Delivered', color: 'text-teal-500 bg-teal-50', delay: 3 }
+                              ].map((emp, i) => (
+                                <motion.tr 
+                                  key={i}
+                                  animate={{ backgroundColor: ["#ffffff", "#f0f9ff", "#ffffff"] }}
+                                  transition={{ duration: 4, repeat: Infinity, delay: emp.delay }}
+                                >
+                                  <td className="p-2 text-[9px] font-black text-slate-700">{emp.name}</td>
+                                  <td className="p-2">
+                                    <span className={`px-2 py-0.5 rounded-full text-[7px] font-black ${emp.color}`}>{emp.status}</span>
+                                  </td>
+                                </motion.tr>
+                              ))}
+                          </tbody>
+                        </table>
+                    </div>
+                    <motion.div 
+                      initial={{ width: "30%" }}
+                      animate={{ width: ["30%", "100%", "30%"] }}
+                      transition={{ duration: 10, repeat: Infinity }}
+                      className="h-1 bg-blue-500 rounded-full" 
+                    />
+                  </div>
+                }
+              />
+            </div>
+
+            <div className="min-w-[85vw] sm:min-w-[60vw] md:min-w-0 snap-center">
+              <StakeholderCard 
+                title="Patient Login"
+                description="Manages doctors, B2B partners, and all your business."
+                delay={0.4}
+                content={
+                  <div className="space-y-4">
+                    <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
+                      <div className="flex justify-between items-center mb-4">
+                          <span className="text-[10px] font-black text-slate-800">Stats</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[8px] font-bold text-slate-400">Daily</span>
+                            <ChevronDown size={10} className="text-slate-300" />
                           </div>
-                        ))}
-                      </motion.div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                          <div className="p-2 bg-slate-50 rounded-lg">
+                            <motion.div 
+                              animate={{ opacity: [1, 0.5, 1] }}
+                              transition={{ duration: 1, repeat: Infinity }}
+                              className="text-xs font-black text-slate-900"
+                            >120</motion.div>
+                            <div className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">Registration</div>
+                          </div>
+                          <div className="p-2 bg-slate-50 rounded-lg">
+                            <motion.div 
+                              animate={{ opacity: [1, 0.5, 1] }}
+                              transition={{ duration: 1.2, repeat: Infinity }}
+                              className="text-xs font-black text-slate-900"
+                            >108</motion.div>
+                            <div className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">Tests</div>
+                          </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                          <div className="p-2 bg-slate-50 rounded-lg border-l-2 border-blue-500">
+                            <div className="text-xs font-black text-slate-900">₹7,320</div>
+                            <div className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">Billing</div>
+                          </div>
+                          <div className="p-2 bg-slate-50 rounded-lg border-l-2 border-green-500">
+                            <div className="text-xs font-black text-slate-900">₹1,320</div>
+                            <div className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">Paid</div>
+                          </div>
+                      </div>
+                    </div>
+                    <div className="flex items-end justify-between h-12 gap-1 px-2">
+                      {[30, 60, 45, 90, 65, 80, 40].map((h, i) => (
+                        <motion.div 
+                          key={i} 
+                          initial={{ height: 0 }}
+                          animate={{ height: [`${h}%`, `${h+10}%`, `${h}%`] }}
+                          transition={{ duration: 2, repeat: Infinity, delay: i * 0.1 }}
+                          className="flex-1 bg-blue-500 rounded-t-sm" 
+                        />
+                      ))}
                     </div>
                   </div>
-                </div>
-              }
-            />
+                }
+              />
+            </div>
 
-
-            <StakeholderCard 
-              title="Doctor Login"
-              description="Corporate clients can track and download reports transparently."
-              delay={0.3}
-              content={
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 p-2 bg-white rounded-lg shadow-sm border border-slate-50">
-                    <Shield size={12} className="text-slate-400" />
-                    <div className="text-[10px] font-black text-slate-800">Google Employee List</div>
-                  </div>
-                  <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
-                     <table className="w-full">
-                        <thead className="bg-slate-50 border-b border-slate-100">
-                           <tr>
-                              <th className="text-[8px] font-black text-slate-400 text-left p-2 uppercase">Employee</th>
-                              <th className="text-[8px] font-black text-slate-400 text-left p-2 uppercase">Status</th>
-                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                           {[
-                             { name: 'Ajay Singh', status: 'Pending', color: 'text-blue-500 bg-blue-50', delay: 0 },
-                             { name: 'Bheem Jain', status: 'Partial', color: 'text-purple-500 bg-purple-50', delay: 1 },
-                             { name: 'Clea Joy', status: 'Completed', color: 'text-green-500 bg-green-50', delay: 2 },
-                             { name: 'Divya Kohli', status: 'Delivered', color: 'text-teal-500 bg-teal-50', delay: 3 }
-                           ].map((emp, i) => (
-                             <motion.tr 
-                               key={i}
-                               animate={{ backgroundColor: ["#ffffff", "#f0f9ff", "#ffffff"] }}
-                               transition={{ duration: 4, repeat: Infinity, delay: emp.delay }}
-                             >
-                               <td className="p-2 text-[9px] font-black text-slate-700">{emp.name}</td>
-                               <td className="p-2">
-                                 <span className={`px-2 py-0.5 rounded-full text-[7px] font-black ${emp.color}`}>{emp.status}</span>
-                               </td>
-                             </motion.tr>
-                           ))}
-                        </tbody>
-                     </table>
-                  </div>
-                  <motion.div 
-                    initial={{ width: "30%" }}
-                    animate={{ width: ["30%", "100%", "30%"] }}
-                    transition={{ duration: 10, repeat: Infinity }}
-                    className="h-1 bg-blue-500 rounded-full" 
-                  />
-                </div>
-              }
-            />
-
-
-            <StakeholderCard 
-              title="Patient Login"
-              description="Manages doctors, B2B partners, and all your business."
-              delay={0.4}
-              content={
-                <div className="space-y-4">
-                  <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm">
-                    <div className="flex justify-between items-center mb-4">
-                       <span className="text-[10px] font-black text-slate-800">Stats</span>
-                       <div className="flex items-center gap-1">
-                          <span className="text-[8px] font-bold text-slate-400">Daily</span>
-                          <ChevronDown size={10} className="text-slate-300" />
-                       </div>
+            <div className="min-w-[85vw] sm:min-w-[60vw] md:min-w-0 snap-center">
+              <StakeholderCard 
+                title="Pharmacy Login"
+                description="Inventory control, digital prescription management, and settlement tracking."
+                delay={0.5}
+                content={
+                  <div className="space-y-4">
+                    <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-2">
+                          <Store size={12} className="text-orange-200" />
+                      </div>
+                      <div className="text-[10px] font-black text-slate-800 mb-3 uppercase tracking-tighter">Live Orders</div>
+                      <div className="space-y-2">
+                          {[
+                            { id: '#OR-52', amount: '₹450', status: 'Preparing' },
+                            { id: '#OR-51', amount: '₹1,200', status: 'Ready' }
+                          ].map((order, i) => (
+                            <div key={i} className="flex justify-between items-center p-2 bg-orange-50/50 rounded-lg border border-orange-100/50">
+                              <span className="text-[9px] font-black text-slate-700">{order.id}</span>
+                              <span className="text-[9px] font-black text-orange-600">{order.amount}</span>
+                              <motion.span 
+                                animate={{ opacity: [1, 0.6, 1] }}
+                                transition={{ duration: 1.5, repeat: Infinity }}
+                                className="text-[7px] font-black uppercase text-orange-500"
+                              >{order.status}</motion.span>
+                            </div>
+                          ))}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                       <div className="p-2 bg-slate-50 rounded-lg">
-                          <motion.div 
-                            animate={{ opacity: [1, 0.5, 1] }}
-                            transition={{ duration: 1, repeat: Infinity }}
-                            className="text-xs font-black text-slate-900"
-                          >120</motion.div>
-                          <div className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">Registration</div>
-                       </div>
-                       <div className="p-2 bg-slate-50 rounded-lg">
-                          <motion.div 
-                            animate={{ opacity: [1, 0.5, 1] }}
-                            transition={{ duration: 1.2, repeat: Infinity }}
-                            className="text-xs font-black text-slate-900"
-                          >108</motion.div>
-                          <div className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">Tests</div>
-                       </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="p-3 bg-white rounded-xl border border-slate-100">
+                          <div className="text-[14px] font-black text-slate-900">₹45,200</div>
+                          <div className="text-[8px] text-slate-400 font-bold uppercase">Settlements</div>
+                        </div>
+                        <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                          <div className="text-[14px] font-black text-emerald-600">32</div>
+                          <div className="text-[8px] text-emerald-500 font-bold uppercase">New Presc.</div>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                       <div className="p-2 bg-slate-50 rounded-lg border-l-2 border-blue-500">
-                          <div className="text-xs font-black text-slate-900">₹7,320</div>
-                          <div className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">Billing</div>
-                       </div>
-                       <div className="p-2 bg-slate-50 rounded-lg border-l-2 border-green-500">
-                          <div className="text-xs font-black text-slate-900">₹1,320</div>
-                          <div className="text-[7px] text-slate-400 font-bold uppercase tracking-wider">Paid</div>
-                       </div>
-                    </div>
+                    <motion.div 
+                      animate={{ scaleX: [0.4, 1, 0.4] }}
+                      transition={{ duration: 5, repeat: Infinity }}
+                      className="h-1 bg-orange-500 rounded-full origin-left" 
+                    />
                   </div>
-                  <div className="flex items-end justify-between h-12 gap-1 px-2">
-                    {[30, 60, 45, 90, 65, 80, 40].map((h, i) => (
-                      <motion.div 
-                        key={i} 
-                        initial={{ height: 0 }}
-                        animate={{ height: [`${h}%`, `${h+10}%`, `${h}%`] }}
-                        transition={{ duration: 2, repeat: Infinity, delay: i * 0.1 }}
-                        className="flex-1 bg-blue-500 rounded-t-sm" 
-                      />
-                    ))}
-                  </div>
-                </div>
-              }
-            />
-
-            <StakeholderCard 
-              title="Pharmacy Login"
-              description="Manage medicine orders, inventory, and track settlements."
-              delay={0.5}
-              content={
-                <div className="space-y-4">
-                  <div className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-2">
-                       <Store size={12} className="text-orange-200" />
-                    </div>
-                    <div className="text-[10px] font-black text-slate-800 mb-3 uppercase tracking-tighter">Live Orders</div>
-                    <div className="space-y-2">
-                       {[
-                         { id: '#OR-52', amount: '₹450', status: 'Preparing' },
-                         { id: '#OR-51', amount: '₹1,200', status: 'Ready' }
-                       ].map((order, i) => (
-                         <div key={i} className="flex justify-between items-center p-2 bg-orange-50/50 rounded-lg border border-orange-100/50">
-                           <span className="text-[9px] font-black text-slate-700">{order.id}</span>
-                           <span className="text-[9px] font-black text-orange-600">{order.amount}</span>
-                           <motion.span 
-                             animate={{ opacity: [1, 0.6, 1] }}
-                             transition={{ duration: 1.5, repeat: Infinity }}
-                             className="text-[7px] font-black uppercase text-orange-500"
-                           >{order.status}</motion.span>
-                         </div>
-                       ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                     <div className="p-3 bg-white rounded-xl border border-slate-100">
-                        <div className="text-[14px] font-black text-slate-900">₹45,200</div>
-                        <div className="text-[8px] text-slate-400 font-bold uppercase">Settlements</div>
-                     </div>
-                     <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                        <div className="text-[14px] font-black text-emerald-600">32</div>
-                        <div className="text-[8px] text-emerald-500 font-bold uppercase">New Presc.</div>
-                     </div>
-                  </div>
-                  <motion.div 
-                    animate={{ scaleX: [0.4, 1, 0.4] }}
-                    transition={{ duration: 5, repeat: Infinity }}
-                    className="h-1 bg-orange-500 rounded-full origin-left" 
-                  />
-                </div>
-              }
-            />
-
+                }
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -761,15 +770,15 @@ const LandingPage = () => {
                 <span className="text-sm font-bold text-orange-700 uppercase tracking-wider">Pharmacy Partnership</span>
               </div>
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 leading-[1.1]">
-                Grow Your Pharmacy Business with <span className="text-orange-600">Oviaan</span>
+                Streamline Your Operations with <span className="text-orange-600">Oviaan Management</span>
               </h2>
               <div className="space-y-4">
                 {[
-                  "Get more orders from patients in your locality",
-                  "Digital inventory management for your store",
-                  "Direct integration with doctor prescriptions",
-                  "Automated billing and commission tracking",
-                  "Real-time analytics for your sales growth"
+                  "Manage digital prescriptions and internal inventory",
+                  "Digital stock control and tracking for your store",
+                  "Secure audit logs for doctor-led prescriptions",
+                  "Automated SaaS billing and administrative reporting",
+                  "Real-time analytics for operational efficiency"
                 ].map((item, idx) => (
                   <div key={idx} className="flex items-center gap-3">
                     <div className="w-6 h-6 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center shrink-0">

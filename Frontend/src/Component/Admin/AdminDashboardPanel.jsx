@@ -10,6 +10,8 @@ import {
 } from 'recharts';
 import api from '../../services/api';
 import { billingApi, analyticsApi } from '../../services/api';
+import { StatCardSkeleton, ChartSkeleton, TableSkeleton } from '../../components/Shared/DashboardSkeletons';
+import Skeleton from '../../components/Shared/Skeleton';
 import NewAppointmentForm from './NewAppointmentForm';
 import HorizontalAppointmentForm from './HorizontalAppointmentForm';
 
@@ -271,33 +273,40 @@ const AdminDashboardPanel = ({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.2 }}
       >
-        {(filteredStats || []).length > 0 ? (filteredStats || []).map((stat, index) => (
-          <motion.div
-            key={stat.name}
-            className={`flex items-center p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl transition-all duration-300 hover:shadow-3xl dark:hover:shadow-gray-700/50 border border-gray-100 dark:border-gray-700 ${stat.link ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700' : ''} min-h-[100px]`}
-            onClick={() => stat.link && setActiveTab?.(stat.link)}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 * index }}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
+        {(filteredStats || []).length > 0 ? (filteredStats || []).map((stat, index) => {
+          const isLoading = stat.count === "Loading...";
+          return (
             <motion.div
-              className={`p-3 sm:p-4 rounded-xl ${stat.bg || 'bg-gray-200'} shadow-md flex-shrink-0`}
-              whileHover={{ rotate: 5 }}
+              key={stat.name}
+              className={`flex items-center p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl transition-all duration-300 hover:shadow-3xl dark:hover:shadow-gray-700/50 border border-gray-100 dark:border-gray-700 ${stat.link ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700' : ''} min-h-[100px]`}
+              onClick={() => stat.link && setActiveTab?.(stat.link)}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 * index }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
-              {stat.icon && <stat.icon className={`w-6 h-6 sm:w-7 sm:h-7 ${stat.color || 'text-gray-500'}`} />}
+              <motion.div
+                className={`p-3 sm:p-4 rounded-xl ${stat.bg || 'bg-gray-200'} shadow-md flex-shrink-0`}
+                whileHover={{ rotate: 5 }}
+              >
+                {stat.icon && <stat.icon className={`w-6 h-6 sm:w-7 sm:h-7 ${stat.color || 'text-gray-500'}`} />}
+              </motion.div>
+              <div className="ml-3 sm:ml-4 flex-1 min-w-0">
+                <p className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 uppercase leading-tight">{stat.name}</p>
+                {isLoading ? (
+                  <Skeleton width="60%" height="24px" className="mt-1" />
+                ) : (
+                  <p className="text-xl sm:text-2xl font-black text-gray-900 dark:text-gray-50 mt-1 break-words overflow-hidden">
+                    <span className="inline-block">{stat.prefix || ''}</span>
+                    <span className="inline-block">{(stat.count || 0).toLocaleString()}</span>
+                  </p>
+                )}
+              </div>
             </motion.div>
-            <div className="ml-3 sm:ml-4 flex-1 min-w-0">
-              <p className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 uppercase leading-tight">{stat.name}</p>
-              <p className="text-xl sm:text-2xl font-black text-gray-900 dark:text-gray-50 mt-1 break-words overflow-hidden">
-                <span className="inline-block">{stat.prefix || ''}</span>
-                <span className="inline-block">{(stat.count || 0).toLocaleString()}</span>
-              </p>
-            </div>
-          </motion.div>
-        )) : (
-          <p className="text-gray-400 text-center col-span-full py-10">No stats available</p>
+          );
+        }) : (
+          [1, 2, 3, 4, 5].map(i => <StatCardSkeleton key={i} />)
         )}
       </motion.div>
 
@@ -358,7 +367,7 @@ const AdminDashboardPanel = ({
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-center text-gray-400 py-20">No trends data available</p>
+              <ChartSkeleton />
             )}
           </div>
         </motion.div>
@@ -412,7 +421,9 @@ const AdminDashboardPanel = ({
                 </div>
               </>
             ) : (
-              <p className="text-center text-gray-400 py-20 w-full">No revenue data available</p>
+              <div className="w-full flex items-center justify-center">
+                <Skeleton circle width="160px" height="160px" />
+              </div>
             )}
           </div>
         </motion.div>
@@ -447,7 +458,7 @@ const AdminDashboardPanel = ({
                 </RechartsBarChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-center text-gray-400 py-20">No monthly income/expenses data available</p>
+              <ChartSkeleton />
             )}
           </div>
         </motion.div>
@@ -536,9 +547,10 @@ const AdminDashboardPanel = ({
                         </span>
                       </td>
                       <td className="py-4 text-right">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter ${
-                          appt.status === 'Confirmed' ? 'bg-green-100 text-green-700' : 
-                          appt.status === 'Cancelled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${
+                          appt.status === 'Completed' ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
+                          appt.status === 'Pending' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' :
+                          'bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400'
                         }`}>
                           {appt.status}
                         </span>
@@ -547,7 +559,9 @@ const AdminDashboardPanel = ({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" className="py-10 text-center text-gray-400 italic text-sm">No recent activity detected</td>
+                    <td colSpan="4" className="p-0">
+                      <TableSkeleton rows={5} cols={4} />
+                    </td>
                   </tr>
                 )}
               </tbody>

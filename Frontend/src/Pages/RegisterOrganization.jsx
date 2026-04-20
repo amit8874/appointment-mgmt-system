@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -43,6 +43,10 @@ const RegisterOrganization = () => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [step, setStep] = useState('form'); // 'form' or 'otp'
+  const [otp, setOtp] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -66,6 +70,18 @@ const RegisterOrganization = () => {
     ? formData.ownerPassword === formData.confirmPassword 
     : null;
 
+  useEffect(() => {
+    let interval = null;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    } else {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!agreed) {
@@ -87,28 +103,84 @@ const RegisterOrganization = () => {
 
     setLoading(true);
     try {
-      // Mapping to backend expected fields
       const registrationData = {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         ownerName: formData.ownerName,
-        ownerEmail: formData.ownerEmail || formData.email, // Use org email if owner email is blank
+        ownerEmail: formData.ownerEmail || formData.email,
         ownerPassword: formData.ownerPassword,
         subdomain: formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-        // additional info
         patientCount: formData.patientCount,
         previousSoftware: formData.previousSoftware
       };
       
       const response = await organizationApi.register(registrationData);
-      localStorage.setItem('tenantSlug', response.organization.slug);
       
-      // Navigate to plan selection or success page
-      navigate('/choose-plan', { state: { organization: response.organization } });
+      if (response.verificationRequired) {
+        setStep('otp');
+        setResendTimer(20); // Activate resend after 20 seconds
+      } else {
+        // Fallback for if OTP is disabled or already handled
+        localStorage.setItem('tenantSlug', response.organization.slug);
+        navigate('/choose-plan', { state: { organization: response.organization } });
+      }
     } catch (err) {
       console.error('Registration error:', err);
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpVerify = async (e) => {
+    e.preventDefault();
+    if (otp.length !== 6) {
+      setError('Please enter a valid 6-digit OTP');
+      return;
+    }
+
+    setIsVerifying(true);
+    setError('');
+    try {
+      const response = await organizationApi.verifyOTP({
+        email: formData.ownerEmail || formData.email,
+        otp
+      });
+
+      // Verification success
+      const { token, organization } = response;
+      
+      // Store auth data
+      localStorage.setItem('token', token);
+      localStorage.setItem('tenantSlug', organization.slug);
+      localStorage.setItem('userData', JSON.stringify(response.user));
+      
+      // Navigate to dashboard
+      navigate('/organization-dashboard');
+    } catch (err) {
+      console.error('OTP verification error:', err);
+      setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0) return;
+    
+    setLoading(true);
+    setError('');
+    try {
+      await organizationApi.resendOTP({
+        email: formData.ownerEmail || formData.email
+      });
+      setResendTimer(20);
+      setOtp('');
+      // Show success message briefly?
+    } catch (err) {
+      console.error('Resend OTP error:', err);
+      setError(err.response?.data?.message || 'Failed to resend OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -135,152 +207,226 @@ const RegisterOrganization = () => {
              <p className="text-slate-400 font-medium text-sm mt-1">Start streamlining your practice today.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <InputField
-              icon={Building2}
-              placeholder="Lab / Clinic Name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-            />
-
-            <InputField
-              icon={User}
-              placeholder="Owner Name"
-              name="ownerName"
-              value={formData.ownerName}
-              onChange={handleChange}
-              required
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {step === 'form' ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
               <InputField
-                icon={Mail}
-                type="email"
-                placeholder="Email Id"
-                name="email"
-                value={formData.email}
+                icon={Building2}
+                placeholder="Lab / Clinic Name"
+                name="name"
+                value={formData.name}
                 onChange={handleChange}
                 required
               />
+
               <InputField
-                icon={Phone}
-                placeholder="Phone number"
-                name="phone"
-                value={formData.phone}
+                icon={User}
+                placeholder="Owner Name"
+                name="ownerName"
+                value={formData.ownerName}
                 onChange={handleChange}
                 required
               />
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InputField
+                  icon={Mail}
+                  type="email"
+                  placeholder="Email Id"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                />
+                <InputField
+                  icon={Phone}
+                  placeholder="Phone number"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InputField
+                  icon={Lock}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  name="ownerPassword"
+                  value={formData.ownerPassword}
+                  onChange={handleChange}
+                  required
+                  rightElement={
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  }
+                />
+                <InputField
+                  icon={Lock}
+                  type="password"
+                  placeholder="Confirm Password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  rightElement={isPasswordMatch !== null && (
+                    <div className={`flex items-center gap-1.5 text-[10px] font-bold ${isPasswordMatch ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {isPasswordMatch ? (
+                        <><Check size={12} /> Match</>
+                      ) : (
+                        <><X size={12} /> Mismatch</>
+                      )}
+                    </div>
+                  )}
+                />
+              </div>
+
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                  <TrendingUp size={18} />
+                </div>
+                <select
+                  name="patientCount"
+                  value={formData.patientCount}
+                  onChange={handleChange}
+                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium appearance-none"
+                  required
+                >
+                  <option value="" disabled>Patient count per day</option>
+                  <option value="0-10">0 - 10</option>
+                  <option value="11-30">11 - 30</option>
+                  <option value="31-50">31 - 50</option>
+                  <option value="51+">51+</option>
+                </select>
+              </div>
+
               <InputField
-                icon={Lock}
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                name="ownerPassword"
-                value={formData.ownerPassword}
+                icon={Monitor}
+                placeholder="Previous Software (Optional)"
+                name="previousSoftware"
+                value={formData.previousSoftware}
                 onChange={handleChange}
-                required
-                rightElement={
+              />
+
+              <AnimatePresence>
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="text-xs font-bold text-red-500 bg-red-50 p-3 rounded-xl border border-red-100"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="flex items-start gap-3 py-2 px-1">
+                <input 
+                  type="checkbox" 
+                  id="terms" 
+                  checked={agreed} 
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                />
+                <label htmlFor="terms" className="text-[11px] font-bold text-slate-500 leading-relaxed cursor-pointer select-none">
+                  I agree to the <Link to="/terms-conditions" target="_blank" className="text-blue-600 hover:underline">Terms & Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</Link>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70 flex items-center justify-center gap-2 group"
+              >
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    Register & Start Trial
+                    <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </button>
+            </form>
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              <div className="text-center">
+                <p className="text-slate-600 font-medium mb-2">We've sent a 6-digit code to your WhatsApp</p>
+                <p className="text-slate-400 text-xs font-bold">Please enter the code to verify your account</p>
+              </div>
+
+              <form onSubmit={handleOtpVerify} className="space-y-6">
+                <div className="flex justify-center">
+                  <input
+                    type="text"
+                    maxLength="6"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    className="w-full max-w-[200px] py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-center text-3xl font-black tracking-[0.5em] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    placeholder="000000"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <AnimatePresence>
+                  {error && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="text-xs font-bold text-red-500 bg-red-50 p-3 rounded-xl border border-red-100 text-center"
+                    >
+                      {error}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="space-y-3">
+                  <button
+                    type="submit"
+                    disabled={isVerifying || otp.length !== 6}
+                    className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70 flex items-center justify-center gap-2"
+                  >
+                    {isVerifying ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      'Verify & Start Dashboard'
+                    )}
+                  </button>
+
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="text-slate-400 hover:text-slate-600 transition-colors"
+                    onClick={handleResendOtp}
+                    disabled={resendTimer > 0 || loading}
+                    className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all disabled:opacity-50 text-sm"
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {resendTimer > 0 
+                      ? `Resend OTP in ${resendTimer}s` 
+                      : 'Resend OTP via WhatsApp'}
                   </button>
-                }
-              />
-              <InputField
-                icon={Lock}
-                type="password"
-                placeholder="Confirm Password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                required
-                rightElement={isPasswordMatch !== null && (
-                  <div className={`flex items-center gap-1.5 text-[10px] font-bold ${isPasswordMatch ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {isPasswordMatch ? (
-                      <><Check size={12} /> Match</>
-                    ) : (
-                      <><X size={12} /> Mismatch</>
-                    )}
-                  </div>
-                )}
-              />
-            </div>
+                </div>
+              </form>
 
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
-                <TrendingUp size={18} />
-              </div>
-              <select
-                name="patientCount"
-                value={formData.patientCount}
-                onChange={handleChange}
-                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium appearance-none"
-                required
+              <button 
+                onClick={() => setStep('form')}
+                className="w-full text-slate-400 text-xs font-bold hover:text-blue-500 transition-colors"
+                disabled={isVerifying}
               >
-                <option value="" disabled>Patient count per day</option>
-                <option value="0-10">0 - 10</option>
-                <option value="11-30">11 - 30</option>
-                <option value="31-50">31 - 50</option>
-                <option value="51+">51+</option>
-              </select>
-            </div>
-
-            <InputField
-              icon={Monitor}
-              placeholder="Previous Software (Optional)"
-              name="previousSoftware"
-              value={formData.previousSoftware}
-              onChange={handleChange}
-            />
-
-            <AnimatePresence>
-              {error && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="text-xs font-bold text-red-500 bg-red-50 p-3 rounded-xl border border-red-100"
-                >
-                  {error}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="flex items-start gap-3 py-2 px-1">
-              <input 
-                type="checkbox" 
-                id="terms" 
-                checked={agreed} 
-                onChange={(e) => setAgreed(e.target.checked)}
-                className="mt-1 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
-              />
-              <label htmlFor="terms" className="text-[11px] font-bold text-slate-500 leading-relaxed cursor-pointer select-none">
-                I agree to the <Link to="/terms-conditions" target="_blank" className="text-blue-600 hover:underline">Terms & Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</Link>
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70 flex items-center justify-center gap-2 group"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  Register & Start Trial
-                  <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </button>
-          </form>
+                ← Back to registration
+              </button>
+            </motion.div>
+          )}
 
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <p className="text-slate-500 text-sm font-medium">

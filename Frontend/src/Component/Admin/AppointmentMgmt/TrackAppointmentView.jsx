@@ -20,9 +20,11 @@ import {
   MessageSquare,
   Sparkles,
   Zap,
-  FileText
+  FileText,
+  Users
 } from 'lucide-react';
 import { format, isSameDay, parse, addMinutes } from 'date-fns';
+import BulkWhatsAppModal from '../../../components/common/BulkWhatsAppModal';
 import { getSocketUrl } from '../../../services/api';
 import api from '../../../services/api';
 import { io } from 'socket.io-client';
@@ -54,6 +56,9 @@ const TrackAppointmentView = () => {
   // AI Summary State
   const [aiSummaryData, setAiSummaryData] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+
+  // Bulk Message State
+  const [bulkWhatsappModalOpen, setBulkWhatsappModalOpen] = useState(false);
 
   const fetchTodayAppointments = async () => {
     try {
@@ -378,6 +383,13 @@ const TrackAppointmentView = () => {
               title="Refresh"
             >
               <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            </button>
+            <button
+              onClick={() => setBulkWhatsappModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-black hover:bg-slate-800 transition-all shadow-lg active:scale-95"
+            >
+              <Users size={16} />
+              <span>Bulk Message</span>
             </button>
           </div>
         </div>
@@ -798,6 +810,18 @@ const TrackAppointmentView = () => {
           </div>
         </div>
       )}
+
+      {/* Bulk WhatsApp Modal */}
+      <BulkWhatsAppModal
+        isOpen={bulkWhatsappModalOpen}
+        onClose={() => setBulkWhatsappModalOpen(false)}
+        patients={appointments.map(app => ({
+          _id: app._id || app.id,
+          name: app.patientName,
+          patientId: app.patientId,
+          phone: app.patientPhone
+        }))}
+      />
     </div>
   );
 };

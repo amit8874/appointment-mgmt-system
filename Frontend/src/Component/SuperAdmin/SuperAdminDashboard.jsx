@@ -38,6 +38,7 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import SuperAdminSidebar from './SuperAdminSidebar.jsx';
+import { SuperAdminDashboardSkeleton } from '../../components/Shared/SuperAdminSkeletons';
 
 const SuperAdminDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -89,14 +90,7 @@ const SuperAdminDashboard = () => {
   const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-500 font-medium animate-pulse">Initializing Dashboard...</p>
-        </div>
-      </div>
-    );
+    return <SuperAdminDashboardSkeleton />;
   }
 
   if (error) {

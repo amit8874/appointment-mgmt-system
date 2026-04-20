@@ -25,6 +25,8 @@ import {
   Briefcase
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { StatCardSkeleton } from '../../components/Shared/DashboardSkeletons';
+import { DoctorCardSkeleton } from '../../components/Shared/DoctorSkeletons';
 
 const Doctors = () => {
   const [organizations, setOrganizations] = useState([]);
@@ -363,7 +365,9 @@ const Doctors = () => {
               exit={{ opacity: 0, y: -20 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
             >
-              {filteredOrgs.map(org => (
+              {loading ? (
+                [1, 2, 3, 4, 5, 6].map(i => <StatCardSkeleton key={i} />)
+              ) : filteredOrgs.map(org => (
                 <div 
                   key={org._id}
                   onClick={() => handleSelectOrg(org)}
@@ -416,9 +420,8 @@ const Doctors = () => {
               className="space-y-6"
             >
               {doctorsLoading ? (
-                <div className="py-20 text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-                  <p className="mt-4 text-slate-500 font-bold">Fetching organization roster...</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[1, 2, 3, 4, 5, 6].map(i => <DoctorCardSkeleton key={i} />)}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

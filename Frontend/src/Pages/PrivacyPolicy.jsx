@@ -41,11 +41,11 @@ const PrivacyPolicy = () => {
       title: "3. Data Sharing and Disclosure",
       content: (
         <div className="space-y-3 text-slate-600">
-          <p>We do not sell your personal data. We only share information with:</p>
+          <p>Oviaan acts as a technology intermediary and does not sell your personal data. We only share information with:</p>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong>Authorized Staff:</strong> Doctors and receptionists within your specific clinic.</li>
-            <li><strong>Service Providers:</strong> Secure partners like WhatsApp API for messaging and Payment Gateways for transactions.</li>
-            <li><strong>Legal Authorities:</strong> Only when required by law or to protect safety.</li>
+            <li><strong>Your Healthcare Provider:</strong> The specific clinic, doctor, or pharmacy where you are receiving care has full control over their patient database.</li>
+            <li><strong>Infrastructure Partners:</strong> Secure infrastructure providers (e.g., WhatsApp API for notifications and Payment Gateways for SaaS subscription billing).</li>
+            <li><strong>Legal Authorities:</strong> Only when strictly required by law or to protect life and safety.</li>
           </ul>
         </div>
       )
@@ -94,8 +94,8 @@ const PrivacyPolicy = () => {
           </motion.div>
           <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-6">Privacy Policy</h1>
           <p className="text-lg text-slate-500 font-medium max-w-2xl mx-auto">
-            At Oviaan Professional, we prioritize the privacy and security of patient data. 
-            This policy outlines how we handle healthcare information with the highest clinical standards.
+            At Oviaan Professional, we act as a secure Data Processor for healthcare providers and clinical entities. 
+            This policy outlines how we handle healthcare information with the highest clinical and legal standards.
           </p>
         </div>
       </section>

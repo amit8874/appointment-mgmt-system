@@ -4,7 +4,7 @@ import {
   Search, MapPin, Star, Clock, Heart, 
   Filter, ChevronDown, ChevronRight, Stethoscope, 
   Award, Languages, Calendar, Phone,
-  ThumbsUp, Smartphone, CheckCircle, Shield, X
+  ThumbsUp, Smartphone, CheckCircle, Shield, X, Sparkles
 } from "lucide-react";
 import { motion } from "framer-motion";
 import api from "../services/api";
@@ -12,6 +12,8 @@ import { useAuth } from "../context/AuthContext";
 import PublicHeader from "../components/Shared/PublicHeader";
 import PublicFooter from "../components/Shared/PublicFooter";
 import { ChevronLeft, Loader2 } from "lucide-react";
+import { DoctorCardSkeleton, SlotSelectorSkeleton, ReviewSkeleton } from "../components/Shared/DoctorSkeletons";
+import Skeleton from "../components/Shared/Skeleton";
 
 const SlotSelector = ({ doctorId, onSelect }) => {
   const [availabilitySummary, setAvailabilitySummary] = useState([]);
@@ -68,9 +70,7 @@ const SlotSelector = ({ doctorId, onSelect }) => {
   };
 
   if (availabilitySummary.length === 0) return (
-    <div className="py-8 flex justify-center">
-      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-    </div>
+    <SlotSelectorSkeleton />
   );
 
   return (
@@ -120,9 +120,7 @@ const SlotSelector = ({ doctorId, onSelect }) => {
       {/* Slots by Period */}
       <div className="space-y-8">
         {loadingSlots ? (
-          <div className="py-12 flex justify-center">
-             <div className="w-8 h-8 border-4 border-[#14bef0] border-t-transparent rounded-full animate-spin"></div>
-          </div>
+          <SlotSelectorSkeleton />
         ) : (
           <>
             {categorizedSlots.morning.length === 0 && categorizedSlots.afternoon.length === 0 && categorizedSlots.evening.length === 0 ? (
@@ -318,9 +316,8 @@ const PatientStoriesModal = ({ doctor, isOpen, onClose }) => {
           <div className="flex-[1.5] overflow-y-auto p-8 border-r border-slate-100 bg-slate-50/30">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-8">Existing Stories</h3>
             {loading ? (
-              <div className="py-20 flex flex-col items-center justify-center gap-3">
-                <div className="w-10 h-10 border-4 border-[#14bef0] border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Loading Stories...</span>
+              <div className="space-y-6">
+                {[1, 2, 3].map(i => <ReviewSkeleton key={i} />)}
               </div>
             ) : reviews.length === 0 ? (
               <div className="py-20 text-center border-2 border-dashed border-slate-100 bg-white">
@@ -716,7 +713,10 @@ const FindDoctors = () => {
       <PublicHeader />
       
       {/* 1. White Search Row */}
-      <div className="bg-white border-b border-slate-200 pt-32">
+      <div className="bg-white border-b border-slate-200 pt-32 relative">
+        {/* Subtle top separator border */}
+        <div className="absolute top-24 left-0 right-0 h-px bg-slate-200/50"></div>
+        
         <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row gap-0 items-center">
             <div className="flex-1 w-full flex items-center px-4 py-2 border-r border-slate-200 relative location-container">
                 <MapPin size={16} className="text-slate-400 mr-2" />
@@ -767,10 +767,10 @@ const FindDoctors = () => {
                     </button>
 
                     {isFetchingLocations ? (
-                      <div className="px-4 py-6 flex flex-col items-center justify-center gap-2">
-                         <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <>
+                         <Skeleton className="w-16 h-3 rounded bg-slate-100" />
                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Searching...</span>
-                      </div>
+                      </>
                     ) : locationSuggestions.length > 0 ? (
                       locationSuggestions.map((suggestion, idx) => (
                         <button
@@ -868,27 +868,42 @@ const FindDoctors = () => {
             {loading ? (
               <div className="space-y-10">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="flex gap-8 animate-pulse">
-                     <div className="w-40 h-40 bg-slate-100 rounded-full"></div>
-                     <div className="flex-1 space-y-4 pt-4">
-                        <div className="h-6 bg-slate-100 w-1/3 rounded"></div>
-                        <div className="h-4 bg-slate-100 w-1/4 rounded"></div>
-                        <div className="h-4 bg-slate-100 w-2/3 rounded"></div>
-                     </div>
-                  </div>
+                  <DoctorCardSkeleton key={i} />
                 ))}
               </div>
             ) : filteredDoctors.length === 0 ? (
-              <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                 <h2 className="text-lg font-bold text-slate-800">No matching doctors found for selected filters</h2>
-                 <p className="text-slate-400 mt-2">Try clearing some filters or searching for something else</p>
-                 <button 
-                  onClick={() => setFilters({ gender: "Any", stories: "Any", experience: "Any", sortBy: "Relevance" })}
-                  className="mt-4 text-blue-600 font-bold text-sm hover:underline"
-                 >
-                  Clear all filters
-                 </button>
-              </div>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-24 bg-white rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/20 px-10 relative overflow-hidden"
+              >
+                 {/* Decorative background element */}
+                 <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-50/50 rounded-full blur-3xl"></div>
+                 <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-indigo-50/50 rounded-full blur-3xl"></div>
+
+                 <div className="relative z-10 flex flex-col items-center">
+                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-8 border border-slate-100 shadow-inner">
+                       <Search size={32} className="text-slate-300" strokeWidth={1.5} />
+                    </div>
+                    
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-4">0 doctors available</h2>
+                    
+                    <div className="w-16 h-1 bg-blue-500 rounded-full mb-8"></div>
+
+                    <p className="text-lg text-slate-500 max-w-lg mx-auto font-medium leading-relaxed mb-10">
+                      Currently, we are expanding our network. Doctors will be available in your area soon. 
+                      <span className="block mt-2 text-slate-400 text-base">Meanwhile, you can explore other locations or contact nearby clinics.</span>
+                    </p>
+
+                    <button 
+                      onClick={() => setFilters({ gender: "Any", stories: "Any", experience: "Any", sortBy: "Relevance" })}
+                      className="px-10 py-4 bg-[#28328c] text-white font-black text-sm uppercase tracking-[0.2em] rounded-xl hover:bg-[#1e266d] transition-all shadow-lg shadow-blue-900/20 active:scale-95 flex items-center gap-3"
+                    >
+                      <Filter size={16} />
+                      Clear all filters
+                    </button>
+                 </div>
+              </motion.div>
             ) : (
               filteredDoctors.map((doctor) => (
                 <div key={doctor._id} className="group/card animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1049,6 +1064,84 @@ const FindDoctors = () => {
         </aside>
 
       </div>
+
+      {/* SEO & Ranking Section */}
+      <section className="bg-slate-50/50 border-t border-slate-100 py-20 px-4">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-16">
+          
+          {/* Real Content Section */}
+          <div className="lg:col-span-2 space-y-10">
+            <div>
+              <h2 className="text-3xl font-black text-slate-900 mb-6 tracking-tight">Book Appointments with Verified Doctors</h2>
+              <div className="space-y-4 text-slate-600 font-medium leading-relaxed">
+                <p>
+                  Oviaan helps you find and book appointments with trusted doctors and clinics near you. 
+                  Search by location, specialization, experience and availability.
+                </p>
+                <p>
+                  Whether you need a general physician, dentist, or specialist, 
+                  you can easily find the right doctor and schedule your visit online.
+                </p>
+              </div>
+            </div>
+
+            {/* Keywords Section */}
+            <div>
+              <h2 className="text-xl font-black text-slate-900 mb-6 tracking-tight">Popular Specialities</h2>
+              <ul className="flex flex-wrap gap-3">
+                {[
+                  "General Physician", "Dentist", "Cardiologist", 
+                  "Dermatologist", "Gynecologist", "Pediatrician", 
+                  "Orthopedist", "Neurologist", "Ophthalmologist"
+                ].map((spec) => (
+                  <li key={spec}>
+                    <Link 
+                      to={`/find-doctors?speciality=${spec}`}
+                      className="px-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-all shadow-sm"
+                    >
+                      {spec}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Internal Links for Ranking */}
+            <div className="pt-6 border-t border-slate-200">
+               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Quick Navigation</h3>
+               <div className="flex flex-wrap gap-6">
+                  <Link to="/" className="text-sm font-bold text-blue-600 hover:underline">Home</Link>
+                  <Link to="/features/scheduling" className="text-sm font-bold text-blue-600 hover:underline">Appointment Scheduling</Link>
+                  <Link to="/features/billing" className="text-sm font-bold text-blue-600 hover:underline">Billing System</Link>
+                  <Link to="/privacy-policy" className="text-sm font-bold text-blue-600 hover:underline">Privacy Policy</Link>
+               </div>
+            </div>
+          </div>
+
+          {/* FAQ Section */}
+          <div className="bg-white p-8 border border-slate-200 shadow-sm rounded-2xl h-fit">
+            <h2 className="text-xl font-black text-slate-900 mb-8 tracking-tight flex items-center gap-2">
+              <Sparkles className="text-blue-500" size={20} />
+              Frequently Asked Questions
+            </h2>
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 mb-2">How to find doctors near me?</h3>
+                <p className="text-sm text-slate-500 font-medium leading-relaxed">You can search by location and specialization on Oviaan to find the best healthcare providers in your vicinity.</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-800 mb-2">Can I book appointments online?</h3>
+                <p className="text-sm text-slate-500 font-medium leading-relaxed">Yes, Oviaan allows you to instantly book and manage appointments with clinics and doctors directly through our platform.</p>
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-800 mb-2">Are the doctor details verified?</h3>
+                <p className="text-sm text-slate-500 font-medium leading-relaxed">Absolutely. Every doctor and clinic profile on Oviaan undergoes a verification process to ensure transparency and trust.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
 
       <PublicFooter />
 

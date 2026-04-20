@@ -21,6 +21,8 @@ import { organizationApi, analyticsApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import TrialNotification from './TrialNotification';
 import BurstEffect from '../BurstEffect';
+import { StatCardSkeleton } from '../../components/Shared/DashboardSkeletons';
+import Skeleton from '../../components/Shared/Skeleton';
 
 const OrganizationDashboard = () => {
   const { user, logout } = useAuth();
@@ -69,11 +71,47 @@ const OrganizationDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-indigo-400 font-medium animate-pulse">Syncing Clinic Data...</p>
-        </div>
+      <div className="min-h-screen bg-[#0B0F19] text-slate-200 animate-pulse">
+        <header className="sticky top-0 z-50 bg-[#0B0F19]/60 backdrop-blur-xl border-b border-white/5 p-4">
+            <div className="max-w-7xl mx-auto flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    <Skeleton width="32px" height="32px" className="rounded-lg" />
+                    <div className="space-y-1">
+                        <Skeleton width="150px" height="18px" />
+                        <Skeleton width="60px" height="8px" />
+                    </div>
+                </div>
+                <div className="flex gap-3">
+                    <Skeleton width="80px" height="32px" className="rounded-lg" />
+                    <Skeleton width="32px" height="32px" className="rounded-lg" />
+                </div>
+            </div>
+        </header>
+        <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+            <div className="relative h-48 rounded-[1.5rem] bg-slate-800/50 flex flex-col md:flex-row justify-between items-center p-8 gap-6">
+                <div className="space-y-3">
+                    <Skeleton width="100px" height="20px" className="rounded-full" />
+                    <Skeleton width="250px" height="40px" />
+                    <Skeleton width="300px" height="14px" />
+                </div>
+                <div className="w-full md:w-64 h-32 bg-slate-700/30 rounded-2xl flex flex-col p-4 gap-3">
+                    <Skeleton width="100px" height="40px" />
+                    <Skeleton width="100%" height="40px" className="rounded-xl" />
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
+            </div>
+            <div className="space-y-4">
+                 <div className="flex items-center gap-3">
+                    <Skeleton width="20px" height="20px" />
+                    <Skeleton width="150px" height="24px" />
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[1, 2, 3].map(i => <Skeleton key={i} width="100%" height="144px" className="rounded-2xl" />)}
+                 </div>
+            </div>
+        </main>
       </div>
     );
   }

@@ -35,7 +35,14 @@ import messageRoutes from "./routes/messageRoutes.js";
 import whatsappRoutes from "./routes/whatsappRoutes.js";
 import { detectTenant } from "./middleware/tenant.js";
 
-dotenv.config();
+// Load environment variables based on NODE_ENV
+const nodeEnv = (process.env.NODE_ENV || 'development').toLowerCase();
+if (nodeEnv === 'production') {
+  dotenv.config({ path: '.env.production' });
+  console.log('Loading production environment variables');
+} else {
+  dotenv.config();
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -174,7 +181,7 @@ const diskStorage = multer.diskStorage({
 });
 
 // Use diskStorage in development/fallback to avoid Cloudinary timeouts
-const nodeEnv = (process.env.NODE_ENV || 'development').toLowerCase();
+// Use the nodeEnv declared at the top
 const isDev = nodeEnv === "development" || nodeEnv === "dev";
 const upload = multer({
   storage: isDev ? diskStorage : cloudStorage,
@@ -248,13 +255,15 @@ app.post("/api/upload", (req, res) => {
       return res.status(400).json({ message: "No file uploaded. Please ensure you are sending an image or PDF file." });
     }
 
-    console.log("File uploaded successfully:", req.file.filename || req.file.path);
+    const imageUrl = req.file.path.startsWith('http') 
+      ? req.file.path 
+      : `${req.protocol}://${req.get('host')}/${req.file.path.replace(/\\/g, '/')}`;
+
+    console.log("File uploaded successfully. URL:", imageUrl);
     
     res.json({
       message: "Image uploaded successfully",
-      imageUrl: isDev 
-        ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
-        : req.file.path,
+      imageUrl: imageUrl,
     });
   });
 });

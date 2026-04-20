@@ -10,6 +10,7 @@ import {
 import { motion } from 'framer-motion';
 import { centralDoctorApi } from '../../../services/api';
 import Pagination from '../../common/Pagination';
+import { DoctorCardSkeleton } from '../../Shared/DoctorSkeletons';
 
 // Sub-components (Copied from Admin for identical UI)
 const StatusBadge = ({ status }) => {
@@ -87,8 +88,8 @@ const DoctorGrid = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3, 4, 5, 6].map(i => <DoctorCardSkeleton key={i} />)}
       </div>
     );
   }

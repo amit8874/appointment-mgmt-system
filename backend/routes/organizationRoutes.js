@@ -10,7 +10,9 @@ import {
   updateOrganizationStatus,
   getOrganizationStats,
   getTrialStatus,
-  dismissResetNotification
+  dismissResetNotification,
+  verifyRegistrationOTP,
+  resendRegistrationOTP
 } from '../controllers/organizationController.js';
 
 const router = express.Router();
@@ -21,6 +23,8 @@ const router = express.Router();
  * @access  Public (for registration)
  */
 router.post('/', registerOrganization);
+router.post('/verify-otp', verifyRegistrationOTP);
+router.post('/resend-otp', resendRegistrationOTP);
 
 /**
  * @route   GET /api/organizations/public

@@ -9,6 +9,7 @@ import api from '../../../services/api';
 import { toast } from 'react-toastify';
 import Pagination from '../../common/Pagination';
 import PaymentModeModal from '../../common/PaymentModeModal';
+import { TableSkeleton } from '../../Shared/DashboardSkeletons';
 
 const PatientPanel = () => {
   const [patients, setPatients] = useState([]);
@@ -273,9 +274,8 @@ const PatientPanel = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 h-screen">
-        <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent"></div>
-        <span className="ml-3 text-gray-700 text-lg">Loading patients...</span>
+      <div className="p-6">
+        <TableSkeleton rows={15} cols={8} />
       </div>
     );
   }

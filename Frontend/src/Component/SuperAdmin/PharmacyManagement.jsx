@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { superAdminApi } from '../../services/api';
 import { toast } from 'react-toastify';
+import { StatCardSkeleton, TableSkeleton } from '../../components/Shared/DashboardSkeletons';
 
 const PharmacyManagement = () => {
   const [pharmacies, setPharmacies] = useState([]);
@@ -158,7 +159,9 @@ const PharmacyManagement = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, idx) => (
+        {loading ? (
+            [1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)
+        ) : stats.map((stat, idx) => (
           <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
             <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
               <stat.icon size={24} />
@@ -214,7 +217,7 @@ const PharmacyManagement = () => {
       {/* Pharmacy List */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {loading ? (
-          [1, 2, 3].map(i => <div key={i} className="h-48 bg-white rounded-2xl animate-pulse border border-slate-100"></div>)
+          [1, 2, 3, 4, 5, 6].map(i => <StatCardSkeleton key={i} />)
         ) : filteredPharmacies.length > 0 ? (
           filteredPharmacies.map((pharmacy) => (
             <motion.div 

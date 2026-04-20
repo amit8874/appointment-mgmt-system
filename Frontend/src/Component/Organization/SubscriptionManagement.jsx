@@ -20,6 +20,8 @@ import {
   MessageSquare,
   User
 } from 'lucide-react';
+import { StatCardSkeleton } from '../../components/Shared/DashboardSkeletons';
+import Skeleton from '../../components/Shared/Skeleton';
 
 const SubscriptionManagement = () => {
   const [subscription, setSubscription] = useState(null);
@@ -71,10 +73,30 @@ const SubscriptionManagement = () => {
 
   if (loading && !subscription) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
-        <div className="flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-600 rounded-full animate-spin mb-4" />
-          <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-xs">Loading Subscription...</p>
+      <div className="min-h-screen bg-slate-50 p-8 space-y-8">
+        {/* Header Skeleton */}
+        <div className="bg-indigo-900 -m-8 pt-20 pb-32 px-14 relative overflow-hidden">
+             <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-8">
+                <div className="space-y-4">
+                    <Skeleton width="120px" height="24px" className="bg-white/10" />
+                    <Skeleton width="300px" height="60px" className="bg-white/10" />
+                    <Skeleton width="500px" height="24px" className="bg-white/10" />
+                </div>
+                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 md:w-80 h-40">
+                    <div className="flex items-center gap-4 mb-4">
+                        <Skeleton circle width="48px" height="48px" className="bg-white/10" />
+                        <div className="space-y-2">
+                            <Skeleton width="80px" height="12px" className="bg-white/10" />
+                            <Skeleton width="120px" height="20px" className="bg-white/10" />
+                        </div>
+                    </div>
+                </div>
+             </div>
+        </div>
+
+        {/* Usage Cards Skeleton */}
+        <div className="max-w-7xl mx-auto px-6 -mt-16 relative z-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5].map(i => <StatCardSkeleton key={i} />)}
         </div>
       </div>
     );

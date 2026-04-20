@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { superAdminApi } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
+import { StatCardSkeleton, TableSkeleton } from '../../components/Shared/DashboardSkeletons';
 
 const Organizations = () => {
   const [organizations, setOrganizations] = useState([]);
@@ -190,7 +191,24 @@ const Organizations = () => {
   };
 
   if (loading && organizations.length === 0) {
-    return <div className="p-8 text-center">Loading organizations...</div>;
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+            <div className="flex justify-between items-center">
+                <div className="space-y-2">
+                    <div className="h-8 w-64 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-4 w-48 bg-slate-100 rounded animate-pulse" />
+                </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <StatCardSkeleton key={i} />)}
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <TableSkeleton rows={10} cols={6} />
+            </div>
+        </div>
+      </div>
+    );
   }
 
   return (

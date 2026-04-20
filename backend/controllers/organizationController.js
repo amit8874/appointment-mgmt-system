@@ -4,6 +4,9 @@ import Subscription from '../models/Subscription.js';
 import AuditLog from '../models/AuditLog.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { sendWhatsAppMessage } from '../services/whatsappService.js';
+
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 
 // Register a new organization (onboarding)
@@ -81,6 +84,9 @@ export const registerOrganization = async (req, res) => {
       plainPassword: ownerPassword, // Store plain password for super admin viewing
       role: 'orgadmin',
       mobile: phone?.trim() || '',
+      isVerified: false, // OTP verification required
+      verificationOtp: generateOTP(),
+      otpExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiry
       // organizationId will be set after organization creation
     });
 
@@ -188,30 +194,32 @@ export const registerOrganization = async (req, res) => {
     await owner.save();
 
 
-    // Generate JWT token for auto-login
-    const token = jwt.sign(
-      { id: owner._id, role: owner.role, organizationId: organization._id },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
-    );
+    // Send WhatsApp OTP
+    try {
+      let whatsappMobile = owner.mobile;
+      if (whatsappMobile.length === 10) {
+        whatsappMobile = `91${whatsappMobile}`;
+      }
+      
+      const otpMessage = `Your Oviaan registration OTP is ${owner.verificationOtp}. It is valid for 10 minutes.`;
+      await sendWhatsAppMessage(whatsappMobile, otpMessage);
+      console.log(`[Registration] OTP sent to ${whatsappMobile}`);
+    } catch (whatsappError) {
+      console.error('Failed to send registration OTP via WhatsApp:', whatsappError);
+      // We don't fail registration if WhatsApp fails, but maybe we should?
+      // For now, let's keep going but log it.
+    }
 
     res.status(201).json({
-      message: 'Organization registered successfully',
-      token,
+      message: 'Organization registered successfully. Please verify your mobile number with the OTP sent to WhatsApp.',
+      verificationRequired: true,
+      email: owner.email,
+      phone: owner.mobile,
       organization: {
         id: organization._id,
         name: organization.name,
         slug: organization.slug,
         subdomain: organization.subdomain,
-        status: organization.status,
-        trialStartDate: organization.trialStartDate,
-        trialEndDate: organization.trialEndDate,
-      },
-      owner: {
-        id: owner._id,
-        email: owner.email,
-        role: owner.role,
-        name: owner.name,
       },
     });
 
@@ -236,6 +244,125 @@ export const registerOrganization = async (req, res) => {
       message: errorMessage,
       error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  }
+};
+
+// Verify OTP for organization registration
+export const verifyRegistrationOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: 'Email and OTP are required' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: 'User is already verified' });
+    }
+
+    // Check if OTP matches and is not expired
+    if (user.verificationOtp !== otp) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    if (user.otpExpires < new Date()) {
+      return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
+    }
+
+    // Success - mark as verified
+    user.isVerified = true;
+    user.verificationOtp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    // Activate the organization if it's in trial status
+    const organization = await Organization.findById(user.organizationId);
+    if (organization && organization.status === 'trial') {
+      // It's already trial by default, but we ensure it's active
+      organization.status = 'trial';
+      await organization.save();
+    }
+
+    // Generate final JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role, organizationId: user.organizationId },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      message: 'Mobile number verified successfully',
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+        organizationId: user.organizationId,
+        isVerified: true
+      },
+      organization: organization ? {
+        id: organization._id,
+        name: organization.name,
+        slug: organization.slug,
+        subdomain: organization.subdomain
+      } : null
+    });
+
+  } catch (error) {
+    console.error('OTP verification error:', error);
+    res.status(500).json({ message: 'Verification failed. Please try again.' });
+  }
+};
+
+// Resend OTP for organization registration
+export const resendRegistrationOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: 'User is already verified' });
+    }
+
+    // Generate new OTP
+    user.verificationOtp = generateOTP();
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save();
+
+    // Send WhatsApp OTP
+    try {
+      let whatsappMobile = user.mobile;
+      if (whatsappMobile.length === 10) {
+        whatsappMobile = `91${whatsappMobile}`;
+      }
+      
+      const otpMessage = `Your new Oviaan registration OTP is ${user.verificationOtp}. It is valid for 10 minutes.`;
+      await sendWhatsAppMessage(whatsappMobile, otpMessage);
+      console.log(`[Resend OTP] New OTP sent to ${whatsappMobile}`);
+    } catch (whatsappError) {
+      console.error('Failed to resend OTP via WhatsApp:', whatsappError);
+      return res.status(500).json({ message: 'Failed to send WhatsApp message. Please check the number and try again.' });
+    }
+
+    res.json({ message: 'A new OTP has been sent to your WhatsApp number.' });
+
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({ message: 'Failed to resend OTP. Please try again.' });
   }
 };
 

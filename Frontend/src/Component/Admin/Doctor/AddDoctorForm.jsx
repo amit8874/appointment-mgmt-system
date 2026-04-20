@@ -345,53 +345,64 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
 
     return (
         <AnimatePresence>
-            <div key="add-doctor-modal-overlay" className="fixed inset-0 backdrop-blur-md bg-slate-900/40 z-50 flex items-center justify-center p-4">
+            <div key="add-doctor-modal-overlay" className="fixed inset-0 backdrop-blur-md bg-slate-900/40 z-50 flex items-center justify-center p-0 md:p-4">
                 <motion.div 
                     initial={{ opacity: 0, y: 20, scale: 0.98 }} 
                     animate={{ opacity: 1, y: 0, scale: 1 }} 
                     exit={{ opacity: 0, y: 20, scale: 0.98 }} 
-                    className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800"
+                    className="bg-white dark:bg-slate-900 rounded-none md:rounded-3xl shadow-2xl w-full max-w-4xl h-full md:max-h-[85vh] flex flex-col overflow-hidden border-0 md:border md:border-slate-200 dark:md:border-slate-800"
                 >
-                    <div className="px-8 py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-900 dark:to-slate-900 flex justify-between items-center text-white">
+                    <div className="px-5 md:px-8 py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-900 dark:to-slate-900 flex justify-between items-center text-white">
                         <div>
-                            <h1 className="text-xl font-black uppercase tracking-tight">{doctor ? 'Edit Doctor Profile' : 'Register New Doctor'}</h1>
-                            <p className="text-indigo-100/70 text-xs font-medium mt-0.5">Section {currentIdx + 1} of 6: {tabs.find(t=>t.id===activeTab).label}</p>
+                            <h1 className="text-lg md:text-xl font-black uppercase tracking-tight leading-tight">{doctor ? 'Edit Doctor Profile' : 'Register New Doctor'}</h1>
+                            <p className="text-indigo-100/70 text-[10px] md:text-xs font-medium mt-0.5">Section {currentIdx + 1} of 6: {tabs.find(t=>t.id===activeTab).label}</p>
                         </div>
                         <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center justify-center"><X size={20} /></button>
                     </div>
 
-                    <div className="flex flex-1 min-h-0">
-                        <div className="w-56 bg-slate-50 dark:bg-slate-800/30 border-r border-slate-100 dark:border-slate-800 p-4 space-y-1.5 overflow-y-auto">
+                    <div className="flex flex-col md:flex-row flex-1 min-h-0">
+                        <div className="w-full md:w-56 bg-slate-50 dark:bg-slate-800/30 border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800 flex md:flex-col p-2 md:p-4 gap-1 md:space-y-1.5 overflow-x-auto md:overflow-y-auto no-scrollbar scroll-smooth">
                             {tabs.map((tab, idx) => {
                                 const isUnlocked = idx === 0 || completedSteps.includes(tabsOrder[idx - 1]);
                                 return (
-                                    <button key={tab.id} onClick={() => handleTabClick(tab.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all relative ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 translate-x-1' : !isUnlocked ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600'}`}>
-                                        <tab.icon size={18} /> {tab.label}
-                                        {completedSteps.includes(tab.id) && activeTab !== tab.id && <div className="ml-auto bg-emerald-500 text-white p-0.5 rounded-full"><Check size={10} /></div>}
-                                        {activeTab === tab.id && <ChevronRight size={14} className="ml-auto" />}
+                                    <button 
+                                        key={tab.id} 
+                                        onClick={() => handleTabClick(tab.id)} 
+                                        className={`flex-shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2.5 md:py-3 rounded-xl text-[11px] md:text-sm font-bold transition-all relative ${
+                                            activeTab === tab.id 
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 md:translate-x-1' 
+                                                : !isUnlocked 
+                                                    ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed' 
+                                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600'
+                                        }`}
+                                    >
+                                        <tab.icon size={16} className="md:w-[18px] md:h-[18px]" /> 
+                                        <span className="whitespace-nowrap">{tab.label}</span>
+                                        {completedSteps.includes(tab.id) && activeTab !== tab.id && <div className="hidden md:flex ml-auto bg-emerald-500 text-white p-0.5 rounded-full"><Check size={10} /></div>}
+                                        {activeTab === tab.id && <ChevronRight size={14} className="hidden md:block ml-auto" />}
                                     </button>
                                 );
                             })}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-5 md:p-8 custom-scrollbar bg-white dark:bg-slate-900">
                             <AnimatePresence mode="wait">
                                 {activeTab === 'basic' && (
                                     <motion.div key="basic" className="space-y-6">
                                         <SectionTitle title="Identity & Contact" icon={User} />
-                                        <div className="flex gap-8 items-start">
-                                            <div className="relative group">
-                                                <div className={`w-28 h-28 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-dashed ${errors.photo ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'} flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-indigo-400`}>
-                                                    {uploading ? <Loader2 className="animate-spin text-indigo-600" /> : formData.photo ? <img src={formData.photo} alt="Doc" className="w-full h-full object-cover" /> : <div className="text-center p-2"><ImageIcon size={24} className="text-slate-300 mx-auto mb-2" /><span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Upload Photo</span></div>}
+                                        <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
+                                            <div className="relative group flex-shrink-0">
+                                                <div className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-dashed ${errors.photo ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'} flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-indigo-400`}>
+                                                    {uploading ? <Loader2 className="animate-spin text-indigo-600" /> : formData.photo ? <img src={formData.photo} alt="Doc" className="w-full h-full object-cover" /> : <div className="text-center p-2"><ImageIcon size={20} className="text-slate-300 mx-auto mb-1.5 md:mb-2" /><span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Upload Photo</span></div>}
                                                 </div>
                                                 <input type="file" onChange={(e) => handleFileUpload(e, 'photo')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" />
                                             </div>
-                                            <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-4">
+                                            <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                                                 <InputField label="Full Name" name="name" value={formData.name} onChange={handleInputChange} required icon={User} error={errors.name} />
                                                 <InputField label="Mobile Number" name="phone" value={formData.phone} onChange={handleInputChange} required icon={Phone} error={errors.phone} />
                                                 <InputField label="Email Address" name="email" type="email" value={formData.email} onChange={handleInputChange} required icon={Mail} error={errors.email} />
                                                 <div className="flex flex-col">
-                                                    <label className="text-[10px] font-bold text-gray-400 uppercase mb-1.5 ml-0.5">Gender *</label>
+                                                    <label className="text-[10px] font-bold text-gray-400 uppercase mb-1.5 ml-0.5 tracking-tight transition-colors">Gender *</label>
                                                     <div className="grid grid-cols-3 gap-2 p-1 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
                                                         {['Male', 'Female', 'Other'].map(g => (
                                                             <button key={g} type="button" onClick={() => setFormData(p=>({...p, gender: g}))} className={`py-1.5 rounded-md text-[11px] font-bold transition-all ${formData.gender === g ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}`}>{g}</button>
@@ -406,7 +417,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                 {activeTab === 'professional' && (
                                     <motion.div key="prof" className="space-y-6">
                                         <SectionTitle title="Professional Details" icon={Stethoscope} />
-                                        <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
                                             <div className="flex flex-col relative" ref={specDropdownRef}>
                                                 <label className="text-[10px] font-bold text-gray-400 uppercase mb-1.5 ml-0.5">Specialization *</label>
                                                 <div className="relative group">
@@ -459,7 +470,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                 {activeTab === 'identity' && (
                                     <motion.div key="id" className="space-y-6">
                                         <SectionTitle title="Identity Verification" icon={Fingerprint} />
-                                        <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
                                             <div className="flex flex-col">
                                                 <label className="text-[10px] font-bold text-gray-400 uppercase mb-1.5 ml-0.5">ID Type</label>
                                                 <select name="idType" value={formData.idType} onChange={handleInputChange} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold">
@@ -504,8 +515,8 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                             </div>
 
                                             {(formData.serviceLocation.type === 'clinic' || (formData.serviceLocation.type === 'other' && (showNewPracticeForm || (!formData.serviceLocation.practiceId && formData.serviceLocation.practiceName)))) && (
-                                                <div className="grid grid-cols-2 gap-4 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95">
-                                                    <div className="col-span-2 flex items-center gap-2 mb-2">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95">
+                                                    <div className="col-span-1 md:col-span-2 flex items-center gap-2 mb-2">
                                                         <div className="h-1 flex-1 bg-indigo-100 dark:bg-indigo-900 rounded-full" />
                                                         <span className="text-[10px] font-black text-indigo-600 uppercase">
                                                             {formData.serviceLocation.type === 'clinic' ? 'Your Clinic Address' : 'New Practice Details'}
@@ -576,8 +587,8 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                                     </div>
 
                                                     {(showNewPracticeForm || (formData.serviceLocation.type === 'other' && !formData.serviceLocation.practiceId && formData.serviceLocation.practiceName)) && (
-                                                        <div className="grid grid-cols-2 gap-4 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95">
-                                                            <div className="col-span-2 flex items-center gap-2 mb-2">
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95">
+                                                            <div className="col-span-1 md:col-span-2 flex items-center gap-2 mb-2">
                                                                 <div className="h-1 flex-1 bg-indigo-100 dark:bg-indigo-900 rounded-full" />
                                                                 <span className="text-[10px] font-black text-indigo-600 uppercase">New Location Details</span>
                                                                 <div className="h-1 flex-1 bg-indigo-100 dark:bg-indigo-900 rounded-full" />
@@ -585,8 +596,8 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                                             <InputField label="Clinic/Hospital Name" name="practiceName" value={formData.serviceLocation.practiceName} onChange={(e) => setFormData(p => ({ ...p, serviceLocation: { ...p.serviceLocation, practiceName: e.target.value } }))} icon={Building2} />
                                                             <InputField label="City *" name="city" section="serviceLocation" value={formData.serviceLocation.address.city} onChange={handleInputChange} icon={MapPin} />
                                                             <InputField label="State" name="state" section="serviceLocation" value={formData.serviceLocation.address.state} onChange={handleInputChange} />
-                                                            <InputField label="Full Address / Street" name="street" section="serviceLocation" value={formData.serviceLocation.address.street} onChange={handleInputChange} className="col-span-2" />
-                                                            <div className="col-span-2 pt-2">
+                                                            <InputField label="Full Address / Street" name="street" section="serviceLocation" value={formData.serviceLocation.address.street} onChange={handleInputChange} className="col-span-1 md:col-span-2" />
+                                                            <div className="col-span-1 md:col-span-2 pt-2">
                                                                 <button type="button" onClick={handleAddPractice} disabled={isAddingPractice} className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
                                                                     {isAddingPractice ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                                                                     Save & Link Practice Location
@@ -603,7 +614,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                 {activeTab === 'availability' && (
                                     <motion.div key="avail" className="space-y-6">
                                         <SectionTitle title="Availability" icon={Clock} />
-                                        <div className="grid grid-cols-7 gap-2">
+                                        <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 md:gap-2">
                                             {Object.keys(formData.availability).map(day => (
                                                 <label key={day} className={`flex flex-col items-center p-2 rounded-xl border-2 transition-all cursor-pointer ${formData.availability[day] ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-100 text-slate-400'}`}>
                                                     <input type="checkbox" name={day} checked={formData.availability[day]} onChange={(e)=>handleInputChange(e, 'availability')} className="hidden" />
@@ -620,20 +631,21 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                                     <Plus size={14} /> Add Shift
                                                 </button>
                                             </div>
-                                            
                                             {formData.workingHours.map((slot, index) => (
-                                                <div key={index} className="flex items-center gap-4 animate-in slide-in-from-left-2" style={{ animationDelay: `${index * 50}ms` }}>
+                                                <div key={index} className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 animate-in slide-in-from-left-2" style={{ animationDelay: `${index * 50}ms` }}>
                                                     <div className="flex-1">
                                                         <InputField label={`Shift ${index + 1} Start`} name="start" type="time" section="workingHours" index={index} value={slot.start} onChange={handleInputChange} icon={Clock} />
                                                     </div>
                                                     <div className="flex-1">
                                                         <InputField label={`Shift ${index + 1} End`} name="end" type="time" section="workingHours" index={index} value={slot.end} onChange={handleInputChange} icon={Clock} />
                                                     </div>
-                                                    {formData.workingHours.length > 1 && (
-                                                        <button type="button" onClick={() => setFormData(p => ({ ...p, workingHours: p.workingHours.filter((_, i) => i !== index) }))} className="mt-5 p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    )}
+                                                    <div className="flex justify-end md:mt-5">
+                                                        {formData.workingHours.length > 1 && (
+                                                            <button type="button" onClick={() => setFormData(p => ({ ...p, workingHours: p.workingHours.filter((_, i) => i !== index) }))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -643,11 +655,18 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                         </div>
                     </div>
 
-                    <div className="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                        <div>{activeTab !== 'basic' && <button onClick={handleBack} className="flex items-center gap-2 px-6 py-2 text-slate-500 font-bold text-xs uppercase"><ChevronLeft size={18} /> Back</button>}</div>
-                        <div className="flex gap-4">
-                            <button onClick={onClose} className="px-6 py-2 text-slate-400 font-bold text-xs uppercase">Cancel</button>
-                            {activeTab !== 'availability' ? <button onClick={handleNext} className="px-8 py-3 bg-indigo-600 text-white font-black rounded-xl text-xs uppercase shadow-xl shadow-indigo-600/20">Next Section <ChevronRight size={18} /></button> : <button onClick={handleSubmit} disabled={loading} className="px-8 py-3 bg-emerald-600 text-white font-black rounded-xl text-xs uppercase shadow-xl shadow-emerald-600/20 flex items-center gap-2">{loading ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={18} />} Finish Registration</button>}
+                     <div className="px-5 md:px-8 py-4 md:py-5 bg-slate-50 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="hidden md:block">{activeTab !== 'basic' && <button onClick={handleBack} className="flex items-center gap-2 px-6 py-2 text-slate-500 font-bold text-xs uppercase"><ChevronLeft size={18} /> Back</button>}</div>
+                        <div className="flex w-full md:w-auto gap-3 md:gap-4">
+                            {activeTab !== 'basic' && <button onClick={handleBack} className="flex-1 md:hidden flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 text-slate-500 font-black rounded-xl text-[10px] uppercase">Back</button>}
+                            <button onClick={onClose} className="flex-1 md:flex-none py-3 md:px-6 md:py-2 text-slate-400 font-bold text-[10px] md:text-xs uppercase">Cancel</button>
+                            {activeTab !== 'availability' ? (
+                                <button onClick={handleNext} className="flex-[2] md:flex-none px-6 md:px-8 py-3 bg-indigo-600 text-white font-black rounded-xl text-[10px] md:text-xs uppercase shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2">Next <ChevronRight size={18} /></button>
+                            ) : (
+                                <button onClick={handleSubmit} disabled={loading} className="flex-[2] md:flex-none px-6 md:px-8 py-3 bg-emerald-600 text-white font-black rounded-xl text-[10px] md:text-xs uppercase shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2">
+                                    {loading ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={18} />} Finish
+                                </button>
+                            )}
                         </div>
                     </div>
                 </motion.div>

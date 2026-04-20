@@ -27,6 +27,8 @@ import {
   X
 } from 'lucide-react';
 import promoBanner from '../assets/promo_banner.png';
+import { TableSkeleton } from '../components/Shared/DashboardSkeletons';
+import Skeleton from '../components/Shared/Skeleton';
 
 const OrderOnline = () => {
     const { isAuthenticated, user, logout } = useAuth();
@@ -575,9 +577,13 @@ const OrderOnline = () => {
                                             disabled={isFetchingLocation}
                                             className="w-full flex items-center justify-between py-3 px-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors group disabled:opacity-50"
                                         >
-                                            <span className="font-black text-sm">
-                                                {isFetchingLocation ? 'Detecting...' : 'Use current location'}
-                                            </span>
+                                            {isFetchingLocation ? (
+                                                <Skeleton className="w-[120px] h-5 rounded-lg" />
+                                            ) : (
+                                                <span className="font-black text-sm">
+                                                    Use current location
+                                                </span>
+                                            )}
                                             {isFetchingLocation ? (
                                                 <Loader2 size={18} className="animate-spin" />
                                             ) : (
@@ -608,9 +614,8 @@ const OrderOnline = () => {
                                             className="absolute top-full left-0 right-0 mt-4 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-[110] max-h-[400px] overflow-y-auto"
                                         >
                                             {isSearching ? (
-                                                <div className="p-8 text-center text-slate-400">
-                                                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-blue-500" />
-                                                    <p className="text-sm font-bold">Searching pharmacies...</p>
+                                                <div className="p-4">
+                                                    <TableSkeleton rows={3} cols={1} />
                                                 </div>
                                             ) : (
                                                 searchResults.map((med) => (
@@ -711,7 +716,11 @@ const OrderOnline = () => {
                                             <span className="font-black text-xs uppercase tracking-widest">Priority ⭐</span>
                                         </div>
                                         <p className="text-sm font-bold text-slate-600">Best Match Logic</p>
-                                        {matchingStep >= 2 && !bestMatch && !error && <Loader2 size={16} className="text-blue-600 animate-spin mt-2" />}
+                                        {matchingStep >= 2 && !bestMatch && !error && (
+                                            <div className="mt-2">
+                                                <Skeleton className="w-16 h-4 rounded" />
+                                            </div>
+                                        )}
                                         {bestMatch && <CheckCircle2 size={16} className="text-emerald-500 mt-2" />}
                                     </div>
                                 </div>
@@ -826,9 +835,9 @@ const OrderOnline = () => {
                         <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto" />
                     </Link>
                     <div className="flex gap-8 text-sm font-bold text-slate-400">
-                        <a href="#" className="hover:text-emerald-600 transition-colors">Privacy Policy</a>
-                        <a href="#" className="hover:text-emerald-600 transition-colors">Terms of Service</a>
-                        <a href="#" className="hover:text-emerald-600 transition-colors">Help Center</a>
+                        <Link to="/privacy-policy" className="hover:text-emerald-600 transition-colors">Privacy Policy</Link>
+                        <Link to="/terms-conditions" className="hover:text-emerald-600 transition-colors">Terms of Service</Link>
+                        <Link to="/contact" className="hover:text-emerald-600 transition-colors">Help Center</Link>
                     </div>
                     <p className="text-sm text-slate-400 font-medium">© 2026 Oviaan Health. All rights reserved.</p>
                 </div>
@@ -946,7 +955,7 @@ const OrderOnline = () => {
                                                     <input type="checkbox" id="terms" className="w-4 h-4 rounded border-slate-300 text-[#2667e0] focus:ring-[#2667e0]" defaultChecked />
                                                 </div>
                                                 <label htmlFor="terms" className="text-xs font-bold text-slate-400 leading-normal">
-                                                    By signing up, I agree to the <span className="text-[#2667e0] cursor-pointer">Terms and Conditions</span> and <span className="text-[#2667e0] cursor-pointer">Privacy Policy</span>
+                                                    By signing up, I agree to the <Link to="/terms-conditions" target="_blank" className="text-[#2667e0] cursor-pointer hover:underline">Terms and Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-[#2667e0] cursor-pointer hover:underline">Privacy Policy</Link>
                                                 </label>
                                             </div>
                                         </div>

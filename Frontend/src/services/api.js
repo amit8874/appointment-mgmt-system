@@ -519,6 +519,14 @@ export const organizationApi = {
     const { data } = await api.post('/organizations', orgData);
     return data;
   },
+  verifyOTP: async (verifyData) => {
+    const { data } = await api.post('/organizations/verify-otp', verifyData);
+    return data;
+  },
+  resendOTP: async (resendData) => {
+    const { data } = await api.post('/organizations/resend-otp', resendData);
+    return data;
+  },
   getAll: async (params = {}) => {
     const { data } = await api.get('/organizations', { params });
     return data;

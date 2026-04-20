@@ -101,7 +101,9 @@ export const chatWithMaya = async (req, res) => {
     }
 
     // 2. Intent Detection
+    const messageLower = message.toLowerCase();
     const isBookingIntent = /book|appointment|schedule|doctor|visit/i.test(message);
+    const isGeneralQuery = /price|pricing|plan|cost|feature|capabilities|what is|how to|register|signup|about|benefit|portal|stakeholder|business/i.test(message);
     
     // Improved City Detection: Check for "in [City]" or just a single word city name 
     // if the conversation history suggests we were waiting for a city.
@@ -125,11 +127,12 @@ export const chatWithMaya = async (req, res) => {
       }
     }
 
-    if (isBookingIntent || cityInMessage) {
-      const uniqueCities = Array.from(new Set(doctorList.map(d => 
-        d.addressInfo?.city || d.serviceLocation?.address?.city
-      ).filter(Boolean)));
+    const uniqueCities = Array.from(new Set(doctorList.map(d => 
+      d.addressInfo?.city || d.serviceLocation?.address?.city
+    ).filter(Boolean)));
 
+    // Only skip LLM if it's a PURE booking/city intent and NOT a general product query
+    if ((isBookingIntent || cityInMessage) && !isGeneralQuery) {
       // If user wants to book but NO city is detected yet, suggest cities
       if (!cityInMessage && message.length < 50) {
         if (uniqueCities.length > 0) {
@@ -171,27 +174,60 @@ export const chatWithMaya = async (req, res) => {
             messageType: responseType,
             metadata: responseMetadata
           });
+        } else {
+          // Explicitly handle NO DOCTORS FOUND in that city to prevent hallucination
+          contextInfo += `\n[CRITICAL SYSTEM] No doctors found in "${cityInMessage}". DO NOT invent doctor names. Inform the user we don't have clinics there yet. Available cities: ${uniqueCities.join(', ')}`;
         }
       }
     }
 
     // Default AI Response
-    const appName = process.env.APP_NAME || "Our Clinic";
-    let systemPrompt = `You are Maya, the expert AI Guide for ${appName}.
+    const appName = process.env.APP_NAME || "Oviaan";
+    let systemPrompt = `You are Maya, the brilliant AI Ambassador and Guide for ${appName} Management Software.
+Oviaan is an all-in-one Practice Management Solution (PMS) designed for clinics, laboratories, and individual doctors.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 KEY PLATFORM KNOWLEDGE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. WHAT IS OVIAAN? 
+   An AI-powered platform to revolutionize healthcare management by connecting doctors, patients, pharmacies, and clinics in one ecosystem.
+   
+2. KEY FEATURES BY PORTAL:
+   - Organization/Admin: Advanced business analytics, settlement tracking, sub-admin control, and bulk messaging.
+   - Doctor: Digital prescriptions, appointment scheduling, patient medical history, and clinical notes.
+   - Receptionist: Quick registration flow, queue management, billing assistant, and patient notifications.
+   - Patient: 24/7 access to own reports, easy online booking, payment history, and medicine reminders.
+   - Pharmacy: Real-time inventory control, digital prescription fulfillment, and settlement tracking.
+
+3. PRICING & SUBSCRIPTION:
+   - Free Trial: 14 days full access (1 doctor, 100 appointments/month).
+   - Basic Plan (₹299/mo): Ideal for small clinics (1 doctor, 500 appointments/month).
+   - Standard Plan (₹499/mo): Recommended for growing practices (3 doctors, 2000 appointments/month, advanced analytics).
+   - Premium Plan (₹699/mo): Unlimited everything (Unlimited doctors, appointments, patients), custom white-label branding, and dedicated support.
+   - Note: Annual plans offer significant savings (e.g., Basic at ₹2,999/year).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛡️ CONVERSATION GUIDELINES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Be professional, empathetic, and enthusiastic about Oviaan's capabilities.
+- NEVER invent doctor names, clinic names, or contact details.
+- Only provide specific doctor info if it is provided in the [CONTEXT].
+- If a user asks a general question (pricing, features), answer it thoroughly using the knowledge above.
+- If a user asks to "book an appointment":
+  a. If they haven't mentioned a city, ask them which city they are in.
+  b. Inform them that Oviaan is active in: ${uniqueCities.join(', ')}.
+  c. bOnce the city is known, the system will show the doctors.
+- If we have no doctors in a requested city, apologize and guide them to our active cities.
+
+[CONTEXT]
 ${contextInfo}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛡️ APPOINTMENT FLOW:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- If a user asks to "book an appointment", ALWAYS ask for their CITY if they haven't provided it.
-- Once you know the city, I will display the doctors automatically.
-- Guide them to select a doctor and then pick a slot.
 `;
 
     const apiMessages = [
       { role: "system", content: systemPrompt },
       ...((history || []).map(m => ({
         role: m.role === 'model' ? 'assistant' : m.role,
-        content: m.parts[0].text
+        content: m.parts[0]?.text || ""
       }))),
       { role: "user", content: message }
     ];

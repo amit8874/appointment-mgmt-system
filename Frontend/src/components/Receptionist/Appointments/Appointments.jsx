@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Search, PlusCircle, Clock, UserCheck, Stethoscope, LogOut, X, User, Phone, Mail, Calendar, Heart, Trash2, Edit, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Pagination from '../../common/Pagination';
+import { TableSkeleton, StatCardSkeleton } from '../../Shared/DashboardSkeletons';
 
 // Status configuration for colors and icons
 const statusConfig = {
@@ -315,27 +316,33 @@ const Appointment = () => {
 
       <div className="">
         {/* Quick Status Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {Object.entries(statusConfig).map(([status, config]) => {
-            const CurrentIcon = config.icon; // <-- FIX: Define the icon component here
-            return (
-              <div
-                key={status}
-                className={`p-4 rounded-xl shadow-lg border-l-4 ${status === 'Waiting' ? 'border-yellow-500' : status === 'In-Progress' ? 'border-emerald-500' : 'border-gray-300'} bg-white`}
-              >
-                <div className="flex items-center">
-                  <CurrentIcon className={`w-6 h-6 mr-3 ${config.color.split(' ')[0]}`} /> {/* <-- FIX: Use CurrentIcon */}
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">{config.label}</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {summaryCounts[status]}
-                    </p>
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {Object.entries(statusConfig).map(([status, config]) => {
+              const CurrentIcon = config.icon;
+              return (
+                <div
+                  key={status}
+                  className={`p-4 rounded-xl shadow-lg border-l-4 ${status === 'Waiting' ? 'border-yellow-500' : status === 'In-Progress' ? 'border-emerald-500' : 'border-gray-300'} bg-white`}
+                >
+                  <div className="flex items-center">
+                    <CurrentIcon className={`w-6 h-6 mr-3 ${config.color.split(' ')[0]}`} />
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">{config.label}</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {summaryCounts[status]}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Search and Filter Bar */}
         <div className="bg-white p-6 rounded-xl shadow-lg mb-6 flex flex-col sm:flex-row gap-4 items-center">
@@ -368,65 +375,71 @@ const Appointment = () => {
         </div>
 
         {/* Patient Table */}
-        <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Patient ID
-                </th>
-                <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Patient Name
-                </th>
-                <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Appt Time
-                </th>
-                <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                  Reason
-                </th>
-                <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
-                  Doctor
-                </th>
-                <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
-                  Arrival
-                </th>
-                <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paginatedPatients.length > 0 ? (
-                paginatedPatients.map(patient => (
-                  <PatientRow
-                    key={patient.id}
-                    patient={patient}
-                    onUpdateStatus={handleUpdateStatus}
-                    onViewRecord={handleViewRecord}
-                    onDelete={handleDelete}
-                    deletingId={deletingId}
-                  />
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="9" className="p-6 text-center text-gray-500">
-                    No patients match the current search or filter criteria.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <Pagination 
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={filteredPatients.length}
-          itemsPerPage={itemsPerPage}
-        />
+        {loading ? (
+          <TableSkeleton rows={10} cols={8} />
+        ) : (
+          <>
+            <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Patient ID
+                    </th>
+                    <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Patient Name
+                    </th>
+                    <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Appt Time
+                    </th>
+                    <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                      Reason
+                    </th>
+                    <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                      Doctor
+                    </th>
+                    <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                      Arrival
+                    </th>
+                    <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="p-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {paginatedPatients.length > 0 ? (
+                    paginatedPatients.map(patient => (
+                      <PatientRow
+                        key={patient.id}
+                        patient={patient}
+                        onUpdateStatus={handleUpdateStatus}
+                        onViewRecord={handleViewRecord}
+                        onDelete={handleDelete}
+                        deletingId={deletingId}
+                      />
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="9" className="p-6 text-center text-gray-500">
+                        No patients match the current search or filter criteria.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={filteredPatients.length}
+              itemsPerPage={itemsPerPage}
+            />
+          </>
+        )}
 
         {/* Accessibility Note */}
         <div className="mt-4 p-4 text-center text-xs text-gray-400">
@@ -445,8 +458,15 @@ const Appointment = () => {
               </div>
               <div className="p-6">
                 {loadingDetails ? (
-                  <div className="flex justify-center items-center h-32">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        {[1, 2, 3, 4, 5, 6].map(i => (
+                            <div key={i} className="space-y-2">
+                                <div className="h-3 w-16 bg-slate-100 rounded animate-pulse"></div>
+                                <div className="h-8 w-full bg-slate-50 rounded animate-pulse"></div>
+                            </div>
+                        ))}
+                    </div>
                   </div>
                 ) : patientDetails ? (
                   <div className="space-y-4">

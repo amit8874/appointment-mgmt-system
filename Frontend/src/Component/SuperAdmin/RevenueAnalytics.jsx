@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { superAdminApi } from '../../services/api';
+import { TableSkeleton } from '../../components/Shared/DashboardSkeletons';
 
 const RevenueAnalytics = () => {
   const [revenueData, setRevenueData] = useState([]);
@@ -46,7 +47,13 @@ const RevenueAnalytics = () => {
     return `https://wa.me/${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
-  if (loading) return <div className="p-6">Loading revenue analytics...</div>;
+  if (loading) {
+    return (
+      <div className="p-6">
+        <TableSkeleton rows={15} cols={7} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -79,7 +86,13 @@ const RevenueAnalytics = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
-            {revenueData.length > 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan="8" className="px-6 py-4">
+                  <TableSkeleton rows={5} cols={8} />
+                </td>
+              </tr>
+            ) : revenueData.length > 0 ? (
               revenueData.map((item, index) => {
                 const daysLeft = getDaysLeft(item.expiryDate);
                 
@@ -138,7 +151,7 @@ const RevenueAnalytics = () => {
               })
             ) : (
               <tr>
-                <td colSpan="2" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan="8" className="px-6 py-4 text-center text-gray-500">
                   No revenue data available.
                 </td>
               </tr>
