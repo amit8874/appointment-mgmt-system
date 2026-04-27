@@ -4,10 +4,11 @@ import { useAuth } from "./context/AuthContext";
 import api from "./services/api";
 import { AnimatePresence } from "framer-motion";
 import AccountDeactivatedModal from "./Component/Organization/AccountDeactivatedModal";
+import SubscriptionLock from "./Component/Organization/SubscriptionLock";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import SmartNotificationSystem from "./components/common/SmartNotificationSystem";
 import useUsageTracking from './hooks/useUsageTracking';
+import PremiumLoader from "./components/common/PremiumLoader";
 
 // Lazy load components
 const ProtectedRoute = lazy(() => import("./Component/ProtectedRoute"));
@@ -17,6 +18,7 @@ const AdminDashboard = lazy(() => import("./Component/Admin/AdminDashboard"));
 const MessagesView = lazy(() => import("./Component/Admin/Messaging/MessagesView"));
 const IntelligenceHub = lazy(() => import("./Component/Admin/IntelligenceHub"));
 const PatientChatView = lazy(() => import("./Component/Patient/PatientChatView"));
+const SmartNotificationSystem = lazy(() => import("./components/common/SmartNotificationSystem"));
 
 const ReceptionistDashboard = lazy(() => import("./components/Receptionist/ReceptionistDashboard"));
 const PatientPage = lazy(() => import("./Component/Patient/PatientPage"));
@@ -99,12 +101,7 @@ const PharmacyRegistration = lazy(() => import("./Pages/PharmacyRegistration"));
 const PatientOrders = lazy(() => import("./Component/Patient/PatientOrders"));
 
 // Loading Component
-const LoadingFallback = () => (
-  <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-    <p className="text-slate-500 font-medium animate-pulse">Loading {import.meta.env.VITE_APP_NAME || 'Oviaan'} Professional...</p>
-  </div>
-);
+const LoadingFallback = () => <PremiumLoader />;
 
 
 
@@ -116,6 +113,7 @@ const UsageTracker = () => {
 export default function App() {
   const { isAuthenticated, user, login, logout } = useAuth();
   const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
+  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
   const [isImpersonating, setIsImpersonating] = useState(false);
 
   useEffect(() => {
@@ -125,6 +123,13 @@ export default function App() {
       setIsImpersonating(true);
     } else {
       setIsImpersonating(false);
+    }
+
+    // Sync subscription expiration state from user data
+    if (user?.organization?.isSubscriptionExpired) {
+      setIsSubscriptionExpired(true);
+    } else {
+      setIsSubscriptionExpired(false);
     }
   }, [user]);
 
@@ -180,7 +185,17 @@ export default function App() {
     };
 
     window.addEventListener('account-deactivated', handleAccountDeactivated);
-    return () => window.removeEventListener('account-deactivated', handleAccountDeactivated);
+    
+    const handleSubscriptionExpired = () => {
+      setIsSubscriptionExpired(true);
+    };
+    
+    window.addEventListener('subscription-expired', handleSubscriptionExpired);
+
+    return () => {
+      window.removeEventListener('account-deactivated', handleAccountDeactivated);
+      window.removeEventListener('subscription-expired', handleSubscriptionExpired);
+    };
   }, []);
 
   useEffect(() => {
@@ -239,7 +254,7 @@ export default function App() {
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} />
-      <SmartNotificationSystem />
+      {isAuthenticated && <SmartNotificationSystem />}
       {isImpersonating && <ShadowModeBanner />}
       <AnimatePresence mode="wait">
         <Router>
@@ -400,6 +415,13 @@ export default function App() {
         <AccountDeactivatedModal
           isOpen={showDeactivatedModal}
           onLogout={logout}
+        />
+
+        {/* Subscription Expiration Lock - blurs app and prevents interaction */}
+        <SubscriptionLock 
+          isExpired={isSubscriptionExpired && user?.role !== 'superadmin'} 
+          planName={user?.organization?.planName || 'Trial'}
+          role={user?.role}
         />
       </Router>
     </AnimatePresence>

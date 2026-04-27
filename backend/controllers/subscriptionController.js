@@ -11,6 +11,7 @@ import CancelledAppointment from '../models/CancelledAppointment.js';
 import Patient from '../models/PaitentEditProfile.js';
 import MedicalRecord from '../models/MedicalRecord.js';
 import { createOrder, verifyPayment as rzpVerifyPayment } from '../utils/razorpay.js';
+import { sendWhatsAppMessage } from '../services/whatsappService.js';
 
 // Plan Configuration & Pricing (Single source of truth)
 const PLAN_CONFIG = {
@@ -29,7 +30,7 @@ const PLAN_CONFIG = {
   },
   basic: {
     name: 'Basic Plan',
-    price: { monthly: 299, yearly: 2999 },
+    price: { monthly: 499, yearly: 4990 },
     features: {
       doctors: 1,
       receptionists: 1,
@@ -42,7 +43,7 @@ const PLAN_CONFIG = {
   },
   pro: {
     name: 'Standard Plan',
-    price: { monthly: 499, yearly: 4999 },
+    price: { monthly: 699, yearly: 6990 },
     features: {
       doctors: 3,
       receptionists: 3,
@@ -56,7 +57,7 @@ const PLAN_CONFIG = {
   },
   enterprise: {
     name: 'Premium Plan',
-    price: { monthly: 699, yearly: 6999 },
+    price: { monthly: 999, yearly: 9990 },
     features: {
       doctors: -1, // Unlimited
       receptionists: -1,
@@ -280,6 +281,43 @@ export const cancelSubscription = async (req, res) => {
   }
 };
 
+// Helper to notify admin via WhatsApp
+const notifyAdminOfUpgrade = async (organizationId, planDetails) => {
+  try {
+    const org = await Organization.findById(organizationId).populate('ownerId');
+    if (!org) return;
+
+    const adminPhone = org.ownerId?.mobile || org.phone;
+    if (!adminPhone) {
+      console.log(`[WhatsApp Notification] No phone number found for admin of ${org.name}`);
+      return;
+    }
+
+    // Format phone to WhatsApp format (91XXXXXXXXXX)
+    const sanitizedPhone = adminPhone.replace(/\D/g, '');
+    const finalPhone = sanitizedPhone.length === 10 ? `91${sanitizedPhone}` : sanitizedPhone;
+
+    const message = `🌟 *Oviaan Upgrade Success* 🌟\n\n` +
+      `Congratulations! Your clinic *${org.name}* has been successfully upgraded.\n\n` +
+      `📅 *Plan Details:*\n` +
+      `• Plan: ${planDetails.name}\n` +
+      `• Cycle: ${planDetails.billingCycle.toUpperCase()}\n` +
+      `• Amount: ₹${planDetails.amount}\n` +
+      `• Expiry: ${new Date(planDetails.endDate).toLocaleDateString('en-IN')}\n\n` +
+      `✅ *What's Included:*\n` +
+      `• Doctors: ${planDetails.limits.doctors === -1 ? 'Unlimited' : planDetails.limits.doctors}\n` +
+      `• Appointments: ${planDetails.limits.appointmentsPerMonth === -1 ? 'Unlimited' : planDetails.limits.appointmentsPerMonth}/mo\n` +
+      `• Storage: ${planDetails.limits.storageGB}GB\n\n` +
+      `Your dashboard is now updated with these features. Thank you for choosing Oviaan Professional!\n\n` +
+      `_Team Oviaan_`;
+
+    await sendWhatsAppMessage(finalPhone, message);
+    console.log(`[WhatsApp Notification] Upgrade message sent to ${finalPhone}`);
+  } catch (err) {
+    console.error('[WhatsApp Notification] Failed to send upgrade message:', err.message);
+  }
+};
+
 // Verify Razorpay payment
 export const verifyPayment = async (req, res) => {
   try {
@@ -364,6 +402,15 @@ export const verifyPayment = async (req, res) => {
       planType: 'PAID'
     });
 
+    // Send WhatsApp Notification
+    notifyAdminOfUpgrade(req.tenantId, {
+      name: planData.name,
+      billingCycle,
+      amount: planData.price[billingCycle],
+      endDate: subscription.endDate,
+      limits: subscription.limits
+    });
+
     res.json({
       success: true,
       message: 'Subscription activated successfully',
@@ -424,6 +471,18 @@ export const paymentWebhook = async (req, res) => {
             status: 'active',
             planType: 'PAID'
           });
+
+          // Send WhatsApp Notification (Webhook fallback)
+          const planData = PLAN_CONFIG[subscription.plan];
+          if (planData) {
+            notifyAdminOfUpgrade(subscription.organizationId, {
+              name: planData.name,
+              billingCycle: subscription.billingCycle,
+              amount: subscription.amount,
+              endDate: subscription.endDate,
+              limits: subscription.limits
+            });
+          }
         }
       }
     }

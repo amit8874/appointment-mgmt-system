@@ -192,6 +192,14 @@ api.interceptors.response.use(
           window.dispatchEvent(new CustomEvent('account-deactivated', {
             detail: { message: errorData.details }
           }));
+        } else if (errorData?.code === 'TRIAL_EXPIRED' || errorData?.code === 'SUBSCRIPTION_EXPIRED') {
+          // Dispatch custom event for subscription expiration
+          window.dispatchEvent(new CustomEvent('subscription-expired', {
+            detail: { 
+              message: errorData.message,
+              code: errorData.code
+            }
+          }));
         }
       }
     } else if (error.request) {
@@ -490,6 +498,10 @@ export const billingApi = {
   },
   delete: async (id) => {
     const { data } = await api.delete(`/billing/${id}`);
+    return data;
+  },
+  sendWhatsApp: async (id) => {
+    const { data } = await api.post(`/billing/${id}/send-whatsapp`);
     return data;
   }
 };

@@ -21,7 +21,9 @@ import {
   deleteAppointmentV2,
   bookPublicAppointment,
   cancelPublicAppointment,
-  updateVisitNotes
+  updateVisitNotes,
+  sendWhatsAppOTP,
+  verifyWhatsAppOTP
 } from '../controllers/appointmentController.js';
 
 import { parseIntakeTranscript, processInteractiveIntake } from '../controllers/aiIntakeController.js';
@@ -48,6 +50,10 @@ router.post('/public/book', bookPublicAppointment);
 
 // Cancel appointment for public users
 router.post('/public/cancel/:shortId', cancelPublicAppointment);
+
+// OTP Verification for public users
+router.post('/public/send-otp', sendWhatsAppOTP);
+router.post('/public/verify-otp', verifyWhatsAppOTP);
 
 
 

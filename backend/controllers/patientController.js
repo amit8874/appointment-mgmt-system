@@ -71,14 +71,41 @@ export const getAllPatients = async (req, res) => {
       .limit(limit)
       .lean();
 
-    // Ensure status field is included for all patients (default to 'active' if not set)
-    const patientsWithStatus = patients.map(p => ({
-      ...p,
-      status: p.status || 'active'
-    }));
+    // Fetch billing data to calculate totals and status for this page of patients
+    const patientIds = patients.map(p => p.patientId).filter(Boolean);
+    const bills = await Billing.find({ 
+      organizationId: req.tenantId, 
+      patientId: { $in: patientIds } 
+    }).lean();
+
+    // Map billing data to patients
+    const patientsWithData = patients.map(p => {
+      const patientBills = bills.filter(b => b.patientId === p.patientId);
+      
+      const paidAmount = patientBills
+        .filter(b => b.status === 'Paid')
+        .reduce((sum, b) => sum + (b.amount || 0), 0);
+        
+      const pendingAmount = patientBills
+        .filter(b => b.status === 'Pending' || b.status === 'Due')
+        .reduce((sum, b) => sum + (b.amount || 0), 0);
+      
+      const hasPending = patientBills.some(b => b.status === 'Pending' || b.status === 'Due');
+      const hasPaid = patientBills.some(b => b.status === 'Paid');
+      
+      return {
+        ...p,
+        name: p.fullName || `${p.firstName} ${p.lastName || ''}`.trim(),
+        status: p.status || 'active',
+        paidAmount,
+        pendingAmount,
+        // paymentStatus logic matched with PatientPanel.jsx requirements
+        paymentStatus: hasPending ? 'pending' : (hasPaid ? 'paid' : 'pending')
+      };
+    });
 
     res.json({
-      patients: patientsWithStatus,
+      patients: patientsWithData,
       totalPatients,
       totalPages,
       currentPage: page

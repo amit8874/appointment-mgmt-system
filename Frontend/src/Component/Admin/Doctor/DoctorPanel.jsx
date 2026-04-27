@@ -501,7 +501,12 @@ const DoctorPanel = ({
                             </div>
                             <div className="ml-3">
                               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Address</p>
-                              <p className="text-sm text-gray-900 dark:text-white">{selectedDoctor.address || 'N/A'}</p>
+                              <p className="text-sm text-gray-900 dark:text-white">
+                                {selectedDoctor.address || 
+                                 (selectedDoctor.serviceLocation?.address?.city 
+                                   ? `${selectedDoctor.serviceLocation.address.street ? selectedDoctor.serviceLocation.address.street + ', ' : ''}${selectedDoctor.serviceLocation.address.city}, ${selectedDoctor.serviceLocation.address.state || ''}`.replace(/, $/, '')
+                                   : 'N/A')}
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-start">
@@ -587,14 +592,14 @@ const DoctorPanel = ({
                               <span className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tighter">
                                 {selectedDoctor?.serviceLocation?.practiceName || (selectedDoctor?.serviceLocation?.type === 'other' ? 'External Clinic' : 'Own Clinic')}
                               </span>
-                           </div>
-                           {selectedDoctor?.serviceLocation?.address?.city && (
+                           </div>                           {(selectedDoctor?.serviceLocation?.address?.city || selectedDoctor?.serviceLocation?.address?.street) && (
                              <div className="col-span-full">
                                 <span className="text-[10px] uppercase font-black text-sky-400 block mb-1">Full Service Address</span>
                                 <div className="p-3 bg-white dark:bg-slate-800 border border-sky-100 dark:border-sky-800 rounded-lg">
                                   <p className="text-sm font-medium text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed uppercase tracking-tighter">
                                     {selectedDoctor.serviceLocation.address.street && `${selectedDoctor.serviceLocation.address.street}, `}
-                                    {selectedDoctor.serviceLocation.address.city}, {selectedDoctor.serviceLocation.address.state}
+                                    {selectedDoctor.serviceLocation.address.city && `${selectedDoctor.serviceLocation.address.city}`}
+                                    {selectedDoctor.serviceLocation.address.state && `, ${selectedDoctor.serviceLocation.address.state}`}
                                     {selectedDoctor.serviceLocation.address.pincode && ` - ${selectedDoctor.serviceLocation.address.pincode}`}
                                   </p>
                                 </div>

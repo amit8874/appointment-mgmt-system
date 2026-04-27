@@ -13,6 +13,7 @@ import { CheckoutSkeleton } from '../components/Shared/CheckoutSkeletons';
 
 const STEPS = {
   MOBILE_ENTRY: 'MOBILE_ENTRY',
+  OTP_VERIFICATION: 'OTP_VERIFICATION',
   PATIENT_DETAILS: 'PATIENT_DETAILS',
   CONFIRMATION: 'CONFIRMATION',
   CANCEL_CONFIRMATION: 'CANCEL_CONFIRMATION',
@@ -44,6 +45,9 @@ const BookingCheckout = () => {
   });
   
   const [confirmedAppointment, setConfirmedAppointment] = useState(null);
+  const [verificationOtp, setVerificationOtp] = useState(['', '', '', '', '', '']);
+  const [otpError, setOtpError] = useState('');
+  const [resendTimer, setResendTimer] = useState(30);
 
   useEffect(() => {
     fetchCheckoutDetails();
@@ -66,9 +70,80 @@ const BookingCheckout = () => {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const handleMobileSubmit = () => {
+  const handleMobileSubmit = async () => {
     if (mobileNumber.length === 10) {
+      setSubmitting(true);
+      try {
+        await api.post('/appointments/public/send-otp', { phone: mobileNumber });
+        setCurrentStep(STEPS.OTP_VERIFICATION);
+        setResendTimer(30);
+      } catch (err) {
+        console.error("Error sending OTP:", err);
+        alert("Failed to send verification code. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0) return;
+    try {
+      await api.post('/appointments/public/send-otp', { phone: mobileNumber });
+      setResendTimer(30);
+      setVerificationOtp(['', '', '', '', '', '']);
+      setOtpError('');
+    } catch (err) {
+      alert("Failed to resend OTP");
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const otpValue = verificationOtp.join('');
+    if (otpValue.length !== 6) return;
+
+    setSubmitting(true);
+    setOtpError('');
+    try {
+      await api.post('/appointments/public/verify-otp', { 
+        phone: mobileNumber, 
+        otp: otpValue 
+      });
       setCurrentStep(STEPS.PATIENT_DETAILS);
+    } catch (err) {
+      setOtpError(err.response?.data?.message || "Invalid code. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    let timer;
+    if (currentStep === STEPS.OTP_VERIFICATION && resendTimer > 0) {
+      timer = setInterval(() => setResendTimer(prev => prev - 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [currentStep, resendTimer]);
+
+  const handleOtpChange = (index, value) => {
+    if (value.length > 1) value = value[value.length - 1]; // Only take last char
+    if (!/^\d*$/.test(value)) return; // Only allow digits
+
+    const newOtp = [...verificationOtp];
+    newOtp[index] = value;
+    setVerificationOtp(newOtp);
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`otp-${index + 1}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !verificationOtp[index] && index > 0) {
+      const prevInput = document.getElementById(`otp-${index - 1}`);
+      prevInput?.focus();
     }
   };
 
@@ -291,6 +366,82 @@ const BookingCheckout = () => {
                     }`}
                   >
                     Continue
+                  </button>
+                </div>
+              </motion.div>
+            )}
+            
+            {currentStep === STEPS.OTP_VERIFICATION && (
+              <motion.div 
+                key="otp-verification"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="w-full flex justify-center md:justify-start"
+              >
+                <div className="w-full max-w-sm bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col items-center text-center">
+                  {/* WhatsApp/OTP Icon */}
+                  <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-6">
+                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
+                      <MessageCircle size={20} fill="white" />
+                    </div>
+                  </div>
+
+                  <h2 className="text-2xl font-black text-slate-800 mb-2">Check your WhatsApp</h2>
+                  <p className="text-[13px] text-slate-400 font-medium mb-1">Enter the verification code sent to</p>
+                  <p className="text-sm font-bold text-slate-700 mb-8">+91 {mobileNumber}</p>
+
+                  <div className="flex gap-2 mb-6">
+                    {verificationOtp.map((digit, index) => (
+                      <input
+                        key={index}
+                        id={`otp-${index}`}
+                        type="text"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleOtpChange(index, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                        className={`w-12 h-14 border-2 rounded-xl text-center text-xl font-bold bg-white text-slate-700 outline-none transition-all ${
+                          digit ? 'border-blue-600 shadow-lg shadow-blue-100' : 'border-slate-200'
+                        } focus:border-blue-600 focus:shadow-lg focus:shadow-blue-100`}
+                        autoFocus={index === 0}
+                      />
+                    ))}
+                  </div>
+
+                  {otpError && (
+                    <p className="text-xs font-bold text-red-500 mb-4">{otpError}</p>
+                  )}
+
+                  <div className="text-[13px] font-medium text-slate-400 mb-8">
+                    Didn't get a code?{' '}
+                    <button 
+                      onClick={handleResendOtp}
+                      disabled={resendTimer > 0}
+                      type="button"
+                      className={`${resendTimer > 0 ? 'text-slate-300' : 'text-blue-600 hover:underline'} font-bold transition-colors`}
+                    >
+                      {resendTimer > 0 ? `resend in ${resendTimer}s` : 'resend'}
+                    </button>
+                  </div>
+
+                  <button 
+                    onClick={handleVerifyOtp}
+                    disabled={submitting || verificationOtp.some(v => v === '')}
+                    className={`w-full py-3.5 rounded-2xl font-black text-white text-sm tracking-wide transition-all ${
+                      submitting || verificationOtp.some(v => v === '') 
+                      ? 'bg-blue-300' 
+                      : 'bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-200 active:scale-[0.98]'
+                    }`}
+                  >
+                    {submitting ? 'Verifying...' : 'Verify OTP'}
+                  </button>
+
+                  <button 
+                    onClick={() => setCurrentStep(STEPS.MOBILE_ENTRY)}
+                    className="mt-6 text-xs font-bold text-[#14bef0] hover:underline"
+                  >
+                    Change Number
                   </button>
                 </div>
               </motion.div>

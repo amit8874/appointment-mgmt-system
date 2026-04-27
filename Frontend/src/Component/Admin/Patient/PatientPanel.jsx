@@ -50,7 +50,8 @@ const PatientPanel = ({
       const matchesSearch =
         patient.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         patient.patientId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (patient.mobile || patient.phone || patient.contactNumber || patient.contact || '').includes(searchTerm);
+        (patient.mobile || patient.phone || patient.contactNumber || patient.contact || '').includes(searchTerm) ||
+        patient.lastShortId?.toString().includes(searchTerm);
 
       const patientStatus = patient.paymentStatus || patient.status || 'active';
       let matchesStatus = true;
@@ -563,8 +564,11 @@ const PatientPanel = ({
                     <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
                       {p.patientId || p.id || '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {p.name || '-'}
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{p.name || '-'}</div>
+                      {p.lastShortId && (
+                        <div className="text-[10px] text-blue-500 font-bold uppercase tracking-tighter">Last Appt ID: {p.lastShortId}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                       {p.age || '-'}

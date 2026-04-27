@@ -4,7 +4,8 @@ import Subscription from '../models/Subscription.js';
 import AuditLog from '../models/AuditLog.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { sendWhatsAppMessage } from '../services/whatsappService.js';
+import { sendWhatsAppTemplate } from '../services/whatsappService.js';
+import { sanitizePhone } from '../utils/phoneUtils.js';
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -196,14 +197,17 @@ export const registerOrganization = async (req, res) => {
 
     // Send WhatsApp OTP
     try {
-      let whatsappMobile = owner.mobile;
-      if (whatsappMobile.length === 10) {
-        whatsappMobile = `91${whatsappMobile}`;
-      }
+      const sanitizedMobile = sanitizePhone(owner.mobile);
+      const otpTemplate = process.env.WHATSAPP_OTP_TEMPLATE || 'registration_otp';
+      const otpLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
       
-      const otpMessage = `Your Oviaan registration OTP is ${owner.verificationOtp}. It is valid for 10 minutes.`;
-      await sendWhatsAppMessage(whatsappMobile, otpMessage);
-      console.log(`[Registration] OTP sent to ${whatsappMobile}`);
+      const waResponse = await sendWhatsAppTemplate(sanitizedMobile, otpTemplate, otpLang, [owner.verificationOtp], [owner.verificationOtp]);
+      
+      if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+        console.log(`[Registration] OTP sent to ${sanitizedMobile} using template. ID: ${waResponse.messages[0].id}`);
+      } else {
+        console.error('[Registration] Meta API success but no message ID returned:', waResponse);
+      }
     } catch (whatsappError) {
       console.error('Failed to send registration OTP via WhatsApp:', whatsappError);
       // We don't fail registration if WhatsApp fails, but maybe we should?
@@ -288,6 +292,19 @@ export const verifyRegistrationOTP = async (req, res) => {
       await organization.save();
     }
 
+    // Send Welcome Message
+    try {
+      const sanitizedMobile = sanitizePhone(user.mobile);
+      const welcomeTemplate = process.env.WHATSAPP_WELCOME_TEMPLATE || 'welcome_clinic';
+      const welcomeLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+      
+      // Variables: {{1}} = Owner Name, {{2}} = Clinic Name
+      await sendWhatsAppTemplate(sanitizedMobile, welcomeTemplate, welcomeLang, [user.name, organization?.name || 'your clinic']);
+      console.log(`[Registration] Welcome message sent to ${sanitizedMobile}`);
+    } catch (welcomeError) {
+      console.error('Failed to send welcome message via WhatsApp:', welcomeError);
+    }
+
     // Generate final JWT token
     const token = jwt.sign(
       { id: user._id, role: user.role, organizationId: user.organizationId },
@@ -345,14 +362,19 @@ export const resendRegistrationOTP = async (req, res) => {
 
     // Send WhatsApp OTP
     try {
-      let whatsappMobile = user.mobile;
-      if (whatsappMobile.length === 10) {
-        whatsappMobile = `91${whatsappMobile}`;
-      }
+      const sanitizedMobile = sanitizePhone(user.mobile);
+      const otpTemplate = process.env.WHATSAPP_OTP_TEMPLATE || 'registration_otp';
+      const otpLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
       
-      const otpMessage = `Your new Oviaan registration OTP is ${user.verificationOtp}. It is valid for 10 minutes.`;
-      await sendWhatsAppMessage(whatsappMobile, otpMessage);
-      console.log(`[Resend OTP] New OTP sent to ${whatsappMobile}`);
+      const waResponse = await sendWhatsAppTemplate(sanitizedMobile, otpTemplate, otpLang, [user.verificationOtp], [user.verificationOtp]);
+      
+      if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+        console.log(`[Resend OTP] New OTP sent to ${sanitizedMobile} using template. ID: ${waResponse.messages[0].id}`);
+        return res.json({ message: 'A new OTP has been sent to your WhatsApp number.' });
+      } else {
+        console.error('[Resend OTP] Meta API success but no message ID returned:', waResponse);
+        return res.status(500).json({ message: 'Failed to deliver WhatsApp message' });
+      }
     } catch (whatsappError) {
       console.error('Failed to resend OTP via WhatsApp:', whatsappError);
       return res.status(500).json({ message: 'Failed to send WhatsApp message. Please check the number and try again.' });

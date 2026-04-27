@@ -147,7 +147,8 @@ export default function AppointmentTable({ rebookData }) {
         appointment.doctorName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         appointment.specialty?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         appointment.patientId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        appointment.patientPhone?.includes(searchQuery);
+        appointment.patientPhone?.includes(searchQuery) ||
+        appointment.shortId?.toString().includes(searchQuery);
 
       const matchesStatus = statusFilter === 'all' || appointment.status === statusFilter;
 
@@ -513,7 +514,14 @@ export default function AppointmentTable({ rebookData }) {
                                 <User className="w-5 h-5 text-green-500" />
                               </div>
                               <div>
-                                <p className="text-gray-700 font-medium">{appointment.patientName || 'N/A'}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-gray-700 font-medium">{appointment.patientName || 'N/A'}</p>
+                                  {appointment.shortId && (
+                                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100">
+                                      ID: {appointment.shortId}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-2 mt-1">
                                   <p className="text-xs text-gray-500">{appointment.patientPhone || '-'}</p>
                                   {/* AI Risk Badge */}
@@ -645,6 +653,14 @@ export default function AppointmentTable({ rebookData }) {
               </div>
 
               <div className="space-y-4">
+                {/* Appointment ID */}
+                <div className="flex items-center justify-between py-3 border-b">
+                  <span className="text-gray-500 font-medium">Appointment ID</span>
+                  <span className="font-mono text-sm bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold">
+                    {selectedAppointment.shortId || selectedAppointment._id || selectedAppointment.id}
+                  </span>
+                </div>
+
                 {/* Status */}
                 <div className="flex items-center justify-between py-3 border-b">
                   <span className="text-gray-500">Status</span>

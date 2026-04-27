@@ -190,7 +190,7 @@ const ContactClinic = ({ phone }) => {
         <span className="text-2xl font-black text-[#14bef0] tracking-tight">{phone || "No phone number available"}</span>
       </div>
       <p className="mt-4 text-[13px] text-slate-500 leading-relaxed font-medium">
-        By calling this number, you agree to the <span className="text-blue-600 hover:underline cursor-pointer">Terms & Conditions</span>. If you could not connect with the center, please write to <span className="text-blue-600 hover:underline cursor-pointer">support@practo.com</span>
+        By calling this number, you agree to the <span className="text-blue-600 hover:underline cursor-pointer">Terms & Conditions</span>. If you could not connect with the center, please write to <span className="text-blue-600 hover:underline cursor-pointer">support@oviaan.com</span>
       </p>
     </div>
   );

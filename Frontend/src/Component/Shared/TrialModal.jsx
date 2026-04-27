@@ -12,6 +12,7 @@ import { toast } from 'react-toastify';
 const STEPS = {
   CONTACT: 1,
   SECURITY: 2,
+  OTP: 3,
 };
 
 const TrialModal = ({ isOpen, onClose }) => {
@@ -20,6 +21,8 @@ const TrialModal = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState(STEPS.CONTACT);
   const [showPlans, setShowPlans] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [verifying, setVerifying] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -83,18 +86,11 @@ const TrialModal = ({ isOpen, onClose }) => {
 
       const response = await api.post('/organizations', registrationData);
       
-      if (response.data.token) {
-        login({
-          ...response.data.owner,
-          token: response.data.token,
-          organizationId: response.data.organization.id,
-          organization: response.data.organization
-        });
-        
-        toast.success("Account created successfully!");
-        onClose();
-        // Correct dashboard route
-        navigate('/admin-dashboard');
+      if (response.data.verificationRequired) {
+        toast.info("OTP sent to your WhatsApp!");
+        setCurrentStep(STEPS.OTP);
+      } else if (response.data.token) {
+        handleSuccessLogin(response.data);
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -102,6 +98,52 @@ const TrialModal = ({ isOpen, onClose }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    if (otp.length !== 6) {
+      toast.error("Please enter a valid 6-digit OTP");
+      return;
+    }
+
+    setVerifying(true);
+    try {
+      const response = await api.post('/organizations/verify-otp', {
+        email: formData.email,
+        otp: otp
+      });
+
+      if (response.data.token) {
+        handleSuccessLogin(response.data);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Verification failed");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    try {
+      await api.post('/organizations/resend-otp', { email: formData.email });
+      toast.success("New OTP sent!");
+    } catch (error) {
+      toast.error("Failed to resend OTP");
+    }
+  };
+
+  const handleSuccessLogin = (data) => {
+    login({
+      ...data.user,
+      token: data.token,
+      organizationId: data.organization.id || data.organization._id,
+      organization: data.organization
+    });
+    
+    toast.success("Account verified successfully!");
+    onClose();
+    navigate('/admin-dashboard');
   };
 
   if (!isOpen) return null;
@@ -272,7 +314,7 @@ const TrialModal = ({ isOpen, onClose }) => {
                         </button>
                       </form>
                     </motion.div>
-                  ) : (
+                  ) : currentStep === STEPS.SECURITY ? (
                     <motion.div
                       key="step2"
                       initial={{ opacity: 0, x: 20 }}
@@ -364,10 +406,63 @@ const TrialModal = ({ isOpen, onClose }) => {
                         </button>
                       </form>
                     </motion.div>
+                  ) : (
+                    <motion.div
+                      key="otp"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="flex-1"
+                    >
+                      <div className="mb-10 text-center md:text-left">
+                        <h3 className="text-3xl font-black text-slate-900 mb-3">Verify WhatsApp</h3>
+                        <p className="text-slate-500 font-medium">We've sent a 6-digit code to <span className="text-blue-600">{formData.phone}</span></p>
+                      </div>
+
+                      <form onSubmit={handleVerifyOTP} className="space-y-6">
+                        <div className="relative group">
+                          <ShieldCheck size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-all" />
+                          <input
+                            type="text"
+                            maxLength="6"
+                            required
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                            placeholder="Enter 6-digit OTP"
+                            className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-black text-2xl tracking-[0.5em] placeholder:text-slate-300 placeholder:text-sm placeholder:tracking-normal placeholder:font-medium"
+                          />
+                        </div>
+
+                        <button 
+                          type="submit" 
+                          disabled={verifying}
+                          className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-lg rounded-2xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 group"
+                        >
+                          {verifying ? (
+                            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              Verify & Start Trial
+                              <Check size={20} className="group-hover:scale-110 transition-transform" />
+                            </>
+                          )}
+                        </button>
+
+                        <div className="text-center">
+                          <button 
+                            type="button"
+                            onClick={handleResendOTP}
+                            className="text-sm font-bold text-slate-400 hover:text-blue-600 transition-colors"
+                          >
+                            Didn't receive the code? Resend OTP
+                          </button>
+                        </div>
+                      </form>
+                    </motion.div>
                   )
                 ) : (
                   <motion.div
-                    key="step3"
+                    key="plans"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
@@ -396,7 +491,7 @@ const TrialModal = ({ isOpen, onClose }) => {
                       <PlanCard 
                         id="basic"
                         title="Basic"
-                        price="299/mo"
+                        price="499/mo"
                         desc="Perfect for solo doctors & small practices"
                         features={["1 Doctor Login", "500 Appointments/mo", "1,000 Patient Records", "Cloud Storage"]}
                         onSelect={handleSelectPlan}
@@ -406,7 +501,7 @@ const TrialModal = ({ isOpen, onClose }) => {
                       <PlanCard 
                         id="pro"
                         title="Standard"
-                        price="499/mo"
+                        price="699/mo"
                         desc="Enhanced features for growing clinics"
                         features={["Up to 3 Doctors", "2 Receptionists", "2,000 Appointments/mo", "Advanced Analytics"]}
                         onSelect={handleSelectPlan}
@@ -416,7 +511,7 @@ const TrialModal = ({ isOpen, onClose }) => {
                       <PlanCard 
                         id="enterprise"
                         title="Premium"
-                        price="699/mo"
+                        price="999/mo"
                         desc="Full hospital & multi-doctor management"
                         features={["Unlimited Everything", "SMS Reminders", "Professional Reports", "Custom Branding"]}
                         onSelect={handleSelectPlan}

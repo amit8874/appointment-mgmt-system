@@ -57,35 +57,50 @@ export const getGlobalPublicDoctors = async (req, res) => {
     const { speciality, city, query } = req.query;
     const dbQuery = { status: { $in: ['Active', 'Verified'] } };
     
-    // If 'query' is provided, search in both name and specialization
+    // If 'query' is provided, search in name, specialization, and department
     if (query && query.trim() !== '') {
       const regex = { $regex: query.trim(), $options: 'i' };
       dbQuery.$or = [
         { name: regex },
-        { specialization: regex }
+        { specialization: regex },
+        { department: regex }
       ];
     } else if (speciality && speciality !== 'Any' && speciality.trim() !== '') {
-      // Backward compatibility for 'speciality' param
-      dbQuery.specialization = { $regex: speciality.trim(), $options: 'i' };
+      // Search in both specialization and department
+      const spec = speciality.trim();
+      const regex = { $regex: spec, $options: 'i' };
+      
+      // Handle common variations like Cardiologist -> Cardiology
+      const variations = [spec];
+      if (spec.toLowerCase().endsWith('ist')) variations.push(spec.slice(0, -3) + 'y');
+      if (spec.toLowerCase().endsWith('ian')) variations.push(spec.slice(0, -3) + 's');
+      
+      const variationRegex = variations.join('|');
+      const fuzzyRegex = { $regex: variationRegex, $options: 'i' };
+
+      dbQuery.$or = [
+        { specialization: fuzzyRegex },
+        { department: fuzzyRegex }
+      ];
     }
     
     if (city && city !== 'Any' && city !== 'Select Location' && city.trim() !== '') {
       const cityRegex = { $regex: city.trim(), $options: 'i' };
-      // Use $and if $or already exists for name/specialization
+      const locationQuery = [
+        { 'addressInfo.city': cityRegex },
+        { 'address': cityRegex },
+        { 'serviceLocation.address.city': cityRegex },
+        { 'serviceLocation.address.street': cityRegex }
+      ];
+
       if (dbQuery.$or) {
         dbQuery.$and = [
           { $or: dbQuery.$or },
-          { $or: [
-            { 'addressInfo.city': cityRegex },
-            { 'address': cityRegex }
-          ]}
+          { $or: locationQuery }
         ];
         delete dbQuery.$or;
       } else {
-        dbQuery.$or = [
-          { 'addressInfo.city': cityRegex },
-          { 'address': cityRegex }
-        ];
+        dbQuery.$or = locationQuery;
       }
     }
 
@@ -151,19 +166,22 @@ export const getSearchSuggestions = async (req, res) => {
 
     const regex = { $regex: q.trim(), $options: 'i' };
 
-    // Find specializations and doctor names matching the query
+    // Find specializations, departments and doctor names matching the query
     const results = await Doctor.find({ status: { $in: ['Active', 'Verified'] } })
-      .or([{ name: regex }, { specialization: regex }])
-      .select('name specialization')
+      .or([{ name: regex }, { specialization: regex }, { department: regex }])
+      .select('name specialization department')
       .limit(10);
-
-    // Extract unique specializations and names
+ 
+    // Extract unique specializations, departments and names
     const suggestionsSet = new Set();
     results.forEach(doc => {
-      if (doc.specialization.toLowerCase().includes(q.toLowerCase())) {
+      if (doc.specialization && doc.specialization.toLowerCase().includes(q.toLowerCase())) {
         suggestionsSet.add(doc.specialization);
       }
-      if (doc.name.toLowerCase().includes(q.toLowerCase())) {
+      if (doc.department && doc.department.toLowerCase().includes(q.toLowerCase())) {
+        suggestionsSet.add(doc.department);
+      }
+      if (doc.name && doc.name.toLowerCase().includes(q.toLowerCase())) {
         suggestionsSet.add(doc.name);
       }
     });
@@ -571,6 +589,7 @@ export const getAllDoctors = async (req, res) => {
       idType: doctor.idType,
       idNumber: doctor.idNumber,
       idDocumentUrl: doctor.idDocumentUrl,
+      serviceLocation: doctor.serviceLocation,
     }));
 
     res.json({

@@ -14,8 +14,6 @@
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.1.0",
     "@hookform/resolvers": "^5.2.2",
-    "@react-three/drei": "^10.7.6",
-    "@react-three/fiber": "^9.4.0",
     "@reduxjs/toolkit": "^2.9.2",
     "@tailwindcss/vite": "^4.1.14",
     "@types/react-datepicker": "^6.2.0",
@@ -39,7 +37,6 @@
     "react-toastify": "^11.0.5",
     "recharts": "^2.12.7",
     "socket.io-client": "^4.8.3",
-    "three": "^0.180.0",
     "uuid": "^13.0.0",
     "xlsx": "^0.18.5",
     "yup": "^1.7.1"

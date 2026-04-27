@@ -381,24 +381,6 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       const response = await api.post('/appointments/book-patient', appointmentData);
 
       if (response.status === 200 || response.status === 201) {
-        // Automated WhatsApp notification
-        try {
-          const patientName = `${formData.designation} ${formData.firstName} ${formData.lastName}`.trim();
-          const phone = formData.phone;
-          const patientId = selectedExistingId || formData.patientId;
-          const doctorName = selectedDoctor ? selectedDoctor.name : '';
-          const date = formData.appointmentDate;
-          const time = formData.appointmentTime;
-
-          const msg = `Dear ${patientName}, your ID is ${patientId}, your appointment is booked with Dr. ${doctorName} on ${date} at ${time}, please be on time.`;
-          
-          await whatsappApi.send(phone, msg);
-          toast.success('WhatsApp notification sent successfully!');
-        } catch (waError) {
-          console.error('WhatsApp notification failed:', waError);
-          // Don't toast error here to not confuse the user about the booking itself which was successful
-        }
-
         // Execute callbacks if provided
         if (onSuccess) onSuccess();
         if (onClose) onClose();

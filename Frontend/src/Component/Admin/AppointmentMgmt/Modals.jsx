@@ -377,7 +377,7 @@ function AppointmentDetailsModal({
               <InfoRow
                 icon={<Hash size={18} className="text-purple-500" />}
                 label="Appointment ID"
-                value={<span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{id}</span>}
+                value={<span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{resource.shortId || id}</span>}
               />
               <InfoRow
                 icon={<User size={18} className="text-blue-500" />}

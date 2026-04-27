@@ -14,7 +14,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
         secure: false,
       },
@@ -26,8 +26,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          redux: ['@reduxjs/toolkit', 'react-redux'],
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['framer-motion', 'lucide-react', 'react-toastify'],
+          'vendor-utils': ['axios', 'date-fns', 'socket.io-client'],
+          'charts': ['recharts'],
+          'redux-store': ['@reduxjs/toolkit', 'react-redux'],
         }
       }
     }

@@ -201,10 +201,10 @@ Oviaan is an all-in-one Practice Management Solution (PMS) designed for clinics,
 
 3. PRICING & SUBSCRIPTION:
    - Free Trial: 14 days full access (1 doctor, 100 appointments/month).
-   - Basic Plan (₹299/mo): Ideal for small clinics (1 doctor, 500 appointments/month).
-   - Standard Plan (₹499/mo): Recommended for growing practices (3 doctors, 2000 appointments/month, advanced analytics).
-   - Premium Plan (₹699/mo): Unlimited everything (Unlimited doctors, appointments, patients), custom white-label branding, and dedicated support.
-   - Note: Annual plans offer significant savings (e.g., Basic at ₹2,999/year).
+   - Basic Plan (₹499/mo): Ideal for small clinics (1 doctor, 500 appointments/month).
+   - Standard Plan (₹699/mo): Best for growing practices (3 doctors, 2000 appointments/month).
+   - Premium Plan (₹999/mo): Unlimited doctors and appointments, custom branding.
+   - Note: Annual plans offer significant savings (e.g., Basic at ₹4,990/year).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🛡️ CONVERSATION GUIDELINES:

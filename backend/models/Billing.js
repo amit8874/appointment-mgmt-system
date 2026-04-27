@@ -81,6 +81,14 @@ const billingSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  appointmentDate: {
+    type: String,
+    default: null
+  },
+  appointmentTime: {
+    type: String,
+    default: null
+  },
   templateId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'InvoiceTemplate',
@@ -102,7 +110,7 @@ const billingSchema = new mongoose.Schema({
 
 // Indexes for performance
 billingSchema.index({ organizationId: 1, billId: 1 }, { unique: true });
-billingSchema.index({ organizationId: 1, invoiceNumber: 1 }, { unique: true, sparse: true });
+billingSchema.index({ organizationId: 1, invoiceNumber: 1 });
 billingSchema.index({ organizationId: 1 });
 billingSchema.index({ organizationId: 1, patientId: 1 });
 

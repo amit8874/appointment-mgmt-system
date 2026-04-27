@@ -123,6 +123,10 @@ const confirmedAppointmentSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  whatsappReminderSent: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // Indexes for performance

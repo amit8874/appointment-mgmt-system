@@ -138,6 +138,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
           end: new Date(startDate.getTime() + 30 * 60000),
           title: app.patientName,
           resource: {
+            shortId: app.shortId,
             patientName: app.patientName,
             patientId: app.patientId,
             doctorName: app.doctorName,
@@ -350,7 +351,9 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
         matchesStatus = status === statusFilter.toLowerCase();
       }
 
-      const matchesSearch = patientName.includes(search) || reason.includes(search);
+      const matchesSearch = patientName.includes(search) || 
+                            reason.includes(search) || 
+                            app.resource.shortId?.toString().includes(search);
       
       return matchesDoc && matchesStatus && matchesSearch;
     });

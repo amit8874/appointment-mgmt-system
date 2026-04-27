@@ -126,6 +126,10 @@ const patientSchema = new mongoose.Schema({
     type: String, // Stored as YYYY-MM-DD for easy filtering
     default: null
   },
+  lastShortId: {
+    type: String,
+    default: null
+  },
   reports: [{
     filename: String,
     url: String,

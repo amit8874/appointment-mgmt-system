@@ -353,27 +353,6 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       if (response.status === 200 || response.status === 201) {
         toast.success('Appointment booked successfully!');
         
-        // Automated WhatsApp notification
-        try {
-          const patientName = `${formData.designation} ${formData.firstName} ${formData.lastName}`.trim();
-          const phone = formData.phone;
-          const patientId = selectedExistingId || formData.patientId;
-          const doctorName = selectedDoc ? selectedDoc.name : '';
-          const date = formData.appointmentDate;
-          const time = formData.appointmentTime;
-          const notesText = formData.notes.trim();
-
-          let msg = `Dear ${patientName}, your ID is ${patientId}, your appointment is booked with Dr. ${doctorName} on ${date} at ${time}, please be on time.`;
-          if (notesText) {
-            msg += `\n\nNote: ${notesText}`;
-          }
-
-          await whatsappApi.send(phone, msg);
-          toast.success('WhatsApp notification sent successfully!');
-        } catch (waError) {
-          console.error('WhatsApp notification failed:', waError);
-        }
-
         setFormData(prev => ({
           ...prev,
           firstName: '',

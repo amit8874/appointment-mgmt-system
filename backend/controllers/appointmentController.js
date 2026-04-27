@@ -11,6 +11,10 @@ import User from '../models/User.js';
 import Counter from '../models/Counter.js';
 import { incrementUsage } from '../middleware/subscription.js';
 import { generatePatientId } from '../utils/idGenerator.js';
+import Organization from '../models/Organization.js';
+import { sendWhatsAppTemplate } from '../services/whatsappService.js';
+import { sanitizePhone } from '../utils/phoneUtils.js';
+import OTP from '../models/OTP.js';
 
 export const getDoctorAppointments = async (req, res) => {
   try {
@@ -198,12 +202,25 @@ export const bookPatientAppointment = async (req, res) => {
     // Always update the Patient's assigned doctor to the latest booked doctor
     existingPatient.assignedDoctor = doctorName || '';
     existingPatient.assignedDoctorId = doctorId || '';
+    
+    // Generate numeric shortId for appointment (standardizing)
+    const counter = await Counter.findOneAndUpdate(
+      { name: 'global_appointment_short_id' },
+      { $inc: { value: 1 } },
+      { new: true, upsert: true }
+    );
+    const baseId = 23440000;
+    const shortId = (baseId + counter.value).toString();
+    
+    existingPatient.lastShortId = shortId;
+    existingPatient.lastVisit = date;
     await existingPatient.save();
     
     const patientIdToUse = existingPatient.patientId || existingPatient._id.toString();
     const patientName = `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient';
 
     const appointment = new PendingAppointment({
+      shortId,
       organizationId,
       patientId: patientIdToUse,
       designation: patientDetails.designation,
@@ -290,9 +307,110 @@ export const bookPatientAppointment = async (req, res) => {
     }
 
     res.status(201).json(appointment);
+
+    // 8. Send WhatsApp Confirmation Message to Patient
+    try {
+      const organization = await Organization.findById(organizationId);
+      const clinicName = organization?.name || 'our clinic';
+      
+      // Construct full address
+      let fullAddress = '';
+      if (organization?.address) {
+        const { street, city, state, zipCode } = organization.address;
+        fullAddress = [street, city, state, zipCode].filter(Boolean).join(', ');
+      }
+      
+      const sanitizedMobile = sanitizePhone(patientDetails.phone);
+      const confirmationTemplate = process.env.WHATSAPP_APPOINTMENT_CONFIRMATION_TEMPLATE || 'appointment_confirmation';
+      const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+      const waResponse = await sendWhatsAppTemplate(
+        sanitizedMobile,
+        confirmationTemplate,
+        templateLang,
+        [
+          patientName,
+          doctorName,
+          clinicName,
+          new Date(date).toLocaleDateString('en-IN'),
+          time
+        ]
+      );
+
+      if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+        console.log(`[WhatsApp] Intake booking confirmation sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
+      } else {
+        console.error('[WhatsApp] Meta API success but no message ID returned:', waResponse);
+      }
+    } catch (waError) {
+      console.error('[WhatsApp] Failed to send intake booking confirmation:', waError.message);
+    }
   } catch (error) {
     console.error('Error booking appointment:', error);
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Send WhatsApp OTP
+export const sendWhatsAppOTP = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: 'Phone number is required' });
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store OTP in database (will expire in 5 mins)
+    await OTP.findOneAndUpdate(
+      { phone },
+      { otp, createdAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    // Format phone for WhatsApp
+    const sanitizedPhone = sanitizePhone(phone);
+
+    // Send via WhatsApp Template
+    try {
+      const otpTemplate = process.env.WHATSAPP_OTP_TEMPLATE || 'registration_otp';
+      const otpLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+      
+      const response = await sendWhatsAppTemplate(sanitizedPhone, otpTemplate, otpLang, [otp], [otp]);
+      
+      if (response && response.messages && response.messages[0] && response.messages[0].id) {
+        return res.json({ success: true, message: 'OTP sent successfully', wamid: response.messages[0].id });
+      } else {
+        console.error('[OTP] Meta API success but no message ID returned:', response);
+        return res.status(500).json({ message: 'Failed to deliver OTP' });
+      }
+    } catch (waError) {
+      console.error('WhatsApp Template Error:', waError.response?.data || waError.message);
+      return res.status(500).json({ message: 'Failed to send OTP' });
+    }
+  } catch (error) {
+    console.error('Error sending OTP:', error);
+    res.status(500).json({ message: 'Failed to send OTP' });
+  }
+};
+
+// Verify WhatsApp OTP
+export const verifyWhatsAppOTP = async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ message: 'Phone and OTP are required' });
+
+    const record = await OTP.findOne({ phone, otp });
+    if (!record) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    // Delete OTP once verified
+    await OTP.deleteOne({ _id: record._id });
+
+    res.json({ success: true, message: 'OTP verified successfully' });
+  } catch (error) {
+    console.error('Error verifying OTP:', error);
+    res.status(500).json({ message: 'Failed to verify OTP' });
   }
 };
 
@@ -451,6 +569,15 @@ export const bookAppointment = async (req, res) => {
       return res.status(400).json({ message: 'This time slot is already booked' });
     }
 
+    // Generate numeric shortId for appointment (standardizing with public bookings)
+    const counter = await Counter.findOneAndUpdate(
+      { name: 'global_appointment_short_id' },
+      { $inc: { value: 1 } },
+      { new: true, upsert: true }
+    );
+    const baseId = 23440000;
+    const shortId = (baseId + counter.value).toString();
+
     let patientIdToUse = patientId;
     let existingPatient = null;
 
@@ -527,6 +654,7 @@ export const bookAppointment = async (req, res) => {
     const fee = docObj?.fee || 500;
 
     const appointment = new PendingAppointment({
+      shortId,
       organizationId: req.tenantId,
       patientId: patientIdToUse,
       doctorId,
@@ -546,9 +674,10 @@ export const bookAppointment = async (req, res) => {
 
     await appointment.save();
 
-    // Update patient's lastVisit date
+    // Update patient's lastVisit date and reference the latest appointment ID
     if (existingPatient) {
       existingPatient.lastVisit = date;
+      existingPatient.lastShortId = shortId;
       await existingPatient.save();
     }
 
@@ -590,7 +719,7 @@ export const bookAppointment = async (req, res) => {
       if (!docObj) {
         docObj = await Doctor.findById(doctorId);
       }
-      const fee = docObj?.fee || 500;
+      const fee = Number(amount) || docObj?.fee || 500;
 
       const newBill = new Billing({
         billId,
@@ -617,6 +746,44 @@ export const bookAppointment = async (req, res) => {
     }
 
     res.status(201).json(appointment);
+
+    // 7. Send WhatsApp Confirmation Message to Patient
+    try {
+      const organization = await Organization.findById(req.tenantId);
+      const clinicName = organization?.name || 'our clinic';
+      
+      // Construct full address
+      let fullAddress = '';
+      if (organization?.address) {
+        const { street, city, state, zipCode } = organization.address;
+        fullAddress = [street, city, state, zipCode].filter(Boolean).join(', ');
+      }
+      
+      const sanitizedMobile = sanitizePhone(patientPhone);
+      const confirmationTemplate = process.env.WHATSAPP_APPOINTMENT_CONFIRMATION_TEMPLATE || 'appointment_confirmation';
+      const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+      const waResponse = await sendWhatsAppTemplate(
+        sanitizedMobile,
+        confirmationTemplate,
+        templateLang,
+        [
+          patientName,
+          doctorName,
+          clinicName,
+          new Date(date).toLocaleDateString('en-IN'),
+          time
+        ]
+      );
+
+      if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+        console.log(`[WhatsApp] Internal booking confirmation sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
+      } else {
+        console.error('[WhatsApp] Meta API success but no message ID returned:', waResponse);
+      }
+    } catch (waError) {
+      console.error('[WhatsApp] Failed to send internal booking confirmation:', waError.message);
+    }
   } catch (error) {
     console.error('Error booking appointment:', error);
     res.status(500).json({ message: error.message });
@@ -664,11 +831,87 @@ export const updateAppointmentStatus = async (req, res) => {
       await newAppointment.save();
       await currentModel.findByIdAndDelete(appointmentId);
 
+      // Send WhatsApp Confirmation if status is now 'confirmed'
+      if (status === 'confirmed') {
+        try {
+          const organization = await Organization.findById(appointment.organizationId);
+          const clinicName = organization?.name || 'our clinic';
+          const patientName = newAppointment.patientName || `${newAppointment.firstName} ${newAppointment.lastName}`.trim() || 'Patient';
+          
+          let whatsappMobile = newAppointment.patientPhone;
+          if (whatsappMobile && whatsappMobile.length === 10) {
+            whatsappMobile = `91${whatsappMobile}`;
+          }
+
+          if (whatsappMobile) {
+            const sanitizedMobile = sanitizePhone(whatsappMobile);
+            const confirmationTemplate = process.env.WHATSAPP_APPOINTMENT_CONFIRMATION_TEMPLATE || 'appointment_confirmation';
+            const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+            
+            const waResponse = await sendWhatsAppTemplate(
+              sanitizedMobile,
+              confirmationTemplate,
+              templateLang,
+              [
+                patientName,
+                newAppointment.doctorName,
+                clinicName,
+                new Date(newAppointment.date).toLocaleDateString('en-IN'),
+                newAppointment.time
+              ]
+            );
+            
+            if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+              console.log(`[WhatsApp] Appointment confirmation sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
+            }
+          }
+        } catch (waError) {
+          console.error('[WhatsApp] Failed to send appointment confirmation:', waError.message);
+        }
+      }
+
       // Sync with Billing: If appointment is cancelled, cancel the bill too
       if (status === 'cancelled') {
         try {
           console.log(`[SYNC DEBUG] Attempting to cancel bill for appointmentId: ${appointmentId}`);
           
+          // Send WhatsApp Cancellation Notification
+          try {
+            const organization = await Organization.findById(appointment.organizationId);
+            const clinicName = organization?.name || 'our clinic';
+            const patientName = newAppointment.patientName || `${newAppointment.firstName} ${newAppointment.lastName}`.trim() || 'Patient';
+            
+            let whatsappMobile = newAppointment.patientPhone;
+            if (whatsappMobile && whatsappMobile.length === 10) {
+              whatsappMobile = `91${whatsappMobile}`;
+            }
+
+            if (whatsappMobile) {
+              const sanitizedMobile = sanitizePhone(whatsappMobile);
+              const cancellationTemplate = process.env.WHATSAPP_APPOINTMENT_CANCELLATION_TEMPLATE || 'appointment_cancellation';
+              const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+              const waResponse = await sendWhatsAppTemplate(
+                sanitizedMobile,
+                cancellationTemplate,
+                templateLang,
+                [
+                  patientName,
+                  newAppointment.doctorName,
+                  clinicName,
+                  new Date(newAppointment.date).toLocaleDateString('en-IN'),
+                  newAppointment.time
+                ]
+              );
+              
+              if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+                console.log(`[WhatsApp] Appointment cancellation sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
+              }
+            }
+          } catch (waError) {
+            console.error('[WhatsApp] Failed to send appointment cancellation:', waError.message);
+          }
+
           // Use a more flexible query to ensure we find the bill
           const updatedBill = await Billing.findOneAndUpdate(
             { 
@@ -766,12 +1009,90 @@ export const updateAppointment = async (req, res) => {
       await newAppointment.save();
       await currentModel.findByIdAndDelete(appointmentId);
 
+      // Send WhatsApp Confirmation if status is now 'confirmed'
+      if (status === 'confirmed') {
+        try {
+          const organization = await Organization.findById(appointment.organizationId);
+          const clinicName = organization?.name || 'our clinic';
+          const patientName = newAppointment.patientName || `${newAppointment.firstName} ${newAppointment.lastName}`.trim() || 'Patient';
+          
+          let whatsappMobile = newAppointment.patientPhone;
+          if (whatsappMobile && whatsappMobile.length === 10) {
+            whatsappMobile = `91${whatsappMobile}`;
+          }
+
+          if (whatsappMobile) {
+            const sanitizedMobile = sanitizePhone(whatsappMobile);
+            const confirmationTemplate = process.env.WHATSAPP_APPOINTMENT_CONFIRMATION_TEMPLATE || 'appointment_confirmation';
+            const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+            const waResponse = await sendWhatsAppTemplate(
+              sanitizedMobile,
+              confirmationTemplate,
+              templateLang,
+              [
+                patientName,
+                newAppointment.doctorName,
+                clinicName,
+                new Date(newAppointment.date).toLocaleDateString('en-IN'),
+                newAppointment.time
+              ]
+            );
+            
+            if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+              console.log(`[WhatsApp] Appointment confirmation sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
+            }
+          }
+        } catch (waError) {
+          console.error('[WhatsApp] Failed to send appointment confirmation:', waError.message);
+        }
+      }
+
       try {
         if ((status === 'confirmed' || status === 'cancelled') && appointment.patientId) {
           const statusMessages = {
             confirmed: `✅ Your appointment with ${appointment.doctorName} on ${appointment.date} at ${appointment.time} has been confirmed.`,
             cancelled: `❌ Your appointment with ${appointment.doctorName} on ${appointment.date} at ${appointment.time} has been cancelled.`,
           };
+
+          // If status is cancelled, also send WhatsApp
+          if (status === 'cancelled') {
+            try {
+              const organization = await Organization.findById(appointment.organizationId);
+              const clinicName = organization?.name || 'our clinic';
+              const patientName = newAppointment.patientName || `${newAppointment.firstName} ${newAppointment.lastName}`.trim() || 'Patient';
+              
+              let whatsappMobile = newAppointment.patientPhone;
+              if (whatsappMobile && whatsappMobile.length === 10) {
+                whatsappMobile = `91${whatsappMobile}`;
+              }
+
+              if (whatsappMobile) {
+                const sanitizedMobile = sanitizePhone(whatsappMobile);
+                const cancellationTemplate = process.env.WHATSAPP_APPOINTMENT_CANCELLATION_TEMPLATE || 'appointment_cancellation';
+                const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+                const waResponse = await sendWhatsAppTemplate(
+                  sanitizedMobile,
+                  cancellationTemplate,
+                  templateLang,
+                  [
+                    patientName,
+                    newAppointment.doctorName,
+                    clinicName,
+                    new Date(newAppointment.date).toLocaleDateString('en-IN'),
+                    newAppointment.time
+                  ]
+                );
+                
+                if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+                  console.log(`[WhatsApp] Appointment cancellation sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
+                }
+              }
+            } catch (waError) {
+              console.error('[WhatsApp] Failed to send appointment cancellation:', waError.message);
+            }
+          }
 
           const patientNotification = new Notification({
             message: statusMessages[status],
@@ -789,8 +1110,18 @@ export const updateAppointment = async (req, res) => {
       res.json(newAppointment);
     } else {
       const updateData = {};
-      if (date) updateData.date = date;
-      if (time) updateData.time = time;
+      if (date) {
+        updateData.date = date;
+        if (date !== appointment.date) {
+          updateData.whatsappReminderSent = false;
+        }
+      }
+      if (time) {
+        updateData.time = time;
+        if (time !== appointment.time) {
+          updateData.whatsappReminderSent = false;
+        }
+      }
       if (reason !== undefined) updateData.reason = reason;
       if (symptoms !== undefined) updateData.symptoms = symptoms;
 
@@ -1031,9 +1362,10 @@ export const bookPublicAppointment = async (req, res) => {
 
     await appointment.save();
 
-    // Update patient's lastVisit date
+    // Update patient's lastVisit date and reference the latest appointment ID
     if (patient) {
       patient.lastVisit = date;
+      patient.lastShortId = shortId.toString();
       await patient.save();
     }
 
@@ -1131,6 +1463,40 @@ export const bookPublicAppointment = async (req, res) => {
         amount: appointment.amount
       }
     });
+
+    // 8. Send WhatsApp Confirmation Message to Patient
+    try {
+      const organization = await Organization.findById(organizationId);
+      const clinicName = organization?.name || 'our clinic';
+      
+      // Construct full address
+      let fullAddress = '';
+      if (organization?.address) {
+        const { street, city, state, zipCode } = organization.address;
+        fullAddress = [street, city, state, zipCode].filter(Boolean).join(', ');
+      }
+      
+      let whatsappMobile = patientPhone;
+      if (whatsappMobile && whatsappMobile.length === 10) {
+        whatsappMobile = `91${whatsappMobile}`;
+      }
+
+      const bookingMessage = `✅ *Appointment Confirmed* ✅\n\n` +
+        `Hi *${patientName}*,\n` +
+        `Your appointment has been successfully booked with *Dr. ${doctor.name}*.\n\n` +
+        `🗓️ *Date:* ${new Date(date).toLocaleDateString('en-IN')}\n` +
+        `⏰ *Time:* ${time}\n` +
+        `📍 *Location:* ${clinicName}${fullAddress ? ', ' : ''}${fullAddress}\n` +
+        `🆔 *Appt ID:* ${shortId}\n` +
+        `👤 *Patient ID:* ${patient.patientId || patient._id}\n\n` +
+        `Please reach 10 minutes before your slot. Visit Oviaan for more details.\n\n` +
+        `_Thank you partner with Oviaan!_`;
+
+      await sendWhatsAppMessage(whatsappMobile, bookingMessage);
+      console.log(`[WhatsApp] Public booking confirmation sent to ${whatsappMobile}`);
+    } catch (waError) {
+      console.error('[WhatsApp] Failed to send public booking confirmation:', waError.message);
+    }
 
   } catch (error) {
     console.error('Error booking public appointment:', error);

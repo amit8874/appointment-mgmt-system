@@ -8,7 +8,8 @@ import {
   updateBillStatus,
   deleteBill,
   getBillById,
-  createPOSBill
+  createPOSBill,
+  sendWhatsAppInvoice
 } from '../controllers/billingController.js';
 
 const router = express.Router();
@@ -37,5 +38,8 @@ router.delete('/:id', deleteBill);
 
 // GET single bill by ID
 router.get('/:id', getBillById);
+
+// SEND Invoice via WhatsApp
+router.post('/:id/send-whatsapp', sendWhatsAppInvoice);
 
 export default router;

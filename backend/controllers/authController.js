@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { sendWhatsAppMessage } from '../services/whatsappService.js';
+import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
 import User from '../models/User.js';
 import Session from '../models/Session.js';
@@ -48,18 +48,37 @@ export const sendOtp = async (req, res) => {
 
     const appName = process.env.APP_NAME || 'Oviaan';
 
-    // Send OTP via WhatsApp
+    // Send OTP via WhatsApp Template
     try {
-      await sendWhatsAppMessage(
+      const otpTemplate = process.env.WHATSAPP_OTP_TEMPLATE || 'registration_otp';
+      const otpLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+      
+      const response = await sendWhatsAppTemplate(
         sanitizedPhone, 
-        `🔑 Your ${appName} OTP is: ${otp}. Do not share it with anyone. Valid for 5 minutes.`
+        otpTemplate,
+        otpLang,
+        [otp],
+        [otp]
       );
-      console.log(`[Auth] OTP for ${phone} sent via WhatsApp: ${otp}`);
+      
+      console.log(`[Auth] OTP for ${phone} sent via WhatsApp Template: ${otp}`);
+      
+      // Return success only if Meta response contains message ID
+      if (response && response.messages && response.messages[0] && response.messages[0].id) {
+        return res.json({ 
+          success: true, 
+          message: 'OTP sent successfully via WhatsApp', 
+          phone,
+          wamid: response.messages[0].id 
+        });
+      } else {
+        console.error('[Auth] Meta API success but no message ID returned:', response);
+        return res.status(500).json({ message: 'Failed to deliver WhatsApp message' });
+      }
     } catch (wsError) {
-      console.error('[Auth] Failed to send WhatsApp OTP:', wsError.message);
+      console.error('[Auth] Failed to send WhatsApp OTP Template:', wsError.response?.data || wsError.message);
+      return res.status(500).json({ message: 'Failed to send WhatsApp OTP. Please try again.' });
     }
-
-    res.json({ success: true, message: 'OTP sent successfully via WhatsApp', phone });
   } catch (error) {
     console.error('Error sending OTP:', error);
     res.status(500).json({ message: 'Server error' });

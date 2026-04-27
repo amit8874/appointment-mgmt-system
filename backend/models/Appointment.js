@@ -7,6 +7,11 @@ const appointmentSchema = new mongoose.Schema({
     ref: 'Organization',
     required: true,
   },
+  shortId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
   patientId: {
     type: String, // Mock patient ID
     required: true,

@@ -4,7 +4,7 @@ import {
   Search, Plus, Printer, Mail, X, Check, Clock,
   Percent, Trash2, Edit, ArrowLeft,
   FileText, User, Calendar, Clock as ClockIcon,
-  Save,
+  Save, Smartphone
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
@@ -211,6 +211,23 @@ const BillingMgmt = () => {
       fetchBills();
     } catch (error) {
       console.error('Error updating payment status:', error);
+    }
+  };
+
+  const handleSendWhatsApp = async (bill) => {
+    try {
+      const { billingApi } = await import('../../../services/api');
+      const billId = bill._id || bill.id;
+      
+      // Notify user
+      const patientName = bill.patientName || 'Patient';
+      console.log(`Sending WhatsApp to ${patientName}...`);
+      
+      await billingApi.sendWhatsApp(billId);
+      alert(`Invoice sent successfully to ${patientName} via WhatsApp!`);
+    } catch (error) {
+      console.error('Error sending WhatsApp invoice:', error);
+      alert(error.response?.data?.message || 'Failed to send WhatsApp invoice. Please check if the patient has a valid phone number.');
     }
   };
 
@@ -435,6 +452,13 @@ const BillingMgmt = () => {
                             <Check className="h-5 w-5" />
                           </button>
                         )}
+                        <button
+                          onClick={() => handleSendWhatsApp(bill)}
+                          className="text-green-600 hover:text-green-900"
+                          title="Send via WhatsApp"
+                        >
+                          <Smartphone className="h-5 w-5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -821,10 +845,10 @@ const BillingMgmt = () => {
           </h2>
           <div className="flex space-x-2">
             <button
-              onClick={() => window.print()}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-md font-bold"
+              onClick={() => handleSendWhatsApp(selectedBill)}
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all shadow-md font-bold"
             >
-              <Printer className="h-4 w-4 mr-2" /> Print Invoice
+              <Smartphone className="h-4 w-4 mr-2" /> Send WhatsApp
             </button>
           </div>
         </div>

@@ -539,7 +539,12 @@ const AdminDashboardPanel = ({
                 {filteredRecentAppointments?.length > 0 ? (
                   filteredRecentAppointments.slice(0, 5).map((appt, idx) => (
                     <tr key={idx} className="group hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="py-4 font-bold text-gray-900 dark:text-gray-50 text-sm whitespace-nowrap">{appt.patientName}</td>
+                      <td className="py-4 whitespace-nowrap">
+                        <div className="font-bold text-gray-900 dark:text-gray-50 text-sm">{appt.patientName}</div>
+                        {appt.shortId && (
+                          <div className="text-[10px] text-blue-500 font-bold uppercase tracking-tighter">Appt ID: {appt.shortId}</div>
+                        )}
+                      </td>
                       <td className="py-4 text-gray-600 dark:text-gray-400 text-sm whitespace-nowrap">{appt.doctorName}</td>
                       <td className="py-4 text-center">
                         <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px] font-black uppercase">

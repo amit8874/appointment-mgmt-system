@@ -5,6 +5,10 @@ import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import CancelledAppointment from '../models/CancelledAppointment.js';
 import Appointment from '../models/Appointment.js';
+import Organization from '../models/Organization.js';
+import { sendWhatsAppMediaTemplate } from '../services/whatsappService.js';
+import { generateInvoicePDF } from '../services/pdfService.js';
+import { sanitizePhone } from '../utils/phoneUtils.js';
 
 // Helper to sync payment status with Appointment across all collections
 const syncAppointmentStatus = async (appointmentId, billStatus) => {
@@ -233,5 +237,70 @@ export const createPOSBill = async (req, res) => {
   } catch (error) {
     console.error('POS Billing error:', error);
     res.status(400).json({ message: error.message });
+  }
+};
+
+export const sendWhatsAppInvoice = async (req, res) => {
+  try {
+    const { id } = req.params; // MongoDB _id of the bill
+    const bill = await Billing.findOne({ _id: id, organizationId: req.tenantId });
+
+    if (!bill) {
+      return res.status(404).json({ success: false, message: 'Bill not found' });
+    }
+
+    if (!bill.patientPhone) {
+      return res.status(400).json({ success: false, message: 'Patient phone number is missing in this bill.' });
+    }
+
+    // Get Organization Details for branding
+    const org = await Organization.findById(req.tenantId);
+    const clinicName = org?.clinicName || org?.name || 'Our Clinic';
+
+    // Sanitize phone
+    const sanitizedPhone = sanitizePhone(bill.patientPhone);
+
+    // Meta Template Parameters for 'billing_invoice_pdf'
+    // Variables: {{1}} = Patient Name, {{2}} = Clinic Name
+    const bodyParameters = [
+      bill.patientName || 'Valued Patient',
+      clinicName
+    ];
+
+    // Generate REAL PDF Invoice
+    console.log(`[WhatsApp Billing] Generating PDF for invoice ${bill.billId}...`);
+    const pdfPath = await generateInvoicePDF(bill, org);
+    
+    // Construct the public URL for the PDF
+    // We use the current request host (e.g., your-domain.com or localhost:5000)
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const invoicePdfUrl = `${protocol}://${host}/uploads/invoices/Invoice-${bill.billId}.pdf`;
+
+    console.log(`[WhatsApp Billing] Sending real invoice ${bill.billId} to ${sanitizedPhone}`);
+    console.log(`[WhatsApp Billing] PDF URL: ${invoicePdfUrl}`);
+
+    const result = await sendWhatsAppMediaTemplate(
+      sanitizedPhone,
+      'billing_invoice_pdf',
+      invoicePdfUrl,
+      'document',
+      'en',
+      bodyParameters,
+      `Invoice-${bill.billId}.pdf`
+    );
+
+    res.json({
+      success: true,
+      message: `Invoice sent successfully to ${sanitizedPhone}`,
+      data: result
+    });
+  } catch (error) {
+    console.error('[WhatsApp Billing Error]:', error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send WhatsApp invoice.',
+      error: error.response?.data || error.message
+    });
   }
 };

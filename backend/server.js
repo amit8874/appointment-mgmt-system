@@ -33,6 +33,7 @@ import councilRoutes from "./routes/councilRoutes.js";
 import practiceRoutes from "./routes/practiceRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import whatsappRoutes from "./routes/whatsappRoutes.js";
+import webhookRoutes from "./routes/webhook.js";
 import { detectTenant } from "./middleware/tenant.js";
 
 // Load environment variables based on NODE_ENV
@@ -216,6 +217,7 @@ app.use("/api/receptionists", receptionistRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/webhook", webhookRoutes);
 
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
@@ -309,8 +311,12 @@ async function initCron() {
       const { setupTrialResetCron } = await import(
         "./cron/trialResetCron.js"
       );
+      const { setupAppointmentReminderCron } = await import(
+        "./cron/appointmentReminderCron.js"
+      );
       setupSubscriptionCron();
       setupTrialResetCron();
+      setupAppointmentReminderCron();
       console.log("Subscription and Trial Reset crons started");
     } catch {
       console.log("Cron not enabled");

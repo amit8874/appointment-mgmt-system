@@ -326,7 +326,8 @@ const TrackAppointmentView = () => {
         // Search Filter
         const matchesSearch = 
           app.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          app.doctorName?.toLowerCase().includes(searchTerm.toLowerCase());
+          app.doctorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          app.shortId?.toString().includes(searchTerm);
         
         if (!matchesSearch) return false;
 

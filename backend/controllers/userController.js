@@ -57,7 +57,10 @@ export const checkSession = async (req, res) => {
       .select('-password')
       .populate({
         path: 'organizationId',
-        populate: { path: 'subscriptionId' }
+        populate: [
+          { path: 'subscriptionId' },
+          { path: 'ownerId', select: 'name email' }
+        ]
       });
     
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -81,14 +84,40 @@ export const checkSession = async (req, res) => {
 
     // Add standardized organization object for UI branding
     if (user.organizationId) {
+      const org = user.organizationId;
+      const sub = org.subscriptionId;
+      
+      // Calculate Expiration
+      let isSubscriptionExpired = false;
+      let trialDaysRemaining = 0;
+      
+      const now = new Date();
+      if (org.status === 'trial') {
+        const trialEnd = new Date(org.trialEndDate || sub?.trialEndDate);
+        const gracePeriod = new Date(trialEnd.getTime() + 7 * 24 * 60 * 60 * 1000);
+        isSubscriptionExpired = now > gracePeriod;
+        trialDaysRemaining = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
+      } else if (sub) {
+        if (sub.status === 'expired') {
+          isSubscriptionExpired = true;
+        } else if (sub.endDate) {
+          const gracePeriod = new Date(sub.endDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+          isSubscriptionExpired = now > gracePeriod;
+        }
+      }
+
       userObj.organization = {
-        name: user.organizationId.name,
-        slug: user.organizationId.slug,
-        branding: user.organizationId.branding,
-        phone: user.organizationId.phone,
-        email: user.organizationId.email,
-        plan: user.organizationId.subscriptionId?.plan || (user.organizationId.planType === 'PAID' ? 'basic' : 'free'),
-        planName: user.organizationId.subscriptionId?.planName || (user.organizationId.planType === 'PAID' ? 'Active Plan' : 'Free Trial')
+        id: org._id,
+        name: org.name,
+        slug: org.slug,
+        branding: org.branding,
+        phone: org.phone,
+        email: org.email,
+        status: org.status,
+        isSubscriptionExpired,
+        trialDaysRemaining,
+        plan: sub?.plan || (org.planType === 'PAID' ? 'basic' : 'free'),
+        planName: sub?.planName || (org.planType === 'PAID' ? 'Active Plan' : 'Free Trial')
       };
     }
 
