@@ -1295,7 +1295,7 @@ const BillingDashboard = () => {
 
       {/* Status Message Display */}
       {statusMessage && (
-        <div className={`mb-3 p-3 ${statusMessage.startsWith('Error') ? 'bg-red-50 text-red-800 border-red-100' : 'bg-blue-50 text-blue-800 border-blue-100'} rounded-lg shadow-sm border text-xs font-bold transition-opacity duration-300`}>
+        <div className={`mb-3 p-3 print:hidden ${statusMessage.startsWith('Error') ? 'bg-red-50 text-red-800 border-red-100' : 'bg-blue-50 text-blue-800 border-blue-100'} rounded-lg shadow-sm border text-xs font-bold transition-opacity duration-300`}>
           {statusMessage}
         </div>
       )}

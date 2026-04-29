@@ -55,7 +55,7 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
     };
 
     return (
-        <div className="invoice-print-container bg-white shadow-2xl w-full max-w-3xl mx-auto relative transform transition-all duration-300 scale-100 print:shadow-none print:w-full print:max-w-none print:m-0 print:max-h-none font-['Inter', 'sans-serif'] text-slate-800">
+        <div id="invoice-print-area" className="invoice-print-container bg-white shadow-2xl w-full max-w-3xl mx-auto relative transform transition-all duration-300 scale-100 print:shadow-none print:w-full print:max-w-none print:m-0 print:max-h-none font-['Inter', 'sans-serif'] text-slate-800">
             {/* Status Watermark */}
             <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-10 pointer-events-none select-none z-0 print:opacity-10" style={{ zIndex: 0 }}>
                 <span className={`text-[100px] font-black uppercase transform -rotate-45 block ${status === 'Paid' ? 'text-green-600' : 'text-red-500'}`}>
@@ -205,51 +205,6 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
                     <p>Computer Generated Invoice - No Signature Required</p>
                 </div>
             </div>
-
-            {/* Print Styles */}
-            <style dangerouslySetInnerHTML={{
-                __html: `
-        @media print {
-          /* Hide all non-print elements */
-          .screen-only, .no-print {
-            display: none !important;
-          }
-
-          .print-only {
-            display: block !important;
-          }
-          
-          /* Show our invoice container explicitly */
-          .invoice-print-container {
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            z-index: 9999999 !important;
-            background: white !important;
-            margin: 0 !important;
-            padding: 15mm !important;
-          }
-
-          /* Show all children of the invoice container */
-          .invoice-print-container > * {
-            display: block !important;
-            visibility: visible !important;
-          }
-
-          /* Fix table rendering */
-          table { display: table !important; width: 100% !important; }
-          thead { display: table-header-group !important; }
-          tbody { display: table-row-group !important; }
-          tr { display: table-row !important; }
-          th, td { display: table-cell !important; }
-          
-          /* Ensure watermark prints */
-          .opacity-10 { opacity: 0.1 !important; }
-        }
-      `}} />
         </div>
     );
 };

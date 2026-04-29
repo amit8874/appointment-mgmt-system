@@ -6,6 +6,7 @@ import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import CancelledAppointment from '../models/CancelledAppointment.js';
 import Appointment from '../models/Appointment.js';
 import Organization from '../models/Organization.js';
+import InvoiceTemplate from '../models/InvoiceTemplate.js';
 import { sendWhatsAppMediaTemplate } from '../services/whatsappService.js';
 import { generateInvoicePDF } from '../services/pdfService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
@@ -257,6 +258,10 @@ export const sendWhatsAppInvoice = async (req, res) => {
     const org = await Organization.findById(req.tenantId);
     const clinicName = org?.clinicName || org?.name || 'Our Clinic';
 
+    // Get Default Invoice Template for this organization
+    const template = await InvoiceTemplate.findOne({ organizationId: req.tenantId, isDefault: true }) || 
+                     await InvoiceTemplate.findOne({ organizationId: req.tenantId });
+
     // Sanitize phone
     const sanitizedPhone = sanitizePhone(bill.patientPhone);
 
@@ -269,7 +274,7 @@ export const sendWhatsAppInvoice = async (req, res) => {
 
     // Generate REAL PDF Invoice
     console.log(`[WhatsApp Billing] Generating PDF for invoice ${bill.billId}...`);
-    const pdfPath = await generateInvoicePDF(bill, org);
+    const pdfPath = await generateInvoicePDF(bill, org, template);
     
     // Construct the public URL for the PDF
     // Priority: 1. BACKEND_URL env var, 2. Dynamic host from request

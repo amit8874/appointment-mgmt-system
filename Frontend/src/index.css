@@ -91,15 +91,47 @@
 }
 
 @media print {
-  body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+  /* Hide EVERYTHING by default */
+  body * {
+    visibility: hidden !important;
+    display: none !important;
+  }
+
+  /* Show ONLY the invoice print area and its children */
+  #invoice-print-area,
+  #invoice-print-area * {
+    visibility: visible !important;
+    display: block !important;
+  }
+
+  /* Specific display fixes for layout elements */
+  #invoice-print-area {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    background: white !important;
   }
-  
-  /* Reset some common container constraints */
-  .min-h-screen {
-    min-height: auto !important;
+
+  #invoice-print-area .flex { display: flex !important; }
+  #invoice-print-area .grid { display: grid !important; }
+  #invoice-print-area table { display: table !important; width: 100% !important; }
+  #invoice-print-area thead { display: table-header-group !important; }
+  #invoice-print-area tbody { display: table-row-group !important; }
+  #invoice-print-area tr { display: table-row !important; }
+  #invoice-print-area th, #invoice-print-area td { display: table-cell !important; }
+
+  /* Ensure colors and backgrounds print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 10mm;
   }
 }
