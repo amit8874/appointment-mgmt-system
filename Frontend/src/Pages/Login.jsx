@@ -38,6 +38,10 @@ const Login = () => {
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
+    if (!agreed) {
+      setErrorMessage("Please agree to the Terms and Conditions and Privacy Policy to continue.");
+      return;
+    }
     if (!identifier) {
       setErrorMessage("Please enter your mobile number.");
       return;

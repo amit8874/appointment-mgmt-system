@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { LogOut, UserCircle, Bell, Sun, Moon, Menu, ShieldCheck } from 'lucide-react';
@@ -18,6 +18,17 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
     status: user?.organization?.status || 'trial'
   });
   const [planLoading, setPlanLoading] = useState(false);
+  const notificationRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Theme toggle logic
   useEffect(() => {
@@ -205,7 +216,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
           {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
         </button>
 
-        <div className="relative">
+        <div className="relative" ref={notificationRef}>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="p-2 rounded-xl border border-gray-300 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 relative Transition-all shadow-sm"
@@ -218,7 +229,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-3 w-72 sm:w-80 bg-white dark:bg-gray-700 rounded-xl shadow-2xl ring-1 ring-black ring-opacity-5 z-50 notification-dropdown border border-gray-200">
+            <div className="fixed left-4 right-4 top-20 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 w-auto sm:w-80 bg-white dark:bg-gray-700 rounded-xl shadow-2xl ring-1 ring-black ring-opacity-5 z-50 notification-dropdown border border-gray-200">
               <div className="p-4 border-b border-gray-100 dark:border-gray-600">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">Notifications ({notifications.length})</h3>
               </div>

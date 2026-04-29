@@ -693,6 +693,25 @@ export const superAdminApi = {
   },
 };
 
+export const contactApi = {
+  submit: async (messageData) => {
+    const { data } = await api.post('/contact', messageData);
+    return data;
+  },
+  getAll: async () => {
+    const { data } = await api.get('/contact');
+    return data;
+  },
+  updateStatus: async (id, status) => {
+    const { data } = await api.patch(`/contact/${id}/status`, { status });
+    return data;
+  },
+  delete: async (id) => {
+    const { data } = await api.delete(`/contact/${id}`);
+    return data;
+  }
+};
+
 export const pharmacyApi = {
   getDashboardStats: async () => {
     const { data } = await api.get('/pharmacy/dashboard/stats');

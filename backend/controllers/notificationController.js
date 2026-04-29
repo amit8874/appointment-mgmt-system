@@ -4,7 +4,14 @@ import Notification from '../models/Notification.js';
 export const getNotifications = async (req, res) => {
   try {
     const { limit = 50, isRead } = req.query;
-    let query = { organizationId: req.tenantId };
+    let query = { 
+      organizationId: req.tenantId,
+      $or: [
+        { userId: req.user._id },
+        { userId: null },
+        { userId: { $exists: false } }
+      ]
+    };
 
     if (isRead !== undefined) {
       query.isRead = isRead === 'true';
@@ -78,7 +85,15 @@ export const getPatientUnreadCount = async (req, res) => {
 // Get unread notifications count
 export const getUnreadCount = async (req, res) => {
   try {
-    const count = await Notification.countDocuments({ organizationId: req.tenantId, isRead: false });
+    const count = await Notification.countDocuments({ 
+      organizationId: req.tenantId, 
+      isRead: false,
+      $or: [
+        { userId: req.user._id },
+        { userId: null },
+        { userId: { $exists: false } }
+      ]
+    });
     res.json({ count });
   } catch (error) {
     console.error('Error fetching unread count:', error);
@@ -110,7 +125,15 @@ export const markRead = async (req, res) => {
 export const markAllRead = async (req, res) => {
   try {
     const result = await Notification.updateMany(
-      { organizationId: req.tenantId, isRead: false },
+      { 
+        organizationId: req.tenantId, 
+        isRead: false,
+        $or: [
+          { userId: req.user._id },
+          { userId: null },
+          { userId: { $exists: false } }
+        ]
+      },
       { isRead: true }
     );
 

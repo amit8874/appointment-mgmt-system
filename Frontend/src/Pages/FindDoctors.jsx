@@ -190,7 +190,7 @@ const ContactClinic = ({ phone }) => {
         <span className="text-2xl font-black text-[#14bef0] tracking-tight">{phone || "No phone number available"}</span>
       </div>
       <p className="mt-4 text-[13px] text-slate-500 leading-relaxed font-medium">
-        By calling this number, you agree to the <span className="text-blue-600 hover:underline cursor-pointer">Terms & Conditions</span>. If you could not connect with the center, please write to <span className="text-blue-600 hover:underline cursor-pointer">support@oviaan.com</span>
+        By calling this number, you agree to the <span className="text-blue-600 hover:underline cursor-pointer">Terms & Conditions</span>. If you could not connect with the center, please write to <span className="text-blue-600 hover:underline cursor-pointer">amitmaurya3276@gmail.com</span>
       </p>
     </div>
   );
@@ -807,10 +807,7 @@ const FindDoctors = () => {
                     onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 />
             </div>
-            <div className="text-xs text-slate-400 italic px-4 hidden lg:block">
-                Fed up of endless wait? <br/>
-                <span className="text-[#7800ff] font-bold">Look for clinic with Prime</span>
-            </div>
+
         </div>
       </div>
 

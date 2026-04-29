@@ -56,8 +56,8 @@ const InvoiceList = React.memo(({
       </button>
     </div>
 
-    {/* NEW: Summary Cards */}
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    {/* NEW: Summary Cards - Horizontal on mobile */}
+    <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4">
       {summaryMetrics.map(metric => (
         <SummaryCard
           key={metric.title}
@@ -779,14 +779,14 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
 
 // --- Summary Card Component ---
 const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
-  <div className={`p-4 rounded-xl shadow-md border-t-4 ${colorClass} bg-white transition duration-300 hover:shadow-xl`}>
-    <div className="flex items-center">
-      <div className={`p-2 rounded-full mr-3 bg-opacity-20 flex-shrink-0`}>
-        <Icon className="w-6 h-6" />
+  <div className={`p-2 md:p-4 rounded-xl shadow-md border-t-4 ${colorClass} bg-white transition duration-300 hover:shadow-xl flex flex-col justify-center h-full`}>
+    <div className="flex flex-col md:flex-row items-center md:items-center text-center md:text-left">
+      <div className={`p-1.5 md:p-2 rounded-full md:mr-3 bg-opacity-20 flex-shrink-0 mb-1 md:mb-0`}>
+        <Icon className="w-4 h-4 md:w-6 md:h-6" />
       </div>
-      <div>
-        <p className="text-sm font-medium text-gray-500">{String(title || '')}</p>
-        <p className="text-2xl font-extrabold text-gray-900 tracking-tight">
+      <div className="min-w-0 flex-1">
+        <p className="text-[8px] md:text-sm font-medium text-gray-500 uppercase md:normal-case tracking-tighter md:tracking-normal truncate">{String(title || '')}</p>
+        <p className="text-xs md:text-2xl font-black text-gray-900 tracking-tight truncate">
           {String(value || '')}
         </p>
       </div>

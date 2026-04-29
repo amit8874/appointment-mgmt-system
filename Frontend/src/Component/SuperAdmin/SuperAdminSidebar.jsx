@@ -13,7 +13,8 @@ import {
   History,
   Store,
   Activity,
-  Stethoscope
+  Stethoscope,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -72,6 +73,12 @@ const SuperAdminSidebar = ({ isSidebarOpen, toggleSidebar }) => {
       name: 'Usage Analytics', 
       icon: Activity,
       color: 'text-rose-500'
+    },
+    { 
+      path: '/superadmin/messages', 
+      name: 'Messages', 
+      icon: MessageSquare,
+      color: 'text-amber-500'
     },
     { 
       path: '/superadmin/settings', 

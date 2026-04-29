@@ -9,6 +9,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import useUsageTracking from './hooks/useUsageTracking';
 import PremiumLoader from "./components/common/PremiumLoader";
+import ScrollToTop from "./components/common/ScrollToTop";
 
 // Lazy load components
 const ProtectedRoute = lazy(() => import("./Component/ProtectedRoute"));
@@ -87,6 +88,7 @@ const AuditLogsPage = lazy(() => import("./Component/SuperAdmin/AuditLogsPage"))
 const SuperAdminSettings = lazy(() => import("./Component/SuperAdmin/SuperAdminSettings"));
 const PharmacyManagement = lazy(() => import("./Component/SuperAdmin/PharmacyManagement"));
 const Doctors = lazy(() => import("./Component/SuperAdmin/Doctors"));
+const Messages = lazy(() => import("./Component/SuperAdmin/Messages"));
 const SubscriptionManagement = lazy(() => import("./Component/Organization/SubscriptionManagement"));
 const OrganizationDashboard = lazy(() => import("./Component/Organization/OrganizationDashboard"));
 const PharmacyLayout = lazy(() => import("./Component/Pharmacy/PharmacyLayout"));
@@ -258,6 +260,7 @@ export default function App() {
       {isImpersonating && <ShadowModeBanner />}
       <AnimatePresence mode="wait">
         <Router>
+          <ScrollToTop />
           <UsageTracker />
           <Suspense fallback={<LoadingFallback />}>
           <Routes>
@@ -322,6 +325,7 @@ export default function App() {
               <Route path="revenue" element={<RevenueAnalytics />} />
               <Route path="usage-analytics" element={<UsageAnalyticsPage />} />
               <Route path="audit-logs" element={<AuditLogsPage />} />
+              <Route path="messages" element={<Messages />} />
               <Route path="settings" element={<SuperAdminSettings />} />
             </Route>
 

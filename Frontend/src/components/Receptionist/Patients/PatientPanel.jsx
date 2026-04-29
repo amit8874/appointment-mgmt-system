@@ -285,7 +285,7 @@ const PatientPanel = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="space-y-6 p-4 sm:p-6 bg-gray-50 min-h-screen"
+      className="space-y-6 p-4 sm:p-6 bg-gray-50 min-h-screen w-full max-w-full overflow-x-hidden"
     >
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -307,22 +307,24 @@ const PatientPanel = () => {
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
           />
         </div>
-        <button
-          onClick={() => setBulkWhatsappModalOpen(true)}
-          className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 font-bold text-sm whitespace-nowrap"
-          title="Bulk WhatsApp Message"
-        >
-          <Users className="w-5 h-5 mr-2" />
-          Bulk Message
-        </button>
-        <button
-          onClick={() => exportPatientsToExcel(patients)}
-          className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 font-bold text-sm whitespace-nowrap"
-          title="Export to Excel"
-        >
-          <Download className="w-5 h-5 mr-2" />
-          Export Excel
-        </button>
+        <div className="flex flex-row gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setBulkWhatsappModalOpen(true)}
+            className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 font-bold text-xs sm:text-sm whitespace-nowrap"
+            title="Bulk WhatsApp Message"
+          >
+            <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+            Bulk Message
+          </button>
+          <button
+            onClick={() => exportPatientsToExcel(patients)}
+            className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 font-bold text-xs sm:text-sm whitespace-nowrap"
+            title="Export to Excel"
+          >
+            <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+            Export Excel
+          </button>
+        </div>
       </div>
 
       {/* Stats and Table Section */}
@@ -350,7 +352,7 @@ const PatientPanel = () => {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-blue-50/50 text-blue-900 border-b border-gray-100">

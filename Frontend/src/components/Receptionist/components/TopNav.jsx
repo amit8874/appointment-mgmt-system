@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Menu, Search, Bell, X, Menu as MenuIcon, User } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 
@@ -7,6 +7,21 @@ const TopNav = ({ sidebarOpen, setSidebarOpen, notifications, unreadCount, onNot
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const notificationRef = useRef(null);
+  const userMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -52,7 +67,7 @@ const TopNav = ({ sidebarOpen, setSidebarOpen, notifications, unreadCount, onNot
         {/* Right side icons */}
         <div className="flex items-center space-x-4">
           {/* Notifications */}
-          <div className="relative">
+          <div className="relative" ref={notificationRef}>
             <button
               onClick={() => setShowNotifications(!showNotifications)}
               className="p-2 rounded-full text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 relative"
@@ -69,7 +84,7 @@ const TopNav = ({ sidebarOpen, setSidebarOpen, notifications, unreadCount, onNot
             {/* Notification dropdown */}
             {showNotifications && (
               <div
-                className="origin-top-right absolute right-0 mt-2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50"
+                className="origin-top-right fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 w-auto sm:w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50"
                 role="menu"
                 aria-orientation="vertical"
                 aria-labelledby="notification-menu"
@@ -125,7 +140,7 @@ const TopNav = ({ sidebarOpen, setSidebarOpen, notifications, unreadCount, onNot
           </div>
 
           {/* Profile dropdown */}
-          <div className="relative ml-3">
+          <div className="relative ml-3" ref={userMenuRef}>
             <div>
               <button
                 type="button"

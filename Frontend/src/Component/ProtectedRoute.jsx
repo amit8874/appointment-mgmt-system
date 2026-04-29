@@ -20,6 +20,11 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Fallback: If authenticated but user data hasn't arrived yet (race condition), show loading instead of redirecting
+  if (isAuthenticated && !user && allowedRoles.length > 0) {
+    return <div>Loading session...</div>;
+  }
+
   if (allowedRoles.length > 0) {
     const userRole = user?.role?.toLowerCase();
     const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());

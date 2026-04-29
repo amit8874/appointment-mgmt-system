@@ -71,6 +71,7 @@ const BookingCheckout = () => {
   };
 
   const handleMobileSubmit = async () => {
+    if (submitting) return;
     if (mobileNumber.length === 10) {
       setSubmitting(true);
       try {
@@ -218,9 +219,6 @@ const BookingCheckout = () => {
         </div>
         
         <div className="flex items-center gap-6">
-          <Link to="/login" className="px-4 py-1.5 border border-slate-300 rounded text-sm font-medium hover:bg-slate-50 transition-all">
-            Login / Signup
-          </Link>
         </div>
       </header>
 
@@ -358,14 +356,14 @@ const BookingCheckout = () => {
                   </p>
                   <button 
                     onClick={handleMobileSubmit}
-                    disabled={mobileNumber.length !== 10}
+                    disabled={mobileNumber.length !== 10 || submitting}
                     className={`w-full py-3 rounded font-black text-sm tracking-wide transition-all ${
-                      mobileNumber.length === 10 
+                      mobileNumber.length === 10 && !submitting
                       ? "bg-[#14bef0] text-white shadow-md active:scale-[0.98]" 
                       : "bg-slate-300 text-white cursor-not-allowed"
                     }`}
                   >
-                    Continue
+                    {submitting ? 'Sending...' : 'Continue'}
                   </button>
                 </div>
               </motion.div>
@@ -616,7 +614,7 @@ const BookingCheckout = () => {
                 </div>
 
                 <div className="space-y-1 mb-8">
-                   <p className="text-xs text-slate-500 leading-relaxed">We have sent you an email and SMS with the details.</p>
+                   <p className="text-xs text-slate-500 leading-relaxed">We have sent SMS to your WhatsApp. Check WhatsApp for more detail.</p>
                    <p className="text-xs text-slate-500">This appointment is covered under <span className="text-[#9333ea] font-black italic">Premium</span> <ShieldCheck size={14} className="inline text-[#9333ea] fill-white" /></p>
                 </div>
 

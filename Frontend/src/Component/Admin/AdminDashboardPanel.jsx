@@ -464,116 +464,40 @@ const AdminDashboardPanel = ({
         </motion.div>
       </div>
 
-      {/* Performance Summary and Recent Appointments */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <motion.div 
-          className="lg:col-span-1 space-y-6"
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          transition={{ duration: 0.5, delay: 1.0 }}
-        >
-          <div className="p-6 bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-2xl shadow-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm font-medium">Growth Rate</p>
-                <p className="text-3xl font-bold">+12.5%</p>
-                <p className="text-blue-100 text-xs mt-1">vs last month</p>
-              </div>
-              <TrendingUp className="w-10 h-10 text-blue-200" />
-            </div>
+      {/* Performance Summary Cards */}
+      <motion.div 
+        className="grid grid-cols-1 sm:grid-cols-3 gap-6"
+        initial={{ opacity: 0, y: 20 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        transition={{ duration: 0.5, delay: 1.0 }}
+      >
+        <div className="p-6 bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-2xl shadow-xl flex items-center justify-between">
+          <div>
+            <p className="text-blue-100 text-sm font-medium">Growth Rate</p>
+            <p className="text-3xl font-bold">+12.5%</p>
+            <p className="text-blue-100 text-xs mt-1">vs last month</p>
           </div>
+          <TrendingUp className="w-10 h-10 text-blue-200" />
+        </div>
 
-          <div className="p-6 bg-gradient-to-br from-emerald-500 to-emerald-700 text-white rounded-2xl shadow-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-100 text-sm font-medium">Patient Satisfaction</p>
-                <p className="text-3xl font-bold">4.8/5</p>
-                <p className="text-emerald-100 text-xs mt-1">Excellent rating</p>
-              </div>
-              <Users className="w-10 h-10 text-emerald-200" />
-            </div>
+        <div className="p-6 bg-gradient-to-br from-emerald-500 to-emerald-700 text-white rounded-2xl shadow-xl flex items-center justify-between">
+          <div>
+            <p className="text-emerald-100 text-sm font-medium">Patient Satisfaction</p>
+            <p className="text-3xl font-bold">4.8/5</p>
+            <p className="text-emerald-100 text-xs mt-1">Excellent rating</p>
           </div>
+          <Users className="w-10 h-10 text-emerald-200" />
+        </div>
 
-          <div className="p-6 bg-gradient-to-br from-purple-500 to-purple-700 text-white rounded-2xl shadow-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-100 text-sm font-medium">Active Doctors</p>
-                <p className="text-3xl font-bold">{doctors?.length || 0}</p>
-                <p className="text-purple-100 text-xs mt-1">On Duty</p>
-              </div>
-              <Stethoscope className="w-10 h-10 text-purple-200" />
-            </div>
+        <div className="p-6 bg-gradient-to-br from-purple-500 to-purple-700 text-white rounded-2xl shadow-xl flex items-center justify-between">
+          <div>
+            <p className="text-purple-100 text-sm font-medium">Active Doctors</p>
+            <p className="text-3xl font-bold">{doctors?.length || 0}</p>
+            <p className="text-purple-100 text-xs mt-1">On Duty</p>
           </div>
-        </motion.div>
-
-        <motion.div 
-          className="lg:col-span-2 p-4 sm:p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700"
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          transition={{ duration: 0.5, delay: 1.1 }}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center">
-              <CalendarCheck className="w-5 h-5 mr-2 text-indigo-600" />
-              Recent Appointments
-            </h3>
-            <button 
-              onClick={() => setActiveTab?.('Appointment Mgmt')}
-              className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
-            >
-              View All
-            </button>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-gray-50 dark:border-gray-700">
-                  <th className="pb-3 text-xs font-bold text-gray-400 uppercase tracking-widest">Patient</th>
-                  <th className="pb-3 text-xs font-bold text-gray-400 uppercase tracking-widest">Doctor</th>
-                  <th className="pb-3 text-xs font-bold text-gray-400 uppercase tracking-widest text-center">Time</th>
-                  <th className="pb-3 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                {filteredRecentAppointments?.length > 0 ? (
-                  filteredRecentAppointments.slice(0, 5).map((appt, idx) => (
-                    <tr key={idx} className="group hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="py-4 whitespace-nowrap">
-                        <div className="font-bold text-gray-900 dark:text-gray-50 text-sm">{appt.patientName}</div>
-                        {appt.shortId && (
-                          <div className="text-[10px] text-blue-500 font-bold uppercase tracking-tighter">Appt ID: {appt.shortId}</div>
-                        )}
-                      </td>
-                      <td className="py-4 text-gray-600 dark:text-gray-400 text-sm whitespace-nowrap">{appt.doctorName}</td>
-                      <td className="py-4 text-center">
-                        <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px] font-black uppercase">
-                          {appt.time}
-                        </span>
-                      </td>
-                      <td className="py-4 text-right">
-                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${
-                          appt.status === 'Completed' ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
-                          appt.status === 'Pending' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' :
-                          'bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400'
-                        }`}>
-                          {appt.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="4" className="p-0">
-                      <TableSkeleton rows={5} cols={4} />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
-      </div>
+          <Stethoscope className="w-10 h-10 text-purple-200" />
+        </div>
+      </motion.div>
 
       {/* MAYA AI ANALYST MODAL */}
       <AnimatePresence>

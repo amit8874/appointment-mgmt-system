@@ -272,10 +272,9 @@ export const sendWhatsAppInvoice = async (req, res) => {
     const pdfPath = await generateInvoicePDF(bill, org);
     
     // Construct the public URL for the PDF
-    // We use the current request host (e.g., your-domain.com or localhost:5000)
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const invoicePdfUrl = `${protocol}://${host}/uploads/invoices/Invoice-${bill.billId}.pdf`;
+    // Priority: 1. BACKEND_URL env var, 2. Dynamic host from request
+    const baseUrl = process.env.BACKEND_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
+    const invoicePdfUrl = `${baseUrl}/uploads/invoices/Invoice-${bill.billId}.pdf`;
 
     console.log(`[WhatsApp Billing] Sending real invoice ${bill.billId} to ${sanitizedPhone}`);
     console.log(`[WhatsApp Billing] PDF URL: ${invoicePdfUrl}`);

@@ -1,15 +1,52 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Phone, MapPin, MessageCircle, Send, Clock, Globe } from 'lucide-react';
+import { Mail, Phone, MapPin, MessageCircle, Send, Clock, Globe, Loader2 } from 'lucide-react';
 import PublicHeader from '../components/Shared/PublicHeader';
 import PublicFooter from '../components/Shared/PublicFooter';
+import { contactApi } from '../services/api';
+import { toast } from 'react-toastify';
 
 const Contact = () => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    subject: 'General Support',
+    organization: '',
+    message: ''
+  });
+
   const contactInfo = [
-    { icon: <Mail size={20} />, title: "Email Us", val: "support@oviaan.com", sub: "For general inquiries and support" },
-    { icon: <Phone size={20} />, title: "Call Us", val: "+91 (123) 456-7890", sub: "Mon-Fri from 9am to 6pm" },
+    { icon: <Mail size={20} />, title: "Email Us", val: "amitmaurya3276@gmail.com", sub: "For general inquiries and support" },
+    { icon: <Phone size={20} />, title: "Call Us", val: "+91 8874614138", sub: "Mon-Fri from 9am to 6pm" },
     { icon: <MapPin size={20} />, title: "Office", val: "Gomtinagar Vistar, Lucknow", sub: "Uttar Pradesh, India" }
   ];
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await contactApi.submit(formData);
+      toast.success('Your message has been sent successfully!');
+      setFormData({
+        fullName: '',
+        email: '',
+        subject: 'General Support',
+        organization: '',
+        message: ''
+      });
+    } catch (error) {
+      console.error('Contact form submission error:', error);
+      toast.error(error.response?.data?.message || 'Failed to send message. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 overflow-x-hidden">
@@ -76,11 +113,15 @@ const Contact = () => {
              
              <div className="relative z-10">
                <h2 className="text-3xl font-black text-slate-900 mb-10 tracking-tight">Send us a message</h2>
-               <form className="space-y-8">
+               <form onSubmit={handleSubmit} className="space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
                        <input 
+                         required
+                         name="fullName"
+                         value={formData.fullName}
+                         onChange={handleChange}
                          type="text" 
                          placeholder="Enter your name"
                          className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all font-bold text-slate-800"
@@ -89,6 +130,10 @@ const Contact = () => {
                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Work Email</label>
                        <input 
+                         required
+                         name="email"
+                         value={formData.email}
+                         onChange={handleChange}
                          type="email" 
                          placeholder="email@company.com"
                          className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all font-bold text-slate-800"
@@ -99,7 +144,11 @@ const Contact = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Subject</label>
-                       <select className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all font-bold text-slate-800 appearance-none">
+                       <select 
+                        name="subject"
+                        value={formData.subject}
+                        onChange={handleChange}
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all font-bold text-slate-800 appearance-none">
                           <option>General Support</option>
                           <option>Sales Inquiry</option>
                           <option>Pharmacy Partner</option>
@@ -110,6 +159,9 @@ const Contact = () => {
                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Organization</label>
                        <input 
+                         name="organization"
+                         value={formData.organization}
+                         onChange={handleChange}
                          type="text" 
                          placeholder="Clinic or Hospital Name"
                          className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all font-bold text-slate-800"
@@ -120,14 +172,23 @@ const Contact = () => {
                   <div className="space-y-2">
                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Message</label>
                      <textarea 
+                       required
+                       name="message"
+                       value={formData.message}
+                       onChange={handleChange}
                        placeholder="How can we help you?"
                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all font-bold text-slate-800 min-h-[150px] resize-none"
                      />
                   </div>
 
                   <div className="pt-4">
-                     <button type="submit" className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-black text-sm uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3">
-                        <Send size={18} /> Send Message Now
+                     <button 
+                        type="submit" 
+                        disabled={loading}
+                        className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-black text-sm uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+                     >
+                        {loading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />} 
+                        {loading ? 'Sending...' : 'Send Message Now'}
                      </button>
                   </div>
                </form>
@@ -155,3 +216,4 @@ const Contact = () => {
 };
 
 export default Contact;
+

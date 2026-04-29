@@ -9,6 +9,9 @@ import { CloudinaryStorage } from "multer-storage-cloudinary";
 import path from "path";
 import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 import connectDB from "./config/db.js";
 import userRoutes from "./routes/userRoutes.js";
 import patientRoutes from "./routes/patientRoutes.js";
@@ -34,6 +37,7 @@ import practiceRoutes from "./routes/practiceRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import whatsappRoutes from "./routes/whatsappRoutes.js";
 import webhookRoutes from "./routes/webhook.js";
+import contactRoutes from "./routes/contactRoutes.js";
 import { detectTenant } from "./middleware/tenant.js";
 
 // Load environment variables based on NODE_ENV
@@ -203,7 +207,7 @@ global.upload = upload;
 Static Files
 -------------------------------------------------- */
 
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* --------------------------------------------------
 API Routes
@@ -234,6 +238,7 @@ app.use("/api/councils", councilRoutes);
 app.use("/api/practices", practiceRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/contact", contactRoutes);
 
 /* --------------------------------------------------
 Image Upload API
@@ -289,7 +294,6 @@ Serve Frontend (Production)
 -------------------------------------------------- */
 
 if (process.env.NODE_ENV === "production") {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
   app.use(express.static(__dirname));
 

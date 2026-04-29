@@ -11,9 +11,13 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [authState, setAuthState] = useState({
+    isAuthenticated: false,
+    user: null,
+    loading: true
+  });
+
+  const { isAuthenticated, user, loading } = authState;
 
   useEffect(() => {
     // Check both sessionStorage and localStorage for authentication on app load
@@ -25,12 +29,14 @@ export const AuthProvider = ({ children }) => {
     const patientUser = sessionStorage.getItem('patientUser') || localStorage.getItem('patientUser');
     const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
 
+    let newAuthState = { isAuthenticated: false, user: null, loading: false };
+
     if (token && role) {
-      setIsAuthenticated(true);
+      newAuthState.isAuthenticated = true;
       // For admins, restore full user data if available
       if (userData) {
         const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
+        newAuthState.user = parsedUser;
         
         // Ensure tenantSlug is synced on load if it exists in user data
         if (!localStorage.getItem('tenantSlug')) {
@@ -40,21 +46,26 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } else {
-        setUser({ role, token });
+        newAuthState.user = { role, token };
       }
     } else if (patientUser) {
       const userDataParsed = JSON.parse(patientUser);
-      setIsAuthenticated(true);
-      setUser(userDataParsed);
+      newAuthState.isAuthenticated = true;
+      newAuthState.user = userDataParsed;
     }
-    setLoading(false);
+
+    setAuthState(newAuthState);
 
     // Listen for manual user data updates from background tasks
     const handleUserDataUpdated = (event) => {
       if (event.detail) {
-        setUser(oldUser => ({ ...oldUser, ...event.detail }));
+        setAuthState(prev => ({
+          ...prev,
+          user: { ...prev.user, ...event.detail }
+        }));
         // Sync storage as well
-        localStorage.setItem('userData', JSON.stringify({ ...JSON.parse(localStorage.getItem('userData') || '{}'), ...event.detail }));
+        const currentData = JSON.parse(localStorage.getItem('userData') || '{}');
+        localStorage.setItem('userData', JSON.stringify({ ...currentData, ...event.detail }));
       }
     };
 
@@ -65,8 +76,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (userData) => {
-    setIsAuthenticated(true);
-    setUser(userData);
+    setAuthState({
+      isAuthenticated: true,
+      user: userData,
+      loading: false
+    });
+    
     // Store in both sessionStorage and localStorage for persistence
     if (userData.token) {
       sessionStorage.setItem('token', userData.token);
@@ -109,8 +124,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    setIsAuthenticated(false);
-    setUser(null);
+    setAuthState({
+      isAuthenticated: false,
+      user: null,
+      loading: false
+    });
+    
     // Clear both sessionStorage and localStorage
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('role');
@@ -127,23 +146,26 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = (updatedUserData) => {
-    const newUser = { ...user, ...updatedUserData };
-    setUser(newUser);
-    
-    sessionStorage.setItem('userData', JSON.stringify(newUser));
-    localStorage.setItem('userData', JSON.stringify(newUser));
-    
-    // Sync tenantSlug with the updated organization info
-    if (newUser.organization?.slug) {
-      localStorage.setItem('tenantSlug', newUser.organization.slug);
-    } else if (newUser.organizationId?.slug) {
-      localStorage.setItem('tenantSlug', newUser.organizationId.slug);
-    }
+    setAuthState(prev => {
+      const newUser = { ...prev.user, ...updatedUserData };
+      
+      sessionStorage.setItem('userData', JSON.stringify(newUser));
+      localStorage.setItem('userData', JSON.stringify(newUser));
+      
+      // Sync tenantSlug with the updated organization info
+      if (newUser.organization?.slug) {
+        localStorage.setItem('tenantSlug', newUser.organization.slug);
+      } else if (newUser.organizationId?.slug) {
+        localStorage.setItem('tenantSlug', newUser.organizationId.slug);
+      }
 
-    if (newUser.name) {
-      sessionStorage.setItem('userName', newUser.name);
-      localStorage.setItem('userName', newUser.name);
-    }
+      if (newUser.name) {
+        sessionStorage.setItem('userName', newUser.name);
+        localStorage.setItem('userName', newUser.name);
+      }
+      
+      return { ...prev, user: newUser };
+    });
   };
 
   const value = useMemo(() => ({

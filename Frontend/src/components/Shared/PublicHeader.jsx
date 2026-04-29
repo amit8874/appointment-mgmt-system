@@ -150,12 +150,22 @@ const PublicHeader = () => {
                 >
                   Pricing
                 </a>
-                <Link 
-                  to="/order-online-medicine"
-                  className="px-4 py-1.5 text-sm font-extrabold text-orange-600 bg-orange-50 border border-orange-100 rounded-full hover:bg-orange-100 transition-all shadow-sm"
-                >
-                  Order Medicine
-                </Link>
+                <div className="relative group/medicine">
+                  <div 
+                    className="px-4 py-1.5 text-sm font-extrabold text-orange-600 bg-orange-50 border border-orange-100 rounded-full cursor-not-allowed opacity-80 flex items-center gap-2"
+                  >
+                    Order Medicine
+                    <Lock size={12} className="text-orange-400" />
+                  </div>
+                  
+                  {/* Coming Soon Tooltip */}
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 opacity-0 group-hover/medicine:opacity-100 transition-all translate-y-2 group-hover/medicine:translate-y-0 pointer-events-none z-[120]">
+                    <div className="bg-slate-900 text-white text-[10px] font-black px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2 whitespace-nowrap border border-slate-800">
+                      <Sparkles size={12} className="text-orange-400 animate-pulse" />
+                      COMING SOON
+                    </div>
+                  </div>
+                </div>
               </nav>
           </div>
 
@@ -289,19 +299,20 @@ const PublicHeader = () => {
             </div>
           </a>
 
-          <Link
-            to="/order-online-medicine"
-            onClick={() => setSidebarOpen(false)}
-            className="flex items-center gap-4 px-5 py-4 bg-orange-50 border border-orange-100 rounded-2xl hover:bg-orange-100 transition-all group active:scale-95"
+          <div
+            className="flex items-center justify-between px-5 py-4 bg-orange-50/50 border border-orange-100/50 rounded-2xl cursor-not-allowed group"
           >
-            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/30">
-              <ShoppingBag size={18} className="text-white" />
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-orange-200 rounded-xl flex items-center justify-center shadow-sm">
+                <ShoppingBag size={18} className="text-orange-500" />
+              </div>
+              <div>
+                <p className="font-black text-slate-400 text-sm tracking-tight">Order Medicine</p>
+                <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mt-0.5">Coming Soon</p>
+              </div>
             </div>
-            <div>
-              <p className="font-black text-slate-800 text-sm tracking-tight">Order Medicine</p>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Fast delivery nearby</p>
-            </div>
-          </Link>
+            <Lock size={16} className="text-orange-200" />
+          </div>
         </nav>
 
         {/* Auth Buttons at bottom */}

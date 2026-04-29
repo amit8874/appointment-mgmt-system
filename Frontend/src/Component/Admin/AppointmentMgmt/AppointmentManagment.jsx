@@ -329,8 +329,8 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
 
   const onDateClick = (day) => {
     setSelectedDate(day);
+    setCurrentMonth(day);
     if (view === 'month') setView('day');
-    else setCurrentMonth(day);
   };
 
   // --- Filtering ---
@@ -362,18 +362,18 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
   // --- Rendering Helpers ---
   const renderHeader = () => {
     return (
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 md:px-6 py-4 bg-white/80 backdrop-blur-md rounded-t-3xl border-b border-slate-100">
-        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-          <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight text-center md:text-left min-w-[180px]">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-3 md:px-6 py-3 md:py-4 bg-white/80 backdrop-blur-md rounded-t-3xl border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4 w-full md:w-auto">
+          <h2 className="text-lg md:text-2xl font-black text-slate-800 tracking-tight text-center md:text-left min-w-[150px] md:min-w-[180px]">
             {format(currentMonth, view === 'day' ? 'MMMM d, yyyy' : 'MMMM yyyy')}
           </h2>
           <div className="flex bg-slate-100 p-1 rounded-2xl gap-1 mx-auto md:mx-0">
-            <button onClick={prev} className="p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <ChevronLeft size={18} className="text-slate-600" />
+            <button onClick={prev} className="p-1.5 md:p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+              <ChevronLeft size={16} className="text-slate-600" />
             </button>
-            <button onClick={goToToday} className="px-3 md:px-4 text-[10px] font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest">Today</button>
-            <button onClick={next} className="p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <ChevronRight size={18} className="text-slate-600" />
+            <button onClick={goToToday} className="px-2 md:px-4 text-[9px] md:text-[10px] font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest">Today</button>
+            <button onClick={next} className="p-1.5 md:p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+              <ChevronRight size={16} className="text-slate-600" />
             </button>
           </div>
         </div>
@@ -383,7 +383,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`flex-1 md:flex-none px-4 md:px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${view === v ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400 hover:text-slate-600'
+              className={`flex-1 md:flex-none px-3 md:px-6 py-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${view === v ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400 hover:text-slate-600'
                 }`}
             >
               {v}
@@ -427,59 +427,85 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
 
         days.push(
           <div
-            className={`min-h-[80px] md:min-h-[140px] bg-white border-r border-b border-slate-100 p-2 md:p-3 group transition-all hover:bg-blue-50/20 cursor-pointer relative ${!isCurrentMonth ? "bg-slate-50/50 opacity-40 shadow-inner" : ""
+            className={`min-h-[70px] md:min-h-[140px] bg-white border-r border-b border-slate-100 p-1.5 md:p-3 group transition-all hover:bg-blue-50/20 cursor-pointer relative ${!isCurrentMonth ? "bg-slate-50/50 opacity-40 shadow-inner" : ""
               }`}
             key={day.toString()}
             onClick={() => onDateClick(cloneDay)}
           >
-            <div className="flex justify-between items-start mb-2">
+            <div className="flex justify-between items-start mb-1 md:mb-2">
               <div className="flex flex-col">
-                <span className={`text-sm font-bold transition-all ${isToday(day)
-                  ? "bg-blue-600 text-white w-8 h-8 flex items-center justify-center rounded-2xl shadow-lg shadow-blue-200 -mt-1 -ml-1 scale-110"
+                <span className={`text-[10px] md:text-sm font-bold transition-all ${isToday(day)
+                  ? "bg-blue-600 text-white w-5 h-5 md:w-8 md:h-8 flex items-center justify-center rounded-lg md:rounded-2xl shadow-lg shadow-blue-200 -mt-1 -ml-1 scale-110"
                   : isCurrentMonth ? "text-slate-700" : "text-slate-400"
                   }`}>
                   {format(day, "d")}
                 </span>
                 {dayAppointments.length > 0 && isCurrentMonth && (
-                  <span className="text-[10px] font-black text-blue-600/60 mt-1 uppercase tracking-tighter">
-                    {dayAppointments.length} Appt{dayAppointments.length > 1 ? 's' : ''}
+                  <span className="text-[8px] md:text-[10px] font-black text-blue-600/60 mt-1 uppercase tracking-tighter">
+                    <span className="hidden md:inline">{dayAppointments.length} Appt{dayAppointments.length > 1 ? 's' : ''}</span>
+                    <span className="md:hidden">{dayAppointments.length}A</span>
                   </span>
                 )}
               </div>
               {dayAppointments.length > 0 && isCurrentMonth && (
-                <div className="flex -space-x-1">
+                <div className="flex -space-x-1 hidden md:flex">
                   {dayAppointments.slice(0, 3).map((_, i) => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-blue-400 border border-white" />
+                    <div key={i} className="w-1 md:w-1.5 h-1 md:h-1.5 rounded-full bg-blue-400 border border-white" />
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="space-y-1.5">
-              {dayAppointments.slice(0, 3).map((app, idx) => (
-                <motion.div
-                  initial={{ opacity: 0, x: -5 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  key={app.id}
-                  className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold truncate transition-all hover:scale-[1.02] active:scale-95 shadow-sm border-l-4 ${app.resource.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-400' :
-                    app.resource.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-400' :
-                      app.resource.status === 'cancelled' ? 'bg-rose-50 text-rose-700 border-rose-400' :
-                        'bg-slate-50 text-slate-600 border-slate-300'
-                    }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSelectEvent(app);
-                  }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="opacity-60">{format(app.start, 'HH:mm')}</span>
-                    <span className="truncate">{app.resource.patientName}</span>
+            <div className="space-y-1 md:space-y-1.5">
+              {/* Desktop View: Full Bars */}
+              <div className="hidden md:block space-y-1.5">
+                {dayAppointments.slice(0, 3).map((app, idx) => (
+                  <motion.div
+                    initial={{ opacity: 0, x: -5 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    key={app.id}
+                    className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold truncate transition-all hover:scale-[1.02] active:scale-95 shadow-sm border-l-4 ${app.resource.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-400' :
+                      app.resource.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-400' :
+                        app.resource.status === 'cancelled' ? 'bg-rose-50 text-rose-700 border-rose-400' :
+                          'bg-slate-50 text-slate-600 border-slate-300'
+                      }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectEvent(app);
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="opacity-60">{format(app.start, 'HH:mm')}</span>
+                      <span className="truncate">{app.resource.patientName}</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Mobile View: Compact Circles (Hour Bubbles) */}
+              <div className="md:hidden flex flex-wrap gap-1">
+                {dayAppointments.slice(0, 4).map((app, idx) => (
+                  <div
+                    key={app.id}
+                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-black shadow-sm ${app.resource.status === 'confirmed' ? 'bg-emerald-500 text-white' :
+                      app.resource.status === 'pending' ? 'bg-amber-500 text-white' :
+                        app.resource.status === 'cancelled' ? 'bg-rose-500 text-white' :
+                          'bg-slate-400 text-white'
+                      }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectEvent(app);
+                    }}
+                  >
+                    {format(app.start, 'H')}
                   </div>
-                </motion.div>
-              ))}
+                ))}
+              </div>
+
               {dayAppointments.length > 3 && (
-                <div className="text-[9px] font-black text-slate-400 text-center py-1 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                  + {dayAppointments.length - 3} MORE
+                <div className="text-[8px] md:text-[9px] font-black text-slate-400 text-center py-0.5 md:py-1 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                  <span className="hidden md:inline">+ {dayAppointments.length - 3} MORE</span>
+                  <span className="md:hidden">+{dayAppointments.length - 4}</span>
                 </div>
               )}
             </div>
@@ -508,13 +534,13 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
             )}
 
             <button
-              className="absolute bottom-2 right-2 p-1.5 bg-blue-50 text-blue-600 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-600 hover:text-white"
+              className="absolute bottom-1 md:bottom-2 right-1 md:right-2 p-1 md:p-1.5 bg-blue-50 text-blue-600 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-600 hover:text-white"
               onClick={(e) => {
                 e.stopPropagation();
                 handleSelectSlot(cloneDay);
               }}
             >
-              <UserPlus size={14} />
+              <UserPlus size={12} className="md:w-[14px] md:h-[14px]" />
             </button>
           </div>
         );
@@ -554,7 +580,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
             <div className="bg-slate-50/30">
               {hours.map(hour => (
                 <div key={hour} className="h-16 md:h-20 border-r border-b border-slate-50 flex items-center justify-center text-[9px] md:text-[10px] font-bold text-slate-400">
-                  {format(setHours(new Date(), hour), 'hh:mm a')}
+                  {format(setHours(currentMonth, hour), 'hh:mm a')}
                 </div>
               ))}
             </div>
@@ -628,7 +654,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
             <div className="bg-slate-50/20 border-r border-slate-100">
               {hours.map(hour => (
                 <div key={hour} className="h-24 flex items-center justify-center text-[10px] md:text-xs font-black text-slate-400 border-b border-slate-50">
-                  {format(setHours(new Date(), hour), 'hh:00 a')}
+                  {format(setHours(currentMonth, hour), 'hh:00 a')}
                 </div>
               ))}
             </div>
@@ -682,11 +708,11 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
   };
 
   return (
-    <div className={`p-6 min-h-screen transition-all duration-500 ${isEmbedded ? 'bg-transparent' : 'bg-slate-50'}`}>
+    <div className={`p-0 md:p-6 min-h-screen transition-all duration-500 ${isEmbedded ? 'bg-transparent' : 'bg-slate-50'}`}>
       <ToastContainer position="bottom-right" theme="colored" />
 
       {!isEmbedded && (
-        <div className="mb-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+        <div className="mb-6 md:mb-10 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
           <StatCard 
             title="Total Appts" 
             value={stats.total} 
@@ -730,54 +756,11 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
       )}
 
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar / Filters */}
-        <div className="w-full lg:w-80 flex flex-col gap-6">
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col gap-6">
-            <div className="relative group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={18} />
-              <input
-                type="text"
-                placeholder="Search patient..."
-                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 placeholder:text-slate-400 transition-all"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
 
-            <div>
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-3 block">Filter by Doctor</label>
-              <select
-                className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 appearance-none transition-all cursor-pointer"
-                value={doctorFilter}
-                onChange={(e) => setDoctorFilter(e.target.value)}
-              >
-                <option value="all">All Doctors</option>
-                {doctors.map(doc => <option key={doc.id} value={doc.id}>{doc.name}</option>)}
-              </select>
-            </div>
-
-            <button
-              onClick={() => setIsAddToWaitlistModalOpen(true)}
-              className="w-full py-4 bg-indigo-50 text-indigo-600 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-indigo-600 hover:text-white transition-all group"
-            >
-              <Bell size={20} className="group-hover:animate-bounce" />
-              Join Waitlist
-            </button>
-          </div>
-
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] shadow-xl shadow-blue-200 text-white relative overflow-hidden">
-            <div className="relative z-10">
-              <CalendarIcon className="mb-4 opacity-50" size={32} />
-              <h3 className="text-xl font-bold mb-2">Efficient Scheduling</h3>
-              <p className="text-blue-100 text-xs leading-relaxed font-medium">Click on any empty time slot in the Day or Week view to quickly book an appointment.</p>
-            </div>
-            <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-          </div>
-        </div>
 
         {/* Main Content Area */}
         <div className="flex-1 min-w-0 flex flex-col gap-6">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-none md:rounded-[2.5rem] shadow-2xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
             <AnimatePresence mode="wait">
               <motion.div
                 key="calendar-view"
@@ -905,17 +888,17 @@ function StatCard({ title, value, icon, color, onClick, isActive }) {
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className={`bg-gradient-to-br ${colors[color]} p-6 rounded-[2rem] shadow-xl text-white cursor-pointer transition-all ${
+      className={`bg-gradient-to-br ${colors[color]} p-4 md:p-6 rounded-2xl md:rounded-[2rem] shadow-xl text-white cursor-pointer transition-all ${
         isActive ? 'ring-4 ring-white/30 scale-105 shadow-2xl z-10' : 'opacity-90'
       }`}
     >
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">{title}</span>
-        <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
-          {React.cloneElement(icon, { size: 20 })}
+      <div className="flex items-center justify-between mb-2 md:mb-4">
+        <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest opacity-80">{title}</span>
+        <div className="p-1.5 md:p-2 bg-white/20 rounded-lg md:rounded-xl backdrop-blur-md">
+          {React.cloneElement(icon, { size: 16 })}
         </div>
       </div>
-      <p className="text-3xl font-black">{value}</p>
+      <p className="text-xl md:text-3xl font-black">{value}</p>
     </motion.div>
   );
 }

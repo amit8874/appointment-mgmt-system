@@ -4,7 +4,7 @@ import api, { whatsappApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 
-export default function HorizontalAppointmentForm({ doctors = [], onSuccess, openDoctorForm, initialData = null }) {
+export default function HorizontalAppointmentForm({ doctors = [], onSuccess, openDoctorForm, initialData = null, limits, totalDoctors = 0 }) {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -375,6 +375,9 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
   const departments = [...new Set(doctors.map(d => d.specialization).filter(Boolean))];
 
+  // Calculate if doctor limit is reached
+  const isLimitReached = limits && typeof limits.doctors === 'number' && limits.doctors !== -1 && (totalDoctors >= limits.doctors);
+
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 w-full mb-6 relative">
       
@@ -672,11 +675,16 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
               </div>
               <button 
                 type="button" 
-                onClick={openDoctorForm}
-                className="p-2 border border-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                title="Add New Doctor"
+                onClick={isLimitReached ? null : openDoctorForm}
+                disabled={isLimitReached}
+                className={`p-2 border rounded transition-colors ${
+                  isLimitReached 
+                  ? "bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed border-gray-200" 
+                  : "border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                }`}
+                title={isLimitReached ? "Doctor limit reached. Upgrade your plan to add more." : "Add New Doctor"}
               >
-                <Plus className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                <Plus className={`w-4 h-4 ${isLimitReached ? 'text-gray-300' : 'text-gray-600 dark:text-gray-300'}`} />
               </button>
             </div>
           </div>

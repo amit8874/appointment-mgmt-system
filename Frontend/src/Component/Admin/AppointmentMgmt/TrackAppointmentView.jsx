@@ -348,63 +348,65 @@ const TrackAppointmentView = () => {
       <div className="max-w-full mx-auto space-y-6">
         
         {/* Professional Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-gray-800">Today's Appointments</h1>
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 rounded-full text-blue-600 text-xs font-bold shadow-sm">
-                <Timer size={14} className="animate-pulse" />
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-black text-gray-800 uppercase tracking-tight">Today's Appointments</h1>
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 border border-blue-100 rounded-lg text-blue-600 text-[10px] font-black uppercase shadow-sm">
+                <Timer size={12} className="animate-pulse" />
                 <span>LIVE: {format(currentTime, 'hh:mm:ss a')}</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-full text-emerald-600 text-[10px] font-black uppercase tracking-widest shadow-sm">
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-600 text-[9px] font-black uppercase tracking-widest shadow-sm">
                 <Zap size={10} className="animate-bounce" />
-                <span>Real-Time Active</span>
+                <span>Active</span>
               </div>
             </div>
-            <div className="flex items-center gap-2 mt-1 text-gray-500 text-sm font-medium">
-              <Calendar size={14} />
+            <div className="flex items-center gap-2 text-gray-500 text-xs font-bold uppercase tracking-wider">
+              <Calendar size={12} />
               <span>{format(new Date(), 'EEEE, MMMM do, yyyy')}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="relative flex-1 sm:flex-none">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Search patient or doctor..."
+                placeholder="Search patient..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 shadow-sm"
+                className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-48 shadow-sm font-bold text-slate-600"
               />
             </div>
-            <button 
-              onClick={fetchTodayAppointments}
-              className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600 shadow-sm"
-              title="Refresh"
-            >
-              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            </button>
-            <button
-              onClick={() => setBulkWhatsappModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-black hover:bg-slate-800 transition-all shadow-lg active:scale-95"
-            >
-              <Users size={16} />
-              <span>Bulk Message</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={fetchTodayAppointments}
+                className="flex-1 sm:flex-none p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-gray-600 shadow-sm flex justify-center"
+                title="Refresh"
+              >
+                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              </button>
+              <button
+                onClick={() => setBulkWhatsappModalOpen(true)}
+                className="flex-[3] sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95 whitespace-nowrap"
+              >
+                <Users size={14} />
+                <span>Bulk Message</span>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Compact Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <StatBox label="Total Today" value={appointments.length} icon={<Calendar className="text-blue-500" />} />
           <StatBox label="Upcoming" value={appointments.filter(a => getStatusInfo(a).label === 'Upcoming').length} icon={<ClockIcon className="text-yellow-500" />} />
           <StatBox label="In Progress" value={appointments.filter(a => a.status === 'in-progress').length} icon={<Activity className="text-blue-500" />} />
           <StatBox label="Completed" value={appointments.filter(a => a.status === 'completed').length} icon={<CheckCircle className="text-green-500" />} />
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1 bg-gray-100/50 p-1 rounded-xl w-fit border border-gray-200">
+        {/* Filter Tabs - Horizontal scroll on mobile */}
+        <div className="flex items-center gap-1 bg-white p-1 rounded-2xl w-full overflow-x-auto no-scrollbar border border-gray-200 shadow-sm">
           {[
             { id: 'all', label: 'All', count: appointments.length },
             { id: 'confirmed', label: 'Confirmed', count: appointments.filter(a => a.status === 'completed').length },
@@ -415,15 +417,15 @@ const TrackAppointmentView = () => {
             <button
               key={tab.id}
               onClick={() => setActiveFilter(tab.id)}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeFilter === tab.id 
-                ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5' 
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                ? 'bg-blue-600 text-white shadow-md ring-1 ring-blue-700/10' 
+                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
               }`}
             >
               {tab.label}
-              <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${
-                activeFilter === tab.id ? 'bg-blue-50 text-blue-600' : 'bg-gray-200 text-gray-500'
+              <span className={`px-1.5 py-0.5 rounded-md text-[9px] ${
+                activeFilter === tab.id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'
               }`}>
                 {tab.count}
               </span>
@@ -828,13 +830,13 @@ const TrackAppointmentView = () => {
 };
 
 const StatBox = ({ label, value, icon }) => (
-  <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex items-center justify-between transition-all hover:shadow-md">
-    <div>
-      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-bold text-gray-700 mt-1">{value}</p>
+  <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between transition-all hover:shadow-md hover:border-blue-100 group">
+    <div className="min-w-0">
+      <p className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest truncate">{label}</p>
+      <p className="text-lg md:text-2xl font-black text-gray-900 mt-0.5">{value}</p>
     </div>
-    <div className="p-3 bg-gray-50 rounded-xl">
-      {React.cloneElement(icon, { size: 20 })}
+    <div className="p-2 md:p-3 bg-blue-50/50 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all flex-shrink-0">
+      {React.cloneElement(icon, { size: 16, className: "md:w-5 md:h-5" })}
     </div>
   </div>
 );

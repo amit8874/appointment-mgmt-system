@@ -219,6 +219,13 @@ export const bookPatientAppointment = async (req, res) => {
     const patientIdToUse = existingPatient.patientId || existingPatient._id.toString();
     const patientName = `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient';
 
+    // Look up doctor fee
+    let docObj = await Doctor.findOne({ doctorId });
+    if (!docObj && mongoose.Types.ObjectId.isValid(doctorId)) {
+      docObj = await Doctor.findById(doctorId);
+    }
+    const finalAmount = Number(amount) || docObj?.fee || 500;
+
     const appointment = new PendingAppointment({
       shortId,
       organizationId,
@@ -226,7 +233,7 @@ export const bookPatientAppointment = async (req, res) => {
       designation: patientDetails.designation,
       firstName: patientDetails.firstName,
       lastName: patientDetails.lastName,
-      doctorId,
+      doctorId: docObj ? docObj.doctorId : doctorId,
       doctorName: doctorName || '',
       specialty: specialty || 'General',
       date,
@@ -241,7 +248,7 @@ export const bookPatientAppointment = async (req, res) => {
       ageType: patientDetails.ageType || 'Year',
       rateListType: patientDetails.rateListType || 'Main',
       dispatchMethods: patientDetails.dispatchMethods || [],
-      amount: amount || 0,
+      amount: finalAmount,
       paymentStatus: paymentStatus || 'pending'
     });
 
@@ -250,9 +257,9 @@ export const bookPatientAppointment = async (req, res) => {
     try {
       const staffUsers = await User.find({ organizationId, role: { $in: ['superadmin', 'orgadmin', 'admin', 'receptionist'] } });
       const notifications = staffUsers.map(user => {
-        let message = `New appointment booked by ${patientName} with Dr. ${doctorName} on ${date} at ${time} - Fee: ₹${amount || 0}`;
+        let message = `New appointment booked by ${patientName} with Dr. ${doctorName} on ${date} at ${time} - Fee: ₹${finalAmount}`;
         if (user.role === 'doctor') {
-          message = `New appointment: ${patientName} booked with Dr. ${doctorName} on ${date} at ${time} - Fee: ₹${amount || 0}`;
+          message = `New appointment: ${patientName} booked with Dr. ${doctorName} on ${date} at ${time} - Fee: ₹${finalAmount}`;
         }
         return {
           organizationId,
@@ -280,7 +287,7 @@ export const bookPatientAppointment = async (req, res) => {
       );
       const billId = `BIL${String(billCounter.value).padStart(6, '0')}`;
       
-      const fee = Number(amount) || 500;
+      const fee = finalAmount;
 
       const newBill = new Billing({
         billId,
@@ -288,7 +295,7 @@ export const bookPatientAppointment = async (req, res) => {
         patientId: patientIdToUse,
         patientName,
         patientPhone: patientDetails.phone || '',
-        doctorId,
+        doctorId: docObj ? docObj.doctorId : doctorId,
         doctorName: doctorName || '',
         amount: fee,
         paidAmount: 0,
@@ -657,7 +664,7 @@ export const bookAppointment = async (req, res) => {
       shortId,
       organizationId: req.tenantId,
       patientId: patientIdToUse,
-      doctorId,
+      doctorId: docObj ? docObj.doctorId : doctorId,
       doctorName: doctorName || '',
       specialty: specialty || 'General',
       date,
@@ -727,7 +734,7 @@ export const bookAppointment = async (req, res) => {
         patientId: patientIdToUse,
         patientName,
         patientPhone: patientPhone || '',
-        doctorId,
+        doctorId: docObj ? docObj.doctorId : doctorId,
         doctorName: doctorName || '',
         amount: fee,
         paidAmount: 0,
@@ -1476,24 +1483,28 @@ export const bookPublicAppointment = async (req, res) => {
         fullAddress = [street, city, state, zipCode].filter(Boolean).join(', ');
       }
       
-      let whatsappMobile = patientPhone;
-      if (whatsappMobile && whatsappMobile.length === 10) {
-        whatsappMobile = `91${whatsappMobile}`;
+      const sanitizedMobile = sanitizePhone(patientPhone);
+      const confirmationTemplate = process.env.WHATSAPP_APPOINTMENT_CONFIRMATION_TEMPLATE || 'appointment_confirmation';
+      const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+      const waResponse = await sendWhatsAppTemplate(
+        sanitizedMobile,
+        confirmationTemplate,
+        templateLang,
+        [
+          patientName,
+          doctor.name,
+          clinicName,
+          new Date(date).toLocaleDateString('en-IN'),
+          time
+        ]
+      );
+
+      if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+        console.log(`[WhatsApp] Public booking confirmation sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
+      } else {
+        console.error('[WhatsApp] Meta API success but no message ID returned:', waResponse);
       }
-
-      const bookingMessage = `✅ *Appointment Confirmed* ✅\n\n` +
-        `Hi *${patientName}*,\n` +
-        `Your appointment has been successfully booked with *Dr. ${doctor.name}*.\n\n` +
-        `🗓️ *Date:* ${new Date(date).toLocaleDateString('en-IN')}\n` +
-        `⏰ *Time:* ${time}\n` +
-        `📍 *Location:* ${clinicName}${fullAddress ? ', ' : ''}${fullAddress}\n` +
-        `🆔 *Appt ID:* ${shortId}\n` +
-        `👤 *Patient ID:* ${patient.patientId || patient._id}\n\n` +
-        `Please reach 10 minutes before your slot. Visit Oviaan for more details.\n\n` +
-        `_Thank you partner with Oviaan!_`;
-
-      await sendWhatsAppMessage(whatsappMobile, bookingMessage);
-      console.log(`[WhatsApp] Public booking confirmation sent to ${whatsappMobile}`);
     } catch (waError) {
       console.error('[WhatsApp] Failed to send public booking confirmation:', waError.message);
     }
@@ -1567,6 +1578,34 @@ export const cancelPublicAppointment = async (req, res) => {
       );
     } catch (billingSyncError) {
       console.error('Error syncing billing status on public appointment cancellation:', billingSyncError);
+    }
+
+    // 6. Send WhatsApp Cancellation Message to Patient
+    try {
+      const organization = await Organization.findById(pendingApp.organizationId);
+      const clinicName = organization?.name || 'our clinic';
+      const sanitizedMobile = sanitizePhone(pendingApp.patientPhone);
+      const cancellationTemplate = process.env.WHATSAPP_APPOINTMENT_CANCELLATION_TEMPLATE || 'appointment_cancellation';
+      const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+      const waResponse = await sendWhatsAppTemplate(
+        sanitizedMobile,
+        cancellationTemplate,
+        templateLang,
+        [
+          pendingApp.patientName,
+          pendingApp.doctorName,
+          clinicName,
+          new Date(pendingApp.date).toLocaleDateString('en-IN'),
+          pendingApp.time
+        ]
+      );
+
+      if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+        console.log(`[WhatsApp] Public cancellation message sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
+      }
+    } catch (waError) {
+      console.error('[WhatsApp] Failed to send public cancellation message:', waError.message);
     }
 
     res.status(200).json({ message: 'Appointment cancelled successfully' });

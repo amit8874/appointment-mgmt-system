@@ -298,7 +298,7 @@ export default function AppointmentTable({ rebookData }) {
   }
 
   return (
-    <div className="bg-gray-100 min-h-screen p-6">
+    <div className="bg-gray-100 min-h-screen p-0 md:p-6">
       <div className="max-w-7xl mx-auto">
 
         {/* Header */}
@@ -364,19 +364,19 @@ export default function AppointmentTable({ rebookData }) {
         ) : (
           <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-              <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex overflow-x-auto md:grid md:grid-cols-4 gap-4 mt-6 pb-2 md:pb-0">
+              <div className="bg-white p-4 rounded-lg shadow-sm border min-w-[200px] md:min-w-0 flex-1">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-500 text-sm">Total Appointments</p>
                     <p className="text-2xl font-semibold text-gray-700">{appointments.length}</p>
                   </div>
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex shrink-0 items-center justify-center">
                     <Calendar className="w-5 h-5 text-blue-500" />
                   </div>
                 </div>
               </div>
-              <div className="bg-white p-4 rounded-lg shadow-sm border">
+              <div className="bg-white p-4 rounded-lg shadow-sm border min-w-[200px] md:min-w-0 flex-1">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-500 text-sm">Confirmed</p>
@@ -384,12 +384,12 @@ export default function AppointmentTable({ rebookData }) {
                       {appointments.filter(a => a.status === 'confirmed').length}
                     </p>
                   </div>
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex shrink-0 items-center justify-center">
                     <CheckCircle className="w-5 h-5 text-green-500" />
                   </div>
                 </div>
               </div>
-              <div className="bg-white p-4 rounded-lg shadow-sm border">
+              <div className="bg-white p-4 rounded-lg shadow-sm border min-w-[200px] md:min-w-0 flex-1">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-500 text-sm">Pending</p>
@@ -397,12 +397,12 @@ export default function AppointmentTable({ rebookData }) {
                       {appointments.filter(a => a.status === 'pending').length}
                     </p>
                   </div>
-                  <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-yellow-100 rounded-full flex shrink-0 items-center justify-center">
                     <Clock className="w-5 h-5 text-yellow-500" />
                   </div>
                 </div>
               </div>
-              <div className="bg-white p-4 rounded-lg shadow-sm border">
+              <div className="bg-white p-4 rounded-lg shadow-sm border min-w-[200px] md:min-w-0 flex-1">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-500 text-sm">Cancelled</p>
@@ -410,7 +410,7 @@ export default function AppointmentTable({ rebookData }) {
                       {appointments.filter(a => a.status === 'cancelled').length}
                     </p>
                   </div>
-                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex shrink-0 items-center justify-center">
                     <XCircle className="w-5 h-5 text-red-500" />
                   </div>
                 </div>

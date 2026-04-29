@@ -364,11 +364,15 @@ export const getDoctorSlots = async (req, res) => {
     }).filter(Boolean);
 
     // Map possible slots to object format with isBooked and isPast flags
-    const appointmentDate = new Date(date);
-    const today = new Date();
-    const isToday = appointmentDate.toDateString() === today.toDateString();
-    const currentHours = today.getHours();
-    const currentMinutes = today.getMinutes();
+    // Use IST (India Standard Time) for current time comparison to avoid server timezone issues (UTC)
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const nowIst = new Date(new Date().getTime() + istOffset);
+    
+    // Use ISO string for today comparison since 'date' is YYYY-MM-DD
+    const todayIstStr = nowIst.toISOString().split('T')[0];
+    const isToday = date === todayIstStr;
+    const currentHours = nowIst.getUTCHours(); // This will be IST hours because of the manual offset
+    const currentMinutes = nowIst.getUTCMinutes();
 
     const allSlots = possibleSlotsStr.map(slot => {
       const [range, ampm] = slot.split(' ');
@@ -439,11 +443,12 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
     }
 
     const summary = [];
-    const today = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const today = new Date(new Date().getTime() + istOffset);
     
     for (let i = 0; i < 31; i++) {
       const date = new Date(today);
-      date.setDate(today.getDate() + i);
+      date.setUTCDate(today.getUTCDate() + i);
       const dateStr = date.toISOString().split('T')[0];
       const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
       
@@ -483,7 +488,27 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
         ]);
 
         const totalBooked = bookedPending + bookedConfirmed + bookedOld;
-        slotCount = Math.max(0, possibleSlots.length - totalBooked);
+        
+        // If it's today, we also need to exclude slots that are in the past
+        if (i === 0) {
+          const currentHours = today.getUTCHours();
+          const currentMinutes = today.getUTCMinutes();
+          
+          const futureSlots = possibleSlots.filter(slot => {
+            const [range, ampm] = slot.split(' ');
+            const startTimeStr = range.split('-')[0];
+            const [sHours, sMinutes] = startTimeStr.split(':').map(Number);
+            let slot24hHours = sHours;
+            if (ampm === 'PM' && sHours !== 12) slot24hHours += 12;
+            if (ampm === 'AM' && sHours === 12) slot24hHours = 0;
+            
+            return (slot24hHours > currentHours || (slot24hHours === currentHours && sMinutes > currentMinutes));
+          });
+          
+          slotCount = Math.max(0, futureSlots.length - totalBooked);
+        } else {
+          slotCount = Math.max(0, possibleSlots.length - totalBooked);
+        }
       }
 
       summary.push({

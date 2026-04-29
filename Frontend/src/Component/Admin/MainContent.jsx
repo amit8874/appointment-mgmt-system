@@ -92,6 +92,8 @@ const MainContent = ({
               }} 
               openDoctorForm={openDoctorForm} 
               initialData={rebookData}
+              limits={limits}
+              totalDoctors={doctorsTotalItems}
             />
           </div>
         );

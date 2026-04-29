@@ -11,6 +11,7 @@ const BulkWhatsAppModal = ({ isOpen, onClose, patients = [] }) => {
   const [isImproving, setIsImproving] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   // Filter patients based on search
   const filteredPatients = useMemo(() => {
@@ -138,19 +139,32 @@ const BulkWhatsAppModal = ({ isOpen, onClose, patients = [] }) => {
             </button>
           </div>
 
-          <div className="flex flex-col max-h-[85vh]">
+          <div className="flex flex-col h-[85vh] md:h-auto md:max-h-[85vh]">
             {/* Top Section split into Left (Selection) and Right (Selected Batch) */}
             <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
               {/* Left Column: Patient Selection */}
               <div className="flex-1 overflow-hidden flex flex-col p-6 border-r border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-3 px-1">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Select Recipients</h4>
-                  <button 
-                    onClick={toggleSelectAll}
-                    className="text-[10px] font-black text-indigo-500 hover:text-indigo-600 uppercase tracking-widest border border-indigo-100 dark:border-indigo-900/50 px-3 py-1 rounded-lg"
-                  >
-                    {selectedIds.length === filteredPatients.length && filteredPatients.length > 0 ? 'Deselect Result' : 'Select All Result'}
-                  </button>
+                  <div className="flex flex-col">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Select Recipients</h4>
+                    <p className="text-[9px] font-bold text-indigo-500/60 uppercase">{filteredPatients.length} Results found</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedIds.length > 0 && (
+                      <button 
+                        onClick={() => setShowReviewModal(true)}
+                        className="md:hidden text-[10px] font-black text-white bg-indigo-600 uppercase tracking-widest px-3 py-1 rounded-lg shadow-sm animate-pulse"
+                      >
+                        Review ({selectedIds.length})
+                      </button>
+                    )}
+                    <button 
+                      onClick={toggleSelectAll}
+                      className="text-[10px] font-black text-indigo-500 hover:text-indigo-600 uppercase tracking-widest border border-indigo-100 dark:border-indigo-900/50 px-3 py-1 rounded-lg"
+                    >
+                      {selectedIds.length === filteredPatients.length && filteredPatients.length > 0 ? 'Deselect' : 'Select All'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Search Bar */}
@@ -166,7 +180,7 @@ const BulkWhatsAppModal = ({ isOpen, onClose, patients = [] }) => {
                 </div>
 
                 {/* Patient List */}
-                <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar min-h-[300px]">
+                <div className="flex-1 overflow-y-auto pr-1 space-y-2 custom-scrollbar min-h-0">
                   {filteredPatients.length > 0 ? (
                     filteredPatients.map(p => (
                       <div 
@@ -175,10 +189,10 @@ const BulkWhatsAppModal = ({ isOpen, onClose, patients = [] }) => {
                         className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all border ${
                           selectedIds.includes(p._id)
                             ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800 shadow-sm'
-                            : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-slate-200'
+                            : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-slate-200 hover:bg-slate-50'
                         }`}
                       >
-                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all flex-shrink-0 ${
                           selectedIds.includes(p._id)
                             ? 'bg-indigo-600 border-indigo-600'
                             : 'border-slate-200 dark:border-slate-700'
@@ -189,39 +203,42 @@ const BulkWhatsAppModal = ({ isOpen, onClose, patients = [] }) => {
                           <p className={`text-sm font-black truncate ${selectedIds.includes(p._id) ? 'text-indigo-900 dark:text-indigo-200' : 'text-slate-700 dark:text-slate-300'}`}>
                             {p.name}
                           </p>
-                          <p className="text-[10px] font-bold text-slate-400 flex items-center gap-2">
-                            <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase tracking-tighter">#{p.patientId || 'N/A'}</span>
-                            <span className="flex items-center gap-1"><Phone size={10} /> {p.mobile || p.phone || p.contactNumber || p.contact}</span>
-                          </p>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+                            <span className="text-[9px] font-black text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase tracking-tighter">#{p.patientId || 'N/A'}</span>
+                            <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1"><Phone size={8} /> {p.mobile || p.phone || p.contactNumber || p.contact}</span>
+                          </div>
                         </div>
                       </div>
                     ))
                   ) : (
                     <div className="h-48 flex flex-col items-center justify-center text-slate-400 opacity-50 space-y-2">
-                      <Search size={40} />
+                      <Search size={32} />
                       <p className="text-[10px] font-black uppercase tracking-widest">No patients found</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Right Column: Selected Batch Summary */}
+              {/* Right Column: Selected Batch Summary - Hidden on small mobile, shown on desktop */}
               <AnimatePresence>
                 {selectedIds.length > 0 && (
                   <motion.div 
                     initial={{ width: 0, opacity: 0 }}
                     animate={{ width: '320px', opacity: 1 }}
                     exit={{ width: 0, opacity: 0 }}
-                    className="overflow-hidden flex flex-col bg-slate-50/50 dark:bg-slate-800/20"
+                    className="hidden lg:flex overflow-hidden flex-col bg-slate-50/50 dark:bg-slate-800/20"
                   >
                     <div className="flex flex-col h-full p-6">
                       <div className="flex items-center justify-between mb-4 px-1">
-                        <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">Batch Summary ({selectedIds.length})</h4>
+                        <div className="flex flex-col">
+                          <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Batch Summary</h4>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{selectedIds.length} Selected</p>
+                        </div>
                         <button 
                           onClick={() => setSelectedIds([])}
-                          className="text-[9px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors"
+                          className="text-[9px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors flex items-center gap-1"
                         >
-                          Clear Batch
+                          <X size={10} /> Clear
                         </button>
                       </div>
 
@@ -330,6 +347,57 @@ const BulkWhatsAppModal = ({ isOpen, onClose, patients = [] }) => {
             </div>
           </div>
         </motion.div>
+        {/* Mobile Review Modal Overlay */}
+        <AnimatePresence>
+          {showReviewModal && (
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="absolute inset-0 z-[110] bg-white dark:bg-slate-900 flex flex-col md:hidden"
+            >
+              <div className="bg-indigo-600 px-6 py-4 text-white flex items-center justify-between shadow-lg">
+                <div className="flex items-center gap-2">
+                  <Users size={18} />
+                  <h4 className="font-black uppercase tracking-widest text-sm">Review Selection ({selectedIds.length})</h4>
+                </div>
+                <button onClick={() => setShowReviewModal(false)} className="p-2 bg-white/20 rounded-xl">
+                  <CheckCircle2 size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                {patients.filter(p => selectedIds.includes(p._id)).map(p => (
+                  <div 
+                    key={p._id}
+                    className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-800 dark:text-slate-200 truncate">{p.name}</p>
+                      <p className="text-[10px] font-bold text-slate-400">#{p.patientId || 'N/A'}</p>
+                    </div>
+                    <button 
+                      onClick={() => toggleSelectOne(p._id)}
+                      className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-4 bg-slate-100 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+                <button 
+                  onClick={() => setShowReviewModal(false)}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+                >
+                  Confirm & Go Back
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </AnimatePresence>
   );

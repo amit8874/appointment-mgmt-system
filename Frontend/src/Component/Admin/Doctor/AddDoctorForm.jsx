@@ -45,6 +45,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
     const [uploading, setUploading] = useState(false);
     const [activeTab, setActiveTab] = useState('basic'); // basic, professional, registration, identity, location, availability
     const [errors, setErrors] = useState({});
+    const [uploadError, setUploadError] = useState({});
     const [completedSteps, setCompletedSteps] = useState([]);
     const [limitReached, setLimitReached] = useState({ show: false, message: '', limit: 0 });
 
@@ -293,13 +294,35 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
     const handleFileUpload = async (e, field) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // Reset previous errors for this field
+        setUploadError(prev => ({ ...prev, [field]: null }));
+
+        // Check file size (2MB = 2 * 1024 * 1024 bytes)
+        const MAX_SIZE = 2 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+            setUploadError(prev => ({ 
+                ...prev, 
+                [field]: "Image size must be less than 2MB. Please compress and try again." 
+            }));
+            return;
+        }
+
         setUploading(true);
         try {
             const formDataUpload = new FormData();
             formDataUpload.append('image', file);
             const result = await commonApi.uploadImage(formDataUpload);
-            if (result.imageUrl) setFormData(prev => ({ ...prev, [field]: result.imageUrl }));
-        } catch (error) { console.error(error); } finally { setUploading(false); }
+            if (result.imageUrl) {
+                setFormData(prev => ({ ...prev, [field]: result.imageUrl }));
+                setUploadError(prev => ({ ...prev, [field]: null }));
+            }
+        } catch (error) { 
+            console.error(error);
+            setUploadError(prev => ({ ...prev, [field]: "Failed to upload image. Please try again." }));
+        } finally { 
+            setUploading(false); 
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -392,10 +415,24 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                         <SectionTitle title="Identity & Contact" icon={User} />
                                         <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
                                             <div className="relative group flex-shrink-0">
-                                                <div className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-dashed ${errors.photo ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'} flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-indigo-400`}>
-                                                    {uploading ? <Loader2 className="animate-spin text-indigo-600" /> : formData.photo ? <img src={formData.photo} alt="Doc" className="w-full h-full object-cover" /> : <div className="text-center p-2"><ImageIcon size={20} className="text-slate-300 mx-auto mb-1.5 md:mb-2" /><span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Upload Photo</span></div>}
+                                                <div className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-dashed ${errors.photo || uploadError.photo ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'} flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-indigo-400`}>
+                                                    {uploading ? (
+                                                        <div className="flex flex-col items-center gap-2">
+                                                            <Loader2 className="animate-spin text-indigo-600" />
+                                                            <span className="text-[8px] font-black text-indigo-600 uppercase">Uploading...</span>
+                                                        </div>
+                                                    ) : formData.photo ? (
+                                                        <img src={formData.photo} alt="Doc" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="text-center p-2">
+                                                            <ImageIcon size={20} className="text-slate-300 mx-auto mb-1.5 md:mb-2" />
+                                                            <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Upload Photo</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <input type="file" onChange={(e) => handleFileUpload(e, 'photo')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" />
+                                                <input type="file" onChange={(e) => handleFileUpload(e, 'photo')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                {uploadError.photo && <p className="absolute top-full left-0 w-48 text-[10px] text-red-500 font-bold mt-1 leading-tight">{uploadError.photo}</p>}
+                                                {uploading && <p className="absolute top-full left-0 w-48 text-[10px] text-indigo-600 font-bold mt-1 leading-tight animate-pulse">Image is uploading please wait...</p>}
                                             </div>
                                             <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                                                 <InputField label="Full Name" name="name" value={formData.name} onChange={handleInputChange} required icon={User} error={errors.name} />
@@ -481,10 +518,25 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                         </div>
                                         <div className="mt-4">
                                             <label className="text-[10px] font-bold text-gray-400 uppercase mb-2 block">Upload ID Document</label>
-                                            <div className="relative w-full h-32 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center overflow-hidden">
-                                                {formData.idDocumentUrl ? <div className="text-indigo-600 font-bold flex items-center gap-2"><FileText /> Document Uploaded</div> : <div className="text-slate-300 text-center"><Upload className="mx-auto mb-2" /> <span className="text-[10px] font-black uppercase">Click to Upload</span></div>}
-                                                <input type="file" onChange={(e)=>handleFileUpload(e, 'idDocumentUrl')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                            <div className={`relative w-full h-32 rounded-xl border-2 border-dashed ${uploadError.idDocumentUrl ? 'border-red-400 bg-red-50/10' : 'border-slate-200 bg-slate-50'} flex flex-col items-center justify-center overflow-hidden`}>
+                                                {uploading ? (
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <Loader2 className="animate-spin text-indigo-600" />
+                                                        <span className="text-xs font-black text-indigo-600 uppercase">Image is uploading please wait...</span>
+                                                    </div>
+                                                ) : formData.idDocumentUrl ? (
+                                                    <div className="text-indigo-600 font-bold flex items-center gap-2">
+                                                        <FileText /> Document Uploaded
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-slate-300 text-center">
+                                                        <Upload className="mx-auto mb-2" /> 
+                                                        <span className="text-[10px] font-black uppercase">Click to Upload</span>
+                                                    </div>
+                                                )}
+                                                <input type="file" onChange={(e)=>handleFileUpload(e, 'idDocumentUrl')} className="absolute inset-0 opacity-0 cursor-pointer" disabled={uploading} />
                                             </div>
+                                            {uploadError.idDocumentUrl && <p className="text-[10px] text-red-500 font-bold mt-2 leading-tight">{uploadError.idDocumentUrl}</p>}
                                         </div>
                                     </motion.div>
                                 )}

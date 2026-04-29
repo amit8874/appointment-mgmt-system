@@ -6,7 +6,7 @@ const PublicFooter = () => {
     <footer className="bg-[#1C2C5E] text-white py-12 px-4">
 
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-8 mb-10">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-8 mb-10">
 
           <div>
             <h4 className="font-black mb-3 text-slate-200">
@@ -14,7 +14,7 @@ const PublicFooter = () => {
             <ul className="space-y-3 text-sm font-medium text-slate-300">
               <li><Link to="/about" className="hover:text-white transition-colors">About</Link></li>
               <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
-              <li><Link to="/careers" className="hover:text-white transition-colors">Careers</Link></li>
+
               <li><Link to="/press" className="hover:text-white transition-colors">Press</Link></li>
               <li><Link to="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
             </ul>
@@ -39,7 +39,7 @@ For doctors</h4>
             <h4 className="font-black mb-3 text-slate-200">
 For clinics</h4>
             <ul className="space-y-3 text-sm font-medium text-slate-300">
-              <li><Link to="/services/ray" className="hover:text-white transition-colors">Ray by {import.meta.env.VITE_APP_NAME || 'Oviaan'}</Link></li>
+
               <li><Link to="/services/reach" className="hover:text-white transition-colors">{import.meta.env.VITE_APP_NAME || 'Oviaan'} Reach</Link></li>
             </ul>
           </div>
@@ -51,15 +51,7 @@ More</h4>
               <li><Link to="/terms-conditions" className="hover:text-white transition-colors">Terms and Conditions</Link></li>
             </ul>
           </div>
-          <div>
-            <h4 className="font-black mb-3 text-slate-200">
-Social</h4>
-            <ul className="space-y-3 text-sm font-medium text-slate-300">
-              <li><Link to="https://facebook.com/oviaan" target="_blank" className="flex items-center gap-2 hover:text-white transition-colors"><Facebook size={16}/> Facebook</Link></li>
-              <li><Link to="https://twitter.com/oviaan" target="_blank" className="flex items-center gap-2 hover:text-white transition-colors"><Twitter size={16}/> Twitter</Link></li>
-              <li><Link to="https://linkedin.com/company/oviaan" target="_blank" className="flex items-center gap-2 hover:text-white transition-colors"><Linkedin size={16}/> LinkedIn</Link></li>
-            </ul>
-          </div>
+
         </div>
 
         <div className="flex flex-col items-center border-t border-slate-700 pt-8">

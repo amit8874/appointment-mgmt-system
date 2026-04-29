@@ -37,7 +37,7 @@ const findSimilarDoctors = (inputName, doctors) => {
 // GET all unique cities where doctors are located
 export const getClinicCities = async (req, res) => {
   try {
-    const doctors = await Doctor.find({ status: 'Active' });
+    const doctors = await Doctor.find({ status: { $in: ['Active', 'Verified'] } });
     const cities = new Set();
     
     doctors.forEach(doc => {
@@ -55,7 +55,7 @@ export const getClinicCities = async (req, res) => {
 export const searchDoctorsForChat = async (req, res) => {
   const { city, specialty, name } = req.query;
   try {
-    let query = { status: 'Active' };
+    let query = { status: { $in: ['Active', 'Verified'] } };
     
     if (city) {
       query.$or = [
@@ -91,13 +91,13 @@ export const chatWithMaya = async (req, res) => {
     if (organizationId) {
       const [org, doctors] = await Promise.all([
         Organization.findById(organizationId).select('name address'),
-        Doctor.find({ organizationId, status: 'Active' }).select('name specialization doctorId fee workingHours availability addressInfo serviceLocation photo experience languages')
+        Doctor.find({ organizationId, status: { $in: ['Active', 'Verified'] } }).select('name specialization doctorId fee workingHours availability addressInfo serviceLocation photo experience languages')
       ]);
       if (org) contextInfo += `\nCURRENT CLINIC: ${org.name}`;
       doctorList = doctors;
     } else {
       // Landing page: Fetch all active doctors globally
-      doctorList = await Doctor.find({ status: 'Active' }).select('name specialization doctorId fee workingHours availability addressInfo serviceLocation photo experience languages');
+      doctorList = await Doctor.find({ status: { $in: ['Active', 'Verified'] } }).select('name specialization doctorId fee workingHours availability addressInfo serviceLocation photo experience languages');
     }
 
     // 2. Intent Detection
@@ -108,9 +108,22 @@ export const chatWithMaya = async (req, res) => {
     // Improved City Detection: Check for "in [City]" or just a single word city name 
     // if the conversation history suggests we were waiting for a city.
     let cityInMessage = null;
-    const cityMatch = message.match(/(?:in|at|for)\s+([a-zA-Z\s]+)/i);
+    const cityMatch = message.match(/(?:in|at|for|from|near|to)\s+([a-zA-Z\s]+)/i);
     if (cityMatch) {
-      cityInMessage = cityMatch[1].trim();
+      const potentialCity = cityMatch[1].trim();
+      // Check if this potential city exists in our data
+      const availableCities = Array.from(new Set(doctorList.map(d => 
+        (d.addressInfo?.city || d.serviceLocation?.address?.city || "").toLowerCase()
+      ).filter(Boolean)));
+      
+      const foundCity = availableCities.find(c => potentialCity.toLowerCase().includes(c) || c.includes(potentialCity.toLowerCase()));
+      if (foundCity) {
+        // Find the original casing for the city
+        const originalCity = Array.from(new Set(doctorList.map(d => 
+          d.addressInfo?.city || d.serviceLocation?.address?.city
+        ).filter(Boolean))).find(c => c.toLowerCase() === foundCity);
+        cityInMessage = originalCity;
+      }
     } else {
       // Check if the user just typed a single word that matches one of our cities
       const lastBotMessage = history?.[history.length - 1]?.parts?.[0]?.text || "";

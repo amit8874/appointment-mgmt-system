@@ -162,7 +162,7 @@ const ReceptionistLayout = () => {
         {/* Main content area */}
         <main className="flex-1 overflow-y-auto bg-gray-200 focus:outline-none">
           <div className="bg-gray-200 h-full">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 ">
+            <div className="max-w-7xl mx-auto px-0 md:px-8 ">
               <AnimatePresence mode="wait">
                 <PageTransition>
                   <Outlet context={{ limits: subscriptionLimits, doctorCount, limitsLoading }} />
