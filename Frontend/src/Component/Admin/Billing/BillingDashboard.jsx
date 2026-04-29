@@ -4,7 +4,6 @@ import {
   PlusCircle, 
   User, 
   CalendarPlus, 
-  Smartphone, 
   X,
   Eye,
   Printer,
@@ -165,13 +164,6 @@ const InvoiceList = React.memo(({
               >
                 <PrinterIcon className="text-gray-500 group-hover:text-green-800 transition-colors duration-300" />
                 Print
-              </button>
-              <button
-                onClick={() => handleAction('Send', invoice.id)}
-                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ease-in-out duration-150 group-hover:bg-blue-500 group-hover:hover:bg-blue-400"
-              >
-                <Smartphone size={14} className="mr-1" />
-                Send
               </button>
             </div>
           </div>
@@ -796,7 +788,7 @@ const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
 
 
 // --- Invoice Detail Modal Component ---
-const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, onSendWhatsApp, clinicInfo = {} }) => {
+const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, clinicInfo = {} }) => {
   const details = invoice.details || {};
 
   // Map the detail fields to readable labels
@@ -990,17 +982,6 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
               </svg>
               Print Invoice
             </button>
-            <button
-              onClick={() => {
-                if (onSendWhatsApp) {
-                  onSendWhatsApp(invoice);
-                }
-              }}
-              className="inline-flex items-center px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors shadow-md"
-            >
-              <Smartphone size={16} className="mr-2" />
-              Send WhatsApp
-            </button>
           </div>
 
         </div>
@@ -1091,23 +1072,10 @@ const BillingDashboard = () => {
       } else if (action === 'Print') {
         setPrintingInvoice(invoice);
         setStatusMessage(`Printing Invoice ${invoice.id} for ${invoice.patient}`);
-      } else if (action === 'Send') {
-        handleSendWhatsApp(invoice);
       }
     }
   };
 
-  const handleSendWhatsApp = async (invoice) => {
-    try {
-      setStatusMessage(`Sending invoice ${invoice.id} to ${invoice.patient} via WhatsApp...`);
-      await billingApi.sendWhatsApp(invoice._id);
-      setStatusMessage(`Success! Invoice ${invoice.id} sent to ${invoice.patient}'s WhatsApp.`);
-    } catch (err) {
-      console.error('Error sending WhatsApp invoice:', err);
-      const errorMsg = err.response?.data?.message || 'Failed to send WhatsApp invoice.';
-      setStatusMessage(`Error: ${errorMsg}`);
-    }
-  };
 
   // Handler for printing from modal - uses same mechanism as list
   const handlePrintFromModal = (invoice) => {
@@ -1118,10 +1086,11 @@ const BillingDashboard = () => {
   // Ensure HTML for invoice is rendered before calling window.print()
   useEffect(() => {
     if (!printingInvoice) return;
+    window.scrollTo(0, 0);
     const timeout = setTimeout(() => {
       window.print();
       setPrintingInvoice(null);
-    }, 1000);
+    }, 2000);
 
     return () => clearTimeout(timeout);
   }, [printingInvoice]);
@@ -1281,6 +1250,7 @@ const BillingDashboard = () => {
 
 
   return (
+    <>
     <div className="min-h-screen bg-gray-100 p-2 sm:p-4 font-['Inter'] print:bg-white print:p-0">
 
       {/* Header and Title (Hidden on Print) */}
@@ -1338,7 +1308,6 @@ const BillingDashboard = () => {
           onUpdateStatus={handleUpdateStatus} 
           onDelete={handleDeleteInvoice} 
           onPrint={handlePrintFromModal} 
-          onSendWhatsApp={(inv) => handleAction('Send', inv.id)}
           clinicInfo={clinicInfo} 
         />
       )}
@@ -1375,6 +1344,7 @@ const BillingDashboard = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 
