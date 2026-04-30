@@ -43,8 +43,11 @@ export const generateInvoicePDF = async (bill, org, template = null) => {
     // Set viewport to A4 dimensions at 96 DPI
     await page.setViewport({ width: 794, height: 1123 });
 
-    // Set HTML content
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    // Set HTML content with a more robust wait strategy
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    
+    // Additional wait for any dynamic content/styles to settle (crucial for fonts/colors)
+    await new Promise(r => setTimeout(r, 1000));
 
     // 3. Generate PDF Buffer
     const pdfBuffer = await page.pdf({
@@ -101,7 +104,8 @@ function getInvoiceHtml(bill, org, template) {
     '{{clinic_address}}': formatAddress(org.address || org.location),
     '{{clinic_phone}}': org.phone || '',
     '{{clinic_email}}': org.email || '',
-    '{{clinic_logo}}': org.branding?.logo ? `<img src="${org.branding.logo}" style="max-height: 80px;" />` : '',
+    '{{clinic_logo}}': '', // Temporarily disabled to reduce PDF size for troubleshooting
+    //'{{clinic_logo}}': org.branding?.logo ? `<img src="${org.branding.logo}" style="max-height: 80px;" />` : '',
 
     '{{patient_name}}': bill.patientName || 'Walk-in Patient',
     '{{patient_id}}': bill.patientId || 'N/A',

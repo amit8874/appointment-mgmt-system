@@ -23,14 +23,16 @@ import {
   ShieldAlert,
   ShieldX,
   Brain,
-  Users
+  Phone
 } from "lucide-react";
-import api from "../../../services/api";
+import api, { whatsappApi } from "../../../services/api";
 import AppointmentManagement from "./AppointmentManagment.jsx";
 import Pagination from "../../../components/common/Pagination";
-import BulkWhatsAppModal from "../../../components/common/BulkWhatsAppModal";
+import { toast } from "react-toastify";
+import { useAuth } from "../../../context/AuthContext";
 
 export default function AppointmentTable({ rebookData }) {
+  const { user } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -42,7 +44,6 @@ export default function AppointmentTable({ rebookData }) {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [viewMode, setViewMode] = useState("list"); // 'list' or 'calendar'
-  const [bulkWhatsappModalOpen, setBulkWhatsappModalOpen] = useState(false);
 
   // Handle re-booking from navigation state
   useEffect(() => {
@@ -122,13 +123,26 @@ export default function AppointmentTable({ rebookData }) {
   };
 
   // Handle WhatsApp Notify
-  const handleWhatsAppNotify = (app) => {
+  const handleWhatsAppNotify = async (app) => {
     const phone = app.patientPhone?.replace(/\D/g, '');
-    if (!phone) return alert('No phone number available for this patient.');
+    if (!phone) return toast.warning('No phone number available for this patient.');
     
-    const message = `Today is your appointment book with ${app.doctorName} on ${app.time} and ${app.date}.`;
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    // For prescriptions, we want to use the template
+    const notes = app.visitNotes || app.symptoms || app.reason || "Follow-up required";
+    
+    try {
+      setUpdatingId(app._id);
+      const clinicName = user?.organization?.name || user?.organizationId?.name || "Our Clinic";
+      const res = await whatsappApi.sendPrescription(phone, app.patientName, notes, clinicName);
+      if (res.success) {
+        toast.success(`Prescription sent to ${app.patientName} via WhatsApp!`);
+      }
+    } catch (err) {
+      console.error('WhatsApp Error:', err);
+      toast.error("Failed to send WhatsApp. Check if template is approved.");
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   // Handle status toggle (One-Click Arrived -> Completed)
@@ -607,13 +621,13 @@ export default function AppointmentTable({ rebookData }) {
 
                                 {/* WhatsApp Notify */}
                                 {appointment.patientPhone && appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
-                                  <button 
-                                    onClick={() => handleWhatsAppNotify(appointment)}
-                                    className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors border-l border-gray-100 ml-1 pl-3"
-                                    title="Notify via WhatsApp"
-                                  >
-                                    <MessageSquare className="w-4 h-4" />
-                                  </button>
+                                    <button 
+                                      onClick={() => handleWhatsAppNotify(appointment)}
+                                      className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors border-l border-gray-100 ml-1 pl-3"
+                                      title="Send prescription to patient on their WhatsApp"
+                                    >
+                                      <MessageSquare className="w-4 h-4" />
+                                    </button>
                                 )}
                               </div>
                           </td>
@@ -767,17 +781,6 @@ export default function AppointmentTable({ rebookData }) {
         </div>
       )}
 
-      {/* Bulk WhatsApp Modal */}
-      <BulkWhatsAppModal
-        isOpen={bulkWhatsappModalOpen}
-        onClose={() => setBulkWhatsappModalOpen(false)}
-        patients={appointments.map(app => ({
-          _id: app._id,
-          name: app.patientName,
-          patientId: app.patientId,
-          phone: app.patientPhone
-        }))}
-      />
     </div>
   );
 }

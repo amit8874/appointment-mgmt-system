@@ -1,5 +1,5 @@
 import express from 'express';
-import { sendWhatsApp, improveWhatsAppMessage, bulkSendWhatsApp } from '../controllers/whatsappController.js';
+import { sendWhatsApp, improveWhatsAppMessage, sendPrescriptionWhatsApp } from '../controllers/whatsappController.js';
 
 const router = express.Router();
 
@@ -9,11 +9,6 @@ const router = express.Router();
  */
 router.post('/send-whatsapp', sendWhatsApp);
 router.post('/improve-message', improveWhatsAppMessage);
-
-/**
- * Endpoint to send bulk WhatsApp messages.
- * POST /api/whatsapp/bulk-send
- */
-router.post('/bulk-send', bulkSendWhatsApp);
+router.post('/send-prescription', sendPrescriptionWhatsApp);
 
 export default router;

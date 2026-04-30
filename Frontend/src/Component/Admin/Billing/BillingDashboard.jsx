@@ -7,9 +7,10 @@ import {
   X,
   Eye,
   Printer,
-  ChevronLeft
+  ChevronLeft,
+  Phone
 } from 'lucide-react';
-import { billingApi, appointmentApi, centralDoctorApi, authApi } from '../../../services/api';
+import { billingApi, appointmentApi, centralDoctorApi, authApi, whatsappApi } from '../../../services/api';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
 import { useAuth } from '../../../context/AuthContext';
 import Pagination from '../../../components/common/Pagination';
@@ -164,6 +165,14 @@ const InvoiceList = React.memo(({
               >
                 <PrinterIcon className="text-gray-500 group-hover:text-green-800 transition-colors duration-300" />
                 Print
+              </button>
+              <button
+                onClick={() => handleAction('WhatsApp', invoice.id)}
+                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ease-in-out duration-150 group-hover:bg-indigo-500"
+                title="Send to WhatsApp"
+              >
+                <Phone size={14} className="mr-1" />
+                Send
               </button>
             </div>
           </div>
@@ -788,7 +797,7 @@ const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
 
 
 // --- Invoice Detail Modal Component ---
-const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, clinicInfo = {} }) => {
+const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, onSendWhatsApp, clinicInfo = {} }) => {
   const details = invoice.details || {};
 
   // Map the detail fields to readable labels
@@ -966,7 +975,7 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
           </div>
 
           {/* Print Button (Hidden on Print) */}
-          <div className="mt-6 flex justify-center no-print">
+          <div className="mt-6 flex justify-center gap-3 no-print">
             <button
               onClick={() => {
                 if (onPrint) {
@@ -981,6 +990,13 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
               Print Invoice
+            </button>
+            <button
+              onClick={() => onSendWhatsApp && onSendWhatsApp(invoice)}
+              className="inline-flex items-center px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white font-medium rounded-lg transition-colors shadow-md"
+            >
+              <Phone size={18} className="mr-2" />
+              Send on WhatsApp
             </button>
           </div>
 
@@ -1063,6 +1079,20 @@ const BillingDashboard = () => {
     fetchData();
   }, [fetchData]);
 
+  // Handler for WhatsApp sending
+  const handleSendWhatsApp = async (invoice) => {
+    try {
+      setStatusMessage(`Sending invoice ${invoice.id} to ${invoice.patient} via WhatsApp...`);
+      
+      await billingApi.sendWhatsApp(invoice._id);
+      
+      setStatusMessage(`Success! Invoice ${invoice.id} sent to ${invoice.patient} via WhatsApp.`);
+    } catch (error) {
+      console.error('Error sending WhatsApp invoice:', error);
+      setStatusMessage('Error: Failed to send invoice via WhatsApp.');
+    }
+  };
+
   // Handler for View/Print actions on the list
   const handleAction = (action, invoiceId) => {
     const invoice = invoices.find(inv => inv.id === invoiceId);
@@ -1072,6 +1102,8 @@ const BillingDashboard = () => {
       } else if (action === 'Print') {
         setPrintingInvoice(invoice);
         setStatusMessage(`Printing Invoice ${invoice.id} for ${invoice.patient}`);
+      } else if (action === 'WhatsApp') {
+        handleSendWhatsApp(invoice);
       }
     }
   };
@@ -1308,6 +1340,7 @@ const BillingDashboard = () => {
           onUpdateStatus={handleUpdateStatus} 
           onDelete={handleDeleteInvoice} 
           onPrint={handlePrintFromModal} 
+          onSendWhatsApp={handleSendWhatsApp}
           clinicInfo={clinicInfo} 
         />
       )}

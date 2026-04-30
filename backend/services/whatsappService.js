@@ -146,7 +146,7 @@ export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, m
     throw new Error('WHATSAPP_TOKEN or PHONE_NUMBER_ID is missing.');
   }
 
-  const url = 'https://graph.facebook.com/v22.0/' + PHONE_NUMBER_ID + '/messages';
+  const url = 'https://graph.facebook.com/v20.0/' + PHONE_NUMBER_ID + '/messages';
 
   const bodyParams = bodyParameters.map(val => ({
     type: 'text',

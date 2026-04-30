@@ -20,15 +20,14 @@ import {
   MessageSquare,
   Sparkles,
   Zap,
-  FileText,
-  Users
+  FileText
 } from 'lucide-react';
 import { format, isSameDay, parse, addMinutes } from 'date-fns';
-import BulkWhatsAppModal from '../../../components/common/BulkWhatsAppModal';
 import { getSocketUrl } from '../../../services/api';
-import api from '../../../services/api';
+import api, { whatsappApi } from '../../../services/api';
 import { io } from 'socket.io-client';
 import { useAuth } from '../../../context/AuthContext';
+import { toast } from 'react-toastify';
 
 const TrackAppointmentView = () => {
   const { user } = useAuth();
@@ -57,8 +56,7 @@ const TrackAppointmentView = () => {
   const [aiSummaryData, setAiSummaryData] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  // Bulk Message State
-  const [bulkWhatsappModalOpen, setBulkWhatsappModalOpen] = useState(false);
+
 
   const fetchTodayAppointments = async () => {
     try {
@@ -199,13 +197,26 @@ const TrackAppointmentView = () => {
     }
   };
   
-  const handleWhatsAppNotify = (app) => {
+  const handleWhatsAppNotify = async (app) => {
     const phone = app.patientPhone?.replace(/\D/g, '');
-    if (!phone) return alert('No phone number available for this patient.');
+    if (!phone) return toast.warning('No phone number available for this patient.');
     
-    const message = `Today is your appointment book with ${app.doctorName} on ${app.time} and ${app.date}.`;
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    // For prescriptions, we want to use the template
+    const notes = app.visitNotes || app.symptoms || app.reason || "Follow-up required";
+    
+    try {
+      setProcessingId(app._id);
+      const clinicName = user?.organization?.name || user?.organizationId?.name || "Our Clinic";
+      const res = await whatsappApi.sendPrescription(phone, app.patientName, notes, clinicName);
+      if (res.success) {
+        toast.success(`Prescription sent to ${app.patientName} via WhatsApp!`);
+      }
+    } catch (err) {
+      console.error('WhatsApp Error:', err);
+      toast.error("Failed to send WhatsApp. Is the 'prescription_share' template approved?");
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const handleSaveNotes = async () => {
@@ -385,13 +396,6 @@ const TrackAppointmentView = () => {
                 title="Refresh"
               >
                 <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-              </button>
-              <button
-                onClick={() => setBulkWhatsappModalOpen(true)}
-                className="flex-[3] sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95 whitespace-nowrap"
-              >
-                <Users size={14} />
-                <span>Bulk Message</span>
               </button>
             </div>
           </div>
@@ -582,7 +586,7 @@ const TrackAppointmentView = () => {
                                   <button 
                                     onClick={() => handleWhatsAppNotify(app)}
                                     className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors border-l border-gray-100 ml-1 pl-3"
-                                    title="Notify via WhatsApp"
+                                    title="Send prescription to patient on their WhatsApp"
                                   >
                                     <MessageSquare size={18} />
                                   </button>
@@ -809,22 +813,30 @@ const TrackAppointmentView = () => {
                   <>Save Notes</>
                 )}
               </button>
+              <button 
+                onClick={async () => {
+                  const app = appointments.find(a => (a._id || a.id)?.toString() === visitNotesData.id?.toString());
+                  if (app) {
+                    // 1. Save notes first so they are updated in the database
+                    await handleSaveNotes();
+                    // 2. Then send via WhatsApp
+                    handleWhatsAppNotify({...app, visitNotes: visitNotesData.notes});
+                  } else {
+                    toast.error("Appointment not found");
+                  }
+                }}
+                disabled={isSavingNotes || !visitNotesData.notes}
+                className="p-3 sm:p-4 bg-green-500 text-white rounded-xl sm:rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-green-200 hover:bg-green-600 transition-all disabled:opacity-50 flex items-center justify-center"
+                title="Save & Send Prescription to WhatsApp"
+              >
+                <MessageSquare size={18} />
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Bulk WhatsApp Modal */}
-      <BulkWhatsAppModal
-        isOpen={bulkWhatsappModalOpen}
-        onClose={() => setBulkWhatsappModalOpen(false)}
-        patients={appointments.map(app => ({
-          _id: app._id || app.id,
-          name: app.patientName,
-          patientId: app.patientId,
-          phone: app.patientPhone
-        }))}
-      />
+
     </div>
   );
 };

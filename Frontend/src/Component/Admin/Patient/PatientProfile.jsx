@@ -6,7 +6,7 @@ import {
   RefreshCcw, BookOpen, User, ClipboardList, ChevronLeft,
   ArrowLeft, MapPin, Globe, Shield, Calendar as CalendarIcon
 } from 'lucide-react';
-import { patientApi, appointmentApi } from '../../../services/api';
+import { patientApi, appointmentApi, medicalRecordApi } from '../../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Utility Components ---
@@ -98,6 +98,89 @@ const TabMedicalHistory = ({ data }) => (
   </div>
 );
 
+const TabPrescriptions = ({ appointments, medicalRecords = [] }) => {
+  const apptPrescriptions = appointments.filter(a => a.visitNotes && a.visitNotes.trim() !== '');
+  
+  // Combine both sources
+  const allPrescriptions = [
+    ...apptPrescriptions.map(a => ({
+      id: a._id,
+      date: a.date,
+      time: a.time,
+      doctorName: a.doctorName,
+      notes: a.visitNotes,
+      type: 'Visit Note',
+      reason: a.reason || 'General Visit'
+    })),
+    ...medicalRecords.filter(r => r.type === 'Prescription').map(r => ({
+      id: r._id,
+      date: r.date,
+      time: new Date(r.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      doctorName: r.doctorName,
+      notes: r.description,
+      type: 'Record',
+      reason: r.title
+    }))
+  ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold text-slate-800 tracking-tight">Prescription History</h3>
+        <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black uppercase tracking-wider">{allPrescriptions.length} Records</span>
+      </div>
+
+      <div className="space-y-4">
+        {allPrescriptions.length > 0 ? (
+          allPrescriptions.map((p, idx) => (
+            <div key={p.id || idx} className="bg-slate-50 border border-slate-100 rounded-2xl p-6 relative overflow-hidden group hover:border-indigo-200 transition-all">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full -mr-12 -mt-12 group-hover:bg-indigo-500/10 transition-all"></div>
+              
+              <div className="flex justify-between items-start mb-4 relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl shadow-lg shadow-indigo-100 ${p.type === 'Record' ? 'bg-emerald-600' : 'bg-indigo-600'} text-white`}>
+                    <Pill size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-800 tracking-tight">{new Date(p.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Dr. {p.doctorName}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1 bg-white border border-slate-100 rounded-full text-[9px] font-black text-slate-500 uppercase tracking-widest shadow-sm">
+                  <Clock size={10} />
+                  {p.time}
+                </div>
+              </div>
+
+              <div className="bg-white/80 backdrop-blur-sm border border-slate-100 rounded-xl p-4 text-slate-700 text-sm leading-relaxed font-medium whitespace-pre-wrap shadow-sm">
+                {p.notes}
+              </div>
+              
+              <div className="mt-4 flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400">Context:</span>
+                <span className={`text-[10px] font-black uppercase tracking-tight px-2 py-0.5 rounded-md ${p.type === 'Record' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                  {p.reason}
+                </span>
+                <span className="text-[9px] font-bold text-slate-300 ml-auto uppercase tracking-tighter">{p.type}</span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-20 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 flex flex-col items-center gap-4">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-300">
+              <Pill size={32} />
+            </div>
+            <div>
+              <p className="text-slate-800 font-bold">No Prescriptions Found</p>
+              <p className="text-slate-400 text-xs mt-1">Prescriptions are automatically added here after visit notes are saved.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const TabAppointments = ({ appointments, onRebook }) => {
   const upcoming = appointments.filter(a => a.status?.toLowerCase() === 'pending' || a.status?.toLowerCase() === 'confirmed');
   const past = appointments.filter(a => a.status?.toLowerCase() === 'completed' || a.status?.toLowerCase() === 'cancelled');
@@ -174,12 +257,14 @@ const PatientProfile = () => {
   const location = useLocation();
   const [data, setData] = useState(null);
   const [appointments, setAppointments] = useState([]);
+  const [medicalRecords, setMedicalRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('personal');
 
   const tabs = [
     { key: 'personal', name: 'Personal Info', icon: User },
     { key: 'medical', name: 'Medical History', icon: ClipboardList },
+    { key: 'prescriptions', name: 'Prescriptions', icon: Pill },
     { key: 'appointments', name: 'Appointments', icon: Calendar },
   ];
 
@@ -191,10 +276,13 @@ const PatientProfile = () => {
         const patientData = await patientApi.getById(id);
         setData(patientData);
 
-        // 2. Fetch ALL appointments for this patient (including history, mobile-linked, etc)
-        // Using the smart summary endpoint that links via clinical ID and mobile
+        // 2. Fetch ALL appointments for this patient
         const summaryResponse = await appointmentApi.getSummary(id);
         setAppointments(summaryResponse);
+
+        // 3. Fetch Medical Records (for ad-hoc prescriptions)
+        const records = await medicalRecordApi.getByPatient(id);
+        setMedicalRecords(records);
       } catch (error) {
         console.error('Error fetching patient profile data:', error);
       } finally {
@@ -364,6 +452,7 @@ const PatientProfile = () => {
               >
                 {activeTab === 'personal' && <TabPersonalInfo data={data} />}
                 {activeTab === 'medical' && <TabMedicalHistory data={data} />}
+                {activeTab === 'prescriptions' && <TabPrescriptions appointments={appointments} medicalRecords={medicalRecords} />}
                 {activeTab === 'appointments' && (
                   <TabAppointments appointments={appointments} onRebook={handleRebook} />
                 )}

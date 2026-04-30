@@ -1,6 +1,5 @@
 import WhatsAppModal from "../../../components/common/WhatsAppModal";
-import BulkWhatsAppModal from "../../../components/common/BulkWhatsAppModal";
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, MessageCircle, Download, Users } from "lucide-react";
+import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download, MessageSquare } from "lucide-react";
 import { exportPatientsToExcel } from "../../../utils/excelExport";
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -35,7 +34,6 @@ const PatientPanel = ({
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
   const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
   const [selectedPatientForWhatsapp, setSelectedPatientForWhatsapp] = useState(null);
-  const [bulkWhatsappModalOpen, setBulkWhatsappModalOpen] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
@@ -427,14 +425,7 @@ const PatientPanel = ({
             />
           </div>
           <div className="flex flex-row gap-2 w-full sm:w-auto">
-            <button
-              onClick={() => setBulkWhatsappModalOpen(true)}
-              className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 font-bold text-xs sm:text-sm whitespace-nowrap"
-              title="Bulk WhatsApp Message"
-            >
-              <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
-              Bulk Message
-            </button>
+
             <button
               onClick={() => exportPatientsToExcel(patients)}
               className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 font-bold text-xs sm:text-sm whitespace-nowrap"
@@ -605,9 +596,9 @@ const PatientPanel = ({
                         <button 
                           onClick={() => handleWhatsappClick(p)}
                           className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 dark:bg-green-900/20 dark:hover:bg-green-900/30 dark:text-green-400 transition-colors"
-                          title="WhatsApp Patient"
+                          title="Send prescription to patient on their WhatsApp"
                         >
-                          <MessageCircle className="h-4 w-4" />
+                          <MessageSquare className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
@@ -788,12 +779,7 @@ const PatientPanel = ({
         onClose={() => setWhatsappModalOpen(false)}
         patient={selectedPatientForWhatsapp}
       />
-      {/* Bulk WhatsApp Modal */}
-      <BulkWhatsAppModal
-        isOpen={bulkWhatsappModalOpen}
-        onClose={() => setBulkWhatsappModalOpen(false)}
-        patients={patients}
-      />
+
     </motion.div>
   );
 };

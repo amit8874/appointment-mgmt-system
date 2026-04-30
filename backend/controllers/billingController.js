@@ -9,6 +9,7 @@ import Organization from '../models/Organization.js';
 import InvoiceTemplate from '../models/InvoiceTemplate.js';
 import { sendWhatsAppMediaTemplate } from '../services/whatsappService.js';
 import { generateInvoicePDF } from '../services/pdfService.js';
+import { v2 as cloudinary } from 'cloudinary';
 import { sanitizePhone } from '../utils/phoneUtils.js';
 
 // Helper to sync payment status with Appointment across all collections
@@ -257,10 +258,12 @@ export const sendWhatsAppInvoice = async (req, res) => {
     // Get Organization Details for branding
     const org = await Organization.findById(req.tenantId);
     const clinicName = org?.clinicName || org?.name || 'Our Clinic';
+    const clinicLogo = org.branding?.logo ? `<img src="${org.branding.logo}" style="max-height: 80px;" />` : '';
 
     // Get Default Invoice Template for this organization
     const template = await InvoiceTemplate.findOne({ organizationId: req.tenantId, isDefault: true }) || 
                      await InvoiceTemplate.findOne({ organizationId: req.tenantId });
+
 
     // Sanitize phone
     const sanitizedPhone = sanitizePhone(bill.patientPhone);
@@ -276,10 +279,24 @@ export const sendWhatsAppInvoice = async (req, res) => {
     console.log(`[WhatsApp Billing] Generating PDF for invoice ${bill.billId}...`);
     const pdfPath = await generateInvoicePDF(bill, org, template);
     
-    // Construct the public URL for the PDF
-    // Priority: 1. BACKEND_URL env var, 2. Dynamic host from request
-    const baseUrl = process.env.BACKEND_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
-    const invoicePdfUrl = `${baseUrl}/uploads/invoices/Invoice-${bill.billId}.pdf`;
+    // 2. Upload PDF to Cloudinary to ensure it has a public URL
+    // This solves the issue of Meta not being able to access localhost or private URLs
+    console.log(`[WhatsApp Billing] Uploading PDF to Cloudinary for ${bill.billId}...`);
+    let invoicePdfUrl;
+    try {
+      const uploadResult = await cloudinary.uploader.upload(pdfPath, {
+        resource_type: 'auto', // Let Cloudinary decide (best for PDF)
+        folder: 'invoices',
+        overwrite: true
+      });
+      invoicePdfUrl = uploadResult.secure_url;
+      console.log(`[WhatsApp Billing] Cloudinary PDF URL: ${invoicePdfUrl}`);
+    } catch (uploadError) {
+      console.error(`[WhatsApp Billing] Cloudinary Upload Failed, falling back to local URL:`, uploadError);
+      // Fallback to local URL if Cloudinary fails
+      const baseUrl = process.env.BACKEND_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
+      invoicePdfUrl = `${baseUrl}/uploads/invoices/Invoice-${bill.billId}.pdf`;
+    }
 
     console.log(`[WhatsApp Billing] Sending real invoice ${bill.billId} to ${sanitizedPhone}`);
     console.log(`[WhatsApp Billing] PDF URL: ${invoicePdfUrl}`);
@@ -291,7 +308,7 @@ export const sendWhatsAppInvoice = async (req, res) => {
       'document',
       'en',
       bodyParameters,
-      `Invoice-${bill.billId}.pdf`
+      'Invoice.pdf'
     );
 
     res.json({

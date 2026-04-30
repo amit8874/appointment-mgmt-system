@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageCircle, Sparkles, Send, Loader2, User, Phone } from 'lucide-react';
-import { whatsappApi } from '../../services/api';
+import { X, MessageCircle, Sparkles, Loader2, User, MessageSquare } from 'lucide-react';
+import { whatsappApi, medicalRecordApi } from '../../services/api';
 import { toast } from 'react-toastify';
+import { useAuth } from '../../context/AuthContext';
 
 const WhatsAppModal = ({ isOpen, onClose, patient }) => {
+  const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [isImproving, setIsImproving] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -32,25 +34,43 @@ const WhatsAppModal = ({ isOpen, onClose, patient }) => {
     }
   };
 
-  const handleSend = async () => {
+
+
+  const handleSendPrescription = async () => {
     if (!message.trim()) {
-      toast.warning("Cannot send an empty message.");
+      toast.warning("Please enter prescription details.");
       return;
     }
 
     setIsSending(true);
     try {
       const phone = patient.mobile || patient.phone || patient.contactNumber || patient.contact;
-      const response = await whatsappApi.send(phone, message);
+      const clinicName = user?.organization?.name || user?.organizationId?.name || "Our Clinic";
+      const response = await whatsappApi.sendPrescription(phone, patient.name, message, clinicName);
       
       if (response.success) {
-        toast.success("Message sent successfully via WhatsApp!");
+        // Save to medical history
+        try {
+          await medicalRecordApi.create({
+            patientId: patient._id,
+            type: 'Prescription',
+            title: `Prescription via WhatsApp (${new Date().toLocaleDateString()})`,
+            description: message,
+            doctorName: user?.name || 'Clinic Admin',
+            status: 'Completed'
+          });
+        } catch (recordError) {
+          console.error("Failed to save prescription to history:", recordError);
+          // Don't block the success message if only history saving fails
+        }
+
+        toast.success("Prescription sent and saved to history!");
         onClose();
         setMessage('');
       }
     } catch (error) {
       console.error("WhatsApp Send Error:", error);
-      toast.error(error.response?.data?.message || "Failed to send WhatsApp message.");
+      toast.error("Failed to send prescription. Is the 'prescription_share' template approved?");
     } finally {
       setIsSending(false);
     }
@@ -104,7 +124,7 @@ const WhatsAppModal = ({ isOpen, onClose, patient }) => {
                     <span className="text-sm font-black text-slate-800 dark:text-slate-200">{patient.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Phone size={14} className="text-slate-400" />
+                    <MessageSquare size={14} className="text-slate-400" />
                     <span className="text-xs font-bold text-slate-500">{patient.mobile || patient.phone || patient.contactNumber || patient.contact}</span>
                   </div>
                 </div>
@@ -152,16 +172,16 @@ const WhatsAppModal = ({ isOpen, onClose, patient }) => {
                 Cancel
               </button>
               <button
-                onClick={handleSend}
+                onClick={handleSendPrescription}
                 disabled={isSending || !message.trim()}
-                className="flex-[2] py-4 bg-slate-900 text-white text-sm font-black rounded-2xl hover:bg-slate-800 disabled:bg-slate-400 transition-all shadow-xl shadow-slate-900/20 active:scale-95 flex items-center justify-center gap-2"
+                className="flex-[2] py-4 bg-green-600 text-white text-sm font-black rounded-2xl hover:bg-green-700 disabled:bg-green-400 transition-all shadow-xl shadow-green-900/20 active:scale-95 flex items-center justify-center gap-2"
               >
                 {isSending ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
-                  <Send size={18} />
+                  <MessageSquare size={18} />
                 )}
-                {isSending ? "Sending Message..." : "Send via WhatsApp"}
+                {isSending ? "Sending..." : "Send Prescription"}
               </button>
             </div>
           </motion.div>

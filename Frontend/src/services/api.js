@@ -978,8 +978,19 @@ export const whatsappApi = {
     const { data } = await api.post('/whatsapp/improve-message', { text, patientName });
     return data;
   },
-  bulkSend: async (recipients, message) => {
-    const { data } = await api.post('/whatsapp/bulk-send', { recipients, message });
+  sendPrescription: async (phone, patientName, notes, clinicName) => {
+    const { data } = await api.post('/whatsapp/send-prescription', { phone, patientName, notes, clinicName });
+    return data;
+  }
+};
+
+export const medicalRecordApi = {
+  getByPatient: async (patientId) => {
+    const { data } = await api.get(`/medical-records/patient/${patientId}`);
+    return data;
+  },
+  create: async (recordData) => {
+    const { data } = await api.post('/medical-records', recordData);
     return data;
   }
 };
