@@ -23,7 +23,8 @@ import {
   ShieldAlert,
   ShieldX,
   Brain,
-  Phone
+  Phone,
+  Users
 } from "lucide-react";
 import api, { whatsappApi } from "../../../services/api";
 import AppointmentManagement from "./AppointmentManagment.jsx";
@@ -44,6 +45,7 @@ export default function AppointmentTable({ rebookData }) {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [viewMode, setViewMode] = useState("list"); // 'list' or 'calendar'
+  const [isBulkWhatsappModalOpen, setBulkWhatsappModalOpen] = useState(false);
 
   // Handle re-booking from navigation state
   useEffect(() => {
@@ -360,13 +362,6 @@ export default function AppointmentTable({ rebookData }) {
                 <span className="text-[10px] font-black uppercase tracking-widest sm:hidden lg:inline">Refresh</span>
               </button>
               
-              <button
-                onClick={() => setBulkWhatsappModalOpen(true)}
-                className="flex-[2] sm:flex-none px-6 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2"
-              >
-                <Users className="w-4 h-4" />
-                <span>Bulk Message</span>
-              </button>
             </div>
           </div>
         </div>

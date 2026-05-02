@@ -48,6 +48,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
     const [uploadError, setUploadError] = useState({});
     const [completedSteps, setCompletedSteps] = useState([]);
     const [limitReached, setLimitReached] = useState({ show: false, message: '', limit: 0 });
+    const [showSuccessView, setShowSuccessView] = useState(false);
 
     const specDropdownRef = useRef(null);
     const councilDropdownRef = useRef(null);
@@ -335,7 +336,11 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
         setLoading(true);
         try {
             if (onSave) await onSave(formData, doctor?.id);
-            onClose();
+            if (!doctor) {
+                setShowSuccessView(true);
+            } else {
+                onClose();
+            }
         } catch (error) { 
             console.error("Save doctor error:", error);
             if (error.response?.status === 403 && error.response?.data?.limitReached) {
@@ -373,9 +378,42 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                     initial={{ opacity: 0, y: 20, scale: 0.98 }} 
                     animate={{ opacity: 1, y: 0, scale: 1 }} 
                     exit={{ opacity: 0, y: 20, scale: 0.98 }} 
-                    className="bg-white dark:bg-slate-900 rounded-none md:rounded-3xl shadow-2xl w-full max-w-4xl h-full md:max-h-[85vh] flex flex-col overflow-hidden border-0 md:border md:border-slate-200 dark:md:border-slate-800"
+                    className="bg-white dark:bg-slate-900 rounded-none md:rounded-3xl shadow-2xl w-full max-w-4xl h-full md:h-auto md:max-h-[85vh] flex flex-col overflow-hidden border-0 md:border md:border-slate-200 dark:md:border-slate-800"
                 >
-                    <div className="px-5 md:px-8 py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-900 dark:to-slate-900 flex justify-between items-center text-white">
+                    {showSuccessView ? (
+                        <div className="p-8 md:p-12 flex flex-col items-center text-center space-y-6">
+                            <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                <CheckCircle2 size={48} />
+                            </div>
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Registration Successful!</h2>
+                                <p className="text-slate-500 dark:text-slate-400 font-medium max-w-md mx-auto">
+                                    Your doctor has been registered successfully. The profile is currently in <span className="text-amber-500 font-bold uppercase">Pending</span> status.
+                                </p>
+                            </div>
+                            <div className="bg-amber-50 dark:bg-amber-900/10 p-6 rounded-2xl border border-amber-100 dark:border-amber-800/50 max-w-lg w-full">
+                                <div className="flex items-start gap-4 text-left">
+                                    <div className="mt-1 p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg text-amber-600">
+                                        <ShieldCheck size={20} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-black text-amber-900 dark:text-amber-200 uppercase tracking-widest mb-1">Verification in Progress</h4>
+                                        <p className="text-xs font-medium text-amber-800/70 dark:text-amber-400/70 leading-relaxed">
+                                            Our <span className="font-bold">Oviaan Team</span> will verify the doctor's credentials and medical registration details within <span className="font-bold">24 hours</span>. Once approved, the doctor will be active and visible for appointments.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={onClose} 
+                                className="px-10 py-3 bg-indigo-600 text-white font-black rounded-xl text-xs uppercase shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="px-5 md:px-8 py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-900 dark:to-slate-900 flex justify-between items-center text-white">
                         <div>
                             <h1 className="text-lg md:text-xl font-black uppercase tracking-tight leading-tight">{doctor ? 'Edit Doctor Profile' : 'Register New Doctor'}</h1>
                             <p className="text-indigo-100/70 text-[10px] md:text-xs font-medium mt-0.5">Section {currentIdx + 1} of 6: {tabs.find(t=>t.id===activeTab).label}</p>
@@ -721,7 +759,8 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                             )}
                         </div>
                     </div>
-                </motion.div>
+                </>)}
+            </motion.div>
             </div>
             
             <LimitReachedModal 

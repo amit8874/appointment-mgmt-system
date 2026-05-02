@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Billing from '../models/Billing.js';
 import Counter from '../models/Counter.js';
 import Product from '../models/Product.js';
@@ -46,25 +47,59 @@ export const getAllBills = async (req, res) => {
 
 export const getBillingStats = async (req, res) => {
   try {
+    const orgId = new mongoose.Types.ObjectId(req.tenantId);
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+
     const totalCollected = await Billing.aggregate([
-      { $match: { organizationId: req.tenantId, status: 'Paid' } },
+      { $match: { organizationId: orgId, status: 'Paid' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
 
     const pendingPayments = await Billing.aggregate([
-      { $match: { organizationId: req.tenantId, status: 'Pending' } },
+      { $match: { organizationId: orgId, status: 'Pending' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
 
     const duePayments = await Billing.aggregate([
-      { $match: { organizationId: req.tenantId, status: 'Due' } },
+      { $match: { organizationId: orgId, status: 'Due' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+
+    const todayRevenue = await Billing.aggregate([
+      { 
+        $match: { 
+          organizationId: orgId, 
+          status: 'Paid',
+          $or: [
+            // Case 1: Bills explicitly linked to today's appointments
+            { appointmentDate: todayStr },
+            // Case 2: Bills created today that are NOT linked to any specific appointment date (e.g. Pharmacy, Lab, General)
+            { 
+              $and: [
+                { $or: [{ appointmentDate: null }, { appointmentDate: "" }] },
+                { 
+                  $or: [
+                    { createdAt: { $gte: startOfToday, $lte: endOfToday } },
+                    { date: { $gte: startOfToday, $lte: endOfToday } }
+                  ]
+                }
+              ]
+            }
+          ]
+        } 
+      },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
 
     res.json({
       totalCollected: totalCollected[0]?.total || 0,
-      pendingPayments: pendingPayments[0]?.total || 0,
-      duePayments: duePayments[0]?.total || 0
+      pendingPayments: (pendingPayments[0]?.total || 0) + (duePayments[0]?.total || 0),
+      duePayments: duePayments[0]?.total || 0,
+      todayRevenue: todayRevenue[0]?.total || 0
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -73,7 +108,7 @@ export const getBillingStats = async (req, res) => {
 
 export const createBill = async (req, res) => {
   try {
-    const { patientId, patientName, patientPhone, doctorId, doctorName, amount, items, status, notes, paymentMethod, transactionId, appointmentId, appointmentDate, appointmentTime, paidAmount, dueAmount } = req.body;
+    const { patientId, patientName, patientPhone, doctorId, doctorName, amount, items, status, notes, paymentMethod, transactionId, appointmentId, appointmentDate, appointmentTime, paidAmount, dueAmount, billType, discount } = req.body;
 
     if (!patientId) return res.status(400).json({ message: 'Patient ID is required' });
     if (!patientName) return res.status(400).json({ message: 'Patient name is required' });
@@ -105,7 +140,9 @@ export const createBill = async (req, res) => {
       items: items || [],
       status: status || 'Pending',
       notes: notes || '',
-      paymentMethod: paymentMethod || 'N/A'
+      paymentMethod: paymentMethod || 'N/A',
+      billType: billType || 'General',
+      discount: parseFloat(discount) || 0
     });
 
     await newBill.save();
@@ -282,25 +319,15 @@ export const sendWhatsAppInvoice = async (req, res) => {
     // 2. Upload PDF to Cloudinary to ensure it has a public URL
     // This solves the issue of Meta not being able to access localhost or private URLs
     console.log(`[WhatsApp Billing] Uploading PDF to Cloudinary for ${bill.billId}...`);
-    let invoicePdfUrl;
-    try {
-      const uploadResult = await cloudinary.uploader.upload(pdfPath, {
-        resource_type: 'auto', // Let Cloudinary decide (best for PDF)
-        folder: 'invoices',
-        overwrite: true
-      });
-      invoicePdfUrl = uploadResult.secure_url;
-      console.log(`[WhatsApp Billing] Cloudinary PDF URL: ${invoicePdfUrl}`);
-    } catch (uploadError) {
-      console.error(`[WhatsApp Billing] Cloudinary Upload Failed, falling back to local URL:`, uploadError);
-      // Fallback to local URL if Cloudinary fails
-      const baseUrl = process.env.BACKEND_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
-      invoicePdfUrl = `${baseUrl}/uploads/invoices/Invoice-${bill.billId}.pdf`;
-    }
+    // Construct the public URL for the PDF
+    // Priority: 1. BACKEND_URL env var, 2. Dynamic host from request
+    const baseUrl = process.env.BACKEND_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
+    const invoicePdfUrl = `${baseUrl}/uploads/invoices/Invoice-${bill.billId}.pdf`;
 
     console.log(`[WhatsApp Billing] Sending real invoice ${bill.billId} to ${sanitizedPhone}`);
     console.log(`[WhatsApp Billing] PDF URL: ${invoicePdfUrl}`);
-
+    
+    // We'll skip Cloudinary for now since you are on a server and the direct URL should work
     const result = await sendWhatsAppMediaTemplate(
       sanitizedPhone,
       'billing_invoice_pdf',
@@ -308,7 +335,7 @@ export const sendWhatsAppInvoice = async (req, res) => {
       'document',
       'en',
       bodyParameters,
-      'Invoice.pdf'
+      `Invoice-${bill.billId}.pdf`
     );
 
     res.json({

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarCheck, X, User, Users, Stethoscope, HandHeart, Wallet, BarChart3, Lock } from 'lucide-react';
+import { CalendarCheck, X, User, Users, Stethoscope, HandHeart, Wallet, BarChart3, Lock, TrendingUp } from 'lucide-react';
 import PatientForm from './Patient/PatientForm.jsx';
 import AddDoctorForm from './Doctor/AddDoctorForm.jsx';
 import ReceptionistForm from './Receptionist/ReceptionistForm.jsx';
@@ -54,6 +54,7 @@ const Admin = () => {
 
   // Billing state
   const [totalRevenue, setTotalRevenue] = useState(0);
+  const [todayRevenue, setTodayRevenue] = useState(0);
   const [pendingPayments, setPendingPayments] = useState(0);
   const [billingLoading, setBillingLoading] = useState(false);
 
@@ -127,7 +128,7 @@ const Admin = () => {
           return 0;
         }),
         billingApi.getStats().catch(error => {
-          return { totalCollected: 0, pendingPayments: 0 };
+          return { totalCollected: 0, pendingPayments: 0, todayRevenue: 0 };
         }),
         analyticsApi.getCharts().catch(error => {
           console.error("Error fetching admin charts", error);
@@ -153,6 +154,7 @@ const Admin = () => {
 
       // Update billing state
       setTotalRevenue(billingStats.totalCollected || 0);
+      setTodayRevenue(billingStats.todayRevenue || 0);
       setPendingPayments(billingStats.pendingPayments || 0);
 
       // Update charts data
@@ -269,6 +271,14 @@ const Admin = () => {
       bg: "bg-blue-50 dark:bg-blue-900/50",
     },
     {
+      name: "Today Revenue",
+      count: billingLoading ? "Loading..." : todayRevenue,
+      icon: TrendingUp,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50 dark:bg-emerald-900/50",
+      prefix: "₹",
+    },
+    {
       name: "Pending Payments",
       count: billingLoading ? "Loading..." : pendingPayments,
       icon: Wallet,
@@ -283,7 +293,7 @@ const Admin = () => {
       bg: "bg-yellow-50 dark:bg-yellow-900/50",
       prefix: "₹",
     },
-  ], [patientsHook.patientsCountLoading, patientsHook.totalPatients, doctorsHook.doctorsCountLoading, doctorsHook.totalDoctors, receptionistsHook.receptionistsCountLoading, receptionistsHook.totalReceptionists, totalAppointments, totalRevenue, pendingPayments, billingLoading]);
+  ], [patientsHook.patientsCountLoading, patientsHook.totalPatients, doctorsHook.doctorsCountLoading, doctorsHook.totalDoctors, receptionistsHook.receptionistsCountLoading, receptionistsHook.totalReceptionists, totalAppointments, totalRevenue, todayRevenue, pendingPayments, billingLoading]);
 
   // Charts data is now managed in state variables above
 

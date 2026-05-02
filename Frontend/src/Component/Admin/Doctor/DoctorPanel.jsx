@@ -67,7 +67,10 @@ const StatusBadge = ({ status }) => {
   };
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full ${getColors()}`}>
+    <span 
+      className={`inline-flex items-center px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full ${getColors()}`}
+      title={status === 'Pending' ? "Our Oviaan team will verify this doctor within 24 hours" : ""}
+    >
       {getIcon()}
       {status}
     </span>
@@ -325,6 +328,13 @@ const DoctorPanel = ({
                   </div>
                 </div>
               </div>
+
+              {doctor.status === 'Pending' && (
+                <div className="mt-3 text-[10px] font-bold text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-100 flex items-start gap-1.5 animate-pulse">
+                  <AlertCircle size={12} className="mt-0.5 shrink-0" />
+                  <span>Our Oviaan team will verify the doctor within 24 hours and approve it.</span>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="mt-4 flex justify-between items-center">

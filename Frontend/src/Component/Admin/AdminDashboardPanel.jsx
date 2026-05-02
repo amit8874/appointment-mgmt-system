@@ -186,12 +186,31 @@ const AdminDashboardPanel = ({
   const filteredStats = React.useMemo(() => {
     if (activePaymentFilter === "All") return stats || [];
 
+    const now = new Date();
+    const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const startOfToday = new Date(new Date().setHours(0,0,0,0));
+    const endOfToday = new Date(new Date().setHours(23,59,59,999));
+
     return (stats || []).map(stat => {
       if (stat.name === "Total Revenue") {
         const filteredTotal = allBills
           .filter(bill => bill.status === "Paid" && bill.paymentMethod?.toLowerCase() === activePaymentFilter.toLowerCase())
           .reduce((sum, bill) => sum + bill.amount, 0);
         return { ...stat, count: filteredTotal };
+      }
+      if (stat.name === "Today Revenue") {
+        const filteredToday = allBills
+          .filter(bill => {
+            const isTodayAppt = bill.appointmentDate === todayStr;
+            const isTodayGeneral = (!bill.appointmentDate || bill.appointmentDate === "") && 
+                                   (new Date(bill.date) >= startOfToday && new Date(bill.date) <= endOfToday);
+            
+            return bill.status === "Paid" && 
+                   bill.paymentMethod?.toLowerCase() === activePaymentFilter.toLowerCase() &&
+                   (isTodayAppt || isTodayGeneral);
+          })
+          .reduce((sum, bill) => sum + bill.amount, 0);
+        return { ...stat, count: filteredToday };
       }
       if (stat.name === "Pending Payments") {
         return { ...stat, count: 0 };

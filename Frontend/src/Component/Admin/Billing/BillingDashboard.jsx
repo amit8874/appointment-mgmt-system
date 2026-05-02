@@ -10,10 +10,11 @@ import {
   ChevronLeft,
   Phone
 } from 'lucide-react';
-import { billingApi, appointmentApi, centralDoctorApi, authApi, whatsappApi } from '../../../services/api';
+import { billingApi, appointmentApi, centralDoctorApi, authApi, whatsappApi, pharmacyApi } from '../../../services/api';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
 import { useAuth } from '../../../context/AuthContext';
 import Pagination from '../../../components/common/Pagination';
+
 // --- Status Badge Component ---
 const StatusBadge = ({ status }) => {
   const isPaid = status === 'Paid';
@@ -209,6 +210,11 @@ const formatCurrency = (amount) => {
 
 // Function to transform API data to component format
 const transformApiData = (apiBill) => {
+  const itemsSubtotal = (apiBill.items || []).reduce((sum, i) => 
+    sum + (parseFloat(i.subtotal) || (parseFloat(i.qty || 1) * parseFloat(i.unitPrice || i.cost || 0))), 0
+  );
+  const discountAmount = parseFloat(apiBill.discount) || Math.max(0, itemsSubtotal - (apiBill.amount || 0));
+
   return {
     id: apiBill.billId,
     _id: apiBill._id,
@@ -221,6 +227,8 @@ const transformApiData = (apiBill) => {
     amount: apiBill.amount,
     status: apiBill.status,
     patientPhone: apiBill.patientPhone || '',
+    billType: apiBill.billType || 'General',
+    items: apiBill.items || [],
     details: {
       patient: String(apiBill.patientName || ''),
       doctor: String(apiBill.doctorName || ''),
@@ -244,8 +252,9 @@ const transformApiData = (apiBill) => {
         !i.description?.toLowerCase().includes('test') && 
         !i.description?.toLowerCase().includes('medicine')
       ).reduce((sum, item) => sum + (item.cost || item.unitPrice || item.subtotal || 0), 0) || 0,
-      discounts: 0,
-      taxRate: 0,
+      discount: discountAmount,
+      discounts: discountAmount,
+      taxRate: apiBill.taxRate || 0,
       totalAmount: apiBill.amount,
       paymentMode: apiBill.paymentMethod || 'N/A',
       status: apiBill.status,
@@ -258,6 +267,7 @@ const transformApiData = (apiBill) => {
 const getInitialBillState = () => ({
   patientName: '',
   patientId: '',
+  patientPhone: '',
   doctorName: '',
   doctorId: '',
   appointmentId: '',
@@ -384,7 +394,7 @@ const paymentModeIcons = {
 
 
 // --- Input Field Component (Used in Form) ---
-const InputField = ({ label, name, type = 'text', value, onChange, placeholder = '', unit = '' }) => (
+const InputField = ({ label, name, type = 'text', value, onChange, placeholder = '', unit = '', ...props }) => (
   <div className="flex flex-col">
     <label htmlFor={name} className="text-sm font-medium text-gray-700 mb-1">
       {label}
@@ -399,12 +409,19 @@ const InputField = ({ label, name, type = 'text', value, onChange, placeholder =
         type={type}
         name={name}
         id={name}
-        value={value}
+        value={value === 0 && type === 'number' ? '' : value}
         onChange={onChange}
-        placeholder={placeholder}
+        onFocus={(e) => {
+          if (type === 'number' && (e.target.value === '0' || value === 0)) {
+            // This allows the user to start typing immediately without deleting the 0
+            e.target.select();
+          }
+        }}
+        placeholder={placeholder || (type === 'number' ? '0' : '')}
         min={type === 'number' ? 0 : undefined}
         // Check for '₹' unit to adjust padding
         className={`block w-full rounded-lg border-gray-300 shadow-inner p-2 sm:text-sm focus:ring-${PRIMARY_COLOR}-500 focus:border-${PRIMARY_COLOR}-500 transition duration-150 ${unit === '₹' ? 'pl-9' : ''} bg-white font-bold text-slate-700`}
+        {...props}
       />
       {unit === '%' && type === 'number' && (
         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
@@ -417,14 +434,43 @@ const InputField = ({ label, name, type = 'text', value, onChange, placeholder =
 
 
 // --- Billing Form Component (Used in generate mode) ---
-const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [], doctors = [] }) => {
-  const [billData, setBillData] = useState(getInitialBillState());
+const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [], doctors = [], billType = 'General' }) => {
+  const [billData, setBillData] = useState({
+    ...getInitialBillState(),
+    billType
+  });
   const [selectedAppointmentId, setSelectedAppointmentId] = useState('');
   const [saving, setSaving] = useState(false);
+  
+  // Itemized billing state for Pharmacy/Lab
+  const [itemList, setItemList] = useState([{ description: '', qty: 1, unitPrice: 0, subtotal: 0 }]);
+  const [products, setProducts] = useState([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [showProductDropdown, setShowProductDropdown] = useState(-1); // Index of the row being searched
   
   // Search state for appointments
   const [apptSearchQuery, setApptSearchQuery] = useState('');
   const [showApptDropdown, setShowApptDropdown] = useState(false);
+
+  // Fetch products for Pharmacy or Lab
+  useEffect(() => {
+    if (billType !== 'General') {
+      const fetchProducts = async () => {
+        try {
+          const data = await pharmacyApi.getProducts();
+          const filtered = data.filter(p => {
+            if (billType === 'Pharmacy') return p.category?.toLowerCase().includes('medicine');
+            if (billType === 'Lab') return p.category?.toLowerCase().includes('lab') || p.category?.toLowerCase().includes('test');
+            return true;
+          });
+          setProducts(filtered);
+        } catch (err) {
+          console.warn('Failed to fetch products for billing:', err);
+        }
+      };
+      fetchProducts();
+    }
+  }, [billType]);
 
   // Filtered appointments for the search
   const filteredAppts = useMemo(() => {
@@ -440,34 +486,84 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
   // Handle manual selection from dropdown
   const handleSelectAppointment = (appt) => {
     setSelectedAppointmentId(appt._id || appt.id);
-    setApptSearchQuery(appt.patientName);
+    setApptSearchQuery(appt.patientName || appt.patient?.name || '');
     setShowApptDropdown(false);
 
     // Find doctor to get their fee
-    const doctor = doctors.find(d => d._id === appt.doctorId || d.id === appt.doctorId);
+    const doctorId = appt.doctorId || appt.doctor?._id || appt.doctor || '';
+    const doctor = doctors.find(d => (d._id === doctorId || d.id === doctorId));
     
     setBillData(prev => ({
       ...prev,
-      patientName: String(appt.patientName || ''),
+      patientName: String(appt.patientName || appt.patient?.name || ''),
       patientId: String(appt.patientId || appt.patient?._id || appt.patient || ''),
-      doctorName: String(appt.doctorName || ''),
-      doctorId: String(appt.doctorId || appt.doctor?._id || appt.doctor || ''),
+      patientPhone: String(appt.patientPhone || appt.patient?.mobile || appt.patient?.phone || ''),
+      doctorName: String(appt.doctorName || doctor?.name || doctor?.fullName || ''),
+      doctorId: String(doctorId),
       appointmentId: String(appt._id || appt.id || ''),
-      appointmentDate: appt.date ? new Date(appt.date).toISOString().substring(0, 10) : prev.appointmentDate,
+      appointmentDate: (() => {
+        if (!appt.date) return prev.appointmentDate;
+        try {
+          const d = new Date(appt.date);
+          if (isNaN(d.getTime())) {
+            // Try to parse DD/MM/YYYY or DD-MM-YYYY
+            if (typeof appt.date === 'string') {
+              const parts = appt.date.split(/[-/]/);
+              if (parts.length === 3) {
+                const fallbackDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                if (!isNaN(fallbackDate.getTime())) {
+                  return fallbackDate.toISOString().substring(0, 10);
+                }
+              }
+            }
+            return prev.appointmentDate;
+          }
+          return d.toISOString().substring(0, 10);
+        } catch (e) {
+          return prev.appointmentDate;
+        }
+      })(),
       consultationFee: doctor?.consultantFee || doctor?.fee || 0
     }));
   };
 
+  // Item List Handlers
+  const handleAddItem = () => setItemList(prev => [...prev, { description: '', qty: 1, unitPrice: 0, subtotal: 0 }]);
+  const handleRemoveItem = (index) => setItemList(prev => prev.filter((_, i) => i !== index));
+  const handleItemChange = (index, field, value) => {
+    setItemList(prev => {
+      const newList = [...prev];
+      newList[index][field] = value;
+      if (field === 'qty' || field === 'unitPrice') {
+        newList[index].subtotal = parseFloat((newList[index].qty * newList[index].unitPrice).toFixed(2));
+      }
+      return newList;
+    });
+  };
+
+  const handleSelectProduct = (index, product) => {
+    handleItemChange(index, 'description', product.name);
+    handleItemChange(index, 'unitPrice', product.price);
+    handleItemChange(index, 'productId', product._id);
+    setShowProductDropdown(-1);
+  };
+
   // Auto-calculation logic
   useEffect(() => {
-    const consultation = parseFloat(billData.consultationFee) || 0;
-    const test = parseFloat(billData.tests) || 0;
-    const medicine = parseFloat(billData.medicines) || 0;
+    const consultation = billType === 'General' ? (parseFloat(billData.consultationFee) || 0) : 0;
+    const test = billType === 'General' ? (parseFloat(billData.tests) || 0) : 0;
+    const medicine = billType === 'General' ? (parseFloat(billData.medicines) || 0) : 0;
     const additional = parseFloat(billData.additionalCharges) || 0;
+    
+    // Sum from item list if itemized
+    const itemTotal = billType !== 'General' 
+      ? itemList.reduce((sum, item) => sum + (item.subtotal || 0), 0)
+      : 0;
+
     const discount = parseFloat(billData.discounts) || 0;
     const tax = parseFloat(billData.taxRate) || 0;
 
-    const subtotal = consultation + test + medicine + additional;
+    const subtotal = consultation + test + medicine + additional + itemTotal;
     const amountAfterDiscount = Math.max(0, subtotal - discount);
     const taxAmount = amountAfterDiscount * (tax / 100);
     const total = amountAfterDiscount + taxAmount;
@@ -480,6 +576,8 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
     billData.additionalCharges,
     billData.discounts,
     billData.taxRate,
+    itemList,
+    billType
   ]);
 
   const handleInputChange = (e) => {
@@ -513,11 +611,24 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
     setSaving(true);
     try {
       // Prepare items array
-      const items = [];
-      if (billData.consultationFee > 0) items.push({ description: 'Consultation Fee', cost: billData.consultationFee, unitPrice: billData.consultationFee, subtotal: billData.consultationFee, qty: 1 });
-      if (billData.tests > 0) items.push({ description: 'Tests/Lab Fees', cost: billData.tests, unitPrice: billData.tests, subtotal: billData.tests, qty: 1 });
-      if (billData.medicines > 0) items.push({ description: 'Medicines/Pharmacy', cost: billData.medicines, unitPrice: billData.medicines, subtotal: billData.medicines, qty: 1 });
-      if (billData.additionalCharges > 0) items.push({ description: 'Additional Charges', cost: billData.additionalCharges, unitPrice: billData.additionalCharges, subtotal: billData.additionalCharges, qty: 1 });
+      let items = [];
+      if (billType === 'General') {
+        if (billData.consultationFee > 0) items.push({ description: 'Consultation Fee', cost: billData.consultationFee, unitPrice: billData.consultationFee, subtotal: billData.consultationFee, qty: 1 });
+        if (billData.tests > 0) items.push({ description: 'Tests/Lab Fees', cost: billData.tests, unitPrice: billData.tests, subtotal: billData.tests, qty: 1 });
+        if (billData.medicines > 0) items.push({ description: 'Medicines/Pharmacy', cost: billData.medicines, unitPrice: billData.medicines, subtotal: billData.medicines, qty: 1 });
+        if (billData.additionalCharges > 0) items.push({ description: 'Additional Charges', cost: billData.additionalCharges, unitPrice: billData.additionalCharges, subtotal: billData.additionalCharges, qty: 1 });
+      } else {
+        // For Pharmacy/Lab, use the itemized list
+        items = itemList.filter(i => i.description && i.subtotal > 0).map(i => ({
+          productId: i.productId,
+          description: i.description,
+          qty: i.qty,
+          unitPrice: i.unitPrice,
+          cost: i.unitPrice,
+          subtotal: i.subtotal
+        }));
+        if (billData.additionalCharges > 0) items.push({ description: 'Additional Charges', cost: billData.additionalCharges, unitPrice: billData.additionalCharges, subtotal: billData.additionalCharges, qty: 1 });
+      }
 
       // Map payment mode to API format
       const paymentModeMap = {
@@ -531,13 +642,16 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
       const newBill = await billingApi.create({
         patientId: billData.patientId || 'PID-' + Date.now(),
         patientName: billData.patientName,
+        patientPhone: billData.patientPhone,
         doctorId: billData.doctorId || 'DID-001',
         doctorName: billData.doctorName,
         amount: billData.totalAmount,
         items: items,
         status: billData.status,
-        notes: `Appointment Date: ${billData.appointmentDate}`,
-        paymentMethod: paymentModeMap[billData.paymentMode] || 'Cash'
+        discount: billData.discounts,
+        notes: `Bill Type: ${billType}${billData.appointmentDate ? ` | Appt Date: ${billData.appointmentDate}` : ''}`,
+        paymentMethod: paymentModeMap[billData.paymentMode] || 'Cash',
+        billType: billType
       });
 
       // Transform API response to component format
@@ -557,7 +671,17 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
     handleSave(true);
   }
 
-  const subtotalCharges = parseFloat(((parseFloat(billData.consultationFee) || 0) + (parseFloat(billData.tests) || 0) + (parseFloat(billData.medicines) || 0) + (parseFloat(billData.additionalCharges) || 0)).toFixed(2));
+  const itemTotal = billType !== 'General' 
+    ? itemList.reduce((sum, item) => sum + (item.subtotal || 0), 0)
+    : 0;
+
+  const subtotalCharges = parseFloat((
+    (billType === 'General' ? (parseFloat(billData.consultationFee) || 0) : 0) + 
+    (billType === 'General' ? (parseFloat(billData.tests) || 0) : 0) + 
+    (billType === 'General' ? (parseFloat(billData.medicines) || 0) : 0) + 
+    (parseFloat(billData.additionalCharges) || 0) + 
+    itemTotal
+  ).toFixed(2));
   const amountAfterDiscount = Math.max(0, subtotalCharges - (parseFloat(billData.discounts) || 0));
   const taxAmount = parseFloat((amountAfterDiscount * ((parseFloat(billData.taxRate) || 0) / 100)).toFixed(2));
 
@@ -671,15 +795,110 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
             </div>
           </div>
 
-          {/* Service Charges Card */}
+          {/* Service Charges Card / Itemized List */}
           <div className="p-6 bg-sky-50 rounded-xl shadow-lg border border-sky-200">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Charges Details</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <InputField label="Consultation Fee" name="consultationFee" type="number" value={billData.consultationFee} onChange={handleInputChange} unit="₹" />
-              <InputField label="Tests/Lab Fees" name="tests" type="number" value={billData.tests} onChange={handleInputChange} unit="₹" />
-              <InputField label="Medicines/Pharmacy" name="medicines" type="number" value={billData.medicines} onChange={handleInputChange} unit="₹" />
-              <InputField label="Additional Charges" name="additionalCharges" type="number" value={billData.additionalCharges} onChange={handleInputChange} unit="₹" />
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-800">{billType} Billing Details</h3>
+              {billType !== 'General' && (
+                <button 
+                  onClick={handleAddItem}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-lg shadow-md hover:bg-indigo-700 transition-all"
+                >
+                  <PlusCircleIcon className="w-3 h-3" /> Add {billType === 'Pharmacy' ? 'Medicine' : 'Test'}
+                </button>
+              )}
             </div>
+
+            {billType === 'General' ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <InputField label="Consultation Fee" name="consultationFee" type="number" value={billData.consultationFee} onChange={handleInputChange} unit="₹" />
+                <InputField label="Tests/Lab Fees" name="tests" type="number" value={billData.tests} onChange={handleInputChange} unit="₹" />
+                <InputField label="Medicines/Pharmacy" name="medicines" type="number" value={billData.medicines} onChange={handleInputChange} unit="₹" />
+                <InputField label="Additional Charges" name="additionalCharges" type="number" value={billData.additionalCharges} onChange={handleInputChange} unit="₹" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="hidden md:grid grid-cols-12 gap-4 px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <div className="col-span-5">Description</div>
+                  <div className="col-span-2">Qty</div>
+                  <div className="col-span-2">Unit Price</div>
+                  <div className="col-span-2">Subtotal</div>
+                  <div className="col-span-1 text-right">Action</div>
+                </div>
+                
+                {itemList.map((item, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 items-center bg-white/50 p-3 rounded-xl border border-sky-100 relative group animate-in slide-in-from-left-2" style={{ animationDelay: `${index * 50}ms` }}>
+                    <div className="col-span-1 md:col-span-5 relative">
+                      <input 
+                        type="text" 
+                        placeholder={`Search ${billType === 'Pharmacy' ? 'Medicine' : 'Test'}...`}
+                        value={item.description}
+                        onChange={(e) => {
+                          handleItemChange(index, 'description', e.target.value);
+                          setProductSearch(e.target.value);
+                          setShowProductDropdown(index);
+                        }}
+                        onFocus={() => setShowProductDropdown(index)}
+                        className="w-full px-3 py-2 bg-white border border-sky-100 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-xs font-bold text-slate-700"
+                      />
+                      {showProductDropdown === index && productSearch && (
+                        <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-sky-100 overflow-hidden max-h-48 overflow-y-auto">
+                          {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).map(product => (
+                            <div 
+                              key={product._id} 
+                              onClick={() => handleSelectProduct(index, product)}
+                              className="px-4 py-2 hover:bg-sky-50 cursor-pointer transition-colors border-b border-sky-50 last:border-0"
+                            >
+                              <p className="text-xs font-bold text-slate-700">{product.name}</p>
+                              <p className="text-[10px] text-slate-400">Price: {formatCurrency(product.price)} | {product.manufacturer || 'General'}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="col-span-1 md:col-span-2">
+                      <input 
+                        type="number" 
+                        value={item.qty === 0 ? '' : item.qty}
+                        onChange={(e) => handleItemChange(index, 'qty', e.target.value === '' ? 0 : parseInt(e.target.value))}
+                        onFocus={(e) => e.target.select()}
+                        placeholder="0"
+                        className="w-full px-3 py-2 bg-white border border-sky-100 rounded-lg text-xs font-bold text-slate-700"
+                      />
+                    </div>
+                    <div className="col-span-1 md:col-span-2">
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">₹</span>
+                        <input 
+                          type="number" 
+                          value={item.unitPrice === 0 ? '' : item.unitPrice}
+                          onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                          onFocus={(e) => e.target.select()}
+                          placeholder="0"
+                          className="w-full pl-6 pr-3 py-2 bg-white border border-sky-100 rounded-lg text-xs font-bold text-slate-700"
+                        />
+                      </div>
+                    </div>
+                    <div className="col-span-1 md:col-span-2">
+                      <p className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg text-xs font-black text-indigo-600">
+                        {formatCurrency(item.subtotal)}
+                      </p>
+                    </div>
+                    <div className="col-span-1 md:col-span-1 text-right">
+                      {itemList.length > 1 && (
+                        <button onClick={() => handleRemoveItem(index)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
+                          <XIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                <div className="pt-4 border-t border-sky-100">
+                   <InputField label="Additional Charges (Admin/Service)" name="additionalCharges" type="number" value={billData.additionalCharges} onChange={handleInputChange} unit="₹" />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Discount, Tax & Payment Card */}
@@ -800,17 +1019,33 @@ const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
 const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, onSendWhatsApp, clinicInfo = {} }) => {
   const details = invoice.details || {};
 
-  // Map the detail fields to readable labels
-  const chargeItems = [
-    { label: 'Consultation Fee', value: details.consultationFee },
-    { label: 'Tests/Lab Fees', value: details.tests },
-    { label: 'Medicines/Pharmacy', value: details.medicines },
-    { label: 'Additional Charges', value: details.additionalCharges },
-  ];
+  // Map the detail fields to readable labels or use the itemized list
+  const isItemized = invoice.items && invoice.items.length > 0;
+  const chargeItems = isItemized
+    ? invoice.items.map(item => ({ 
+        label: item.description, 
+        value: item.subtotal || (item.qty * (item.unitPrice || item.cost)) || 0,
+        qty: item.qty,
+        unitPrice: item.unitPrice || item.cost
+      }))
+    : [
+        { label: 'Consultation Fee', value: details.consultationFee },
+        { label: 'Tests/Lab Fees', value: details.tests },
+        { label: 'Medicines/Pharmacy', value: details.medicines },
+        { label: 'Additional Charges', value: details.additionalCharges },
+      ].filter(item => (parseFloat(item.value) || 0) > 0);
 
   // Calculate totals for summary section
-  const subtotalCharges = chargeItems.reduce((sum, item) => sum + (parseFloat(item.value) || 0), 0);
-  const amountAfterDiscount = Math.max(0, subtotalCharges - (parseFloat(details.discounts) || 0));
+  const subtotalCharges = isItemized 
+    ? chargeItems.reduce((sum, item) => sum + (parseFloat(item.value) || 0), 0)
+    : [
+        details.consultationFee,
+        details.tests,
+        details.medicines,
+        details.additionalCharges
+      ].reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+
+  const amountAfterDiscount = Math.max(0, subtotalCharges - (parseFloat(details.discount || details.discounts) || 0));
   const taxAmount = amountAfterDiscount * ((parseFloat(details.taxRate) || 0) / 100);
 
   const handleStatusChange = (newStatus) => {
@@ -921,6 +1156,8 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
               <thead className="bg-slate-800">
                 <tr>
                   <th scope="col" className="px-4 py-2 text-left text-[10px] font-bold text-white uppercase tracking-wider">Item Description</th>
+                  {isItemized && <th scope="col" className="px-4 py-2 text-center text-[10px] font-bold text-white uppercase tracking-wider">Qty</th>}
+                  {isItemized && <th scope="col" className="px-4 py-2 text-center text-[10px] font-bold text-white uppercase tracking-wider">Unit Price</th>}
                   <th scope="col" className="px-4 py-2 text-right text-[10px] font-bold text-white uppercase tracking-wider">Amount</th>
                 </tr>
               </thead>
@@ -928,6 +1165,8 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
                 {chargeItems.map((item, index) => (
                   <tr key={index} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-2 whitespace-nowrap text-xs font-medium text-slate-800">{item.label}</td>
+                    {isItemized && <td className="px-4 py-2 whitespace-nowrap text-xs text-center text-slate-600">{item.qty || 1}</td>}
+                    {isItemized && <td className="px-4 py-2 whitespace-nowrap text-xs text-center text-slate-600">{formatCurrency(item.unitPrice)}</td>}
                     <td className="px-4 py-2 whitespace-nowrap text-xs text-right font-medium text-slate-700">{formatCurrency(item.value)}</td>
                   </tr>
                 ))}
@@ -943,16 +1182,16 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
                   <span className="font-medium text-slate-600">Subtotal</span>
                   <span className="font-semibold text-slate-800">{formatCurrency(subtotalCharges)}</span>
                 </div>
-                {details.discounts > 0 && (
-                  <div className="flex justify-between mb-2 text-xs text-red-600">
-                    <span className="font-medium">Discount Applied</span>
-                    <span className="font-semibold">-{formatCurrency(details.discounts)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between mb-2 text-xs">
                   <span className="font-medium text-slate-600">Tax ({details.taxRate || 0}%)</span>
                   <span className="font-semibold text-slate-800">{formatCurrency(taxAmount)}</span>
                 </div>
+                {(parseFloat(details.discount || details.discounts) > 0) && (
+                  <div className="flex justify-between mb-2 text-xs text-red-600">
+                    <span className="font-medium">Total Discount</span>
+                    <span className="font-semibold">-{formatCurrency(details.discount || details.discounts)}</span>
+                  </div>
+                )}
                 
                 <div className="flex justify-between items-center py-2 border-t border-slate-800 mt-2">
                   <span className="text-lg font-black text-slate-800 uppercase tracking-tight">Total</span>
@@ -1021,6 +1260,7 @@ const BillingDashboard = () => {
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'generate'
+  const [billingTab, setBillingTab] = useState('General'); // 'General', 'Pharmacy', 'Lab'
   const [activeFilter, setActiveFilter] = useState('All'); // 'All', 'Paid', 'Pending'
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null); // State for modal
@@ -1066,7 +1306,7 @@ const BillingDashboard = () => {
       const transformedData = billingData.map(transformApiData);
       setInvoices(transformedData);
       setAppointments(appointmentData || []);
-      setDoctors(doctorData || []);
+      setDoctors(doctorData?.doctors || (Array.isArray(doctorData) ? doctorData : []));
     } catch (error) {
       console.error('Error fetching billing dashboard data:', error);
       setError('Failed to load billing data. Please try again.');
@@ -1093,12 +1333,12 @@ const BillingDashboard = () => {
     }
   };
 
-  // Handler for View/Print actions on the list
+  // Handler for actions from the list
   const handleAction = (action, invoiceId) => {
     const invoice = invoices.find(inv => inv.id === invoiceId);
     if (invoice) {
       if (action === 'View') {
-        setSelectedInvoice(invoice); // Open modal
+        setSelectedInvoice(invoice);
       } else if (action === 'Print') {
         setPrintingInvoice(invoice);
         setStatusMessage(`Printing Invoice ${invoice.id} for ${invoice.patient}`);
@@ -1107,7 +1347,6 @@ const BillingDashboard = () => {
       }
     }
   };
-
 
   // Handler for printing from modal - uses same mechanism as list
   const handlePrintFromModal = (invoice) => {
@@ -1205,36 +1444,26 @@ const BillingDashboard = () => {
     const lowerCaseSearch = searchTerm.toLowerCase();
 
     // 1. Filtering
-    // Create a phone map from appointments for mobile number search
-    const patientPhoneMap = {};
-    (appointments || []).forEach(appt => {
-      if (appt.patientId && appt.patientPhone) {
-        patientPhoneMap[appt.patientId] = appt.patientPhone;
-      }
-    });
-
     let filtered = invoices.filter(invoice => {
-      // Apply status/paymentMode filter
+      // 1. Filter by Billing Tab (General, Pharmacy, Lab)
+      if (invoice.billType !== billingTab) return false;
+
+      // 2. Apply status/paymentMode filter
       if (activeFilter !== 'All') {
         if (['Cash', 'UPI', 'Card'].includes(activeFilter)) {
-          // Filter by payment mode (case insensitive check for safety)
-          if (invoice.details?.paymentMode?.toLowerCase() !== activeFilter.toLowerCase()) {
-            return false;
-          }
+          if (invoice.details?.paymentMode?.toLowerCase() !== activeFilter.toLowerCase()) return false;
         } else if (invoice.status !== activeFilter) {
-          // Fallback for status filters like 'Paid' or 'Pending' if they are ever added back
           return false;
         }
       }
 
-      // Apply search term filter
+      // 3. Apply search term filter
       if (searchTerm) {
-        const patientPhone = patientPhoneMap[invoice.patientId] || "";
         const matchesPatient = invoice.patient.toLowerCase().includes(lowerCaseSearch);
         const matchesDoctor = invoice.doctor.toLowerCase().includes(lowerCaseSearch);
         const matchesId = invoice.id.toLowerCase().includes(lowerCaseSearch);
         const matchesPatientId = invoice.patientId?.toLowerCase().includes(lowerCaseSearch);
-        const matchesPhone = patientPhone.includes(searchTerm);
+        const matchesPhone = (invoice.patientPhone || "").includes(searchTerm);
 
         return matchesPatient || matchesDoctor || matchesId || matchesPatientId || matchesPhone;
       }
@@ -1242,32 +1471,28 @@ const BillingDashboard = () => {
     });
 
     // 2. Calculation
-    const totalPaid = invoices
+    const tabSpecificInvoices = invoices.filter(inv => inv.billType === billingTab);
+
+    const totalPaid = tabSpecificInvoices
       .filter(inv => inv.status === 'Paid')
       .reduce((sum, inv) => sum + inv.amount, 0);
 
-    const totalPending = invoices
+    const totalPending = tabSpecificInvoices
       .filter(inv => inv.status === 'Pending')
       .reduce((sum, inv) => sum + inv.amount, 0);
 
-    const totalAll = invoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const averageInvoice = invoices.length > 0 ? totalAll / invoices.length : 0;
+    const totalAll = tabSpecificInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const averageInvoice = tabSpecificInvoices.length > 0 ? totalAll / tabSpecificInvoices.length : 0;
 
     return {
       filteredInvoices: filtered,
       summaryMetrics: [
         { title: 'Total Paid Value', value: formatCurrency(totalPaid), colorClass: 'border-green-500', icon: RupeeIcon, textClass: 'text-green-500' },
         { title: 'Outstanding Receivables', value: formatCurrency(totalPending), colorClass: 'border-red-500', icon: RupeeIcon, textClass: 'text-red-500' },
-        { title: 'Average Invoice Value', value: formatCurrency(averageInvoice), colorClass: `border-${PRIMARY_COLOR}-500`, icon: RupeeIcon, textClass: `text-${PRIMARY_COLOR}-500` },
+        { title: 'Average Invoice Value', value: formatCurrency(averageInvoice), colorClass: `border-sky-500`, icon: RupeeIcon, textClass: `text-sky-500` },
       ]
     };
-
-  }, [invoices, activeFilter, searchTerm]);
-
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, activeFilter]);
+  }, [invoices, activeFilter, searchTerm, appointments, billingTab]);
 
   // Paginate invoices
   const paginatedInvoices = useMemo(() => {
@@ -1277,73 +1502,146 @@ const BillingDashboard = () => {
 
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
 
-
-
-
-
   return (
     <>
-    <div className="min-h-screen bg-gray-100 p-2 sm:p-4 font-['Inter'] print:bg-white print:p-0">
+      {/* Print-specific Styles */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          .no-print { display: none !important; }
+          .print-only { 
+            display: block !important; 
+            position: absolute !important; 
+            left: 0 !important; 
+            top: 0 !important; 
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 1.5cm !important;
+          }
+          @page { 
+            margin: 0; 
+            size: auto; 
+          }
+        }
+        @media screen {
+          .print-only { display: none; }
+        }
+      `}} />
 
-      {/* Header and Title (Hidden on Print) */}
-      <header className="mb-3 print:hidden">
-        <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-          Billing & Payments
-        </h1>
-        <p className="text-[11px] sm:text-xs text-gray-400 font-bold uppercase tracking-wider">
-          Centralized financial management for patient services.
-        </p>
-      </header>
+      <div className="min-h-screen bg-gray-100 p-2 sm:p-4 font-['Inter'] no-print">
 
-      {/* Status Message Display */}
-      {statusMessage && (
-        <div className={`mb-3 p-3 print:hidden ${statusMessage.startsWith('Error') ? 'bg-red-50 text-red-800 border-red-100' : 'bg-blue-50 text-blue-800 border-blue-100'} rounded-lg shadow-sm border text-xs font-bold transition-opacity duration-300`}>
-          {statusMessage}
+        {/* Header and Title */}
+        <header className="mb-3">
+          <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
+            Billing & Payments
+          </h1>
+          <p className="text-[11px] sm:text-xs text-gray-400 font-bold uppercase tracking-wider">
+            Centralized financial management for patient services.
+          </p>
+        </header>
+
+        {/* Status Message Display */}
+        {statusMessage && (
+          <div className={`mb-3 p-3 ${statusMessage.startsWith('Error') ? 'bg-red-50 text-red-800 border-red-100' : 'bg-blue-50 text-blue-800 border-blue-100'} rounded-lg shadow-sm border text-xs font-bold transition-opacity duration-300`}>
+            {statusMessage}
+          </div>
+        )}
+
+        {/* Category Tabs (Three Boxes) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {[
+            { id: 'General', label: 'Consultation & General', icon: User, color: 'sky', description: 'Doctors, Appointments & OPD' },
+            { id: 'Pharmacy', label: 'Pharmacy Billing', icon: PlusCircle, color: 'indigo', description: 'Medicines, Inventory & Retail' },
+            { id: 'Lab', label: 'Lab Test Billing', icon: Search, color: 'purple', description: 'Pathology, Radiology & Tests' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setBillingTab(tab.id);
+                setViewMode('list');
+              }}
+              className={`relative overflow-hidden p-5 rounded-2xl border-2 transition-all duration-500 text-left group
+                ${billingTab === tab.id 
+                  ? `bg-white border-${tab.color}-500 shadow-2xl ring-4 ring-${tab.color}-500/10 scale-[1.03]` 
+                  : `bg-slate-50 border-slate-100 hover:border-${tab.color}-200 hover:bg-white shadow-sm hover:scale-[1.01]`}`}
+            >
+              <div className="flex items-center gap-5 relative z-10">
+                <div className={`p-4 rounded-2xl transition-all duration-500 shadow-lg
+                  ${billingTab === tab.id 
+                    ? `bg-${tab.color}-600 text-white rotate-3` 
+                    : `bg-white text-${tab.color}-600 group-hover:bg-${tab.color}-50`}`}>
+                  <tab.icon size={28} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className={`text-sm font-black uppercase tracking-tight transition-colors duration-300
+                    ${billingTab === tab.id ? `text-${tab.color}-700` : 'text-slate-600'}`}>
+                    {tab.label}
+                  </h3>
+                  <p className="text-[10px] font-bold text-slate-400 leading-tight mt-1 uppercase tracking-widest opacity-80">
+                    {tab.description}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Decorative Background Icon */}
+              <div className={`absolute -right-6 -bottom-6 opacity-[0.03] transition-all duration-700 group-hover:scale-125 group-hover:rotate-12
+                ${billingTab === tab.id ? 'text-slate-900 opacity-[0.05]' : `text-${tab.color}-900`}`}>
+                <tab.icon size={120} />
+              </div>
+              
+              {/* Active Pulse Indicator */}
+              {billingTab === tab.id && (
+                <div className="absolute top-4 right-4 flex items-center gap-2">
+                  <span className="text-[9px] font-black uppercase tracking-tighter text-slate-400">Active</span>
+                  <div className={`w-2 h-2 rounded-full bg-${tab.color}-500 animate-pulse shadow-[0_0_8px_rgba(0,0,0,0.2)]`} />
+                </div>
+              )}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* Main Card Container (Hidden on Print) */}
-      <div className="bg-white rounded-xl shadow-lg p-3 sm:p-5 print:hidden">
+        {/* Main Card Container */}
+        <div className="bg-white rounded-xl shadow-lg p-3 sm:p-5">
+          {viewMode === 'list' ? (
+            <InvoiceList
+              filteredInvoices={paginatedInvoices}
+              summaryMetrics={summaryMetrics}
+              activeFilter={activeFilter}
+              setActiveFilter={setActiveFilter}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              setViewMode={setViewMode}
+              handleAction={handleAction}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={filteredInvoices.length}
+              itemsPerPage={itemsPerPage}
+            />
+          ) : (
+            <GenerateBillForm
+              onSave={handleSaveNewInvoice}
+              onCancel={() => setViewMode('list')}
+              setStatusMessage={setStatusMessage}
+              appointments={appointments}
+              doctors={doctors}
+              billType={billingTab}
+            />
+          )}
+        </div>
 
-        {viewMode === 'list' ? (
-          <InvoiceList
-            filteredInvoices={paginatedInvoices}
-            summaryMetrics={summaryMetrics}
-            activeFilter={activeFilter}
-            setActiveFilter={setActiveFilter}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            setViewMode={setViewMode}
-            handleAction={handleAction}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            totalItems={filteredInvoices.length}
-            itemsPerPage={itemsPerPage}
-          />
-        ) : (
-          <GenerateBillForm
-            onSave={handleSaveNewInvoice}
-            onCancel={() => setViewMode('list')}
-            setStatusMessage={setStatusMessage}
-            appointments={appointments}
-            doctors={doctors}
+        {/* Invoice Detail Modal */}
+        {selectedInvoice && (
+          <InvoiceDetailModal 
+            invoice={selectedInvoice} 
+            onClose={() => setSelectedInvoice(null)} 
+            onUpdateStatus={handleUpdateStatus} 
+            onDelete={handleDeleteInvoice} 
+            onPrint={handlePrintFromModal} 
+            onSendWhatsApp={handleSendWhatsApp}
+            clinicInfo={clinicInfo} 
           />
         )}
       </div>
-
-      {/* Invoice Detail Modal */}
-      {selectedInvoice && (
-        <InvoiceDetailModal 
-          invoice={selectedInvoice} 
-          onClose={() => setSelectedInvoice(null)} 
-          onUpdateStatus={handleUpdateStatus} 
-          onDelete={handleDeleteInvoice} 
-          onPrint={handlePrintFromModal} 
-          onSendWhatsApp={handleSendWhatsApp}
-          clinicInfo={clinicInfo} 
-        />
-      )}
 
       {/* Dedicated Print Portal */}
       <div className="print-only bg-white text-black">
@@ -1352,34 +1650,40 @@ const BillingDashboard = () => {
             clinicInfo={clinicInfo}
             invoiceData={{
               billId: printingInvoice.id,
-              date: printingInvoice.date,
+              date: printingInvoice.dateRaw || printingInvoice.date,
               patientName: printingInvoice.patient,
               patientId: printingInvoice.details?.patientId || printingInvoice.patientId || 'N/A',
               doctorName: printingInvoice.doctor || 'N/A',
-              items: [
-                { description: 'Consultation Fee', price: parseFloat(printingInvoice.details?.consultationFee) || 0 },
-                { description: 'Tests/Lab Fees', price: parseFloat(printingInvoice.details?.tests) || 0 },
-                { description: 'Medicines/Pharmacy', price: parseFloat(printingInvoice.details?.medicines) || 0 },
-                { description: 'Additional Charges', price: parseFloat(printingInvoice.details?.additionalCharges) || 0 }
-              ].filter(item => item.price > 0),
-              subtotal: (parseFloat(printingInvoice.details?.consultationFee) || 0) + 
-                        (parseFloat(printingInvoice.details?.tests) || 0) + 
-                        (parseFloat(printingInvoice.details?.medicines) || 0) + 
-                        (parseFloat(printingInvoice.details?.additionalCharges) || 0),
-              discount: parseFloat(printingInvoice.details?.discounts) || 0,
+              items: (printingInvoice.items && printingInvoice.items.length > 0)
+                ? printingInvoice.items.map(i => ({ 
+                    description: i.description, 
+                    price: parseFloat(i.unitPrice || i.cost || 0),
+                    quantity: parseInt(i.qty || 1)
+                  }))
+                : [
+                    { description: 'Consultation Fee', price: parseFloat(printingInvoice.details?.consultationFee) || 0, quantity: 1 },
+                    { description: 'Tests/Lab Fees', price: parseFloat(printingInvoice.details?.tests) || 0, quantity: 1 },
+                    { description: 'Medicines/Pharmacy', price: parseFloat(printingInvoice.details?.medicines) || 0, quantity: 1 },
+                    { description: 'Additional Charges', price: parseFloat(printingInvoice.details?.additionalCharges) || 0, quantity: 1 }
+                  ].filter(item => item.price > 0),
+              subtotal: (printingInvoice.items && printingInvoice.items.length > 0)
+                ? printingInvoice.items.reduce((sum, i) => sum + (parseFloat(i.subtotal) || (parseFloat(i.qty || 1) * parseFloat(i.unitPrice || i.cost || 0))), 0)
+                : (parseFloat(printingInvoice.details?.consultationFee) || 0) + 
+                  (parseFloat(printingInvoice.details?.tests) || 0) + 
+                  (parseFloat(printingInvoice.details?.medicines) || 0) + 
+                  (parseFloat(printingInvoice.details?.additionalCharges) || 0),
+              discount: parseFloat(printingInvoice.details?.discount || printingInvoice.details?.discounts || printingInvoice.discount) || 0,
               taxRate: parseFloat(printingInvoice.details?.taxRate) || 0,
               total: parseFloat(printingInvoice.amount) || 0,
-              notes: printingInvoice.details?.remarks || '',
-              paymentMethod: printingInvoice.details?.paymentMode || 'N/A',
+              notes: printingInvoice.details?.remarks || printingInvoice.notes || '',
+              paymentMethod: printingInvoice.details?.paymentMode || printingInvoice.paymentMethod || 'N/A',
               status: printingInvoice.status
             }}
           />
         )}
       </div>
-    </div>
     </>
   );
 };
 
 export default BillingDashboard;
-

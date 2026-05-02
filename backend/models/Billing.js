@@ -11,6 +11,11 @@ const billingSchema = new mongoose.Schema({
     type: String,
     sparse: true
   },
+  billType: {
+    type: String,
+    enum: ['General', 'Pharmacy', 'Lab'],
+    default: 'General'
+  },
   billId: {
     type: String,
     required: true

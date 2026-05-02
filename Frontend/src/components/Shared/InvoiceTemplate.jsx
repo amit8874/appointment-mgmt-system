@@ -181,16 +181,17 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
                                 <span className="font-medium text-slate-600">Subtotal</span>
                                 <span className="font-bold text-slate-800">{formatCurrency(subtotal)}</span>
                             </div>
-                            {discount > 0 && (
-                                <div className="flex justify-between mb-3 text-sm text-red-600">
-                                    <span className="font-medium">Discount Applied</span>
-                                    <span className="font-bold">-{formatCurrency(discount)}</span>
-                                </div>
-                            )}
                             <div className="flex justify-between mb-3 text-sm">
                                 <span className="font-medium text-slate-600">Tax ({taxRate || 0}%)</span>
                                 <span className="font-bold text-slate-800">{formatCurrency(taxAmount)}</span>
                             </div>
+                            
+                            {discount > 0 && (
+                                <div className="flex justify-between mb-3 text-sm text-red-600">
+                                    <span className="font-medium">Total Discount</span>
+                                    <span className="font-bold">-{formatCurrency(discount)}</span>
+                                </div>
+                            )}
                             
                             <div className="flex justify-between items-center py-3 border-t-2 border-slate-800 mt-3">
                                 <span className="text-xl font-black text-slate-800 uppercase tracking-tight">Total</span>
