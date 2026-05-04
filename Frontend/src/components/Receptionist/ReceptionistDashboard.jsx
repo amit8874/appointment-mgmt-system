@@ -37,8 +37,10 @@ const ReceptionistLayout = () => {
   const fetchSubscriptionLimits = async () => {
     try {
       setLimitsLoading(true);
-      const orgId = user?.organizationId?._id || user?.organizationId || user?.organization?._id;
-      if (!orgId || orgId === '[object Object]') {
+      const rawOrgId = user?.organizationId || user?.organization?._id || user?.organization;
+      const orgId = typeof rawOrgId === 'object' ? (rawOrgId?._id || rawOrgId?.id) : rawOrgId;
+      
+      if (!orgId || typeof orgId !== 'string' || orgId.includes('[object')) {
         setLimitsLoading(false);
         return;
       }
@@ -62,7 +64,7 @@ const ReceptionistLayout = () => {
     if (user) {
       fetchSubscriptionLimits();
     }
-  }, [user]);
+  }, [user?.id || user?._id]);
 
   const navigation = [
     { name: 'New Appointment', href: '/receptionist', icon: Calendar },
@@ -76,6 +78,7 @@ const ReceptionistLayout = () => {
     },
     { name: 'Patients', href: '/receptionist/patients', icon: Users },
     { name: 'Messages', href: '/receptionist/messages', icon: MessageSquare },
+
     { name: 'Billing', href: '/receptionist/billing', icon: FileText },
     {
       name: 'Doctor',

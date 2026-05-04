@@ -68,7 +68,7 @@ const Messages = () => {
   };
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleString('en-IN', {
+    return new Date(date).toLocaleString('en-US', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',

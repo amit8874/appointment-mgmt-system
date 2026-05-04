@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarCheck, X, User, Users, Stethoscope, HandHeart, Wallet, BarChart3, Lock, TrendingUp } from 'lucide-react';
+import { CalendarCheck, X, User, Users, Stethoscope, HandHeart, Wallet, BarChart3, Lock, TrendingUp, MessageSquare } from 'lucide-react';
 import PatientForm from './Patient/PatientForm.jsx';
 import AddDoctorForm from './Doctor/AddDoctorForm.jsx';
 import ReceptionistForm from './Receptionist/ReceptionistForm.jsx';
@@ -37,12 +37,12 @@ const Admin = () => {
   
   // Update URL when activeTab changes
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
+    const params = new URLSearchParams(window.location.search);
     if (params.get('tab') !== activeTab) {
       params.set('tab', activeTab);
-      navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+      navigate(`?${params.toString()}`, { replace: true });
     }
-  }, [activeTab, navigate, location.pathname, location.search]);
+  }, [activeTab, navigate]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // State for mobile sidebar visibility
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -64,6 +64,8 @@ const Admin = () => {
   const [monthlyIncomeExpenseData, setMonthlyIncomeExpenseData] = useState([]);
   const [recentAppointments, setRecentAppointments] = useState([]);
   const [trialStatus, setTrialStatus] = useState(null);
+  const [whatsappBalance, setWhatsappBalance] = useState(null);
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
 
   // For form
   const [activeModal, setActiveModal] = useState(null);
@@ -137,10 +139,18 @@ const Admin = () => {
         analyticsApi.getDashboard().catch(error => {
           console.error("Error fetching admin dashboard data", error);
           return null;
+        }),
+        api.get('/whatsapp-credits/balance').catch(error => {
+          console.error("Error fetching whatsapp balance", error);
+          return { success: false };
         })
       ]);
 
-      const [patientsData, doctorsData, receptionistsData, countsData, todayApptsCount, billingStats, chartsData, dashboardData] = responses;
+      const [patientsData, doctorsData, receptionistsData, countsData, todayApptsCount, billingStats, chartsData, dashboardData, whatsappData] = responses;
+
+      if (whatsappData?.success) {
+        setWhatsappBalance(whatsappData.data);
+      }
 
 
       // Update state with fetched data
@@ -184,8 +194,10 @@ const Admin = () => {
 
   const fetchTrialStatus = useCallback(async () => {
     try {
-      const orgId = user?.organizationId?._id || user?.organizationId || user?.organization?._id;
-      if (!orgId || orgId === '[object Object]') return;
+      const rawOrgId = user?.organizationId || user?.organization?._id || user?.organization;
+      const orgId = typeof rawOrgId === 'object' ? (rawOrgId?._id || rawOrgId?.id) : rawOrgId;
+      
+      if (!orgId || typeof orgId !== 'string' || orgId.includes('[object')) return;
 
       const data = await api.get(`/organizations/${orgId}/trial-status`);
       setTrialStatus(data.data || data); // Handle both wrapped and unwrapped responses safely
@@ -196,18 +208,16 @@ const Admin = () => {
 
   // On mount
   useEffect(() => {
-    const locationState = window.history.state?.usr; // Accessing state directly as location might not be updated yet or use hook
-
     if (isAuthenticated && user) {
       fetchAllData();
       fetchTrialStatus();
       notificationsHook.fetchNotifications();
 
-      // Check for rebookData in navigation state
-      const locationState = window.history.state?.usr;
-      if (locationState?.rebookData) {
+      // Check for rebookData in navigation state directly from history
+      const currentHistoryState = window.history.state?.usr;
+      if (currentHistoryState?.rebookData) {
         setActiveTab('New Appointment');
-        setRebookData(locationState.rebookData);
+        setRebookData(currentHistoryState.rebookData);
         // Clear state to avoid re-triggering on refresh
         window.history.replaceState({}, document.title);
       }
@@ -220,11 +230,11 @@ const Admin = () => {
       console.log('AdminDashboard: User not authenticated, skipping data fetch');
     }
 
-    // Set up polling for notifications every 30 seconds
-    const notificationInterval = setInterval(notificationsHook.fetchNotifications, 30000);
+    // Set up polling for notifications every 2 minutes
+    const notificationInterval = setInterval(notificationsHook.fetchNotifications, 120000);
 
     return () => clearInterval(notificationInterval);
-  }, [user, isAuthenticated]);
+  }, [user?.id || user?._id, isAuthenticated]);
 
   const fetchTodayAppointmentsCount = async () => {
     try {
@@ -293,7 +303,15 @@ const Admin = () => {
       bg: "bg-yellow-50 dark:bg-yellow-900/50",
       prefix: "₹",
     },
-  ], [patientsHook.patientsCountLoading, patientsHook.totalPatients, doctorsHook.doctorsCountLoading, doctorsHook.totalDoctors, receptionistsHook.receptionistsCountLoading, receptionistsHook.totalReceptionists, totalAppointments, totalRevenue, todayRevenue, pendingPayments, billingLoading]);
+    {
+      name: "WhatsApp Credits",
+      count: whatsappLoading ? "Loading..." : (whatsappBalance?.totalAvailable || 0),
+      icon: MessageSquare,
+      color: "text-indigo-600",
+      bg: "bg-indigo-50 dark:bg-indigo-900/50",
+      link: "WhatsApp Credits"
+    },
+  ], [patientsHook.patientsCountLoading, patientsHook.totalPatients, doctorsHook.doctorsCountLoading, doctorsHook.totalDoctors, receptionistsHook.receptionistsCountLoading, receptionistsHook.totalReceptionists, totalAppointments, totalRevenue, todayRevenue, pendingPayments, billingLoading, whatsappBalance, whatsappLoading]);
 
   // Charts data is now managed in state variables above
 

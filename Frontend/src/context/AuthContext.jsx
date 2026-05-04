@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const login = (userData) => {
+  const login = React.useCallback((userData) => {
     setAuthState({
       isAuthenticated: true,
       user: userData,
@@ -87,22 +87,19 @@ export const AuthProvider = ({ children }) => {
       sessionStorage.setItem('token', userData.token);
       localStorage.setItem('token', userData.token);
 
-      const role = userData.role || 'patient'; // Ensure role is set, default to 'patient'
+      const role = userData.role || 'patient';
       sessionStorage.setItem('role', role);
       localStorage.setItem('role', role);
 
-      // Store full user data for admins
       sessionStorage.setItem('userData', JSON.stringify(userData));
       localStorage.setItem('userData', JSON.stringify(userData));
       
-      // Sync tenantSlug with the logged-in user's organization
       if (userData.organization?.slug) {
         localStorage.setItem('tenantSlug', userData.organization.slug);
       } else if (userData.organizationId?.slug) {
         localStorage.setItem('tenantSlug', userData.organizationId.slug);
       }
 
-      // Store user data including name if available
       if (userData.name) {
         sessionStorage.setItem('userName', userData.name);
         localStorage.setItem('userName', userData.name);
@@ -110,7 +107,7 @@ export const AuthProvider = ({ children }) => {
     } else {
       sessionStorage.setItem('patientUser', JSON.stringify(userData));
     }
-    // Clear any conflicting data
+    
     if (userData.token && sessionStorage.getItem('patientUser')) {
       sessionStorage.removeItem('patientUser');
     } else if (!userData.token && sessionStorage.getItem('token')) {
@@ -121,16 +118,15 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('role');
       localStorage.removeItem('userData');
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = React.useCallback(() => {
     setAuthState({
       isAuthenticated: false,
       user: null,
       loading: false
     });
     
-    // Clear both sessionStorage and localStorage
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('role');
     sessionStorage.removeItem('patientUser');
@@ -141,18 +137,16 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('userData');
     localStorage.removeItem('patientUser');
     localStorage.removeItem('userName');
-    // Clear tenantSlug to prevent stale tenant data
     localStorage.removeItem('tenantSlug');
-  };
+  }, []);
 
-  const updateUser = (updatedUserData) => {
+  const updateUser = React.useCallback((updatedUserData) => {
     setAuthState(prev => {
       const newUser = { ...prev.user, ...updatedUserData };
       
       sessionStorage.setItem('userData', JSON.stringify(newUser));
       localStorage.setItem('userData', JSON.stringify(newUser));
       
-      // Sync tenantSlug with the updated organization info
       if (newUser.organization?.slug) {
         localStorage.setItem('tenantSlug', newUser.organization.slug);
       } else if (newUser.organizationId?.slug) {
@@ -166,7 +160,7 @@ export const AuthProvider = ({ children }) => {
       
       return { ...prev, user: newUser };
     });
-  };
+  }, []);
 
   const value = useMemo(() => ({
     isAuthenticated,

@@ -15,6 +15,7 @@ import PrescriptionOrder from '../models/PrescriptionOrder.js';
 import Order from '../models/Order.js';
 import ServiceRequest from '../models/ServiceRequest.js';
 import Notification from '../models/Notification.js';
+import { applyPlanWhatsappCredits } from '../services/whatsappCreditService.js';
 
 /**
  * Setup cron jobs for Free Trial data reset
@@ -74,6 +75,14 @@ export const setupTrialResetCron = () => {
         org.lastDataResetAt = now;
         org.needsResetNotification = true;
         await org.save();
+
+        // Refresh WhatsApp Credits for the new 24h cycle
+        await applyPlanWhatsappCredits({
+          orgId: orgId,
+          planName: 'Free Trial',
+          resetCycle: true,
+          description: 'WhatsApp credits refreshed for new 24h Free Trial cycle'
+        }).catch(err => console.error('[WhatsApp Credit Service] Trial reset apply failed:', err.message));
 
         console.log(`Successfully reset data for organization: ${org.name} (${orgId})`);
       }

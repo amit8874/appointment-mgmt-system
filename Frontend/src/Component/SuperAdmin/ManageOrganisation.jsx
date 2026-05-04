@@ -301,7 +301,7 @@ const ManageOrganisation = () => {
                   {/* Created Date */}
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <p className="text-xs text-gray-500">
-                      Created: {org.createdAt ? new Date(org.createdAt).toLocaleDateString('en-IN', {
+                      Created: {org.createdAt ? new Date(org.createdAt).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric'

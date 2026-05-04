@@ -140,6 +140,7 @@ const AdminSidebar = ({
           children={appointmentChildren}
         />
         <NavItem id="tour-admin-billing" name="Billing & Payments" icon={Wallet} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} />
+
         <NavItem id="tour-admin-reports" name="Reports & Analytics" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} />
         {(user?.role === 'superadmin' || user?.role === 'orgadmin' || user?.role === 'admin') && (
           <>

@@ -10,6 +10,8 @@ import CancelledAppointment from '../models/CancelledAppointment.js';
 import AuditLog from '../models/AuditLog.js';
 import Pharmacy from '../models/Pharmacy.js';
 import Notification from '../models/Notification.js';
+import { applyPlanWhatsappCredits } from '../services/whatsappCreditService.js';
+import { sendPharmacyRegistrationNotification } from '../services/emailService.js';
 
 // Get super admin dashboard statistics
 export const getDashboard = async (req, res) => {
@@ -611,6 +613,15 @@ export const overrideSubscription = async (req, res) => {
       await org.save();
     }
 
+    // Apply WhatsApp Credits for the new plan
+    await applyPlanWhatsappCredits({
+      orgId: req.params.orgId,
+      planName: planName || plan || 'Active Plan',
+      resetCycle: true,
+      createdBy: req.user.id,
+      description: `WhatsApp credits adjusted via manual override by Super Admin: ${overrideNote || 'No note'}`
+    }).catch(err => console.error('[WhatsApp Credit Service] Manual override apply failed:', err.message));
+
     // Log the manual override
     await AuditLog.create({
       adminId: req.user.id,
@@ -871,6 +882,11 @@ export const registerPharmacy = async (req, res) => {
       isRead: false
     });
 
+    // Send instant email notification to platform admin (amitmaurya3276@gmail.com)
+    sendPharmacyRegistrationNotification(pharmacy).catch(err => 
+      console.error('[Email Notification] Failed to send pharmacy registration alert:', err.message)
+    );
+
     res.status(201).json({ 
       message: 'Registration request submitted successfully. We will contact you soon.',
       pharmacy 
@@ -1080,6 +1096,14 @@ export const manualUpgradePlan = async (req, res) => {
       ipAddress: req.ip
     });
 
+    // Apply WhatsApp Credits for the new plan
+    await applyPlanWhatsappCredits({
+      orgId: organization._id,
+      planName: planName,
+      resetCycle: true,
+      createdBy: req.user.id,
+      description: `WhatsApp credits applied after manual upgrade to ${planName} by Super Admin`
+    }).catch(err => console.error('[WhatsApp Credit Service] Manual upgrade apply failed:', err.message));
 
     res.json({
       message: `Organization successfully upgraded to ${planName}`,

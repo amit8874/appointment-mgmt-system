@@ -26,7 +26,10 @@ const PharmacyLayout = () => {
     const pharmacyId = user._id || user.id;
     const socketUrl = getSocketUrl();
     
-    const socket = io(socketUrl);
+    const socket = io(socketUrl, {
+      transports: ['websocket'],
+      upgrade: false
+    });
 
     socketRef.current = socket;
 
@@ -50,7 +53,7 @@ const PharmacyLayout = () => {
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
     };
-  }, [user]);
+  }, [user?.id || user?._id]);
 
   // Poll for new broadcasts globally (Backup mechanism)
   useEffect(() => {
@@ -72,7 +75,7 @@ const PharmacyLayout = () => {
     };
 
     checkNewBroadcasts();
-    const interval = setInterval(checkNewBroadcasts, 10000); 
+    const interval = setInterval(checkNewBroadcasts, 30000); 
     return () => clearInterval(interval);
   }, [dismissedIds, activeAlert]);
 

@@ -137,13 +137,13 @@ const PrivacyPolicy = () => {
               please reach out to our Data Protection team.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="mailto:privacy@Oviaan.pro" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">
+              <a href="mailto:amitmaurya3276@gmail.com" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">
                 <MessageSquare size={18} />
                 Email Support
               </a>
-              <a href="tel:+918874614130" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-700 text-white font-bold rounded-xl hover:bg-blue-800 transition-colors border border-blue-500/30">
+              <a href="tel:+918874614138" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-700 text-white font-bold rounded-xl hover:bg-blue-800 transition-colors border border-blue-500/30">
                 <PhoneCall size={18} />
-                Call DPO
+                Call Support
               </a>
             </div>
           </motion.div>

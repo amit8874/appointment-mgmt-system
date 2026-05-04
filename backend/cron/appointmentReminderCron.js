@@ -1,4 +1,4 @@
-import cron from 'node-cron';
+import cron from 'node-cron'; // Corrected casing for import path refresh
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import Organization from '../models/Organization.js';
 import { sendWhatsAppTemplate } from '../services/whatsappService.js';
@@ -77,7 +77,19 @@ export const setupAppointmentReminderCron = () => {
                             clinicName,            // {{3}}
                             app.date,              // {{4}}
                             app.time               // {{5}}
-                        ]
+                        ],
+                        [],
+                        {
+                            organizationId: app.organizationId,
+                            chargeCredit: true,
+                            messageType: 'APPOINTMENT_REMINDER',
+                            relatedEntityType: 'Appointment',
+                            relatedEntityId: app._id,
+                            metadata: {
+                                source: 'appointmentReminderCron',
+                                templateName: 'appointment_reminder'
+                            }
+                        }
                     );
 
                     if (response && response.messages) {

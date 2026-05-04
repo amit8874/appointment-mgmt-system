@@ -69,6 +69,8 @@ const Contact = lazy(() => import("./Pages/Contact"));
 const DoctorProfile = lazy(() => import("./Pages/Services/DoctorProfile"));
 const RayByOviaan = lazy(() => import("./Pages/Services/RayByOviaan"));
 const OviaanReach = lazy(() => import("./Pages/Services/OviaanReach"));
+const WhatsAppCredits = lazy(() => import("./Pages/WhatsAppCredits"));
+
 
 
 
@@ -244,13 +246,14 @@ export default function App() {
     };
 
     checkSession();
-    const interval = setInterval(checkSession, 10000); // 10 seconds is safer
+    const interval = setInterval(checkSession, 120000);
 
     return () => {
       isSubscribed = false;
       clearInterval(interval);
     };
   }, [isAuthenticated, logout]);
+
 
 
   return (
@@ -367,6 +370,12 @@ export default function App() {
                 <PatientProfile />
               </ProtectedRoute>
             } />
+            <Route path="/whatsapp-credits" element={
+              <ProtectedRoute allowedRoles={['admin', 'orgadmin', 'receptionist', 'superadmin']}>
+                <WhatsAppCredits />
+              </ProtectedRoute>
+            } />
+
             <Route path="/receptionist" element={
               <ProtectedRoute allowedRoles={['receptionist']}>
                 <ReceptionistDashboard />
@@ -384,7 +393,9 @@ export default function App() {
               <Route path="new-appointment" element={<NewAppointmentForm />} />
               <Route path="add-doctor" element={<AddDoctor />} />
               <Route path="doctor-schedule" element={<DoctorSchedule />} />
+              <Route path="whatsapp-credits" element={<WhatsAppCredits />} />
               <Route path="profile" element={<AdminProfilePage />} />
+
             </Route>
             <Route path="/patient-dashboard" element={
               <ProtectedRoute allowedRoles={['patient']}>

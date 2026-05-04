@@ -111,7 +111,7 @@ function getInvoiceHtml(bill, org, template) {
     '{{patient_id}}': bill.patientId || 'N/A',
     '{{doctor_name}}': bill.doctorName || 'General Consultant',
     '{{invoice_number}}': bill.invoiceNumber || bill.billId || 'DRAFT-001',
-    '{{date}}': new Date(bill.date || bill.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    '{{date}}': new Date(bill.date || bill.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
 
     '{{subtotal}}': formatCurrency(bill.subtotal || bill.amount),
     '{{tax_amount}}': formatCurrency(bill.taxAmount || 0),
@@ -318,7 +318,7 @@ function generateItemsTable(items = [], type = 'standard') {
 }
 
 function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-IN', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'INR',
   }).format(amount || 0);

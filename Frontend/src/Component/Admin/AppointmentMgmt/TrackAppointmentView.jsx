@@ -79,7 +79,10 @@ const TrackAppointmentView = () => {
     
     // Initialize Socket.io
     const socketUrl = getSocketUrl();
-    const socket = io(socketUrl);
+    const socket = io(socketUrl, {
+      transports: ['websocket'],
+      upgrade: false
+    });
 
     socketRef.current = socket;
 
@@ -130,7 +133,7 @@ const TrackAppointmentView = () => {
       clearInterval(timer);
       if (socketRef.current) socketRef.current.disconnect();
     };
-  }, [user]);
+  }, [user?.id || user?._id]);
 
   const parseTime = (timeStr) => {
     if (!timeStr || typeof timeStr !== 'string') return 0;

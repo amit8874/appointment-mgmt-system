@@ -29,6 +29,7 @@ const SmartNotificationSystem = () => {
   const [activePopups, setActivePopups] = useState([]);
   const [realTimePopups, setRealTimePopups] = useState([]);
   const [selectedDetail, setSelectedDetail] = useState(null);
+  const [insufficientCreditError, setInsufficientCreditError] = useState(null);
   const processedRef = useRef(new Set()); // Format: apptId_type (e.g. 123_reminder, 123_now, 123_late)
   const socketRef = useRef(null);
 
@@ -126,7 +127,10 @@ const SmartNotificationSystem = () => {
     const orgIdStr = String(orgId);
 
     const socketUrl = getSocketUrl();
-    const socket = io(socketUrl);
+    const socket = io(socketUrl, { 
+      transports: ['websocket'],
+      upgrade: false 
+    });
 
     socketRef.current = socket;
 
@@ -135,7 +139,6 @@ const SmartNotificationSystem = () => {
     });
 
     socket.on('public-appointment-booked', (data) => {
-      
       const newBooking = {
         ...data.appointment,
         uniqueId: `rt_${data.appointment._id}_${Date.now()}`,
@@ -151,10 +154,18 @@ const SmartNotificationSystem = () => {
       } catch(e) {}
     });
 
+    socket.on('insufficient-whatsapp-credits', (data) => {
+      setInsufficientCreditError(data);
+      // Play alert sound
+      try { 
+        new Audio('/notification.mp3').play().catch(() => {}); 
+      } catch(e) {}
+    });
+
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
     };
-  }, [user, canSeeNotifications]);
+  }, [user?.id || user?._id, canSeeNotifications]);
 
   const dismissPopup = (id) => {
     setActivePopups(prev => prev.filter(p => `${p._id}_${p.type}` !== id));
@@ -182,7 +193,19 @@ const SmartNotificationSystem = () => {
     }
   };
 
-  if (!canSeeNotifications || (activePopups.length === 0 && realTimePopups.length === 0)) return null;
+  // Listener for Insufficient WhatsApp Credits
+  useEffect(() => {
+    const handleInsufficientCredits = (event) => {
+      setInsufficientCreditError(event.detail);
+    };
+
+    window.addEventListener('insufficient-whatsapp-credits', handleInsufficientCredits);
+    return () => {
+      window.removeEventListener('insufficient-whatsapp-credits', handleInsufficientCredits);
+    };
+  }, []);
+
+  if (!canSeeNotifications || (activePopups.length === 0 && realTimePopups.length === 0 && !insufficientCreditError)) return null;
 
   return (
     <>
@@ -427,6 +450,59 @@ const SmartNotificationSystem = () => {
                    </div>
                 </div>
              </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Insufficient WhatsApp Credits Modal */}
+      <AnimatePresence>
+        {insufficientCreditError && (
+          <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-gray-800 rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden border border-red-100 dark:border-red-900/30"
+            >
+              <div className="p-8 text-center">
+                <div className="w-20 h-20 bg-red-50 dark:bg-red-900/20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                  <Zap size={40} className="text-red-500 fill-red-500/10" />
+                </div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4 italic">
+                  Credits Exhausted
+                </h2>
+                <p className="text-slate-600 dark:text-slate-400 font-medium leading-relaxed mb-8">
+                  {insufficientCreditError.message}
+                </p>
+                <div className="space-y-3">
+                  {['admin', 'orgadmin', 'superadmin'].includes(user?.role) ? (
+                    <button 
+                      onClick={() => {
+                        setInsufficientCreditError(null);
+                        const profilePath = user.role === 'receptionist' ? '/receptionist/profile' : '/admin-profile-page';
+                        window.location.href = `${profilePath}?tab=whatsapp`;
+                      }}
+                      className="w-full py-4 bg-red-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-red-200 dark:shadow-none hover:bg-red-700 active:scale-95 transition-all"
+                    >
+                      Recharge Now
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => setInsufficientCreditError(null)}
+                      className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 active:scale-95 transition-all"
+                    >
+                      Close
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setInsufficientCreditError(null)}
+                    className="w-full py-3 text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-slate-600 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

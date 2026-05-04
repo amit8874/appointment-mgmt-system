@@ -1,21 +1,65 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { ensureOrganizationHasCredits, deductCredits } from './whatsappCreditService.js';
 
 dotenv.config();
+
+/**
+ * Sanitizes template parameters to comply with Meta WhatsApp API restrictions.
+ * - Replaces newlines/tabs with spaces
+ * - Limits consecutive spaces to 4
+ */
+const sanitizeTemplateParam = (val) => {
+  if (val === undefined || val === null) return "";
+  return val.toString()
+    .replace(/[\n\r\t]/g, ' ')
+    .replace(/\s{5,}/g, '    ')
+    .trim();
+};
 
 /**
  * Sends a WhatsApp message using the Meta WhatsApp Cloud API.
  * 
  * @param {string} phone - Sanitized phone number (e.g., 919876543210)
  * @param {string} message - The text message to send
+ * @param {object} options - Credit related options
  * @returns {Promise<object>} - Axios response data
  */
-export const sendWhatsAppMessage = async (phone, message) => {
+export const sendWhatsAppMessage = async (phone, message, options = {}) => {
+  const { 
+    organizationId, 
+    chargeCredit = false, 
+    messageType, 
+    relatedEntityType, 
+    relatedEntityId, 
+    createdBy, 
+    metadata = {},
+    io 
+  } = options;
+
+
+
   const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
   const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 
   if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
     throw new Error("WHATSAPP_TOKEN or PHONE_NUMBER_ID is missing in environment variables.");
+  }
+
+  // Pre-send credit check
+  if (chargeCredit) {
+    if (!organizationId) throw new Error("organizationId is required when chargeCredit is true");
+    const check = await ensureOrganizationHasCredits(organizationId, 1);
+    if (!check.allowed) {
+      const error = new Error(check.message);
+      error.code = "INSUFFICIENT_WHATSAPP_CREDITS";
+      error.responseData = {
+        success: false,
+        code: "INSUFFICIENT_WHATSAPP_CREDITS",
+        message: check.message
+      };
+      throw error;
+    }
   }
 
   const url = `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`;
@@ -42,9 +86,36 @@ export const sendWhatsAppMessage = async (phone, message) => {
     console.log(`[WhatsApp Service] Sending message to ${phone}...`);
     const response = await axios.post(url, data, config);
     console.log(`[WhatsApp Service] Success:`, response.data);
+
+    // Post-success credit deduction
+    if (chargeCredit) {
+      const whatsappMessageId = response.data?.messages?.[0]?.id;
+      await deductCredits({
+        orgId: organizationId,
+        credits: 1,
+        messageType,
+        relatedEntityType,
+        relatedEntityId,
+        createdBy,
+        description: `${messageType || 'Patient'} WhatsApp message sent`,
+        metadata: {
+          ...metadata,
+          whatsappMessageId,
+          phone,
+          io
+        }
+      });
+    }
+
     return response.data;
   } catch (error) {
     console.error(`[WhatsApp Service] Error sending message:`, error.response?.data || error.message);
+    
+    // If it's a pre-check credit error, rethrow it
+    if (error.code === "INSUFFICIENT_WHATSAPP_CREDITS") {
+      throw error;
+    }
+    
     throw error;
   }
 };
@@ -57,9 +128,21 @@ export const sendWhatsAppMessage = async (phone, message) => {
  * @param {string} languageCode - Language code (e.g., 'hi' or 'en_US')
  * @param {Array} bodyParameters - Array of values for {{1}}, {{2}}, etc. in body
  * @param {Array} buttonParameters - Array of values for dynamic buttons (index 0)
+ * @param {object} options - Credit related options
  * @returns {Promise<object>} - Axios response data
  */
-export const sendWhatsAppTemplate = async (phone, templateName, languageCode = 'en', bodyParameters = [], buttonParameters = []) => {
+export const sendWhatsAppTemplate = async (phone, templateName, languageCode = 'en', bodyParameters = [], buttonParameters = [], options = {}) => {
+  const { 
+    organizationId, 
+    chargeCredit = false, 
+    messageType, 
+    relatedEntityType, 
+    relatedEntityId, 
+    createdBy, 
+    metadata = {},
+    io 
+  } = options;
+
   const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
   const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 
@@ -67,11 +150,27 @@ export const sendWhatsAppTemplate = async (phone, templateName, languageCode = '
     throw new Error("WHATSAPP_TOKEN or PHONE_NUMBER_ID is missing in environment variables.");
   }
 
+  // Pre-send credit check
+  if (chargeCredit) {
+    if (!organizationId) throw new Error("organizationId is required when chargeCredit is true");
+    const check = await ensureOrganizationHasCredits(organizationId, 1);
+    if (!check.allowed) {
+      const error = new Error(check.message);
+      error.code = "INSUFFICIENT_WHATSAPP_CREDITS";
+      error.responseData = {
+        success: false,
+        code: "INSUFFICIENT_WHATSAPP_CREDITS",
+        message: check.message
+      };
+      throw error;
+    }
+  }
+
   const url = `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`;
 
   const parameters = bodyParameters.map(val => ({
     type: "text",
-    text: val.toString()
+    text: sanitizeTemplateParam(val)
   }));
 
   const components = [
@@ -89,7 +188,7 @@ export const sendWhatsAppTemplate = async (phone, templateName, languageCode = '
       index: "0",
       parameters: buttonParameters.map(val => ({
         type: "text",
-        text: val.toString()
+        text: sanitizeTemplateParam(val)
       }))
     });
   }
@@ -119,9 +218,37 @@ export const sendWhatsAppTemplate = async (phone, templateName, languageCode = '
     console.log(`[WhatsApp Service] Sending template '${templateName}' to ${phone}...`);
     const response = await axios.post(url, data, config);
     console.log(`[WhatsApp Service] Template Success:`, response.data);
+
+    // Post-success credit deduction
+    if (chargeCredit) {
+      const whatsappMessageId = response.data?.messages?.[0]?.id;
+      await deductCredits({
+        orgId: organizationId,
+        credits: 1,
+        messageType,
+        relatedEntityType,
+        relatedEntityId,
+        createdBy,
+        description: `${messageType || 'Template'} WhatsApp message sent`,
+        metadata: {
+          ...metadata,
+          whatsappMessageId,
+          templateName,
+          phone,
+          io
+        }
+      });
+    }
+
     return response.data;
   } catch (error) {
     console.error(`[WhatsApp Service] Template Error:`, error.response?.data || error.message);
+
+    // If it's a pre-check credit error, rethrow it
+    if (error.code === "INSUFFICIENT_WHATSAPP_CREDITS") {
+      throw error;
+    }
+
     throw error;
   }
 };
@@ -136,9 +263,21 @@ export const sendWhatsAppTemplate = async (phone, templateName, languageCode = '
  * @param {string} languageCode - Language code (e.g., 'en')
  * @param {Array} bodyParameters - Array of values for body placeholders
  * @param {string} filename - Optional filename for documents
+ * @param {object} options - Credit related options
  * @returns {Promise<object>} - Axios response data
  */
-export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, mediaType = 'document', languageCode = 'en', bodyParameters = [], filename = 'Invoice.pdf') => {
+export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, mediaType = 'document', languageCode = 'en', bodyParameters = [], filename = 'Invoice.pdf', options = {}) => {
+  const { 
+    organizationId, 
+    chargeCredit = false, 
+    messageType, 
+    relatedEntityType, 
+    relatedEntityId, 
+    createdBy, 
+    metadata = {},
+    io 
+  } = options;
+
   const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
   const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
 
@@ -146,11 +285,27 @@ export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, m
     throw new Error('WHATSAPP_TOKEN or PHONE_NUMBER_ID is missing.');
   }
 
-  const url = 'https://graph.facebook.com/v20.0/' + PHONE_NUMBER_ID + '/messages';
+  // Pre-send credit check
+  if (chargeCredit) {
+    if (!organizationId) throw new Error("organizationId is required when chargeCredit is true");
+    const check = await ensureOrganizationHasCredits(organizationId, 1);
+    if (!check.allowed) {
+      const error = new Error(check.message);
+      error.code = "INSUFFICIENT_WHATSAPP_CREDITS";
+      error.responseData = {
+        success: false,
+        code: "INSUFFICIENT_WHATSAPP_CREDITS",
+        message: check.message
+      };
+      throw error;
+    }
+  }
+
+  const url = `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`;
 
   const bodyParams = bodyParameters.map(val => ({
     type: 'text',
-    text: val.toString()
+    text: sanitizeTemplateParam(val)
   }));
 
   const data = {
@@ -185,18 +340,49 @@ export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, m
 
   const config = {
     headers: {
-      Authorization: 'Bearer ' + WHATSAPP_TOKEN,
+      Authorization: `Bearer ${WHATSAPP_TOKEN}`,
       'Content-Type': 'application/json',
     },
   };
 
   try {
-    console.log('[WhatsApp Service] Sending media template ' + templateName + ' (' + mediaType + ') to ' + phone + '...');
+    console.log(`[WhatsApp Service] Sending media template '${templateName}' (${mediaType}) to ${phone}...`);
+    console.log(`[WhatsApp Service] Media URL: ${mediaUrl}`);
+    console.log(`[WhatsApp Service] Media Request Body:`, JSON.stringify(data, null, 2));
+    
     const response = await axios.post(url, data, config);
-    console.log('[WhatsApp Service] Media Success:', response.data);
+    console.log(`[WhatsApp Service] Media Success:`, response.data);
+
+    // Post-success credit deduction
+    if (chargeCredit) {
+      const whatsappMessageId = response.data?.messages?.[0]?.id;
+      await deductCredits({
+        orgId: organizationId,
+        credits: 1,
+        messageType,
+        relatedEntityType,
+        relatedEntityId,
+        createdBy,
+        description: `${messageType || 'Media'} WhatsApp message sent`,
+        metadata: {
+          ...metadata,
+          whatsappMessageId,
+          templateName,
+          phone,
+          io
+        }
+      });
+    }
+
     return response.data;
   } catch (error) {
     console.error('[WhatsApp Service] Media Error:', error.response?.data || error.message);
+
+    // If it's a pre-check credit error, rethrow it
+    if (error.code === "INSUFFICIENT_WHATSAPP_CREDITS") {
+      throw error;
+    }
+
     throw error;
   }
 };

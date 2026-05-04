@@ -84,7 +84,7 @@ const PharmacyMaya = () => {
       console.error("AI Chat Error:", error);
       setMessages(prev => [...prev, { 
         id: Date.now() + 1, 
-        text: "I'm having trouble connecting to Oviaan Intelligence. Please try again or contact support at **+91 9999999999**.", 
+        text: "I'm having trouble connecting to Oviaan Intelligence. Please try again or contact support at **8874614138** or **amitmaurya3276@gmail.com**.", 
         sender: 'bot' 
       }]);
     } finally {

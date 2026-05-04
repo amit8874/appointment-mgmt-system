@@ -201,6 +201,15 @@ api.interceptors.response.use(
             }
           }));
         }
+      } else if (error.response.status === 402) {
+        const errorData = error.response.data;
+        // Dispatch custom event for insufficient WhatsApp credits
+        window.dispatchEvent(new CustomEvent('insufficient-whatsapp-credits', {
+          detail: { 
+            message: errorData?.message || 'Your WhatsApp communication credits are finished. Please contact admin or recharge to continue sending important messages to patients.',
+            code: 'INSUFFICIENT_WHATSAPP_CREDITS'
+          }
+        }));
       }
     } else if (error.request) {
       // The request was made but no response was received
@@ -339,6 +348,14 @@ export const patientApi = {
   },
   delete: async (id) => {
     const { data } = await api.delete(`/patients/${id}`);
+    return data;
+  },
+  update: async (id, patientData) => {
+    const { data } = await api.put(`/patients/${id}`, patientData);
+    return data;
+  },
+  getSummary: async (patientId) => {
+    const { data } = await api.get(`/appointments/patient/${patientId}/summary`);
     return data;
   }
 };
@@ -571,8 +588,11 @@ export const organizationApi = {
     const { data } = await api.patch(`/organizations/${id}/status`, { status });
     return data;
   },
-  getTrialStatus: async (id) => {
-    if (!id) return null;
+  getTrialStatus: async (targetId) => {
+    if (!targetId) return null;
+    const id = typeof targetId === 'object' ? (targetId._id || targetId.id) : targetId;
+    if (!id || typeof id !== 'string' || id.includes('[object')) return null;
+    
     const { data } = await api.get(`/organizations/${id}/trial-status`);
     return data;
   },
@@ -991,6 +1011,42 @@ export const medicalRecordApi = {
   },
   create: async (recordData) => {
     const { data } = await api.post('/medical-records', recordData);
+    return data;
+  }
+};
+export const whatsappCreditsApi = {
+  getBalance: async () => {
+    const { data } = await api.get('/whatsapp-credits/balance');
+    return data;
+  },
+  getPacks: async () => {
+    const { data } = await api.get('/whatsapp-credits/packs');
+    return data;
+  },
+  getTransactions: async (params = {}) => {
+    const { data } = await api.get('/whatsapp-credits/transactions', { params });
+    return data;
+  },
+  createRechargeOrder: async (packId) => {
+    const { data } = await api.post('/whatsapp-credits/recharge/create-order', { packId });
+    return data;
+  },
+  verifyRecharge: async (verificationData) => {
+    const { data } = await api.post('/whatsapp-credits/recharge/verify', verificationData);
+    return data;
+  }
+};
+
+// Global Medicine Database API — shared across all clinics
+export const medicineApi = {
+  // Search medicines by name (for autocomplete)
+  search: async (query) => {
+    const { data } = await api.get('/medicines/search', { params: { q: query } });
+    return data;
+  },
+  // Save medicine names to global DB after a pharmacy bill is saved
+  bulkSave: async (names) => {
+    const { data } = await api.post('/medicines/bulk-save', { names });
     return data;
   }
 };

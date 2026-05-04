@@ -57,7 +57,7 @@ const useUsageTracking = () => {
       if (document.visibilityState === 'visible') {
         sendHeartbeat(currentPath);
       }
-    }, 30000);
+    }, 120000);
 
     return () => {
       if (heartbeatIntervalRef.current) {

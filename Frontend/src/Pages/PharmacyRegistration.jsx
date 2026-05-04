@@ -87,7 +87,7 @@ const PharmacyRegistration = () => {
                 Back to Home Page
               </Link>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4">
-                Need help? <a href="mailto:amitmaurya3276@gmail.com" className="text-emerald-500 underline underline-offset-4">Contact Support</a>
+                Need help? <a href="mailto:amitmaurya3276@gmail.com" className="text-emerald-500 underline underline-offset-4">Contact Support (8874614138)</a>
               </p>
             </div>
           </motion.div>

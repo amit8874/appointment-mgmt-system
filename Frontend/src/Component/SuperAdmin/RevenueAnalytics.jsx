@@ -65,7 +65,7 @@ const RevenueAnalytics = () => {
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Lifetime Revenue</p>
           <div className="text-2xl font-bold text-green-600">
-            ₹{totalRevenue.toLocaleString('en-IN')}
+            ₹{totalRevenue.toLocaleString('en-US')}
           </div>
         </div>
       </div>
@@ -122,7 +122,7 @@ const RevenueAnalytics = () => {
                       {formatDate(item.expiryDate?.split('T')[0])}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                      ₹{item.amount?.toLocaleString('en-IN') || 499}
+                      ₹{item.amount?.toLocaleString('en-US') || 499}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${getStatusColor(daysLeft)}`}>

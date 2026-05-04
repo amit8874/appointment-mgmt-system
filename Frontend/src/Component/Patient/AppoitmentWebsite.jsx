@@ -254,7 +254,7 @@ const RequestCallbackSection = () => {
       <div className="md:w-2/3">
         <h2 className="text-2xl font-bold text-white mb-2">Request a Call Back</h2>
         <p className="text-sm text-white mb-6">
-          Fill in your details and our team will get back to you shortly.
+          Fill in your details and our team will get back to you shortly. For immediate assistance, contact us at **8874614138** or **amitmaurya3276@gmail.com**.
         </p>
 
         <form className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -978,7 +978,7 @@ const App = () => {
                    <Calendar size={40} />
                 </div>
                 <h2 className="text-xl font-bold text-slate-800 mb-2">We couldn't load your clinic</h2>
-                <p className="text-slate-500 mb-6 max-w-md mx-auto">Please try refreshing the page or contact support if the issue persists.</p>
+                <p className="text-slate-500 mb-6 max-w-md mx-auto">Please try refreshing the page or contact support (8874614138 / amitmaurya3276@gmail.com) if the issue persists.</p>
                 <button 
                   onClick={() => window.location.reload()}
                   className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:shadow-lg transition-all"

@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User as UserIcon, Building2, ShieldCheck, Settings, Activity, 
   CreditCard, LayoutDashboard, ChevronRight, Upload, LogOut,
-  CheckCircle, AlertCircle, Info, MapPin
+  CheckCircle, AlertCircle, Info, MapPin, MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { getUserById, updateUser as updateUserData, updatePassword } from '../../api/userApi';
 import organizationApi from '../../api/organizationApi';
 import subscriptionApi from '../../api/subscriptionApi';
@@ -20,9 +21,12 @@ import SecurityPrivacyTab from './Profile/SecurityPrivacyTab';
 import PreferencesTab from './Profile/PreferencesTab';
 import BillingSubscriptionTab from './Profile/BillingSubscriptionTab';
 import ActivityLogsTab from './Profile/ActivityLogsTab';
+import WhatsAppCreditsTab from './Profile/WhatsAppCreditsTab';
 
 const ProfilePage = () => {
     const { user, logout, updateUser } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
     const [activeTab, setActiveTab] = useState('personal');
     const [profile, setProfile] = useState({});
     const [organization, setOrganization] = useState({});
@@ -83,7 +87,14 @@ const ProfilePage = () => {
 
     useEffect(() => {
         fetchData();
-    }, [user?.id]);
+        
+        // Handle tab from URL
+        const params = new URLSearchParams(location.search);
+        const tab = params.get('tab');
+        if (tab) {
+            setActiveTab(tab);
+        }
+    }, [user?.id, location.search]);
 
     const handleUpdateProfile = async (formData) => {
         setActionLoading(true);
@@ -189,6 +200,7 @@ const ProfilePage = () => {
         { id: 'security', label: 'Security & Privacy', icon: ShieldCheck },
         { id: 'preferences', label: 'Preferences', icon: Settings },
         { id: 'billing', label: 'Billing & Subscription', icon: CreditCard },
+        { id: 'whatsapp', label: 'WhatsApp Credits', icon: MessageSquare },
         { id: 'activity', label: 'Activity Logs', icon: Activity },
     ];
 
@@ -325,11 +337,14 @@ const ProfilePage = () => {
                                         onToggleWhatsapp={() => showNotification("WhatsApp toggled", "info")}
                                     />
                                 )}
-                                {activeTab === 'billing' && (
+                                { activeTab === 'billing' && (
                                     <BillingSubscriptionTab 
                                         subscription={subscription}
                                         onUpgrade={() => navigate('/billing/upgrade')}
                                     />
+                                )}
+                                {activeTab === 'whatsapp' && (
+                                    <WhatsAppCreditsTab />
                                 )}
                                 {activeTab === 'activity' && (
                                     <ActivityLogsTab 
@@ -354,7 +369,12 @@ const ProfilePage = () => {
                                 <p className="text-indigo-100 text-xs mt-2 leading-relaxed">
                                     Our support team is available 24/7 to help you with clinic management.
                                 </p>
-                                <button className="mt-6 w-full py-2.5 bg-white text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-xl">
+                                <button 
+                                    onClick={() => {
+                                        alert("Support Details:\n\nPhone: 8874614138\nEmail: amitmaurya3276@gmail.com");
+                                    }}
+                                    className="mt-6 w-full py-2.5 bg-white text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-xl"
+                                >
                                     Contact Support
                                 </button>
                             </div>

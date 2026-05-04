@@ -574,7 +574,7 @@ const PatientPanel = ({
                       {p.lastVisit || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-gray-700 dark:text-gray-200">
-                      ₹{(p.paidAmount || p.pendingAmount || 0).toLocaleString('en-IN')}
+                      ₹{(p.paidAmount || p.pendingAmount || 0).toLocaleString('en-US')}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       {p.paymentStatus === 'paid' ? (
@@ -587,7 +587,7 @@ const PatientPanel = ({
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">
-                          <Clock className="w-3 h-3" /> Pending{p.pendingAmount > 0 ? ` ₹${p.pendingAmount.toLocaleString('en-IN')}` : ''}
+                          <Clock className="w-3 h-3" /> Pending{p.pendingAmount > 0 ? ` ₹${p.pendingAmount.toLocaleString('en-US')}` : ''}
                         </span>
                       )}
                     </td>

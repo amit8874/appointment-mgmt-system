@@ -38,6 +38,8 @@ import messageRoutes from "./routes/messageRoutes.js";
 import whatsappRoutes from "./routes/whatsappRoutes.js";
 import webhookRoutes from "./routes/webhook.js";
 import contactRoutes from "./routes/contactRoutes.js";
+import whatsappCreditRoutes from "./routes/whatsappCredits.js";
+import medicineRoutes from "./routes/medicineRoutes.js";
 import { detectTenant } from "./middleware/tenant.js";
 
 // Load environment variables based on NODE_ENV
@@ -62,7 +64,9 @@ const io = new Server(httpServer, {
     },
     methods: ["GET", "POST"],
     credentials: true
-  }
+  },
+  transports: ["websocket", "polling"], // Allow both but prefer websocket
+  allowEIO3: true // Backward compatibility if needed
 });
 
 
@@ -238,7 +242,9 @@ app.use("/api/councils", councilRoutes);
 app.use("/api/practices", practiceRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/whatsapp-credits", whatsappCreditRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/medicines", medicineRoutes);
 
 /* --------------------------------------------------
 Image Upload API
@@ -336,6 +342,29 @@ Start Server
 
 const PORT = process.env.PORT || 5000;
 
+
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+/* --------------------------------------------------
+ * Global Error Handlers
+ * -------------------------------------------------- */
+
+// Catch uncaught exceptions to prevent silent crash loops
+process.on('uncaughtException', (err) => {
+  console.error('CRITICAL: Uncaught Exception:', {
+    message: err.message,
+    stack: err.stack,
+    code: err.code,
+    syscall: err.syscall
+  });
+  
+  if (err.code === 'EPIPE' || err.code === 'ECONNRESET') {
+    console.warn('Recoverable socket error caught. Keeping server alive.');
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
 });

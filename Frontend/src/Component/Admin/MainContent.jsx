@@ -16,6 +16,7 @@ import AdminDoctorSchedule from './Doctor/AdminDoctorSchedule.jsx';
 import PatientPanel from './Patient/PatientPanel.jsx';
 import MessagesView from './Messaging/MessagesView.jsx';
 import IntelligenceHub from './IntelligenceHub.jsx';
+import WhatsAppCredits from '../../Pages/WhatsAppCredits.jsx';
 
 const MainContent = ({
   activeTab,
@@ -200,6 +201,8 @@ const MainContent = ({
             <MessagesView />
           </div>
         );
+      case 'WhatsApp Credits':
+        return <WhatsAppCredits />;
       default:
         return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
     }

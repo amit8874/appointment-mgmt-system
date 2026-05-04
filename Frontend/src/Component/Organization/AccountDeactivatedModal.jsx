@@ -63,7 +63,7 @@ const AccountDeactivatedModal = ({ isOpen, onLogout }) => {
         <p className="text-center text-gray-600 mb-6">
           Your account has been suspended or deactivated by the administrator.
           <br />
-          Please contact support for more details.
+          Please contact support at **8874614138** or **amitmaurya3276@gmail.com** for more details.
         </p>
         
         {/* Countdown */}

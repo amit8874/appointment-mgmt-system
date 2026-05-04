@@ -92,7 +92,10 @@ const TrialNotification = ({ organizationId }) => {
 
   const handleDismissReset = async () => {
     try {
-      await organizationApi.dismissResetNotification(organizationId);
+      const id = typeof organizationId === 'object' ? (organizationId._id || organizationId.id) : organizationId;
+      if (!id || id.includes('[object')) return;
+      
+      await organizationApi.dismissResetNotification(id);
       setTrialStatus(prev => ({ ...prev, needsResetNotification: false }));
       handleClose();
     } catch (error) {
@@ -103,7 +106,7 @@ const TrialNotification = ({ organizationId }) => {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', {
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'

@@ -48,7 +48,7 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
     };
 
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
+        return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: 'INR',
         }).format(amount);

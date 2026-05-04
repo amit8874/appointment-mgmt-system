@@ -12,6 +12,8 @@ import Patient from '../models/PaitentEditProfile.js';
 import MedicalRecord from '../models/MedicalRecord.js';
 import { createOrder, verifyPayment as rzpVerifyPayment } from '../utils/razorpay.js';
 import { sendWhatsAppMessage } from '../services/whatsappService.js';
+import { applyPlanWhatsappCredits } from '../services/whatsappCreditService.js';
+
 
 // Plan Configuration & Pricing (Single source of truth)
 const PLAN_CONFIG = {
@@ -303,7 +305,7 @@ const notifyAdminOfUpgrade = async (organizationId, planDetails) => {
       `• Plan: ${planDetails.name}\n` +
       `• Cycle: ${planDetails.billingCycle.toUpperCase()}\n` +
       `• Amount: ₹${planDetails.amount}\n` +
-      `• Expiry: ${new Date(planDetails.endDate).toLocaleDateString('en-IN')}\n\n` +
+      `• Expiry: ${new Date(planDetails.endDate).toLocaleDateString('en-US')}\n\n` +
       `✅ *What's Included:*\n` +
       `• Doctors: ${planDetails.limits.doctors === -1 ? 'Unlimited' : planDetails.limits.doctors}\n` +
       `• Appointments: ${planDetails.limits.appointmentsPerMonth === -1 ? 'Unlimited' : planDetails.limits.appointmentsPerMonth}/mo\n` +
@@ -411,6 +413,15 @@ export const verifyPayment = async (req, res) => {
       limits: subscription.limits
     });
 
+    // Apply WhatsApp Credits based on new plan
+    await applyPlanWhatsappCredits({
+      orgId: req.tenantId,
+      planName: planData.name,
+      resetCycle: true,
+      createdBy: req.user?._id,
+      description: `WhatsApp credits applied after upgrading to ${planData.name}`
+    }).catch(err => console.error('[WhatsApp Credit Service] Auto-apply failed during upgrade:', err.message));
+
     res.json({
       success: true,
       message: 'Subscription activated successfully',
@@ -483,6 +494,14 @@ export const paymentWebhook = async (req, res) => {
               limits: subscription.limits
             });
           }
+
+          // Apply WhatsApp Credits (Webhook fallback)
+          await applyPlanWhatsappCredits({
+            orgId: subscription.organizationId,
+            planName: planData.name,
+            resetCycle: true,
+            description: `WhatsApp credits applied after upgrading to ${planData.name} (via Webhook)`
+          }).catch(err => console.error('[WhatsApp Credit Service] Auto-apply failed during webhook:', err.message));
         }
       }
     }

@@ -10,7 +10,7 @@ import {
   ChevronLeft,
   Phone
 } from 'lucide-react';
-import { billingApi, appointmentApi, centralDoctorApi, authApi, whatsappApi, pharmacyApi } from '../../../services/api';
+import { billingApi, appointmentApi, centralDoctorApi, authApi, whatsappApi, pharmacyApi, medicineApi } from '../../../services/api';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
 import { useAuth } from '../../../context/AuthContext';
 import Pagination from '../../../components/common/Pagination';
@@ -37,6 +37,7 @@ const InvoiceList = React.memo(({
   setSearchTerm, 
   setViewMode, 
   handleAction,
+  billingTab,
   currentPage,
   totalPages,
   onPageChange,
@@ -48,13 +49,15 @@ const InvoiceList = React.memo(({
       <h2 className="text-lg font-black text-gray-800 mb-1 md:mb-0">
         Invoice List ({filteredInvoices.length} Found)
       </h2>
-      <button
-        onClick={() => setViewMode('generate')}
-        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-md text-black ${ACCENT_COLOR_CLASS} transition ease-in-out duration-150`}
-      >
-        <PlusCircleIcon />
-        Generate New Bill
-      </button>
+      {billingTab !== 'General' && (
+        <button
+          onClick={() => setViewMode('generate')}
+          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-md text-black ${ACCENT_COLOR_CLASS} transition ease-in-out duration-150`}
+        >
+          <PlusCircleIcon />
+          Generate New Bill
+        </button>
+      )}
     </div>
 
     {/* NEW: Summary Cards - Horizontal on mobile */}
@@ -202,7 +205,7 @@ const ACCENT_COLOR_CLASS = `bg-${PRIMARY_COLOR}-600 hover:bg-${PRIMARY_COLOR}-70
 
 // Currency Formatter - UPDATED TO INR (Indian Rupees)
 const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-IN', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'INR',
   }).format(amount);
@@ -222,7 +225,7 @@ const transformApiData = (apiBill) => {
     patientId: String(apiBill.patientId || ''),
     doctor: String(apiBill.doctorName || ''),
     doctorId: String(apiBill.doctorId || ''),
-    date: apiBill.date ? new Date(apiBill.date).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN'),
+    date: apiBill.date ? new Date(apiBill.date).toLocaleDateString('en-US') : new Date().toLocaleDateString('en-US'),
     dateRaw: apiBill.date,
     amount: apiBill.amount,
     status: apiBill.status,
@@ -452,6 +455,11 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
   const [apptSearchQuery, setApptSearchQuery] = useState('');
   const [showApptDropdown, setShowApptDropdown] = useState(false);
 
+  // Global medicine autocomplete state
+  const [medicineSuggestions, setMedicineSuggestions] = useState([]);
+  const [activeMedicineRow, setActiveMedicineRow] = useState(-1);
+  const [medicineQuery, setMedicineQuery] = useState('');
+
   // Fetch products for Pharmacy or Lab
   useEffect(() => {
     if (billType !== 'General') {
@@ -471,6 +479,21 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
       fetchProducts();
     }
   }, [billType]);
+
+  // Debounced global medicine search
+  useEffect(() => {
+    if (billType !== 'Pharmacy' || medicineQuery.trim().length < 1) {
+      setMedicineSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const results = await medicineApi.search(medicineQuery);
+        setMedicineSuggestions(results);
+      } catch { setMedicineSuggestions([]); }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [medicineQuery, billType]);
 
   // Filtered appointments for the search
   const filteredAppts = useMemo(() => {
@@ -546,6 +569,15 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
     handleItemChange(index, 'unitPrice', product.price);
     handleItemChange(index, 'productId', product._id);
     setShowProductDropdown(-1);
+    setActiveMedicineRow(-1);
+    setMedicineSuggestions([]);
+  };
+
+  const handleSelectMedicine = (index, medicineName) => {
+    handleItemChange(index, 'description', medicineName);
+    setActiveMedicineRow(-1);
+    setMedicineSuggestions([]);
+    setMedicineQuery('');
   };
 
   // Auto-calculation logic
@@ -653,6 +685,12 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
         paymentMethod: paymentModeMap[billData.paymentMode] || 'Cash',
         billType: billType
       });
+
+      // Auto-save medicine names to global DB (non-blocking)
+      if (billType === 'Pharmacy') {
+        const names = items.map(i => i.description).filter(n => n && n.length >= 2);
+        if (names.length > 0) medicineApi.bulkSave(names).catch(() => {});
+      }
 
       // Transform API response to component format
       const transformedBill = transformApiData(newBill);
@@ -837,11 +875,38 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
                           handleItemChange(index, 'description', e.target.value);
                           setProductSearch(e.target.value);
                           setShowProductDropdown(index);
+                          if (billType === 'Pharmacy') {
+                            setMedicineQuery(e.target.value);
+                            setActiveMedicineRow(index);
+                          }
                         }}
-                        onFocus={() => setShowProductDropdown(index)}
+                        onFocus={() => {
+                          setShowProductDropdown(index);
+                          if (billType === 'Pharmacy') setActiveMedicineRow(index);
+                        }}
+                        onBlur={() => setTimeout(() => { setActiveMedicineRow(-1); setMedicineSuggestions([]); }, 200)}
                         className="w-full px-3 py-2 bg-white border border-sky-100 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-xs font-bold text-slate-700"
                       />
-                      {showProductDropdown === index && productSearch && (
+                      {/* Global Medicine Suggestions (Pharmacy only) */}
+                      {activeMedicineRow === index && medicineSuggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-indigo-100 overflow-hidden max-h-48 overflow-y-auto">
+                          <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100">
+                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">💊 Global Medicine Database</p>
+                          </div>
+                          {medicineSuggestions.map((med) => (
+                            <div
+                              key={med._id}
+                              onMouseDown={() => handleSelectMedicine(index, med.name)}
+                              className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-50 last:border-0 flex items-center justify-between group"
+                            >
+                              <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-700">{med.name}</span>
+                              <span className="text-[9px] text-slate-300 font-medium">used {med.usageCount}×</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* Local Product Dropdown */}
+                      {showProductDropdown === index && productSearch && activeMedicineRow !== index && (
                         <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-sky-100 overflow-hidden max-h-48 overflow-y-auto">
                           {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).map(product => (
                             <div 
@@ -1611,6 +1676,7 @@ const BillingDashboard = () => {
               setSearchTerm={setSearchTerm}
               setViewMode={setViewMode}
               handleAction={handleAction}
+              billingTab={billingTab}
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}

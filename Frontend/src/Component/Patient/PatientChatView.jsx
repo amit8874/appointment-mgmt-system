@@ -33,7 +33,10 @@ const PatientChatView = () => {
   useEffect(() => {
     const socketUrl = getSocketUrl();
     
-    socketRef.current = io(socketUrl);
+    socketRef.current = io(socketUrl, {
+      transports: ['websocket'],
+      upgrade: false
+    });
 
     const socket = socketRef.current;
     
@@ -62,7 +65,7 @@ const PatientChatView = () => {
     return () => {
       socket.disconnect();
     };
-  }, [user]);
+  }, [user?.id || user?._id]);
 
   // Fetch initial data
   useEffect(() => {

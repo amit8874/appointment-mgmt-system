@@ -74,8 +74,10 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
   }, []);
 
   const fetchPlanStatus = async () => {
-    const orgId = user?.organizationId || user?.organization?._id;
-    if (!orgId) return;
+    const rawOrgId = user?.organizationId || user?.organization?._id || user?.organization;
+    const orgId = typeof rawOrgId === 'object' ? (rawOrgId?._id || rawOrgId?.id) : rawOrgId;
+
+    if (!orgId || typeof orgId !== 'string' || orgId.includes('[object')) return;
 
     try {
       setPlanLoading(true);

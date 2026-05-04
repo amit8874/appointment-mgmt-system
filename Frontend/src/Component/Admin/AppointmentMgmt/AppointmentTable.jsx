@@ -218,7 +218,9 @@ export default function AppointmentTable({ rebookData }) {
       completed: 'bg-green-100 text-green-800' // Show green Confirmed for completed
     };
     
-    const label = status === 'completed' ? 'CONFIRMED' : (status?.charAt(0).toUpperCase() + status?.slice(1));
+    const label = status === 'completed' ? 'Completed' : 
+                  status === 'confirmed' ? 'Confirmed' :
+                  (status?.charAt(0).toUpperCase() + status?.slice(1));
     
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status] || styles.pending}`}>
@@ -525,9 +527,13 @@ export default function AppointmentTable({ rebookData }) {
                               <div>
                                 <div className="flex items-center gap-2">
                                   <p className="text-gray-700 font-medium">{appointment.patientName || 'N/A'}</p>
-                                  {appointment.shortId && (
                                     <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100">
                                       ID: {appointment.shortId}
+                                    </span>
+                                  )}
+                                  {appointment.visitType === 'WALK_IN' && (
+                                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded border border-emerald-100 uppercase tracking-tighter">
+                                      Walk-in
                                     </span>
                                   )}
                                 </div>
@@ -583,7 +589,7 @@ export default function AppointmentTable({ rebookData }) {
                               </button>
 
                                 {/* One-Click Arrive Button - Hidden for future dates */}
-                                {appointment.status !== 'completed' && appointment.status !== 'cancelled' && !isFutureDate(appointment.date) && (
+                                {appointment.status !== 'completed' && appointment.status !== 'cancelled' && appointment.visitType !== 'WALK_IN' && !isFutureDate(appointment.date) && (
                                   <button
                                     onClick={() => handleStatusToggle(appointment)}
                                     disabled={updatingId === appointment._id}
@@ -667,6 +673,14 @@ export default function AppointmentTable({ rebookData }) {
                   <span className="text-gray-500 font-medium">Appointment ID</span>
                   <span className="font-mono text-sm bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold">
                     {selectedAppointment.shortId || selectedAppointment._id || selectedAppointment.id}
+                  </span>
+                </div>
+
+                {/* Visit Type */}
+                <div className="flex items-center justify-between py-3 border-b">
+                  <span className="text-gray-500">Visit Type</span>
+                  <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${selectedAppointment.visitType === 'WALK_IN' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+                    {selectedAppointment.visitType === 'WALK_IN' ? 'Walk-in' : 'Scheduled Appointment'}
                   </span>
                 </div>
 

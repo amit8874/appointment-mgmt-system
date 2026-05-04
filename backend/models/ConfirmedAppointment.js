@@ -102,6 +102,11 @@ const confirmedAppointmentSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'in-progress', 'missed'],
     default: 'confirmed',
   },
+  visitType: {
+    type: String,
+    enum: ["APPOINTMENT", "WALK_IN"],
+    default: "APPOINTMENT"
+  },
   paymentStatus: {
     type: String,
     enum: ['pending', 'paid', 'refunded'],

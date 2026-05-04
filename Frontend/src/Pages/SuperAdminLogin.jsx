@@ -78,7 +78,7 @@ const SuperAdminLogin = () => {
         errorMsg = responseData.message;
       } else if (error.response?.status) {
         // Non-JSON response (e.g., IIS HTML error)
-        errorMsg = `Server error (${error.response.status}). Please check credentials or contact support.`;
+        errorMsg = `Server error (${error.response.status}). Please check credentials or contact support (8874614138 / amitmaurya3276@gmail.com).`;
       } else {
         // No response at all (network error)
         errorMsg = 'Error connecting to server. Please try again.';

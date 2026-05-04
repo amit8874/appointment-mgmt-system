@@ -93,15 +93,22 @@ export const checkSession = async (req, res) => {
       
       const now = new Date();
       if (org.status === 'trial') {
-        const trialEnd = new Date(org.trialEndDate || sub?.trialEndDate);
-        const gracePeriod = new Date(trialEnd.getTime() + 7 * 24 * 60 * 60 * 1000);
-        isSubscriptionExpired = now > gracePeriod;
-        trialDaysRemaining = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
+        const trialEndDate = org.trialEndDate || sub?.trialEndDate;
+        if (trialEndDate) {
+          const trialEnd = new Date(trialEndDate);
+          const gracePeriod = new Date(trialEnd.getTime() + 7 * 24 * 60 * 60 * 1000);
+          isSubscriptionExpired = now > gracePeriod;
+          trialDaysRemaining = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
+        } else {
+          // Fallback if no trial date set
+          isSubscriptionExpired = false;
+          trialDaysRemaining = 14;
+        }
       } else if (sub) {
         if (sub.status === 'expired') {
           isSubscriptionExpired = true;
         } else if (sub.endDate) {
-          const gracePeriod = new Date(sub.endDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+          const gracePeriod = new Date(new Date(sub.endDate).getTime() + 7 * 24 * 60 * 60 * 1000);
           isSubscriptionExpired = now > gracePeriod;
         }
       }

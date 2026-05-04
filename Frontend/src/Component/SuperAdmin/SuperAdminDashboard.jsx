@@ -224,7 +224,7 @@ const SuperAdminDashboard = () => {
             />
             <StatCard 
               title="Monthly Revenue" 
-              value={`₹${(overview?.revenueThisMonth || 0).toLocaleString('en-IN')}`} 
+              value={`₹${(overview?.revenueThisMonth || 0).toLocaleString('en-US')}`} 
               icon={IndianRupee} 
               trend="+8.4%" 
               color="emerald" 
@@ -238,7 +238,7 @@ const SuperAdminDashboard = () => {
             />
             <StatCard 
               title="Forecasted Revenue (Next Month)" 
-              value={`₹${(overview?.forecastedRevenue || 0).toLocaleString('en-IN')}`} 
+              value={`₹${(overview?.forecastedRevenue || 0).toLocaleString('en-US')}`} 
               icon={TrendingUp} 
               trend="+15%" 
               color="cyan" 

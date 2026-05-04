@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, UserPlus, FileText, Search, User, X, Stethoscope, Clock } from 'lucide-react';
+import { Calendar, UserPlus, FileText, Search, User, X, Stethoscope, Clock, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import HorizontalAppointmentForm from '../../../Component/Admin/HorizontalAppointmentForm';
@@ -10,6 +10,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [whatsappBalance, setWhatsappBalance] = useState(null);
 
   const fetchDashboardData = async () => {
     try {
@@ -19,8 +20,13 @@ const Dashboard = () => {
       const data = response.data;
       const doctorsList = Array.isArray(data) ? data : (data?.doctors || []);
       setDoctors(doctorsList);
+
+      const whatsappRes = await api.get('/whatsapp-credits/balance');
+      if (whatsappRes.success) {
+        setWhatsappBalance(whatsappRes.data);
+      }
     } catch (error) {
-      console.error('Error fetching doctors for appointment form:', error);
+      console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
@@ -94,13 +100,20 @@ const Dashboard = () => {
                <button onClick={() => navigate('/receptionist/doctor-schedule')} className="mt-4 text-green-600 font-bold text-sm hover:underline">View Schedule →</button>
             </div>
 
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-xl hover:shadow-blue-900/5 transition-all group">
-               <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 mb-4 group-hover:bg-purple-600 group-hover:text-white transition-all">
-                  <Clock className="w-6 h-6" />
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-xl hover:shadow-blue-900/5 transition-all group cursor-pointer" onClick={() => navigate('/receptionist/whatsapp-credits')}>
+               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-all ${
+                 whatsappBalance?.totalAvailable < 50 
+                   ? 'bg-red-50 text-red-600 group-hover:bg-red-600 group-hover:text-white' 
+                   : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'
+               }`}>
+                  <MessageSquare className="w-6 h-6" />
                </div>
-               <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Quick Check-in</h3>
-               <p className="text-sm text-gray-500 mt-2">Check-in arriving patients for their scheduled appointments smoothly.</p>
-               <button onClick={() => navigate('/receptionist/track-appointments')} className="mt-4 text-purple-600 font-bold text-sm hover:underline">Manage Appts →</button>
+               <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">WhatsApp Credits</h3>
+               <p className={`text-3xl font-black mt-2 ${whatsappBalance?.totalAvailable < 50 ? 'text-red-600' : 'text-indigo-600'}`}>
+                 {whatsappBalance?.totalAvailable?.toLocaleString() || 0}
+               </p>
+               <p className="text-xs text-gray-500 mt-1 uppercase font-bold tracking-widest">Available Balance</p>
+               <button className="mt-4 text-indigo-600 font-bold text-sm hover:underline">View History →</button>
             </div>
         </div>
       </div>

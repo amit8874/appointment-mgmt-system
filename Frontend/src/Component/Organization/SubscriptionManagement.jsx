@@ -161,7 +161,7 @@ const SubscriptionManagement = () => {
                 <div className="flex justify-between">
                   <span>{isTrial ? 'Expires' : 'Next Billing'}</span>
                   <span className="text-white">
-                    {new Date(subscription?.endDate || subscription?.trialEndDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {new Date(subscription?.endDate || subscription?.trialEndDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </span>
                 </div>
               </div>
@@ -272,14 +272,14 @@ const PricingCard = ({ planKey, plan, billingCycle, isCurrent, onUpgrade, status
 
       <div className="flex items-end gap-1 mb-6">
         <span className="text-4xl font-black text-slate-900 leading-none">
-          {price === 0 ? 'FREE' : `₹${price.toLocaleString('en-IN')}`}
+          {price === 0 ? 'FREE' : `₹${price.toLocaleString('en-US')}`}
         </span>
         {price !== 0 && <span className="text-slate-400 font-bold mb-1">/mo</span>}
       </div>
 
       {billingCycle === 'yearly' && (
         <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-8 bg-emerald-50 py-2 px-4 rounded-xl inline-block">
-          Billed annually @ ₹{totalYearly.toLocaleString('en-IN')}/yr
+          Billed annually @ ₹{totalYearly.toLocaleString('en-US')}/yr
         </p>
       )}
 

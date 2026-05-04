@@ -6,6 +6,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
+import { applyPlanWhatsappCredits } from '../services/whatsappCreditService.js';
+import { sendClinicRegistrationNotification } from '../services/emailService.js';
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -193,6 +195,20 @@ export const registerOrganization = async (req, res) => {
     // This was previously missing, causing "organizationId: null" issues.
     owner.organizationId = organization._id;
     await owner.save();
+
+    // Send instant email notification to platform admin (amitmaurya3276@gmail.com)
+    // This is done silently to notify the admin about new clinic registrations
+    sendClinicRegistrationNotification(organization, owner).catch(err => 
+      console.error('[Email Notification] Failed to send clinic registration alert:', err.message)
+    );
+
+    // Initial WhatsApp Credits (100 for Free Trial)
+    await applyPlanWhatsappCredits({
+      orgId: organization._id,
+      planName: isFree ? 'Free Trial' : 'Active Plan',
+      resetCycle: true,
+      description: 'Initial WhatsApp credits for new clinic registration'
+    }).catch(err => console.error('[WhatsApp Credit Service] Initial apply failed:', err.message));
 
 
     // Send WhatsApp OTP

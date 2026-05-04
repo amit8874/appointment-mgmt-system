@@ -13,6 +13,11 @@ export const detectTenant = async (req, res, next) => {
     let tenantId = null;
     let tenantSlug = null;
 
+    // Skip tenant detection for internal socket.io requests
+    if (req.path.startsWith('/socket.io/')) {
+      return next();
+    }
+
     // Method 1: Extract from subdomain (supports API host, Origin, and Referer)
     const host = req.get('host') || '';
     const origin = req.get('origin') || '';
@@ -69,7 +74,7 @@ export const detectTenant = async (req, res, next) => {
 
     // Method 4: Use user's organizationId (if authenticated)
     if (!tenantId && req.user && req.user.organizationId) {
-      tenantId = req.user.organizationId;
+      tenantId = req.user.organizationId._id || req.user.organizationId;
     }
 
     // Store tenant info in request

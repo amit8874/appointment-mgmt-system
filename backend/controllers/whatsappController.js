@@ -31,7 +31,16 @@ export const sendWhatsApp = async (req, res) => {
     console.log(`[WhatsApp Controller] Sending message to: ${sanitizedPhone}`);
 
     // Call service to send WhatsApp message
-    const result = await sendWhatsAppMessage(sanitizedPhone, message);
+    const result = await sendWhatsAppMessage(sanitizedPhone, message, {
+      organizationId: req.tenantId,
+      chargeCredit: true,
+      messageType: 'MANUAL_MESSAGE',
+      relatedEntityType: 'ManualMessage',
+      createdBy: req.user?._id,
+      metadata: {
+        source: 'whatsappController'
+      }
+    });
 
     return res.status(200).json({
       success: true,
@@ -40,6 +49,16 @@ export const sendWhatsApp = async (req, res) => {
     });
   } catch (error) {
     console.error(`[WhatsApp Controller] Error sending WhatsApp:`, error.response?.data || error.message);
+    
+    // Return 402 if credits are insufficient
+    if (error.code === "INSUFFICIENT_WHATSAPP_CREDITS") {
+      return res.status(402).json({
+        success: false,
+        code: "INSUFFICIENT_WHATSAPP_CREDITS",
+        message: "Your WhatsApp communication credits are finished. Please recharge to continue sending patient messages."
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: "Failed to send WhatsApp message.",
@@ -125,7 +144,17 @@ export const sendPrescriptionWhatsApp = async (req, res) => {
     // Parameters for template: Hi {{1}}, your prescription from {{2}} is ready. Details: {{3}}. Thank you...
     const bodyParameters = [patientName, finalClinicName, notes];
 
-    const result = await sendWhatsAppTemplate(sanitizedPhone, templateName, 'en', bodyParameters);
+    const result = await sendWhatsAppTemplate(sanitizedPhone, templateName, 'en', bodyParameters, [], {
+      organizationId: req.tenantId,
+      chargeCredit: true,
+      messageType: 'PRESCRIPTION_SENT',
+      relatedEntityType: 'Prescription',
+      createdBy: req.user?._id,
+      metadata: {
+        source: 'whatsappController',
+        templateName
+      }
+    });
 
     return res.status(200).json({
       success: true,
@@ -134,6 +163,16 @@ export const sendPrescriptionWhatsApp = async (req, res) => {
     });
   } catch (error) {
     console.error(`[WhatsApp Controller] Error sending prescription:`, error.response?.data || error.message);
+    
+    // Return 402 if credits are insufficient
+    if (error.code === "INSUFFICIENT_WHATSAPP_CREDITS") {
+      return res.status(402).json({
+        success: false,
+        code: "INSUFFICIENT_WHATSAPP_CREDITS",
+        message: "Your WhatsApp communication credits are finished. Please recharge to continue sending patient messages."
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: "Failed to send prescription via WhatsApp template.",

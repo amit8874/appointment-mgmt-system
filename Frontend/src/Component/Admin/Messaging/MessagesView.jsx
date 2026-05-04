@@ -38,15 +38,20 @@ const MessagesView = () => {
   // Initialize Socket.io
   useEffect(() => {
     const socketUrl = getSocketUrl();
-    socketRef.current = io(socketUrl);
+    socketRef.current = io(socketUrl, {
+      transports: ['websocket'],
+      upgrade: false
+    });
 
     
     const socket = socketRef.current;
     
     socket.on('connect', () => {
       console.log('Connected to socket server');
-      if (user?.organizationId) {
-        socket.emit('join-tenant', user.organizationId);
+      const rawOrgId = user?.organizationId || user?.organization?._id || user?.organization;
+      const orgId = typeof rawOrgId === 'object' ? (rawOrgId?._id || rawOrgId?.id) : rawOrgId;
+      if (orgId) {
+        socket.emit('join-tenant', String(orgId));
       }
     });
 
@@ -77,7 +82,7 @@ const MessagesView = () => {
     return () => {
       socketRef.current.disconnect();
     };
-  }, [user, activeConvo]);
+  }, [user?.id || user?._id, activeConvo?._id]);
 
   // Initial load: Fetch conversations
   useEffect(() => {

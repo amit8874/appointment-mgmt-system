@@ -12,6 +12,7 @@ import { sendWhatsAppMediaTemplate } from '../services/whatsappService.js';
 import { generateInvoicePDF } from '../services/pdfService.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { sanitizePhone } from '../utils/phoneUtils.js';
+import { saveMedicineNames } from './medicineController.js';
 
 // Helper to sync payment status with Appointment across all collections
 const syncAppointmentStatus = async (appointmentId, billStatus) => {
@@ -146,6 +147,15 @@ export const createBill = async (req, res) => {
     });
 
     await newBill.save();
+
+    // Auto-save medicine names to global DB for Pharmacy bills
+    if ((billType || 'General') === 'Pharmacy' && Array.isArray(items) && items.length > 0) {
+      const medicineNames = items
+        .map(i => i.description || '')
+        .filter(n => n.trim().length >= 2);
+      // Non-blocking — runs in background, won't break billing
+      saveMedicineNames(medicineNames);
+    }
 
     // Sync with Appointment paymentStatus
     await syncAppointmentStatus(appointmentId, status);
@@ -304,8 +314,9 @@ export const sendWhatsAppInvoice = async (req, res) => {
 
     // Sanitize phone
     const sanitizedPhone = sanitizePhone(bill.patientPhone);
+    const invoiceTemplateName = process.env.WHATSAPP_INVOICE_TEMPLATE || 'billing_invoice_pdf';
 
-    // Meta Template Parameters for 'billing_invoice_pdf'
+    // Meta Template Parameters
     // Variables: {{1}} = Patient Name, {{2}} = Clinic Name
     const bodyParameters = [
       bill.patientName || 'Valued Patient',
@@ -317,25 +328,46 @@ export const sendWhatsAppInvoice = async (req, res) => {
     const pdfPath = await generateInvoicePDF(bill, org, template);
     
     // 2. Upload PDF to Cloudinary to ensure it has a public URL
-    // This solves the issue of Meta not being able to access localhost or private URLs
     console.log(`[WhatsApp Billing] Uploading PDF to Cloudinary for ${bill.billId}...`);
-    // Construct the public URL for the PDF
-    // Priority: 1. BACKEND_URL env var, 2. Dynamic host from request
-    const baseUrl = process.env.BACKEND_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.get('host')}`;
-    const invoicePdfUrl = `${baseUrl}/uploads/invoices/Invoice-${bill.billId}.pdf`;
-
-    console.log(`[WhatsApp Billing] Sending real invoice ${bill.billId} to ${sanitizedPhone}`);
-    console.log(`[WhatsApp Billing] PDF URL: ${invoicePdfUrl}`);
     
-    // We'll skip Cloudinary for now since you are on a server and the direct URL should work
+    let invoicePdfUrl = '';
+    try {
+      const uploadResult = await cloudinary.uploader.upload(pdfPath, {
+        resource_type: 'image', // Cloudinary treats PDF as image for better handling/preview
+        public_id: `invoices/Invoice-${bill.billId}-${Date.now()}`,
+        folder: 'oviaan_invoices',
+        access_mode: 'public'
+      });
+      invoicePdfUrl = uploadResult.secure_url;
+      console.log(`[WhatsApp Billing] Cloudinary Upload Success: ${invoicePdfUrl}`);
+    } catch (uploadError) {
+      console.error('[WhatsApp Billing] Cloudinary Upload Failed:', uploadError);
+      throw new Error(`Failed to upload invoice to cloud storage: ${uploadError.message}`);
+    }
+    
     const result = await sendWhatsAppMediaTemplate(
       sanitizedPhone,
-      'billing_invoice_pdf',
+      invoiceTemplateName,
       invoicePdfUrl,
       'document',
       'en',
       bodyParameters,
-      `Invoice-${bill.billId}.pdf`
+      `Invoice-${bill.billId}.pdf`,
+      {
+        organizationId: req.tenantId,
+        chargeCredit: true,
+        messageType: 'INVOICE_SENT',
+        relatedEntityType: 'Billing',
+        relatedEntityId: bill._id,
+        createdBy: req.user?._id,
+        metadata: {
+          source: 'billingController',
+          templateName: invoiceTemplateName,
+          billId: bill.billId,
+          publicUrl: invoicePdfUrl
+        },
+        io: req.app.get('io')
+      }
     );
 
     res.json({
@@ -345,6 +377,16 @@ export const sendWhatsAppInvoice = async (req, res) => {
     });
   } catch (error) {
     console.error('[WhatsApp Billing Error]:', error.response?.data || error.message);
+    
+    // Return 402 if credits are insufficient
+    if (error.code === "INSUFFICIENT_WHATSAPP_CREDITS") {
+      return res.status(402).json({
+        success: false,
+        code: "INSUFFICIENT_WHATSAPP_CREDITS",
+        message: "Your WhatsApp communication credits are finished. Please recharge to continue sending patient messages."
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to send WhatsApp invoice.',

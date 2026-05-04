@@ -378,7 +378,7 @@ const PatientPanel = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{p.lastVisit || p.date || '-'}</td>
                     <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right">
-                      ₹{(p.paidAmount || p.pendingAmount || 0).toLocaleString('en-IN')}
+                      ₹{(p.paidAmount || p.pendingAmount || 0).toLocaleString('en-US')}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       {(p.paymentStatus || p.status || '').toLowerCase() === 'paid' ? (

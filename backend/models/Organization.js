@@ -152,6 +152,33 @@ const organizationSchema = new mongoose.Schema({
     smsNotifications: { type: Boolean, default: false },
     emailNotifications: { type: Boolean, default: true },
   },
+  // WhatsApp Credits System
+  whatsappCredits: {
+    totalAvailable: {
+      type: Number,
+      default: 0
+    },
+    monthlyIncluded: {
+      type: Number,
+      default: 0
+    },
+    usedThisMonth: {
+      type: Number,
+      default: 0
+    },
+    purchasedCredits: {
+      type: Number,
+      default: 0
+    },
+    lastResetAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  whatsappCreditsEnabled: {
+    type: Boolean,
+    default: true
+  },
 });
 
 // Generate slug from name

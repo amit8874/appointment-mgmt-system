@@ -23,7 +23,8 @@ import {
   cancelPublicAppointment,
   updateVisitNotes,
   sendWhatsAppOTP,
-  verifyWhatsAppOTP
+  verifyWhatsAppOTP,
+  bookWalkInAppointment
 } from '../controllers/appointmentController.js';
 
 import { parseIntakeTranscript, processInteractiveIntake } from '../controllers/aiIntakeController.js';
@@ -68,6 +69,9 @@ router.get('/', authenticateToken, requireTenant, getAllAppointments);
 
 // Book new appointment
 router.post('/', authenticateToken, requireTenant, bookAppointment);
+
+// Add walk-in patient
+router.post('/walk-in', authenticateToken, requireTenant, bookWalkInAppointment);
 
 // Update appointment status
 router.put('/:id/status', authenticateToken, requireTenant, updateAppointmentStatus);

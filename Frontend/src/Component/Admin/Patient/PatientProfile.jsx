@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Mail, Phone, Calendar, Heart, Beaker, Pill, Stethoscope,
-  Clock, CheckCircle, FileText, File, Download, XCircle,
-  RefreshCcw, BookOpen, User, ClipboardList, ChevronLeft,
-  ArrowLeft, MapPin, Globe, Shield, Calendar as CalendarIcon
+  Mail, Phone, Calendar, Heart, Pill, Stethoscope,
+  Clock, RefreshCcw, BookOpen, User, ClipboardList,
+  ArrowLeft, Shield, Calendar as CalendarIcon, Edit2, Save, X
 } from 'lucide-react';
 import { patientApi, appointmentApi, medicalRecordApi } from '../../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-toastify';
 
 // --- Utility Components ---
 
@@ -40,21 +40,197 @@ const InfoItem = ({ label, value, icon: Icon }) => (
 const TabPersonalInfo = ({ data }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
     <DetailCard title="Basic Details" icon={User}>
-      <InfoItem label="Full Name" value={data.fullName || `${data.firstName} ${data.lastName}`} icon={User} />
+      <InfoItem label="Full Name" value={data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim()} icon={User} />
       <InfoItem label="Date of Birth" value={data.dateOfBirth ? new Date(data.dateOfBirth).toLocaleDateString() : 'N/A'} icon={Calendar} />
       <InfoItem label="Gender" value={data.gender} />
       <InfoItem label="Blood Group" value={data.bloodGroup} />
+      <InfoItem label="Age" value={data.age ? `${data.age} ${data.ageType || 'Year'}` : 'N/A'} />
     </DetailCard>
     <DetailCard title="Contact Information" icon={Phone}>
       <InfoItem label="Contact Number" value={data.contactNumber || data.mobile} icon={Phone} />
       <InfoItem label="Email Address" value={data.email} icon={Mail} />
       <div className="pt-2 pl-7">
         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Residential Address</span>
-        <p className="text-slate-700 font-medium text-sm leading-relaxed">{data.address}, {data.city}, {data.state} {data.zip}</p>
+        <p className="text-slate-700 font-medium text-sm leading-relaxed">
+          {[data.address, data.city, data.state, data.zip].filter(Boolean).join(', ') || 'N/A'}
+        </p>
       </div>
     </DetailCard>
   </div>
 );
+
+// --- Reusable Form Field Components (must be OUTSIDE EditProfileModal to avoid re-mount on every keystroke) ---
+const Field = ({ label, value, onChange, type = 'text', options }) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</label>
+    {options ? (
+      <select
+        value={value}
+        onChange={onChange}
+        className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+      >
+        {options.map(o => <option key={o} value={o}>{o || '-- Select --'}</option>)}
+      </select>
+    ) : (
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+      />
+    )}
+  </div>
+);
+
+const TextArea = ({ label, value, onChange }) => (
+  <div className="flex flex-col gap-1">
+    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</label>
+    <textarea
+      rows={3}
+      value={value}
+      onChange={onChange}
+      className="border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white resize-none"
+    />
+  </div>
+);
+
+// --- Edit Profile Modal ---
+const EditProfileModal = ({ data, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    designation: data.designation || '',
+    firstName: data.firstName || '',
+    lastName: data.lastName || '',
+    age: data.age || '',
+    ageType: data.ageType || 'Year',
+    gender: data.gender || '',
+    bloodGroup: data.bloodGroup || '',
+    mobile: data.mobile || data.contactNumber || '',
+    email: data.email || '',
+    address: data.address || '',
+    city: data.city || '',
+    state: data.state || '',
+    zip: data.zip || '',
+    emergencyContact: data.emergencyContact || '',
+    emergencyPhone: data.emergencyPhone || '',
+    allergies: data.allergies || '',
+    pastMedicalHistory: data.pastMedicalHistory || data.medicalHistory || '',
+    currentMedications: data.currentMedications || '',
+    bloodPressure: data.vitals?.bloodPressure || data.bloodPressure || '',
+    weight: data.vitals?.weight || data.weight || '',
+    height: data.vitals?.height || data.height || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const set = (key) => (e) => setForm(p => ({ ...p, [key]: e.target.value }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await patientApi.update(data._id, {
+        ...form,
+        fullName: `${form.designation ? form.designation + ' ' : ''}${form.firstName} ${form.lastName}`.trim(),
+        contactNumber: form.mobile,
+        medicalHistory: form.pastMedicalHistory,
+        vitals: { bloodPressure: form.bloodPressure, weight: form.weight, height: form.height }
+      });
+      toast.success('Patient profile updated successfully!');
+      onSave(updated);
+      onClose();
+    } catch (err) {
+      toast.error('Failed to update profile. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-8 py-5 flex justify-between items-center rounded-t-3xl">
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Edit Patient Profile</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Changes will be saved to the database</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+            <X size={20} className="text-slate-500" />
+          </button>
+        </div>
+
+        <div className="px-8 py-6 space-y-8">
+          {/* Personal Info */}
+          <section>
+            <h3 className="text-sm font-black text-indigo-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <User size={14} /> Personal Information
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Field label="Designation" value={form.designation} onChange={set('designation')} options={['', 'MR.', 'MS.', 'MRS.', 'MISS', 'SHRI', 'SMT.']} />
+              <Field label="First Name" value={form.firstName} onChange={set('firstName')} />
+              <Field label="Last Name" value={form.lastName} onChange={set('lastName')} />
+              <Field label="Gender" value={form.gender} onChange={set('gender')} options={['', 'Male', 'Female', 'Other']} />
+              <Field label="Age" value={form.age} onChange={set('age')} type="number" />
+              <Field label="Age Type" value={form.ageType} onChange={set('ageType')} options={['Year', 'Month', 'Days']} />
+              <Field label="Blood Group" value={form.bloodGroup} onChange={set('bloodGroup')} options={['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']} />
+            </div>
+          </section>
+
+          {/* Contact Info */}
+          <section>
+            <h3 className="text-sm font-black text-indigo-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Phone size={14} /> Contact Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Mobile Number" value={form.mobile} onChange={set('mobile')} type="tel" />
+              <Field label="Email Address" value={form.email} onChange={set('email')} type="email" />
+              <Field label="Address" value={form.address} onChange={set('address')} />
+              <Field label="City" value={form.city} onChange={set('city')} />
+              <Field label="State" value={form.state} onChange={set('state')} />
+              <Field label="Zip / Pin Code" value={form.zip} onChange={set('zip')} />
+            </div>
+          </section>
+
+          {/* Emergency */}
+          <section>
+            <h3 className="text-sm font-black text-indigo-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Shield size={14} /> Emergency Contact
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Contact Person Name" value={form.emergencyContact} onChange={set('emergencyContact')} />
+              <Field label="Contact Person Phone" value={form.emergencyPhone} onChange={set('emergencyPhone')} type="tel" />
+            </div>
+          </section>
+
+          {/* Medical */}
+          <section>
+            <h3 className="text-sm font-black text-indigo-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Heart size={14} /> Medical Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <Field label="Blood Pressure" value={form.bloodPressure} onChange={set('bloodPressure')} />
+              <Field label="Weight (kg)" value={form.weight} onChange={set('weight')} type="number" />
+              <Field label="Height (cm)" value={form.height} onChange={set('height')} type="number" />
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <TextArea label="Past Medical History" value={form.pastMedicalHistory} onChange={set('pastMedicalHistory')} />
+              <TextArea label="Known Allergies" value={form.allergies} onChange={set('allergies')} />
+              <TextArea label="Current Medications" value={form.currentMedications} onChange={set('currentMedications')} />
+            </div>
+          </section>
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-white border-t border-slate-100 px-8 py-5 flex justify-end gap-3 rounded-b-3xl">
+          <button onClick={onClose} className="px-6 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-60">
+            {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</> : <><Save size={16} />Save Changes</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const TabMedicalHistory = ({ data }) => (
   <div className="space-y-6">
@@ -260,6 +436,7 @@ const PatientProfile = () => {
   const [medicalRecords, setMedicalRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('personal');
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const tabs = [
     { key: 'personal', name: 'Personal Info', icon: User },
@@ -428,12 +605,18 @@ const PatientProfile = () => {
                 ))}
               </nav>
 
-              <div className="mt-8 pt-6 border-t border-slate-100">
+              <div className="mt-8 pt-6 border-t border-slate-100 space-y-3">
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                >
+                  <Edit2 size={16} /> Edit Profile
+                </button>
                 <button
                   onClick={() => handleRebook({ doctorId: data.assignedDoctorId, doctorName: data.assignedDoctor, specialty: 'General' })}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-indigo-600 transition-all shadow-xl shadow-slate-100"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-indigo-600 transition-all shadow-xl shadow-slate-100"
                 >
-                  <RefreshCcw size={18} /> New Appointment
+                  <RefreshCcw size={16} /> New Appointment
                 </button>
               </div>
             </div>
@@ -461,6 +644,15 @@ const PatientProfile = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      {showEditModal && (
+        <EditProfileModal
+          data={data}
+          onClose={() => setShowEditModal(false)}
+          onSave={(updated) => setData(prev => ({ ...prev, ...updated }))}
+        />
+      )}
     </div>
   );
 };

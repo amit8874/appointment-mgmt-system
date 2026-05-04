@@ -339,9 +339,22 @@ export const bookPatientAppointment = async (req, res) => {
           patientName,
           doctorName,
           clinicName,
-          new Date(date).toLocaleDateString('en-IN'),
+          new Date(date).toLocaleDateString('en-US'),
           time
-        ]
+        ],
+        [],
+        {
+          organizationId,
+          chargeCredit: true,
+          messageType: 'APPOINTMENT_CONFIRMATION',
+          relatedEntityType: 'Appointment',
+          relatedEntityId: appointment._id,
+          metadata: {
+            source: 'appointmentController',
+            templateName: 'appointment_confirmation'
+          },
+          io: req.app.get('io')
+        }
       );
 
       if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
@@ -778,9 +791,23 @@ export const bookAppointment = async (req, res) => {
           patientName,
           doctorName,
           clinicName,
-          new Date(date).toLocaleDateString('en-IN'),
+          new Date(date).toLocaleDateString('en-US'),
           time
-        ]
+        ],
+        [],
+        {
+          organizationId: req.tenantId,
+          chargeCredit: true,
+          messageType: 'APPOINTMENT_CONFIRMATION',
+          relatedEntityType: 'Appointment',
+          relatedEntityId: appointment._id,
+          createdBy: req.user?._id,
+          metadata: {
+            source: 'appointmentController',
+            templateName: 'appointment_confirmation'
+          },
+          io: req.app.get('io')
+        }
       );
 
       if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
@@ -863,9 +890,22 @@ export const updateAppointmentStatus = async (req, res) => {
                 patientName,
                 newAppointment.doctorName,
                 clinicName,
-                new Date(newAppointment.date).toLocaleDateString('en-IN'),
+                new Date(newAppointment.date).toLocaleDateString('en-US'),
                 newAppointment.time
-              ]
+              ],
+              [],
+              {
+                organizationId: appointment.organizationId,
+                chargeCredit: true,
+                messageType: 'APPOINTMENT_CONFIRMATION',
+                metadata: {
+                  source: 'appointmentController',
+                  templateName: 'appointment_confirmation'
+                },
+                relatedEntityType: 'Appointment',
+                relatedEntityId: appointment._id,
+                createdBy: req.user?._id
+              }
             );
             
             if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
@@ -906,9 +946,22 @@ export const updateAppointmentStatus = async (req, res) => {
                   patientName,
                   newAppointment.doctorName,
                   clinicName,
-                  new Date(newAppointment.date).toLocaleDateString('en-IN'),
+                  new Date(newAppointment.date).toLocaleDateString('en-US'),
                   newAppointment.time
-                ]
+                ],
+                [],
+                {
+                  organizationId: appointment.organizationId,
+                  chargeCredit: true,
+                  messageType: 'APPOINTMENT_CANCELLED',
+                  relatedEntityType: 'Appointment',
+                  relatedEntityId: appointment._id,
+                  createdBy: req.user?._id,
+                  metadata: {
+                    source: 'appointmentController',
+                    templateName: 'appointment_cancellation'
+                  }
+                }
               );
               
               if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
@@ -1041,9 +1094,22 @@ export const updateAppointment = async (req, res) => {
                 patientName,
                 newAppointment.doctorName,
                 clinicName,
-                new Date(newAppointment.date).toLocaleDateString('en-IN'),
+                new Date(newAppointment.date).toLocaleDateString('en-US'),
                 newAppointment.time
-              ]
+              ],
+              [],
+              {
+                organizationId: appointment.organizationId,
+                chargeCredit: true,
+                messageType: 'APPOINTMENT_CONFIRMATION',
+                metadata: {
+                  source: 'appointmentController',
+                  templateName: 'appointment_confirmation'
+                },
+                relatedEntityType: 'Appointment',
+                relatedEntityId: appointment._id,
+                createdBy: req.user?._id
+              }
             );
             
             if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
@@ -1087,9 +1153,22 @@ export const updateAppointment = async (req, res) => {
                     patientName,
                     newAppointment.doctorName,
                     clinicName,
-                    new Date(newAppointment.date).toLocaleDateString('en-IN'),
+                    new Date(newAppointment.date).toLocaleDateString('en-US'),
                     newAppointment.time
-                  ]
+                  ],
+                  [],
+                  {
+                    organizationId: appointment.organizationId,
+                    chargeCredit: true,
+                    messageType: 'APPOINTMENT_CANCELLED',
+                    relatedEntityType: 'Appointment',
+                    relatedEntityId: appointment._id,
+                    createdBy: req.user?._id,
+                    metadata: {
+                      source: 'appointmentController',
+                      templateName: 'appointment_cancellation'
+                    }
+                  }
                 );
                 
                 if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
@@ -1495,9 +1574,22 @@ export const bookPublicAppointment = async (req, res) => {
           patientName,
           doctor.name,
           clinicName,
-          new Date(date).toLocaleDateString('en-IN'),
+          new Date(date).toLocaleDateString('en-US'),
           time
-        ]
+        ],
+        [],
+        {
+          organizationId,
+          chargeCredit: true,
+          messageType: 'APPOINTMENT_CONFIRMATION',
+          relatedEntityType: 'Appointment',
+          relatedEntityId: appointment._id,
+          metadata: {
+            source: 'appointmentController',
+            templateName: 'appointment_confirmation'
+          },
+          io: req.app.get('io')
+        }
       );
 
       if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
@@ -1596,9 +1688,21 @@ export const cancelPublicAppointment = async (req, res) => {
           pendingApp.patientName,
           pendingApp.doctorName,
           clinicName,
-          new Date(pendingApp.date).toLocaleDateString('en-IN'),
+          new Date(pendingApp.date).toLocaleDateString('en-US'),
           pendingApp.time
-        ]
+        ],
+        [],
+        {
+          organizationId: pendingApp.organizationId,
+          chargeCredit: true,
+          messageType: 'APPOINTMENT_CANCELLED',
+          relatedEntityType: 'Appointment',
+          relatedEntityId: pendingApp._id,
+          metadata: {
+            source: 'appointmentController',
+            templateName: 'appointment_cancellation'
+          }
+        }
       );
 
       if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
@@ -1776,10 +1880,13 @@ export const patchReschedule = async (req, res) => {
 
     // Emit Real-time update
     const io = req.app.get("io");
-    io.to(organizationId.toString()).emit("appointment-updated", { 
-      type: 'reschedule', 
-      appointment 
-    });
+    const orgIdStr = organizationId?._id?.toString() || organizationId?.toString();
+    if (orgIdStr && orgIdStr !== '[object Object]') {
+      io.to(orgIdStr).emit("appointment-updated", { 
+        type: 'reschedule', 
+        appointment 
+      });
+    }
 
     res.json(appointment);
   } catch (error) {
@@ -1807,10 +1914,13 @@ export const deleteAppointmentV2 = async (req, res) => {
     await appointment.constructor.findByIdAndDelete(id);
 
     const io = req.app.get("io");
-    io.to(organizationId.toString()).emit("appointment-updated", { 
-      type: 'cancelled', 
-      appointmentId: id 
-    });
+    const orgIdStr = organizationId?._id?.toString() || organizationId?.toString();
+    if (orgIdStr && orgIdStr !== '[object Object]') {
+      io.to(orgIdStr).emit("appointment-updated", { 
+        type: 'cancelled', 
+        appointmentId: id 
+      });
+    }
 
     res.json({ message: 'Appointment cancelled and archived' });
   } catch (error) {
@@ -1855,6 +1965,198 @@ export const updateVisitNotes = async (req, res) => {
 
     res.json({ message: 'Visit notes updated successfully', appointment });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Book a Walk-in Patient Appointment
+ * Handles instant check-in and integrated billing
+ */
+export const bookWalkInAppointment = async (req, res) => {
+  try {
+    const { 
+      designation,
+      firstName,
+      lastName,
+      age,
+      ageType,
+      mobileNumber,
+      gender,
+      department,
+      doctorId,
+      doctorName,
+      symptoms,
+      administrativeNotes,
+      billingStatus,
+      paymentMode,
+      sendWhatsApp = false
+    } = req.body;
+
+    const organizationId = req.tenantId;
+
+    if (!doctorId || !firstName || !mobileNumber) {
+      return res.status(400).json({ message: 'Missing required details' });
+    }
+
+    // 1. Find or Create Patient
+    let existingPatient = await Patient.findOne({ organizationId, mobile: mobileNumber });
+
+    if (!existingPatient) {
+      const newPatientId = await generatePatientId(organizationId);
+      existingPatient = new Patient({
+        organizationId,
+        patientId: newPatientId,
+        designation: designation || '',
+        firstName: firstName || '',
+        lastName: lastName || '',
+        fullName: `${designation ? designation + ' ' : ''}${firstName || ''} ${lastName || ''}`.trim(),
+        mobile: mobileNumber,
+        age: age,
+        ageType: ageType || 'Year',
+        gender: gender ? (gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase()) : undefined,
+        status: 'active'
+      });
+      await existingPatient.save();
+    } else {
+      // Update patient info if provided
+      if (age) existingPatient.age = age;
+      if (ageType) existingPatient.ageType = ageType;
+      if (gender) existingPatient.gender = gender ? (gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase()) : undefined;
+      await existingPatient.save();
+    }
+
+    // 2. Setup Visit Details (Now)
+    const today = new Date();
+    const istTime = new Date(today.getTime() + (5.5 * 60 * 60 * 1000));
+    const date = istTime.getFullYear() + '-' + String(istTime.getMonth() + 1).padStart(2, '0') + '-' + String(istTime.getDate()).padStart(2, '0');
+    const time = String(istTime.getHours()).padStart(2, '0') + ':' + String(istTime.getMinutes()).padStart(2, '0');
+
+    // 3. Generate ShortID
+    const counter = await Counter.findOneAndUpdate(
+      { name: 'global_appointment_short_id' },
+      { $inc: { value: 1 } },
+      { new: true, upsert: true }
+    );
+    const shortId = (23440000 + counter.value).toString();
+
+    // 4. Create Confirmed Appointment (as Walk-in)
+    let docObj = await Doctor.findOne({ doctorId });
+    if (!docObj && mongoose.Types.ObjectId.isValid(doctorId)) {
+      docObj = await Doctor.findById(doctorId);
+    }
+    const amount = docObj?.fee || 500;
+
+    const appointment = new ConfirmedAppointment({
+      shortId,
+      organizationId,
+      patientId: existingPatient.patientId || existingPatient._id.toString(),
+      designation: designation || existingPatient.designation,
+      firstName: firstName || existingPatient.firstName,
+      lastName: lastName || existingPatient.lastName,
+      patientName: existingPatient.fullName,
+      patientPhone: mobileNumber,
+      patientAge: age || existingPatient.age,
+      ageType: ageType || existingPatient.ageType,
+      doctorId: docObj ? docObj.doctorId : doctorId,
+      doctorName: doctorName || docObj?.name || '',
+      specialty: department || docObj?.specialization || 'General',
+      date,
+      time,
+      symptoms: symptoms || '',
+      notes: administrativeNotes || '',
+      visitType: 'WALK_IN',
+      status: 'confirmed', // Correct enum for walk-in immediate arrival
+      amount: amount,
+      paymentStatus: billingStatus === 'Paid' ? 'paid' : 'pending'
+    });
+
+    await appointment.save();
+
+    // 5. Create Billing Record
+    let billId = null;
+    try {
+      const billCounter = await Counter.findOneAndUpdate(
+        { name: `billId_${organizationId}` },
+        { $inc: { value: 1 } },
+        { new: true, upsert: true }
+      );
+      billId = `BIL${String(billCounter.value).padStart(6, '0')}`;
+      
+      const newBill = new Billing({
+        billId,
+        organizationId,
+        patientId: appointment.patientId,
+        patientName: appointment.patientName,
+        patientPhone: mobileNumber,
+        doctorId: appointment.doctorId,
+        doctorName: appointment.doctorName,
+        amount: amount,
+        paidAmount: billingStatus === 'Paid' ? amount : 0,
+        dueAmount: billingStatus === 'Paid' ? 0 : amount,
+        appointmentId: appointment._id.toString(),
+        appointmentDate: date,
+        appointmentTime: time,
+        items: [{ description: 'Consultation Fee', cost: amount, unitPrice: amount, subtotal: amount, qty: 1 }],
+        status: billingStatus === 'Paid' ? 'Paid' : 'Pending',
+        notes: `Walk-in Visit on ${date}`,
+        paymentMethod: billingStatus === 'Paid' ? (paymentMode || 'Cash') : 'N/A'
+      });
+      await newBill.save();
+    } catch (billingError) {
+      console.error('[Walk-in] Billing creation failed:', billingError);
+    }
+
+    // 6. Handle WhatsApp (Optional)
+    let waWarning = null;
+
+    if (sendWhatsApp) {
+      try {
+        const organization = await Organization.findById(organizationId);
+        const clinicName = organization?.name || 'our clinic';
+        const sanitizedMobile = sanitizePhone(mobileNumber);
+        
+        const confirmationTemplate = process.env.WHATSAPP_APPOINTMENT_CONFIRMATION_TEMPLATE || 'appointment_confirmation';
+        const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+        await sendWhatsAppTemplate(
+          sanitizedMobile,
+          confirmationTemplate,
+          templateLang,
+          [
+            appointment.patientName,
+            appointment.doctorName,
+            clinicName,
+            new Date(date).toLocaleDateString('en-US'),
+            time
+          ],
+          [],
+          {
+            organizationId,
+            chargeCredit: true,
+            messageType: 'WALK_IN_CONFIRMATION',
+            relatedEntityType: 'Appointment',
+            relatedEntityId: appointment._id,
+            createdBy: req.user?._id,
+            io: req.app.get('io')
+          }
+        );
+      } catch (waError) {
+        console.error('[Walk-in] WhatsApp failed:', waError.message);
+        waWarning = `Walk-in patient added, but WhatsApp message was not sent: ${waError.message}`;
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Walk-in patient added successfully',
+      warning: waWarning,
+      appointment,
+      billId
+    });
+
+  } catch (error) {
+    console.error('Error adding walk-in patient:', error);
     res.status(500).json({ message: error.message });
   }
 };

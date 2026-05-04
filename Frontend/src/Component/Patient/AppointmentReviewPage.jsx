@@ -10,7 +10,7 @@ const AppointmentReviewPage = ({ userDetails, doctor, selectedDate, selectedSlot
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', {
+    return date.toLocaleDateString('en-US', {
       day: 'numeric',
       month: 'short',
       year: 'numeric'

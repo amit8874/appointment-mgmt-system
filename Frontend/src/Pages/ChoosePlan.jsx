@@ -466,7 +466,7 @@ const PlanCard = ({ planKey, plan, billingCycle, isSelected, onSelect }) => {
         </div>
         
         <div className="flex items-end gap-1">
-          <span className="text-5xl font-black text-white tracking-tighter">₹{price.toLocaleString('en-IN')}</span>
+          <span className="text-5xl font-black text-white tracking-tighter">₹{price.toLocaleString('en-US')}</span>
           <span className="text-gray-500 mb-1.5 font-medium">/{billingCycle === 'monthly' ? 'mo' : 'yr'}</span>
         </div>
         <p className="text-gray-400 mt-2 text-sm ml-1">{plan.description}</p>

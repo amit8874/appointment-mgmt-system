@@ -142,7 +142,12 @@ const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     If you have issues with your subscription or billing, contact our support team.
                   </p>
-                  <button className="text-xs font-bold text-orange-600 mt-3 hover:underline">Contact Support</button>
+                  <button 
+                    onClick={() => alert("Support Details:\n\nPhone: 8874614138\nEmail: amitmaurya3276@gmail.com")}
+                    className="text-xs font-bold text-orange-600 mt-3 hover:underline"
+                  >
+                    Contact Support
+                  </button>
                 </div>
               </div>
             </div>

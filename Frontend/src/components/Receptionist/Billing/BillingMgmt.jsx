@@ -10,7 +10,7 @@ import {
   ChevronLeft,
   Phone
 } from 'lucide-react';
-import { billingApi, appointmentApi, centralDoctorApi, authApi, whatsappApi, pharmacyApi } from '../../../services/api';
+import { billingApi, appointmentApi, centralDoctorApi, authApi, whatsappApi, pharmacyApi, medicineApi } from '../../../services/api';
 import InvoiceTemplate from '../../Shared/InvoiceTemplate';
 import { useAuth } from '../../../context/AuthContext';
 import Pagination from '../../common/Pagination';
@@ -37,6 +37,7 @@ const InvoiceList = React.memo(({
   setSearchTerm, 
   setViewMode, 
   handleAction,
+  billingTab,
   currentPage,
   totalPages,
   onPageChange,
@@ -48,13 +49,15 @@ const InvoiceList = React.memo(({
       <h2 className="text-lg font-black text-gray-800 mb-1 md:mb-0">
         Invoice List ({filteredInvoices.length} Found)
       </h2>
-      <button
-        onClick={() => setViewMode('generate')}
-        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-md text-black ${ACCENT_COLOR_CLASS} transition ease-in-out duration-150`}
-      >
-        <PlusCircleIcon />
-        Generate New Bill
-      </button>
+      {billingTab !== 'General' && (
+        <button
+          onClick={() => setViewMode('generate')}
+          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-md text-black ${ACCENT_COLOR_CLASS} transition ease-in-out duration-150`}
+        >
+          <PlusCircleIcon />
+          Generate New Bill
+        </button>
+      )}
     </div>
 
     {/* Summary Cards removed for Receptionist as per request */}
@@ -173,7 +176,7 @@ const PRIMARY_COLOR = 'sky';
 const ACCENT_COLOR_CLASS = `bg-${PRIMARY_COLOR}-600 hover:bg-${PRIMARY_COLOR}-700 focus:ring-${PRIMARY_COLOR}-500`;
 
 const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-IN', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'INR',
   }).format(amount);
@@ -192,7 +195,7 @@ const transformApiData = (apiBill) => {
     patientId: String(apiBill.patientId || ''),
     doctor: String(apiBill.doctorName || ''),
     doctorId: String(apiBill.doctorId || ''),
-    date: apiBill.date ? new Date(apiBill.date).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN'),
+    date: apiBill.date ? new Date(apiBill.date).toLocaleDateString('en-US') : new Date().toLocaleDateString('en-US'),
     dateRaw: apiBill.date,
     amount: apiBill.amount,
     status: apiBill.status,
@@ -364,6 +367,11 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
   const [apptSearchQuery, setApptSearchQuery] = useState('');
   const [showApptDropdown, setShowApptDropdown] = useState(false);
 
+  // Global medicine autocomplete state
+  const [medicineSuggestions, setMedicineSuggestions] = useState([]);
+  const [activeMedicineRow, setActiveMedicineRow] = useState(-1);
+  const [medicineQuery, setMedicineQuery] = useState('');
+
   useEffect(() => {
     if (billType !== 'General') {
       const fetchProducts = async () => {
@@ -382,6 +390,21 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
       fetchProducts();
     }
   }, [billType]);
+
+  // Debounced global medicine search
+  useEffect(() => {
+    if (billType !== 'Pharmacy' || medicineQuery.trim().length < 1) {
+      setMedicineSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const results = await medicineApi.search(medicineQuery);
+        setMedicineSuggestions(results);
+      } catch { setMedicineSuggestions([]); }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [medicineQuery, billType]);
 
   const filteredAppts = useMemo(() => {
     if (!apptSearchQuery.trim()) return appointments.slice(0, 5);
@@ -441,6 +464,15 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
     handleItemChange(index, 'unitPrice', product.price);
     handleItemChange(index, 'productId', product._id);
     setShowProductDropdown(-1);
+    setActiveMedicineRow(-1);
+    setMedicineSuggestions([]);
+  };
+
+  const handleSelectMedicine = (index, medicineName) => {
+    handleItemChange(index, 'description', medicineName);
+    setActiveMedicineRow(-1);
+    setMedicineSuggestions([]);
+    setMedicineQuery('');
   };
 
   useEffect(() => {
@@ -512,6 +544,11 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
       });
 
       const transformedBill = transformApiData(newBill);
+      // Auto-save medicine names to global DB (non-blocking)
+      if (billType === 'Pharmacy') {
+        const names = items.map(i => i.description).filter(n => n && n.length >= 2);
+        if (names.length > 0) medicineApi.bulkSave(names).catch(() => {});
+      }
       onSave(transformedBill, shouldPrint);
       setStatusMessage(`Success! Invoice ${newBill.billId} generated.`);
       onCancel();
@@ -599,12 +636,44 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
                 {itemList.map((item, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 items-center bg-white/50 p-3 rounded-xl border border-sky-100 relative">
                     <div className="col-span-1 md:col-span-5 relative">
-                      <input type="text" placeholder="Description..." value={item.description}
-                        onChange={(e) => { handleItemChange(index, 'description', e.target.value); setProductSearch(e.target.value); setShowProductDropdown(index); }}
-                        onFocus={() => setShowProductDropdown(index)}
+                      <input type="text" placeholder="Description..."
+                        value={item.description}
+                        onChange={(e) => {
+                          handleItemChange(index, 'description', e.target.value);
+                          setProductSearch(e.target.value);
+                          setShowProductDropdown(index);
+                          if (billType === 'Pharmacy') {
+                            setMedicineQuery(e.target.value);
+                            setActiveMedicineRow(index);
+                          }
+                        }}
+                        onFocus={() => {
+                          setShowProductDropdown(index);
+                          if (billType === 'Pharmacy') setActiveMedicineRow(index);
+                        }}
+                        onBlur={() => setTimeout(() => { setActiveMedicineRow(-1); setMedicineSuggestions([]); }, 200)}
                         className="w-full px-3 py-2 bg-white border border-sky-100 rounded-lg text-xs font-bold"
                       />
-                      {showProductDropdown === index && productSearch && (
+                      {/* Global Medicine Suggestions (Pharmacy only) */}
+                      {activeMedicineRow === index && medicineSuggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-indigo-100 overflow-hidden max-h-48 overflow-y-auto">
+                          <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100">
+                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">💊 Global Medicine Database</p>
+                          </div>
+                          {medicineSuggestions.map((med) => (
+                            <div
+                              key={med._id}
+                              onMouseDown={() => handleSelectMedicine(index, med.name)}
+                              className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-50 last:border-0 flex items-center justify-between group"
+                            >
+                              <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-700">{med.name}</span>
+                              <span className="text-[9px] text-slate-300 font-medium">used {med.usageCount}×</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* Local Product Dropdown */}
+                      {showProductDropdown === index && productSearch && activeMedicineRow !== index && (
                         <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border max-h-48 overflow-y-auto">
                           {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).map(product => (
                             <div key={product._id} onClick={() => handleSelectProduct(index, product)} className="px-4 py-2 hover:bg-sky-50 cursor-pointer border-b last:border-0">
@@ -860,7 +929,7 @@ const BillingMgmt = () => {
 
         <div className="bg-white rounded-2xl shadow-lg p-5">
           {viewMode === 'list' ? (
-            <InvoiceList filteredInvoices={paginatedInvoices} summaryMetrics={summaryMetrics} activeFilter={activeFilter} setActiveFilter={setActiveFilter} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setViewMode={setViewMode} handleAction={handleAction} currentPage={currentPage} totalPages={Math.ceil(filteredInvoices.length/itemsPerPage)} onPageChange={setCurrentPage} totalItems={filteredInvoices.length} itemsPerPage={itemsPerPage} />
+            <InvoiceList filteredInvoices={paginatedInvoices} summaryMetrics={summaryMetrics} activeFilter={activeFilter} setActiveFilter={setActiveFilter} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setViewMode={setViewMode} handleAction={handleAction} billingTab={billingTab} currentPage={currentPage} totalPages={Math.ceil(filteredInvoices.length/itemsPerPage)} onPageChange={setCurrentPage} totalItems={filteredInvoices.length} itemsPerPage={itemsPerPage} />
           ) : (
             <GenerateBillForm onSave={(inv) => { setInvoices(p => [inv, ...p]); setViewMode('list'); }} onCancel={() => setViewMode('list')} setStatusMessage={setStatusMessage} appointments={appointments} doctors={doctors} billType={billingTab} />
           )}
