@@ -46,6 +46,7 @@ import diagnosisRoutes from "./routes/diagnosisRoutes.js";
 import investigationRoutes from "./routes/investigationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import prescriptionTemplateRoutes from "./routes/prescriptionTemplateRoutes.js";
+import devRoutes from "./routes/devRoutes.js";
 import { seedGlobalComplaints } from "./controllers/complaintController.js";
 import { seedDiagnosisMaster } from "./controllers/diagnosisController.js";
 import { seedMedicineMaster } from "./controllers/medicineController.js";
@@ -263,6 +264,7 @@ app.use("/api/diagnosis", diagnosisRoutes);
 app.use("/api/investigations", investigationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/prescription-template", prescriptionTemplateRoutes);
+app.use("/api/dev", devRoutes);
 
 // Seed Data
 seedGlobalComplaints();

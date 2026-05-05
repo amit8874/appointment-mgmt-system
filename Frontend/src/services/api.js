@@ -297,11 +297,27 @@ export const patientApi = {
       const latestAppointmentDate = sortedAppts[0]?.date || patient.lastVisit || 'No Visit';
       const assignedDoctor = patient.assignedDoctor || sortedAppts[0]?.doctorName || 'Unassigned';
 
+      const rawName = patient.fullName || `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Unknown';
+      const cleanName = (() => {
+        const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
+        let parts = rawName.split(/\s+/);
+        while (parts.length > 1) {
+          const p0 = parts[0].toUpperCase().replace(/\./g, '');
+          const p1 = parts[1].toUpperCase().replace(/\./g, '');
+          if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
+            parts.shift();
+          } else {
+            break;
+          }
+        }
+        return parts.join(' ');
+      })();
+
       return {
         id: patient.patientId,
         patientId: patient.patientId,
         _id: patient._id,
-        name: patient.fullName || `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Unknown',
+        name: cleanName,
         firstName: patient.firstName || '',
         lastName: patient.lastName || '',
         age: patient.age || '',
@@ -1121,9 +1137,11 @@ export const prescriptionTemplateApi = {
     return data;
   },
   generatePdf: async (pdfData) => {
-    const { data } = await api.post('/prescription-template/generate-pdf', pdfData, {
-      responseType: 'blob' // Important for receiving binary PDF data
-    });
+    const { data } = await api.post('/prescription-template/generate-pdf', pdfData);
+    return data;
+  },
+  delete: async (id) => {
+    const { data } = await api.delete(`/prescription-template/${id}`);
     return data;
   }
 };

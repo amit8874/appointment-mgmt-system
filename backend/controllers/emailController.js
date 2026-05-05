@@ -7,7 +7,7 @@ import puppeteer from 'puppeteer';
  */
 export const sendPrescriptionMail = async (req, res) => {
     try {
-        const { email, patientName, notes, clinicName, organizationId, useTemplate } = req.body;
+        const { email, patientName, notes, clinicName, organizationId, useTemplate, templateId } = req.body;
 
         if (!email) {
             return res.status(400).json({ success: false, message: "Patient email is required." });
@@ -21,14 +21,20 @@ export const sendPrescriptionMail = async (req, res) => {
         // If useTemplate is requested and organizationId is provided, generate PDF
         if (useTemplate && organizationId) {
             try {
-                console.log(`[Email Controller] Generating PDF for organization: ${organizationId}`);
+                console.log(`[Email Controller] Generating PDF for organization: ${organizationId}, template: ${templateId || 'default'}`);
                 
-                // --- PDF Generation Logic (similar to prescriptionTemplateController) ---
-                const template = await PrescriptionTemplate.findOne({ organizationId, isDefault: true });
+                // --- PDF Generation Logic ---
+                let template;
+                if (templateId) {
+                    template = await PrescriptionTemplate.findById(templateId);
+                } else {
+                    template = await PrescriptionTemplate.findOne({ organizationId, isDefault: true });
+                }
+                
                 const host = req.protocol + '://' + req.get('host');
                 
                 let headerHtml = template?.headerType === 'custom' && template?.headerImage
-                    ? `<img src="${host}${template.headerImage}" style="width: 100%; object-fit: contain;" />`
+                    ? `<img src="${host}${template.headerImage}" style="width: 100%; height: 100%; object-fit: contain;" />`
                     : `<div style="padding: 20px; text-align: center; border-bottom: 2px solid #ccc;"><h1>${clinicName || 'Clinic'}</h1></div>`;
                     
                 let footerHtml = template?.footerType === 'custom' && template?.footerImage

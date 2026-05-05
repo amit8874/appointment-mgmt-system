@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, Image as ImageIcon, FileText, Check, LayoutTemplate, Save, Trash2 } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, FileText, Check, LayoutTemplate, Save, Trash2, Phone, Mail } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../../context/AuthContext';
-import { prescriptionTemplateApi } from '../../../services/api';
+import { prescriptionTemplateApi, organizationApi } from '../../../services/api';
 
 const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const [templateName, setTemplateName] = useState('');
@@ -26,7 +26,110 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const [footerImagePreview, setFooterImagePreview] = useState(null);
   const [footerImageFile, setFooterImageFile] = useState(null);
 
+  const [templates, setTemplates] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(null);
+  const [organization, setOrganization] = useState(null);
+
+  const fetchTemplates = async () => {
+    try {
+      const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null) || user?._id;
+      const response = await prescriptionTemplateApi.list(orgId);
+      if (response && response.templates) {
+        setTemplates(response.templates);
+      }
+    } catch (error) {
+      console.error("Failed to fetch templates", error);
+    }
+  };
+
+  const fetchOrgDetails = async () => {
+    if (user) {
+      try {
+        const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null) || user?._id;
+        if (orgId) {
+          const org = await organizationApi.getById(orgId); 
+          setOrganization(org);
+        }
+      } catch (error) {
+        console.error("Failed to fetch organization details", error);
+      }
+    }
+  };
+
+  const loadExistingTemplate = async () => {
+    try {
+      const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null) || user?._id;
+      const response = await prescriptionTemplateApi.getDefault(orgId);
+      if (response && response.template) {
+        const t = response.template;
+        setTemplateName(t.name || '');
+        setIsDefault(t.isDefault || false);
+        
+        setHeaderType(t.headerType || 'default');
+        if (t.headerImage) setHeaderImagePreview(getImageUrl(t.headerImage));
+        
+        setBodyType(t.bodyType || 'default');
+        if (t.bodyImage) setBodyImagePreview(getImageUrl(t.bodyImage));
+        
+        setFooterType(t.footerType || 'default');
+        if (t.footerImage) setFooterImagePreview(getImageUrl(t.footerImage));
+      }
+    } catch (error) {
+      console.error("No existing template found or failed to load", error);
+    }
+  };
+
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchOrgDetails();
+      loadExistingTemplate();
+      fetchTemplates();
+    }
+  }, [isOpen]);
+
+  const handleDeleteTemplate = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this template?")) return;
+    
+    try {
+      setIsDeleting(id);
+      await prescriptionTemplateApi.delete(id);
+      toast.success("Template deleted successfully");
+      fetchTemplates();
+      if (onSaveSuccess) onSaveSuccess();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete template");
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  const handleSelectTemplate = (t) => {
+    setTemplateName(t.templateName || t.name || '');
+    setIsDefault(t.isDefault || false);
+    
+    setHeaderType(t.headerType || 'default');
+    setHeaderImagePreview(t.headerImage ? getImageUrl(t.headerImage) : null);
+    setHeaderImageFile(null);
+    
+    setBodyType(t.bodyType || 'default');
+    setBodyImagePreview(t.bodyImage ? getImageUrl(t.bodyImage) : null);
+    setBodyImageFile(null);
+    
+    setFooterType(t.footerType || 'default');
+    setFooterImagePreview(t.footerImage ? getImageUrl(t.footerImage) : null);
+    setFooterImageFile(null);
+  };
+
+  const getImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('data:') || path.startsWith('http')) return path;
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const serverUrl = baseUrl.replace(/\/api$/, '') || 'http://localhost:5000';
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${serverUrl}${cleanPath}`;
+  };
 
   const handleImageUpload = (e, setPreview, setFile) => {
     const file = e.target.files[0];
@@ -130,6 +233,46 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
             <div className="w-[400px] flex-shrink-0 border-r border-slate-200 bg-slate-50 flex flex-col overflow-y-auto">
               <div className="p-6 space-y-8">
 
+                {/* Templates List Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                      <LayoutTemplate size={14} /> Saved Templates
+                    </h3>
+                    <span className="px-2 py-0.5 bg-slate-200 text-slate-600 rounded text-[10px] font-bold">{templates.length}</span>
+                  </div>
+                  
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                    {templates.length > 0 ? templates.map(t => (
+                      <div 
+                        key={t._id}
+                        onClick={() => handleSelectTemplate(t)}
+                        className={`group p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${templateName === t.templateName ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-200'}`}
+                      >
+                        <div className="flex flex-col">
+                          <span className={`text-xs font-bold ${templateName === t.templateName ? 'text-indigo-700' : 'text-slate-700'}`}>
+                            {t.templateName || t.name}
+                          </span>
+                          {t.isDefault && <span className="text-[9px] font-black text-emerald-600 uppercase mt-0.5">Default</span>}
+                        </div>
+                        <button 
+                          onClick={(e) => handleDeleteTemplate(e, t._id)}
+                          disabled={isDeleting === t._id}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                        >
+                          {isDeleting === t._id ? <div className="w-3 h-3 border-2 border-red-500 border-t-transparent rounded-full animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                      </div>
+                    )) : (
+                      <div className="text-center py-6 bg-white border-2 border-dashed border-slate-200 rounded-xl">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">No templates saved yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <hr className="border-slate-200" />
+
 
 
                 {/* Template Config */}
@@ -153,17 +296,34 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                     </div>
                     {headerType === 'custom' && (
                       <div className="mt-3">
-                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-white hover:bg-slate-50 transition-colors">
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                            <Upload className="w-6 h-6 text-slate-400 mb-2" />
-                            <p className="text-xs text-slate-500"><span className="font-semibold text-indigo-600">Click to upload</span> header image</p>
-                          </div>
-                          <input type="file" className="hidden" accept="image/png, image/jpeg" onChange={(e) => handleImageUpload(e, setHeaderImagePreview, setHeaderImageFile)} />
-                        </label>
-                        {headerImagePreview && (
-                          <div className="mt-2 relative group">
-                            <img src={headerImagePreview} alt="Header Preview" className="w-full h-16 object-contain bg-white border border-slate-200 rounded p-1" />
-                            <button onClick={() => { setHeaderImagePreview(null); setHeaderImageFile(null); }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
+                        {!headerImagePreview ? (
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-white hover:bg-slate-50 transition-all group">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full mb-3 group-hover:scale-110 transition-transform">
+                                <Upload size={20} />
+                              </div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                <span className="font-bold text-indigo-600">Click to upload</span> header image
+                              </p>
+                              <p className="text-[10px] text-slate-400 mt-1">Recommended: 800x150px (PNG/JPG)</p>
+                            </div>
+                            <input type="file" className="hidden" accept="image/png, image/jpeg" onChange={(e) => handleImageUpload(e, setHeaderImagePreview, setHeaderImageFile)} />
+                          </label>
+                        ) : (
+                          <div className="relative rounded-xl overflow-hidden border-2 border-indigo-200 bg-white group shadow-md ring-4 ring-indigo-50">
+                            <img src={headerImagePreview} alt="Header Preview" className="w-full h-24 object-contain p-2" />
+                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
+                              <button 
+                                onClick={() => { 
+                                  setHeaderImagePreview(null); 
+                                  setHeaderImageFile(null); 
+                                  setHeaderType('default'); 
+                                }} 
+                                className="px-4 py-2 bg-white text-red-600 rounded-xl hover:bg-red-50 transition-all shadow-xl flex items-center gap-2 text-xs font-black uppercase tracking-wider transform hover:scale-105 active:scale-95"
+                              >
+                                <Trash2 size={16} /> Delete & Revert to Default
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -188,17 +348,33 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                     </div>
                     {bodyType === 'custom' && (
                       <div className="mt-3">
-                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-white hover:bg-slate-50 transition-colors">
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                            <Upload className="w-6 h-6 text-slate-400 mb-2" />
-                            <p className="text-xs text-slate-500"><span className="font-semibold text-indigo-600">Click to upload</span> body background</p>
-                          </div>
-                          <input type="file" className="hidden" accept="image/png, image/jpeg" onChange={(e) => handleImageUpload(e, setBodyImagePreview, setBodyImageFile)} />
-                        </label>
-                        {bodyImagePreview && (
-                          <div className="mt-2 relative group">
-                            <img src={bodyImagePreview} alt="Body Preview" className="w-full h-32 object-contain bg-white border border-slate-200 rounded p-1" />
-                            <button onClick={() => { setBodyImagePreview(null); setBodyImageFile(null); }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
+                        {!bodyImagePreview ? (
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-white hover:bg-slate-50 transition-all group">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full mb-3 group-hover:scale-110 transition-transform">
+                                <ImageIcon size={20} />
+                              </div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                <span className="font-bold text-indigo-600">Click to upload</span> body watermark
+                              </p>
+                            </div>
+                            <input type="file" className="hidden" accept="image/png, image/jpeg" onChange={(e) => handleImageUpload(e, setBodyImagePreview, setBodyImageFile)} />
+                          </label>
+                        ) : (
+                          <div className="relative rounded-xl overflow-hidden border-2 border-indigo-200 bg-white group shadow-md ring-4 ring-indigo-50">
+                            <img src={bodyImagePreview} alt="Body Preview" className="w-full h-32 object-contain p-4 opacity-40" />
+                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
+                              <button 
+                                onClick={() => { 
+                                  setBodyImagePreview(null); 
+                                  setBodyImageFile(null); 
+                                  setBodyType('default'); 
+                                }} 
+                                className="px-4 py-2 bg-white text-red-600 rounded-xl hover:bg-red-50 transition-all shadow-xl flex items-center gap-2 text-xs font-black uppercase tracking-wider transform hover:scale-105 active:scale-95"
+                              >
+                                <Trash2 size={16} /> Delete & Revert to Default
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -223,17 +399,33 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                     </div>
                     {footerType === 'custom' && (
                       <div className="mt-3">
-                        <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-white hover:bg-slate-50 transition-colors">
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                            <Upload className="w-6 h-6 text-slate-400 mb-2" />
-                            <p className="text-xs text-slate-500"><span className="font-semibold text-indigo-600">Click to upload</span> footer image</p>
-                          </div>
-                          <input type="file" className="hidden" accept="image/png, image/jpeg" onChange={(e) => handleImageUpload(e, setFooterImagePreview, setFooterImageFile)} />
-                        </label>
-                        {footerImagePreview && (
-                          <div className="mt-2 relative group">
-                            <img src={footerImagePreview} alt="Footer Preview" className="w-full h-12 object-contain bg-white border border-slate-200 rounded p-1" />
-                            <button onClick={() => { setFooterImagePreview(null); setFooterImageFile(null); }} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
+                        {!footerImagePreview ? (
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-white hover:bg-slate-50 transition-all group">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full mb-3 group-hover:scale-110 transition-transform">
+                                <Upload size={20} />
+                              </div>
+                              <p className="text-xs text-slate-500 font-medium">
+                                <span className="font-bold text-indigo-600">Click to upload</span> footer image
+                              </p>
+                            </div>
+                            <input type="file" className="hidden" accept="image/png, image/jpeg" onChange={(e) => handleImageUpload(e, setFooterImagePreview, setFooterImageFile)} />
+                          </label>
+                        ) : (
+                          <div className="relative rounded-xl overflow-hidden border-2 border-indigo-200 bg-white group shadow-md ring-4 ring-indigo-50">
+                            <img src={footerImagePreview} alt="Footer Preview" className="w-full h-16 object-contain p-2" />
+                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
+                              <button 
+                                onClick={() => { 
+                                  setFooterImagePreview(null); 
+                                  setFooterImageFile(null); 
+                                  setFooterType('default'); 
+                                }} 
+                                className="px-4 py-2 bg-white text-red-600 rounded-xl hover:bg-red-50 transition-all shadow-xl flex items-center gap-2 text-xs font-black uppercase tracking-wider transform hover:scale-105 active:scale-95"
+                              >
+                                <Trash2 size={16} /> Delete & Revert to Default
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -301,16 +493,50 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                   {headerType === 'custom' && headerImagePreview ? (
                     <img src={headerImagePreview} alt="Header" className="w-full h-full object-contain" />
                   ) : (
-                    <div className="p-8 flex justify-between items-start opacity-50">
-                      <div>
-                        <h1 className="text-2xl font-black text-indigo-900">Dr. David Khan</h1>
-                        <p className="text-sm font-medium text-slate-600">MD (Medicine), DNB, DM (Endocrinology)</p>
-                        <p className="text-xs text-slate-500 mt-1">Consultant Diabetologist</p>
+                    <div className="p-8 flex justify-between items-start">
+                      {/* LEFT: Clinic Info */}
+                      <div className="flex items-start gap-4 flex-1">
+                        {(organization?.branding?.logo || user?.organization?.branding?.logo) && (
+                          <div className="w-16 h-16 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+                            <img 
+                              src={getImageUrl(organization?.branding?.logo || user?.organization?.branding?.logo)} 
+                              alt="Clinic Logo" 
+                              className="max-h-full max-w-full object-contain p-1" 
+                            />
+                          </div>
+                        )}
+                        <div className="flex flex-col">
+                          <h2 className="text-2xl font-black text-slate-800 leading-tight tracking-tight uppercase">
+                            {organization?.name || user?.organization?.name || "Clinic Name"}
+                          </h2>
+                          <div className="text-[10px] font-bold text-slate-500 mt-2 space-y-1">
+                            <p className="max-w-[300px] leading-relaxed uppercase">
+                              {[
+                                organization?.address?.street,
+                                organization?.address?.city,
+                                organization?.address?.state,
+                                (organization?.address?.zipCode || organization?.address?.zip)
+                              ].filter(p => p && String(p).trim() !== '').join(', ') || "Clinic Address Not Set"}
+                            </p>
+                            <div className="flex items-center gap-3">
+                              <span className="flex items-center gap-1"><Phone size={10} className="text-slate-400" /> {organization?.phone || user?.phone || "N/A"}</span>
+                              {organization?.email && <span className="flex items-center gap-1"><Mail size={10} className="text-slate-400" /> {organization?.email}</span>}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <h2 className="text-lg font-bold text-slate-800">David Endocrine Clinic</h2>
-                        <p className="text-xs text-slate-500">102, Block C, South Extension</p>
-                        <p className="text-xs text-slate-500">Contact: 5432102345</p>
+
+                      {/* RIGHT: Doctor Info */}
+                      <div className="text-right flex-1 flex flex-col items-end">
+                        <h1 className="text-2xl font-black text-indigo-700 leading-tight tracking-tighter uppercase">
+                          {user?.name || "Doctor Name"}
+                        </h1>
+                        <div className="text-[11px] font-black text-indigo-500/90 mt-1.5 uppercase tracking-widest border-b-2 border-indigo-100 pb-0.5 mb-1.5">
+                          {user?.qualification || "Qualifications"}
+                        </div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          {user?.specialization || user?.specialty || "Specialization"}
+                        </p>
                       </div>
                     </div>
                   )}

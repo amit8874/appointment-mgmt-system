@@ -1,6 +1,9 @@
 import PrescriptionTemplate from '../models/PrescriptionTemplate.js';
+import Organization from '../models/Organization.js';
 import puppeteer from 'puppeteer';
 import mongoose from 'mongoose';
+import fs from 'fs';
+import path from 'path';
 
 const extractObjectId = (value) => {
   if (!value) return null;
@@ -146,25 +149,111 @@ export const generatePdf = async (req, res) => {
       return res.status(400).json({ success: false, message: "Valid organizationId is required" });
     }
 
-    const { prescriptionData, patientData } = req.body;
+    const { prescriptionData, patientData, templateId } = req.body;
     
-    // Fetch default template
-    const template = await PrescriptionTemplate.findOne({ organizationId, isDefault: true });
+    // Fetch template (specified or default)
+    let template = null;
+    if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
+      template = await PrescriptionTemplate.findById(templateId);
+    }
     
-    // Get host URL to construct absolute image paths for Puppeteer
-    const host = req.protocol + '://' + req.get('host');
+    if (!template) {
+      template = await PrescriptionTemplate.findOne({ organizationId, isDefault: true });
+    }
     
-    let headerHtml = template?.headerType === 'custom' && template?.headerImage
-      ? `<img src="${host}${template.headerImage}" style="width: 100%; object-fit: contain;" />`
-      : `<div style="padding: 20px; text-align: center; border-bottom: 2px solid #ccc;"><h1>Clinic Header</h1></div>`;
+    // Fetch organization for logo and name
+    const organization = await Organization.findById(organizationId);
+    
+    // Helper to get image as base64 for Puppeteer
+    const getBase64Image = (filePath) => {
+      if (!filePath) return null;
+      try {
+        // If it's a full URL, extract the relative path
+        let relativePath = filePath;
+        if (filePath.startsWith('http')) {
+          try {
+            const url = new URL(filePath);
+            relativePath = url.pathname; // e.g., /uploads/image...
+          } catch (e) {
+            console.error("URL parsing error:", e);
+          }
+        }
+
+        // Fix for Windows: ensure we don't treat '/uploads/...' as root of the E: drive
+        let absolutePath;
+        if (path.isAbsolute(relativePath) && /^[a-zA-Z]:/.test(relativePath)) {
+          // It's a full Windows absolute path (e.g., E:\...)
+          absolutePath = relativePath;
+        } else {
+          // It's a relative path or absolute from project root (e.g., /uploads/...)
+          const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+          absolutePath = path.join(process.cwd(), cleanPath);
+        }
+        
+        console.log("Attempting to load image from:", absolutePath);
+        
+        if (fs.existsSync(absolutePath)) {
+          const fileBuffer = fs.readFileSync(absolutePath);
+          const ext = path.extname(absolutePath).slice(1) || 'png';
+          return `data:image/${ext};base64,${fileBuffer.toString('base64')}`;
+        } else {
+          console.warn("Image file does not exist at:", absolutePath);
+        }
+      } catch (err) {
+        console.error("Base64 conversion error:", err);
+      }
+      return null;
+    };
+
+    // Construct Logo
+    const logoBase64 = organization?.branding?.logo ? getBase64Image(organization.branding.logo) : null;
+
+    let headerHtml = '';
+    if (template?.headerType === 'custom' && template?.headerImage) {
+      const headerBase64 = getBase64Image(template.headerImage);
+      headerHtml = headerBase64 ? `<img src="${headerBase64}" style="width: 100%; max-height: 150px; object-fit: contain;" />` : '';
+    } else {
+      headerHtml = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 10px; border-bottom: 2px solid #eee;">
+          <div style="display: flex; align-items: center; gap: 15px;">
+            ${logoBase64 ? `<img src="${logoBase64}" style="height: 80px; width: 80px; object-fit: contain;" />` : ''}
+            <div>
+              <h1 style="margin: 0; color: #0f172a; font-size: 24px; font-weight: 900; text-transform: uppercase;">${organization?.name || 'Clinic Name'}</h1>
+              <div style="margin: 5px 0 0 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase;">
+                ${[
+                  organization?.address?.street,
+                  organization?.address?.city,
+                  organization?.address?.state,
+                  organization?.address?.zipCode || organization?.address?.zip
+                ].filter(Boolean).join(', ')}<br/>
+                Contact: ${organization?.phone || ''}
+              </div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <h2 style="margin: 0; color: #4338ca; font-size: 22px; font-weight: 900; text-transform: uppercase;">${prescriptionData.doctorName?.toLowerCase().startsWith('dr') ? '' : 'Dr. '}${prescriptionData.doctorName || 'Doctor'}</h2>
+            <p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #6366f1; text-transform: uppercase; border-bottom: 2px solid #eef2ff; padding-bottom: 2px; display: inline-block;">${prescriptionData.doctorQualification || prescriptionData.qualification || 'MBBS, MD'}</p>
+            <p style="margin: 2px 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">${prescriptionData.doctorSpecialization || prescriptionData.specialty || 'Specialist'}</p>
+          </div>
+        </div>
+      `;
+    }
       
-    let footerHtml = template?.footerType === 'custom' && template?.footerImage
-      ? `<img src="${host}${template.footerImage}" style="width: 100%; object-fit: contain;" />`
-      : `<div style="padding: 20px; text-align: center; border-top: 2px solid #ccc; font-weight: bold; font-size: 12px; color: #555;">Powered by Oviaan</div>`;
+    let footerHtml = '';
+    if (template?.footerType === 'custom' && template?.footerImage) {
+      const footerBase64 = getBase64Image(template.footerImage);
+      footerHtml = footerBase64 ? `<img src="${footerBase64}" style="width: 100%; max-height: 80px; object-fit: contain;" />` : '';
+    } else {
+      footerHtml = `<div style="padding: 10px; text-align: center; border-top: 1px solid #eee; font-size: 10px; color: #999; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Powered by Oviaan</div>`;
+    }
       
-    let bodyBg = template?.bodyType === 'custom' && template?.bodyImage
-      ? `background-image: url('${host}${template.bodyImage}'); background-size: 80%; background-position: center; background-repeat: no-repeat; opacity: 0.1;`
-      : '';
+    let bodyBg = '';
+    if (template?.bodyType === 'custom' && template?.bodyImage) {
+      const bodyBase64 = getBase64Image(template.bodyImage);
+      if (bodyBase64) {
+        bodyBg = `background-image: url('${bodyBase64}'); background-size: 60%; background-position: center; background-repeat: no-repeat; opacity: 0.05;`;
+      }
+    }
 
     // Logic to handle structured JSON or raw text
     let contentHtml = '';
@@ -211,10 +300,24 @@ export const generatePdf = async (req, res) => {
             </table>
           ` : ''}
 
+          ${parsedData.testsRequested?.length > 0 ? `
+            <div style="margin-top: 20px;">
+              <p style="font-weight: bold; color: #1e293b; margin-bottom: 8px;">Tests Required:</p>
+              <div style="font-size: 13px;">
+                ${parsedData.testsRequested.map((t, i) => `
+                  <div style="margin-bottom: 5px; display: flex; align-items: center;">
+                    <span style="background: #eef2ff; color: #4f46e5; border: 1px solid #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 10px;">${String(i + 1).padStart(2, '0')}</span>
+                    <span style="font-weight: 600;">${t}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+
           ${parsedData.advice ? `
             <div style="margin-top: 20px;">
-              <p><strong>Clinical Advice:</strong></p>
-              <p style="white-space: pre-wrap;">${parsedData.advice}</p>
+              <p style="font-weight: bold; color: #1e293b; margin-bottom: 5px;">Clinical Advice:</p>
+              <p style="white-space: pre-wrap; font-size: 13px; color: #334155; line-height: 1.5;">${parsedData.advice}</p>
             </div>
           ` : ''}
         </div>
@@ -228,13 +331,17 @@ export const generatePdf = async (req, res) => {
       <html>
       <head>
         <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Helvetica', 'Arial', sans-serif; margin: 0; padding: 0; box-sizing: border-box; color: #1e293b; }
           .container { width: 100%; min-height: 100vh; position: relative; display: flex; flex-direction: column; }
-          .header { width: 100%; min-height: 120px; display: flex; align-items: center; justify-content: center; }
-          .patient-info { padding: 15px 30px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; border-top: 1px solid #e9ecef; display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; }
-          .content { padding: 40px 60px; flex: 1; position: relative; }
+          .header { padding: 30px 40px 10px 40px; }
+          .patient-info { padding: 12px 40px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+          .content { padding: 30px 40px; flex: 1; position: relative; }
           .watermark { position: absolute; top: 0; left: 0; right: 0; bottom: 0; ${bodyBg} z-index: -1; }
-          .footer { width: 100%; min-height: 80px; display: flex; align-items: center; justify-content: center; margin-top: auto; }
+          .footer { width: 100%; min-height: 60px; display: flex; align-items: center; justify-content: center; margin-top: auto; }
+          table { width: 100%; border-collapse: collapse; }
+          th { background: #f8fafc; padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+          td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+          .rx-symbol { font-size: 28px; font-weight: bold; font-family: serif; font-style: italic; color: #0f172a; margin-bottom: 10px; }
         </style>
       </head>
       <body>
@@ -257,15 +364,70 @@ export const generatePdf = async (req, res) => {
 
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    await page.setContent(htmlContent, { waitUntil: 'load' });
     const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
     await browser.close();
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=prescription.pdf');
-    res.send(pdfBuffer);
+    console.log("PDF generated successfully. Size:", pdfBuffer.length, "bytes");
+
+    // Save to disk and return URL to avoid binary corruption over HTTP
+    try {
+      const fileName = `prescription_${Date.now()}_${Math.round(Math.random() * 1E9)}.pdf`;
+      const prescriptionsDir = path.join(process.cwd(), 'uploads', 'prescriptions');
+      if (!fs.existsSync(prescriptionsDir)) {
+        fs.mkdirSync(prescriptionsDir, { recursive: true });
+      }
+      
+      const pdfPath = path.join(prescriptionsDir, fileName);
+      fs.writeFileSync(pdfPath, pdfBuffer);
+      console.log("Saved PDF to:", pdfPath);
+
+      return res.status(200).json({ 
+        success: true, 
+        url: `/uploads/prescriptions/${fileName}` 
+      });
+      
+    } catch (e) {
+      console.error("Failed to save PDF to disk:", e);
+      return res.status(500).json({ success: false, message: "Failed to save generated PDF" });
+    }
   } catch (error) {
     console.error("PDF Generation Error:", error);
     res.status(500).json({ success: false, message: "Error generating PDF", error: error.message });
+  }
+};
+export const deleteTemplate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Valid template ID is required" });
+    }
+
+    const template = await PrescriptionTemplate.findById(id);
+    if (!template) {
+      return res.status(404).json({ success: false, message: "Template not found" });
+    }
+
+    // Don't allow deleting the default template unless there are others
+    if (template.isDefault) {
+      const count = await PrescriptionTemplate.countDocuments({ organizationId: template.organizationId });
+      if (count > 1) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Cannot delete the default template. Please set another template as default first." 
+        });
+      }
+    }
+
+    await PrescriptionTemplate.findByIdAndDelete(id);
+    
+    res.status(200).json({
+      success: true,
+      message: "Template deleted successfully"
+    });
+  } catch (error) {
+    console.error("Delete Template Error:", error);
+    res.status(500).json({ success: false, message: "Error deleting template", error: error.message });
   }
 };

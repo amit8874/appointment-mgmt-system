@@ -43,30 +43,87 @@ const ProfilePage = () => {
         setTimeout(() => setNotification({ message: '', type: '', visible: false }), 4000);
     };
 
+    // Helper to get full image URL
+    const getImageUrl = (path) => {
+        if (!path) return null;
+        if (path.startsWith('data:') || path.startsWith('http')) return path; 
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const serverUrl = baseUrl.replace(/\/api$/, '') || 'http://localhost:5000';
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        return `${serverUrl}${cleanPath}`;
+    };
+
     const fetchData = async () => {
-        if (!user?.id) return;
-        setLoading(true);
+        const userId = user?.id || user?._id;
+        
+        // Safety timeout: If everything hangs, stop loading after 3 seconds anyway
+        const safetyTimer = setTimeout(() => {
+            setLoading(false);
+        }, 3000);
+
+        if (!userId) {
+            // If no user ID, we might be waiting for AuthContext
+            return;
+        }
+        
         try {
             const orgId = user?.organizationId?._id || user?.organizationId || user?.organization?._id;
             
-            const [userData, orgData, subData, statsData, logsData, sessionsData] = await Promise.all([
-                getUserById(user.id),
-                orgId ? organizationApi.getById(orgId) : Promise.resolve(null),
+            // Load user data first
+            let userData;
+            try {
+                userData = await getUserById(userId);
+            } catch (err) {
+                console.warn("User fetch failed, using fallback", err);
+                userData = user; // Fallback to context user
+            }
+
+            // Load organization data
+            let orgData = {};
+            if (orgId) {
+                try {
+                    orgData = await organizationApi.getById(orgId);
+                } catch (err) {
+                    console.warn("Org fetch failed, using fallback", err);
+                    orgData = user?.organization || {};
+                }
+            }
+
+            if (userData) {
+                const nameParts = userData.name ? userData.name.split(' ') : ['', ''];
+                setProfile({
+                    ...userData,
+                    firstName: nameParts[0],
+                    lastName: nameParts.slice(1).join(' '),
+                    phone: userData.mobile || userData.phone,
+                });
+            }
+
+            if (orgData) setOrganization(orgData);
+            
+            // Clear timer and stop loading
+            clearTimeout(safetyTimer);
+            setLoading(false);
+
+            // Fetch secondary data in background (non-blocking)
+            fetchBackgroundData(orgId);
+            
+        } catch (error) {
+            console.error('Profile fetch error:', error);
+            clearTimeout(safetyTimer);
+            setLoading(false);
+        }
+    };
+
+    const fetchBackgroundData = async (orgId) => {
+        try {
+            const [subData, statsData, logsData, sessionsData] = await Promise.all([
                 subscriptionApi.getMySubscription().catch(() => null),
                 analyticsApi.getDashboard().catch(() => null),
                 analyticsApi.getActivityLogs().catch(() => ({ logs: [] })),
                 organizationApi.getMySessions().catch(() => [])
             ]);
 
-            const nameParts = userData.name ? userData.name.split(' ') : ['', ''];
-            setProfile({
-                ...userData,
-                firstName: nameParts[0],
-                lastName: nameParts.slice(1).join(' '),
-                phone: userData.mobile,
-            });
-
-            if (orgData) setOrganization(orgData);
             if (subData) setSubscription(subData);
             if (logsData) setActivityLogs(logsData.logs || []);
             if (sessionsData) setActiveSessions(sessionsData);
@@ -78,10 +135,7 @@ const ProfilePage = () => {
                 });
             }
         } catch (error) {
-            console.error('Error fetching profile data:', error);
-            showNotification('Failed to load profile data', 'error');
-        } finally {
-            setLoading(false);
+            console.warn('Background data fetch partially failed', error);
         }
     };
 
@@ -94,7 +148,7 @@ const ProfilePage = () => {
         if (tab) {
             setActiveTab(tab);
         }
-    }, [user?.id, location.search]);
+    }, [user?.id, user?._id, location.search]);
 
     const handleUpdateProfile = async (formData) => {
         setActionLoading(true);
@@ -125,6 +179,18 @@ const ProfilePage = () => {
             const orgId = organization._id;
             await organizationApi.update(orgId, orgData);
             setOrganization(prev => ({ ...prev, ...orgData }));
+            
+            // Sync with global AuthContext so other pages see the update immediately
+            if (user) {
+                updateUser({
+                    organization: { ...user.organization, ...orgData },
+                    // Support both nested and flat structures
+                    organizationId: typeof user.organizationId === 'object' 
+                        ? { ...user.organizationId, ...orgData }
+                        : user.organizationId
+                });
+            }
+            
             showNotification('Clinic information updated successfully');
         } catch (error) {
             showNotification('Failed to update clinic info', 'error');
@@ -224,7 +290,7 @@ const ProfilePage = () => {
                         <div className="relative group">
                             <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
                                 {organization.branding?.logo ? (
-                                    <img src={organization.branding.logo} alt="Logo" className="w-full h-full object-contain p-2" />
+                                    <img src={getImageUrl(organization.branding.logo)} alt="Logo" className="w-full h-full object-contain p-2" />
                                 ) : (
                                     <Building2 className="text-slate-400" size={32} />
                                 )}
@@ -246,7 +312,7 @@ const ProfilePage = () => {
                                     <UserIcon size={14} /> {profile.firstName} {profile.lastName}
                                 </p>
                                 <p className="text-sm font-bold text-slate-400 flex items-center gap-1.5">
-                                    <MapPin size={14} /> {organization.address?.city}, {organization.address?.country}
+                                    <MapPin size={14} /> {organization.address?.city || 'Location not set'}{organization.address?.country ? `, ${organization.address.country}` : ''}
                                 </p>
                             </div>
                         </div>

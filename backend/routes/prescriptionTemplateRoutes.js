@@ -1,5 +1,5 @@
 import express from 'express';
-import { saveTemplate, listTemplates, getDefaultTemplate, generatePdf } from '../controllers/prescriptionTemplateController.js';
+import { saveTemplate, listTemplates, getDefaultTemplate, generatePdf, deleteTemplate } from '../controllers/prescriptionTemplateController.js';
 import { authenticateToken } from '../middleware/auth.js';
 import multer from 'multer';
 import path from 'path';
@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    cb(null, `template-\${Date.now()}-\${Math.round(Math.random() * 1E9)}\${path.extname(file.originalname)}`);
+    cb(null, `template-${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`);
   }
 });
 
@@ -48,5 +48,6 @@ router.post('/save', authenticateToken, uploadFields, saveTemplate);
 router.get('/list/:organizationId', authenticateToken, listTemplates);
 router.get('/default/:organizationId', authenticateToken, getDefaultTemplate);
 router.post('/generate-pdf', authenticateToken, generatePdf);
+router.delete('/:id', authenticateToken, deleteTemplate);
 
 export default router;
