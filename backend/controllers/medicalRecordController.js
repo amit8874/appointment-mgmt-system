@@ -15,15 +15,28 @@ export const getPatientRecords = async (req, res) => {
 // Create a new medical record (e.g. from patient upload)
 export const createRecord = async (req, res) => {
   try {
-    const { patientId, organizationId, type, title, description, status, date, attachmentUrl, doctorName } = req.body;
+    const { 
+      patientId, 
+      organizationId, 
+      doctorId,
+      type, 
+      title, 
+      description, 
+      status, 
+      date, 
+      attachmentUrl, 
+      doctorName 
+    } = req.body;
 
     if (!patientId || !type || !title) {
+      console.warn('[MedicalRecord] Missing required fields:', { patientId, type, title });
       return res.status(400).json({ message: 'patientId, type, and title are required' });
     }
 
     const newRecord = new MedicalRecord({
       patientId,
-      organizationId,
+      organizationId: organizationId?._id || organizationId,
+      doctorId: doctorId?._id || doctorId,
       type,
       title,
       description,
@@ -34,10 +47,15 @@ export const createRecord = async (req, res) => {
     });
 
     const savedRecord = await newRecord.save();
+    console.log(`[MedicalRecord] Saved successfully: ${savedRecord._id} (${type})`);
     res.status(201).json(savedRecord);
   } catch (error) {
-    console.error('Error creating medical record:', error);
-    res.status(500).json({ message: 'Error creating medical record', error: error.message });
+    console.error('[MedicalRecord] Create Error:', error);
+    res.status(500).json({ 
+      message: 'Error creating medical record', 
+      error: error.message,
+      details: error.errors ? Object.keys(error.errors).map(k => error.errors[k].message) : []
+    });
   }
 };
 

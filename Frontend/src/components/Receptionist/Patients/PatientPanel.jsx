@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import WhatsAppModal from "../../common/WhatsAppModal";
 import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download, MessageSquare } from 'lucide-react';
 import { exportPatientsToExcel } from '../../../utils/excelExport';
 import { useNavigate } from 'react-router-dom';
@@ -23,16 +22,11 @@ const PatientPanel = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
-  const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
-  const [selectedPatientForWhatsapp, setSelectedPatientForWhatsapp] = useState(null);
   const itemsPerPage = 15;
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
-  const handleWhatsappClick = (patient) => {
-    setSelectedPatientForWhatsapp(patient);
-    setWhatsappModalOpen(true);
-  };
+
 
   // Fetch patients from backend
   const fetchPatients = async () => {
@@ -368,7 +362,15 @@ const PatientPanel = () => {
                 paginatedPatients.map((p) => (
                   <tr key={p._id} className="hover:bg-gray-50/80 transition-colors group">
                     <td className="px-6 py-4 text-sm font-bold text-blue-600">#{p.patientId || p.id || '-'}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-gray-900">{p.name || '-'}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <button
+                        onClick={() => handleViewProfile(p)}
+                        className="font-bold text-blue-600 hover:text-blue-800 hover:underline transition-colors text-left"
+                        title="View Patient Profile"
+                      >
+                        {p.name || '-'}
+                      </button>
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{p.age || '-'}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <div className="flex items-center gap-1.5">
@@ -397,13 +399,7 @@ const PatientPanel = () => {
                     </td>
                     <td className="px-6 py-4 text-sm relative">
                       <div className="flex items-center gap-2" ref={menuRef}>
-                        <button 
-                          onClick={() => handleWhatsappClick(p)}
-                          className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 transition-all shadow-sm active:scale-95"
-                          title="Send prescription to patient on their WhatsApp"
-                        >
-                          <MessageSquare className="h-4 w-4" />
-                        </button>
+
                         <button
                           onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
                           className={`p-2 rounded-xl transition-all ${
@@ -527,12 +523,7 @@ const PatientPanel = () => {
         onConfirm={confirmMarkAsPaid}
         patientName={selectedPatientForPayment?.name}
       />
-      {/* WhatsApp Modal */}
-      <WhatsAppModal
-        isOpen={whatsappModalOpen}
-        onClose={() => setWhatsappModalOpen(false)}
-        patient={selectedPatientForWhatsapp}
-      />
+
 
     </motion.div>
   );

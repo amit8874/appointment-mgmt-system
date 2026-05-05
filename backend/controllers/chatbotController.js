@@ -101,144 +101,52 @@ export const chatWithMaya = async (req, res) => {
     }
 
     // 2. Intent Detection
-    const messageLower = message.toLowerCase();
     const isBookingIntent = /book|appointment|schedule|doctor|visit/i.test(message);
     const isGeneralQuery = /price|pricing|plan|cost|feature|capabilities|what is|how to|register|signup|about|benefit|portal|stakeholder|business/i.test(message);
     
-    // Improved City Detection: Check for "in [City]" or just a single word city name 
-    // if the conversation history suggests we were waiting for a city.
     let cityInMessage = null;
     const cityMatch = message.match(/(?:in|at|for|from|near|to)\s+([a-zA-Z\s]+)/i);
     if (cityMatch) {
       const potentialCity = cityMatch[1].trim();
-      // Check if this potential city exists in our data
-      const availableCities = Array.from(new Set(doctorList.map(d => 
-        (d.addressInfo?.city || d.serviceLocation?.address?.city || "").toLowerCase()
-      ).filter(Boolean)));
-      
+      const availableCities = Array.from(new Set(doctorList.map(d => (d.addressInfo?.city || d.serviceLocation?.address?.city || "").toLowerCase()).filter(Boolean)));
       const foundCity = availableCities.find(c => potentialCity.toLowerCase().includes(c) || c.includes(potentialCity.toLowerCase()));
       if (foundCity) {
-        // Find the original casing for the city
-        const originalCity = Array.from(new Set(doctorList.map(d => 
-          d.addressInfo?.city || d.serviceLocation?.address?.city
-        ).filter(Boolean))).find(c => c.toLowerCase() === foundCity);
-        cityInMessage = originalCity;
-      }
-    } else {
-      // Check if the user just typed a single word that matches one of our cities
-      const lastBotMessage = history?.[history.length - 1]?.parts?.[0]?.text || "";
-      const isWaitingForCity = /which city|city are you in/i.test(lastBotMessage);
-      
-      if (isWaitingForCity || isBookingIntent) {
-        const potentialCity = message.trim();
-        const availableCities = Array.from(new Set(doctorList.map(d => 
-          d.addressInfo?.city || d.serviceLocation?.address?.city
-        ).filter(Boolean)));
-        
-        const cityFound = availableCities.find(c => c.toLowerCase() === potentialCity.toLowerCase());
-        if (cityFound) cityInMessage = cityFound;
+        cityInMessage = Array.from(new Set(doctorList.map(d => d.addressInfo?.city || d.serviceLocation?.address?.city).filter(Boolean))).find(c => c.toLowerCase() === foundCity);
       }
     }
 
-    const uniqueCities = Array.from(new Set(doctorList.map(d => 
-      d.addressInfo?.city || d.serviceLocation?.address?.city
-    ).filter(Boolean)));
+    const uniqueCities = Array.from(new Set(doctorList.map(d => d.addressInfo?.city || d.serviceLocation?.address?.city).filter(Boolean)));
 
-    // Only skip LLM if it's a PURE booking/city intent and NOT a general product query
     if ((isBookingIntent || cityInMessage) && !isGeneralQuery) {
-      // If user wants to book but NO city is detected yet, suggest cities
-      if (!cityInMessage && message.length < 50) {
-        if (uniqueCities.length > 0) {
-          responseType = 'options';
-          responseMetadata = {
-            options: uniqueCities.map(city => ({ label: city, value: city })),
-            title: "Which city would you like to book the appointment in?"
-          };
-          return res.json({ 
-            text: "Great! I'll help you book a doctor appointment. Which city are you looking for?", 
-            messageType: responseType,
-            metadata: responseMetadata
-          });
-        }
-      } else if (cityInMessage) {
-        // If city is specified/detected, find ALL doctors in that city
-        const matchingDoctors = doctorList.filter(d => {
-          const docCity = (d.addressInfo?.city || d.serviceLocation?.address?.city || "").toLowerCase();
-          const targetCity = cityInMessage.toLowerCase();
-          return docCity.includes(targetCity) || targetCity.includes(docCity);
+      if (!cityInMessage && message.length < 50 && uniqueCities.length > 0) {
+        return res.json({ 
+          text: "I'll help you book an appointment. Which city are you in?", 
+          messageType: 'options',
+          metadata: { options: uniqueCities.slice(0, 10).map(c => ({ label: c, value: c })), title: "Select City" }
         });
-
+      } else if (cityInMessage) {
+        const matchingDoctors = doctorList.filter(d => (d.addressInfo?.city || d.serviceLocation?.address?.city || "").toLowerCase().includes(cityInMessage.toLowerCase())).slice(0, 5);
         if (matchingDoctors.length > 0) {
-          responseType = 'doctor_list';
-          responseMetadata = {
-            doctors: matchingDoctors.map(d => ({
-              id: d._id,
-              name: d.name,
-              specialization: d.specialization,
-              hospital: d.serviceLocation?.practiceName || `${process.env.APP_NAME || "Our"} Clinic`,
-              city: d.addressInfo?.city || d.serviceLocation?.address?.city,
-              photo: d.photo,
-              experience: d.experience,
-              languages: d.languages
-            }))
-          };
           return res.json({ 
-            text: `I found ${matchingDoctors.length} doctors in ${cityInMessage}. Here are the best matches:`, 
-            messageType: responseType,
-            metadata: responseMetadata
+            text: `Doctors in ${cityInMessage}:`, 
+            messageType: 'doctor_list',
+            metadata: { doctors: matchingDoctors.map(d => ({ id: d._id, name: d.name, specialization: d.specialization, photo: d.photo })) }
           });
-        } else {
-          // Explicitly handle NO DOCTORS FOUND in that city to prevent hallucination
-          contextInfo += `\n[CRITICAL SYSTEM] No doctors found in "${cityInMessage}". DO NOT invent doctor names. Inform the user we don't have clinics there yet. Available cities: ${uniqueCities.join(', ')}`;
         }
       }
     }
 
-    // Default AI Response
-    const appName = process.env.APP_NAME || "Oviaan";
-    let systemPrompt = `You are Maya, the brilliant AI Ambassador and Guide for ${appName} Management Software.
-Oviaan is an all-in-one Practice Management Solution (PMS) designed for clinics, laboratories, and individual doctors.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚀 KEY PLATFORM KNOWLEDGE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. WHAT IS OVIAAN? 
-   An AI-powered platform to revolutionize healthcare management by connecting doctors, patients, pharmacies, and clinics in one ecosystem.
-   
-2. KEY FEATURES BY PORTAL:
-   - Organization/Admin: Advanced business analytics, settlement tracking, sub-admin control, and bulk messaging.
-   - Doctor: Digital prescriptions, appointment scheduling, patient medical history, and clinical notes.
-   - Receptionist: Quick registration flow, queue management, billing assistant, and patient notifications.
-   - Patient: 24/7 access to own reports, easy online booking, payment history, and medicine reminders.
-   - Pharmacy: Real-time inventory control, digital prescription fulfillment, and settlement tracking.
-
-3. PRICING & SUBSCRIPTION:
-   - Free Trial: 14 days full access (1 doctor, 100 appointments/month).
-   - Basic Plan (₹499/mo): Ideal for small clinics (1 doctor, 500 appointments/month).
-   - Standard Plan (₹699/mo): Best for growing practices (3 doctors, 2000 appointments/month).
-   - Premium Plan (₹999/mo): Unlimited doctors and appointments, custom branding.
-   - Note: Annual plans offer significant savings (e.g., Basic at ₹4,990/year).
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🛡️ CONVERSATION GUIDELINES:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Be professional, empathetic, and enthusiastic about Oviaan's capabilities.
-- NEVER invent doctor names, clinic names, or contact details.
-- Only provide specific doctor info if it is provided in the [CONTEXT].
-- If a user asks a general question (pricing, features), answer it thoroughly using the knowledge above.
-- If a user asks to "book an appointment":
-  a. If they haven't mentioned a city, ask them which city they are in.
-  b. Inform them that Oviaan is active in: ${uniqueCities.join(', ')}.
-  c. bOnce the city is known, the system will show the doctors.
-- If we have no doctors in a requested city, apologize and guide them to our active cities.
-
-[CONTEXT]
-${contextInfo}
-`;
+    const systemPrompt = `You are Maya, AI Ambassador for Oviaan EMR. 
+1. WHAT IS OVIAAN? AI-powered PMS for clinics/doctors. 
+2. KEY FEATURES: Digital Rx, Billing, Analytics, Pharmacy sync. 
+3. PRICING: Basic ₹499/mo, Standard ₹699/mo, Premium ₹999/mo. 14-day free trial.
+4. GUIDELINES: Professional, empathetic. NEVER invent doctors/contact info. 
+5. CITIES: ${uniqueCities.slice(0, 15).join(', ')}.
+[CONTEXT] ${contextInfo.slice(0, 500)}`;
 
     const apiMessages = [
       { role: "system", content: systemPrompt },
-      ...((history || []).map(m => ({
+      ...((history || []).slice(-5).map(m => ({
         role: m.role === 'model' ? 'assistant' : m.role,
         content: m.parts[0]?.text || ""
       }))),
@@ -246,7 +154,7 @@ ${contextInfo}
     ];
 
     const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
       messages: apiMessages,
       max_tokens: 1000,
       temperature: 0.3,

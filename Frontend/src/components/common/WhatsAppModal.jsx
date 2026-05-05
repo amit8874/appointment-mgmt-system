@@ -5,11 +5,18 @@ import { whatsappApi, medicalRecordApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 
-const WhatsAppModal = ({ isOpen, onClose, patient }) => {
+const WhatsAppModal = ({ isOpen, onClose, patient, initialMessage = '' }) => {
   const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [isImproving, setIsImproving] = useState(false);
   const [isSending, setIsSending] = useState(false);
+
+  // Update message when initialMessage changes or modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setMessage(initialMessage);
+    }
+  }, [isOpen, initialMessage]);
 
   if (!patient) return null;
 

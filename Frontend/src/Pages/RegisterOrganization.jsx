@@ -2,38 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Building2, 
-  Mail, 
-  Phone, 
-  Lock, 
-  User, 
-  ArrowRight,
-  TrendingUp,
-  Monitor,
-  CheckCircle2,
-  ChevronRight,
-  Eye,
-  EyeOff,
-  X,
-  Check
+  Building2, Mail, Phone, Lock, User, TrendingUp, Monitor, 
+  ChevronRight, Eye, EyeOff, X, Check, Users, ShieldCheck, 
+  Zap, Clock
 } from 'lucide-react';
 import { organizationApi } from '../services/api';
+import "./Register.css";
+import signupHero from "../assets/img/signup-hero.png";
 
-const InputField = ({ icon: Icon, placeholder, rightElement, ...props }) => (
-  <div className="relative group">
-    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
-      <Icon size={18} />
-    </div>
-    <input
-      {...props}
-      placeholder={placeholder}
-      className={`w-full pl-12 ${rightElement ? 'pr-12' : 'pr-4'} py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium`}
-    />
-    {rightElement && (
-      <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
-        {rightElement}
+const InputField = ({ icon: Icon, label, name, ...props }) => (
+  <div className="signup-input-group">
+    <label className="signup-label">{label}</label>
+    <div className="signup-input-wrapper">
+      <div className="signup-icon">
+        <Icon size={16} />
       </div>
-    )}
+      <input
+        {...props}
+        name={name}
+        className="signup-input"
+      />
+    </div>
   </div>
 );
 
@@ -43,7 +32,7 @@ const RegisterOrganization = () => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [step, setStep] = useState('form'); // 'form' or 'otp'
+  const [step, setStep] = useState('form');
   const [otp, setOtp] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -85,49 +74,30 @@ const RegisterOrganization = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!agreed) {
-      setError('Please agree to the Terms and Conditions and Privacy Policy to continue.');
+      setError('Please agree to the Terms and Conditions.');
       return;
     }
-    setError('');
-
-    // Basic validation
     if (formData.ownerPassword !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setError('Passwords do not match.');
       return;
     }
-
-    if (formData.ownerPassword.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
-
     setLoading(true);
     try {
       const registrationData = {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        ownerName: formData.ownerName,
+        ...formData,
         ownerEmail: formData.ownerEmail || formData.email,
-        ownerPassword: formData.ownerPassword,
         subdomain: formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-        patientCount: formData.patientCount,
-        previousSoftware: formData.previousSoftware
       };
-      
       const response = await organizationApi.register(registrationData);
-      
       if (response.verificationRequired) {
         setStep('otp');
-        setResendTimer(20); // Activate resend after 20 seconds
+        setResendTimer(20);
       } else {
-        // Fallback for if OTP is disabled or already handled
         localStorage.setItem('tenantSlug', response.organization.slug);
         navigate('/choose-plan', { state: { organization: response.organization } });
       }
     } catch (err) {
-      console.error('Registration error:', err);
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      setError(err.response?.data?.message || 'Registration failed.');
     } finally {
       setLoading(false);
     }
@@ -135,311 +105,246 @@ const RegisterOrganization = () => {
 
   const handleOtpVerify = async (e) => {
     e.preventDefault();
-    if (otp.length !== 6) {
-      setError('Please enter a valid 6-digit OTP');
-      return;
-    }
-
+    if (otp.length !== 6) return;
     setIsVerifying(true);
-    setError('');
     try {
       const response = await organizationApi.verifyOTP({
         email: formData.ownerEmail || formData.email,
         otp
       });
-
-      // Verification success
       const { token, organization } = response;
-      
-      // Store auth data
       localStorage.setItem('token', token);
       localStorage.setItem('tenantSlug', organization.slug);
       localStorage.setItem('userData', JSON.stringify(response.user));
-      
-      // Navigate to dashboard
       navigate('/organization-dashboard');
     } catch (err) {
-      console.error('OTP verification error:', err);
-      setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
+      setError(err.response?.data?.message || 'Invalid OTP.');
     } finally {
       setIsVerifying(false);
     }
   };
 
-  const handleResendOtp = async () => {
-    if (resendTimer > 0) return;
-    
-    setLoading(true);
-    setError('');
-    try {
-      await organizationApi.resendOTP({
-        email: formData.ownerEmail || formData.email
-      });
-      setResendTimer(20);
-      setOtp('');
-      // Show success message briefly?
-    } catch (err) {
-      console.error('Resend OTP error:', err);
-      setError(err.response?.data?.message || 'Failed to resend OTP. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-[#f0f4f9] flex flex-col items-center justify-center p-4 py-12">
-      {/* Background blobs */}
-      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-400/10 rounded-full blur-[100px] pointer-events-none" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-400/10 rounded-full blur-[100px] pointer-events-none" />
+    <div className="signup-page-container">
+      {/* Absolute Brand Header */}
+      <Link to="/" className="signup-brand">
+        <img src="/logo.png" alt="Oviaan" className="brand-logo" />
+        <span className="brand-name">Oviaan</span>
+      </Link>
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-lg bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative z-10"
-      >
-        <div className="p-8 md:p-10">
-          {/* Logo & Header */}
-          <div className="flex flex-col items-center mb-8 text-center">
-             <Link to="/" className="flex items-center gap-2 mb-8 group">
-                <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
-             </Link>
-             <h2 className="text-2xl font-black text-slate-800 tracking-tight">Sign-Up for 14 days free trial!</h2>
-             <p className="text-slate-400 font-medium text-sm mt-1">Start streamlining your practice today.</p>
+      {/* Left Hero Section */}
+      <section className="signup-hero">
+        <div className="hero-image-wrapper">
+          <img src={signupHero} alt="Join Oviaan" className="hero-image" />
+        </div>
+        
+        <motion.div 
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="hero-content"
+        >
+          <div className="hero-badge">
+            <Zap size={14} className="text-yellow-400" />
+            Join 50+ Medical Leaders Who Signed Up Today
+          </div>
+          
+          <h1 className="hero-title">Start Your Digital Practice in Minutes</h1>
+          <p className="hero-subtitle">
+            Transform your clinic with Oviaan's AI-driven EMR. Get 14 days of full access, 
+            no credit card required. Trusted by thousands of healthcare pioneers.
+          </p>
+
+          <div className="hero-stats-grid">
+            {[
+              { icon: <ShieldCheck className="text-blue-300" />, value: "ISO Certified", desc: "Enterprise Security" },
+              { icon: <Clock className="text-emerald-300" />, value: "10 Min Setup", desc: "Instant Deployment" }
+            ].map((stat, i) => (
+              <div key={i} className="stat-item">
+                <div className="mb-2">{stat.icon}</div>
+                <span className="stat-num">{stat.value}</span>
+                <span className="stat-desc">{stat.desc}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Right Form Section */}
+      <section className="signup-form-section">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="signup-card"
+        >
+          <div className="signup-header">
+            <h2 className="signup-title">Create Your Account</h2>
+            <p className="signup-subtitle">Join the elite network of digital-first clinics.</p>
           </div>
 
           {step === 'form' ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <InputField
-                icon={Building2}
-                placeholder="Lab / Clinic Name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                required
-              />
-
-              <InputField
-                icon={User}
-                placeholder="Owner Name"
-                name="ownerName"
-                value={formData.ownerName}
-                onChange={handleChange}
-                required
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit}>
+              <div className="form-grid">
+                <div className="full-width">
+                  <InputField
+                    icon={Building2}
+                    label="Clinic / Lab Name"
+                    placeholder="e.g. Apollo Healthcare"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+                
                 <InputField
-                  icon={Mail}
-                  type="email"
-                  placeholder="Email Id"
-                  name="email"
-                  value={formData.email}
+                  icon={User}
+                  label="Owner Name"
+                  placeholder="John Doe"
+                  name="ownerName"
+                  value={formData.ownerName}
                   onChange={handleChange}
                   required
                 />
+                
                 <InputField
                   icon={Phone}
-                  placeholder="Phone number"
+                  label="Phone Number"
+                  placeholder="10-digit number"
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
                   required
                 />
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="full-width">
+                  <InputField
+                    icon={Mail}
+                    label="Business Email"
+                    type="email"
+                    placeholder="doctor@example.com"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
                 <InputField
                   icon={Lock}
+                  label="Password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Password"
+                  placeholder="Min 8 chars"
                   name="ownerPassword"
                   value={formData.ownerPassword}
                   onChange={handleChange}
                   required
-                  rightElement={
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="text-slate-400 hover:text-slate-600 transition-colors"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  }
                 />
+                
                 <InputField
                   icon={Lock}
+                  label="Confirm"
                   type="password"
-                  placeholder="Confirm Password"
+                  placeholder="Repeat password"
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   required
-                  rightElement={isPasswordMatch !== null && (
-                    <div className={`flex items-center gap-1.5 text-[10px] font-bold ${isPasswordMatch ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {isPasswordMatch ? (
-                        <><Check size={12} /> Match</>
-                      ) : (
-                        <><X size={12} /> Mismatch</>
-                      )}
-                    </div>
-                  )}
                 />
-              </div>
 
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
-                  <TrendingUp size={18} />
+                <div className="signup-input-group">
+                  <label className="signup-label">Patient Volume</label>
+                  <div className="signup-input-wrapper">
+                    <div className="signup-icon"><TrendingUp size={16} /></div>
+                    <select 
+                      name="patientCount" 
+                      value={formData.patientCount} 
+                      onChange={handleChange}
+                      className="signup-select"
+                      required
+                    >
+                      <option value="">Select range</option>
+                      <option value="0-10">0 - 10 / day</option>
+                      <option value="11-30">11 - 30 / day</option>
+                      <option value="31-50">31 - 50 / day</option>
+                      <option value="51+">51+ / day</option>
+                    </select>
+                  </div>
                 </div>
-                <select
-                  name="patientCount"
-                  value={formData.patientCount}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium appearance-none"
-                  required
-                >
-                  <option value="" disabled>Patient count per day</option>
-                  <option value="0-10">0 - 10</option>
-                  <option value="11-30">11 - 30</option>
-                  <option value="31-50">31 - 50</option>
-                  <option value="51+">51+</option>
-                </select>
+
+                <div className="signup-input-group">
+                  <label className="signup-label">Current Software</label>
+                  <div className="signup-input-wrapper">
+                    <div className="signup-icon"><Monitor size={16} /></div>
+                    <input
+                      placeholder="Optional"
+                      name="previousSoftware"
+                      value={formData.previousSoftware}
+                      onChange={handleChange}
+                      className="signup-input"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <InputField
-                icon={Monitor}
-                placeholder="Previous Software (Optional)"
-                name="previousSoftware"
-                value={formData.previousSoftware}
-                onChange={handleChange}
-              />
+              {error && <div className="text-red-500 text-xs font-bold mb-3 px-1">{error}</div>}
 
-              <AnimatePresence>
-                {error && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="text-xs font-bold text-red-500 bg-red-50 p-3 rounded-xl border border-red-100"
-                  >
-                    {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <div className="flex items-start gap-3 py-2 px-1">
+              <div className="flex items-start gap-2 mb-4 px-1">
                 <input 
                   type="checkbox" 
-                  id="terms" 
                   checked={agreed} 
                   onChange={(e) => setAgreed(e.target.checked)}
-                  className="mt-1 w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                  className="mt-1"
                 />
-                <label htmlFor="terms" className="text-[11px] font-bold text-slate-500 leading-relaxed cursor-pointer select-none">
-                  I agree to the <Link to="/terms-conditions" target="_blank" className="text-blue-600 hover:underline">Terms & Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</Link>
+                <label className="text-[10px] text-gray-500 font-bold leading-tight">
+                  I agree to the <Link to="/terms-conditions" className="text-blue-600">Terms & Conditions</Link> and <Link to="/privacy-policy" className="text-blue-600">Privacy Policy</Link>
                 </label>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70 flex items-center justify-center gap-2 group"
-              >
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    Register & Start Trial
-                    <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                  </>
+              <button type="submit" disabled={loading} className="signup-submit-btn">
+                {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : (
+                  <>Start Your 14-Day Free Trial <ChevronRight size={18} /></>
                 )}
               </button>
             </form>
           ) : (
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="space-y-6"
-            >
-              <div className="text-center">
-                <p className="text-slate-600 font-medium mb-2">We've sent a 6-digit code to your WhatsApp</p>
-                <p className="text-slate-400 text-xs font-bold">Please enter the code to verify your account</p>
-              </div>
-
-              <form onSubmit={handleOtpVerify} className="space-y-6">
-                <div className="flex justify-center">
-                  <input
-                    type="text"
-                    maxLength="6"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="w-full max-w-[200px] py-4 bg-slate-50 border-2 border-slate-200 rounded-2xl text-center text-3xl font-black tracking-[0.5em] text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                    placeholder="000000"
-                    required
-                    autoFocus
-                  />
-                </div>
-
-                <AnimatePresence>
-                  {error && (
-                    <motion.div 
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="text-xs font-bold text-red-500 bg-red-50 p-3 rounded-xl border border-red-100 text-center"
-                    >
-                      {error}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <div className="space-y-3">
-                  <button
-                    type="submit"
-                    disabled={isVerifying || otp.length !== 6}
-                    className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70 flex items-center justify-center gap-2"
-                  >
-                    {isVerifying ? (
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      'Verify & Start Dashboard'
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleResendOtp}
-                    disabled={resendTimer > 0 || loading}
-                    className="w-full py-4 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-all disabled:opacity-50 text-sm"
-                  >
-                    {resendTimer > 0 
-                      ? `Resend OTP in ${resendTimer}s` 
-                      : 'Resend OTP via WhatsApp'}
-                  </button>
-                </div>
+            <div className="otp-wrapper">
+              <h3 className="otp-title">Verify Your Phone</h3>
+              <p className="text-sm text-gray-500">We've sent a code to your WhatsApp</p>
+              <form onSubmit={handleOtpVerify}>
+                <input
+                  type="text"
+                  maxLength="6"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  className="otp-input"
+                  placeholder="000000"
+                  required
+                />
+                <button type="submit" disabled={isVerifying} className="signup-submit-btn">
+                  {isVerifying ? "Verifying..." : "Verify & Get Started"}
+                </button>
               </form>
-
               <button 
-                onClick={() => setStep('form')}
-                className="w-full text-slate-400 text-xs font-bold hover:text-blue-500 transition-colors"
-                disabled={isVerifying}
+                onClick={() => setStep('form')} 
+                className="mt-4 text-xs text-blue-600 font-bold hover:underline"
               >
-                ← Back to registration
+                ← Change Details
               </button>
-            </motion.div>
+            </div>
           )}
 
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-            <p className="text-slate-500 text-sm font-medium">
-              Already have an account?{" "}
-              <Link to="/login" className="text-blue-600 font-bold hover:underline transition-all">Log In</Link>
+          <div className="signup-footer">
+            <p className="signup-footer-text">
+              Already have a practice?{" "}
+              <Link to="/login" className="signup-link">Log In</Link>
             </p>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
-      <footer className="mt-8 text-center text-slate-400 text-xs font-medium relative z-10">
-        <p>copyright @ 2026 Oviaan</p>
-      </footer>
+        <footer className="mt-4 text-center text-[10px] text-gray-400">
+          <p>© 2026 Oviaan Professional. All rights reserved.</p>
+        </footer>
+      </section>
     </div>
   );
 };

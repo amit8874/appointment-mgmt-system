@@ -40,6 +40,16 @@ import webhookRoutes from "./routes/webhook.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import whatsappCreditRoutes from "./routes/whatsappCredits.js";
 import medicineRoutes from "./routes/medicineRoutes.js";
+import emailRoutes from "./routes/emailRoutes.js";
+import complaintRoutes from "./routes/complaintRoutes.js";
+import diagnosisRoutes from "./routes/diagnosisRoutes.js";
+import investigationRoutes from "./routes/investigationRoutes.js";
+import aiRoutes from "./routes/aiRoutes.js";
+import prescriptionTemplateRoutes from "./routes/prescriptionTemplateRoutes.js";
+import { seedGlobalComplaints } from "./controllers/complaintController.js";
+import { seedDiagnosisMaster } from "./controllers/diagnosisController.js";
+import { seedMedicineMaster } from "./controllers/medicineController.js";
+import { seedInvestigationMaster } from "./controllers/investigationController.js";
 import { detectTenant } from "./middleware/tenant.js";
 
 // Load environment variables based on NODE_ENV
@@ -112,7 +122,9 @@ cloudinary.config({
 Connect Database
 -------------------------------------------------- */
 
-connectDB();
+connectDB().then(() => {
+  seedGlobalComplaints();
+});
 
 
 
@@ -245,6 +257,18 @@ app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/whatsapp-credits", whatsappCreditRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/medicines", medicineRoutes);
+app.use("/api/email", emailRoutes);
+app.use("/api/complaints", complaintRoutes);
+app.use("/api/diagnosis", diagnosisRoutes);
+app.use("/api/investigations", investigationRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/prescription-template", prescriptionTemplateRoutes);
+
+// Seed Data
+seedGlobalComplaints();
+seedDiagnosisMaster();
+seedMedicineMaster();
+seedInvestigationMaster();
 
 /* --------------------------------------------------
 Image Upload API

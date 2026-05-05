@@ -258,7 +258,7 @@ export default function App() {
 
   return (
     <>
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer position="top-right" autoClose={3000} style={{ zIndex: 10000 }} />
       {isAuthenticated && <SmartNotificationSystem />}
       {isImpersonating && <ShadowModeBanner />}
       <AnimatePresence mode="wait">

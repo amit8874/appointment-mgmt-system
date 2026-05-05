@@ -32,7 +32,7 @@ export const sendWhatsApp = async (req, res) => {
 
     // Call service to send WhatsApp message
     const result = await sendWhatsAppMessage(sanitizedPhone, message, {
-      organizationId: req.tenantId,
+      organizationId: req.tenantId || req.user?.organizationId,
       chargeCredit: true,
       messageType: 'MANUAL_MESSAGE',
       relatedEntityType: 'ManualMessage',
@@ -145,7 +145,7 @@ export const sendPrescriptionWhatsApp = async (req, res) => {
     const bodyParameters = [patientName, finalClinicName, notes];
 
     const result = await sendWhatsAppTemplate(sanitizedPhone, templateName, 'en', bodyParameters, [], {
-      organizationId: req.tenantId,
+      organizationId: req.tenantId || req.user?.organizationId,
       chargeCredit: true,
       messageType: 'PRESCRIPTION_SENT',
       relatedEntityType: 'Prescription',

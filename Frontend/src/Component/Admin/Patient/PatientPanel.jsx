@@ -1,4 +1,3 @@
-import WhatsAppModal from "../../../components/common/WhatsAppModal";
 import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download, MessageSquare } from "lucide-react";
 import { exportPatientsToExcel } from "../../../utils/excelExport";
 import React, { useEffect, useMemo, useState, useRef } from "react";
@@ -32,15 +31,10 @@ const PatientPanel = ({
   const [statusFilter, setStatusFilter] = useState("All");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
-  const [whatsappModalOpen, setWhatsappModalOpen] = useState(false);
-  const [selectedPatientForWhatsapp, setSelectedPatientForWhatsapp] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
-  const handleWhatsappClick = (patient) => {
-    setSelectedPatientForWhatsapp(patient);
-    setWhatsappModalOpen(true);
-  };
+
 
   // Filter patients
   const filteredPatients = useMemo(() => {
@@ -559,7 +553,13 @@ const PatientPanel = ({
                       {p.patientId || p.id || '-'}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{p.name || '-'}</div>
+                      <button
+                        onClick={() => handleViewProfile(p)}
+                        className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 hover:underline transition-colors text-left"
+                        title="View Patient Profile"
+                      >
+                        {p.name || '-'}
+                      </button>
                       {p.lastShortId && (
                         <div className="text-[10px] text-blue-500 font-bold uppercase tracking-tighter">Last Appt ID: {p.lastShortId}</div>
                       )}
@@ -593,13 +593,7 @@ const PatientPanel = ({
                     </td>
                     <td className="px-6 py-4 text-sm relative">
                       <div className="flex items-center gap-2" ref={menuRef}>
-                        <button 
-                          onClick={() => handleWhatsappClick(p)}
-                          className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600 dark:bg-green-900/20 dark:hover:bg-green-900/30 dark:text-green-400 transition-colors"
-                          title="Send prescription to patient on their WhatsApp"
-                        >
-                          <MessageSquare className="h-4 w-4" />
-                        </button>
+
                         <button
                           onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
                           className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
@@ -773,12 +767,7 @@ const PatientPanel = ({
         onConfirm={confirmMarkAsPaid}
         patientName={selectedPatientForPayment?.name}
       />
-      {/* WhatsApp Modal */}
-      <WhatsAppModal
-        isOpen={whatsappModalOpen}
-        onClose={() => setWhatsappModalOpen(false)}
-        patient={selectedPatientForWhatsapp}
-      />
+
 
     </motion.div>
   );

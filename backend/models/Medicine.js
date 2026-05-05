@@ -1,45 +1,35 @@
 import mongoose from 'mongoose';
 
-/**
- * Global Medicine Database
- * - NOT scoped to any organization/tenant
- * - Shared across ALL clinics using the platform
- * - Only stores medicine names for autocomplete/recommendation
- */
 const medicineSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-      index: true,
-    },
-    // Normalized name for case-insensitive search
-    nameLower: {
-      type: String,
-      index: true,
-    },
-    // How many times this medicine has been used (for ranking suggestions)
-    usageCount: {
-      type: Number,
-      default: 1,
-    },
+    name: { type: String, required: true, trim: true }, // Brand Name
+    genericName: { type: String, trim: true },        // Salt/Generic
+    salt: { type: String, trim: true },               // Detailed salt
+    form: { type: String, enum: ['Tablet', 'Capsule', 'Syrup', 'Injection', 'Cream', 'Ointment', 'Drops', 'Inhaler', 'Powder', 'Gel', 'Lotion', 'Soap', 'Spray', 'Syringe', 'Other'], default: 'Tablet' },
+    strength: { type: String, trim: true },           // e.g. 500mg, 5ml
+    category: { type: String, trim: true },           // e.g. Antibiotic, Analgesic
+    keywords: [String],
+    
+    // Auto-fill defaults
+    defaultDose: { type: String },
+    defaultWhen: { type: String },
+    defaultFrequency: { type: String },
+    defaultDuration: { type: String },
+    
+    isCommon: { type: Boolean, default: false },
+    usageCount: { type: Number, default: 0 },
+    
+    isGlobal: { type: Boolean, default: true },
+    organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', default: null },
+    isActive: { type: Boolean, default: true }
   },
   {
     timestamps: true,
   }
 );
 
-// Auto-set nameLower before save
-medicineSchema.pre('save', function (next) {
-  this.nameLower = this.name.toLowerCase();
-  next();
-});
-
-// Text index for fast search
-medicineSchema.index({ name: 'text', nameLower: 1 });
+medicineSchema.index({ name: 'text', genericName: 'text', salt: 'text', keywords: 'text' });
+medicineSchema.index({ name: 1, genericName: 1 });
 
 const Medicine = mongoose.model('Medicine', medicineSchema);
-
 export default Medicine;

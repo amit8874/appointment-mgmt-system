@@ -114,8 +114,11 @@
 
   /* Show only the invoice area */
   .print-only,
+  .print-only *,
   #invoice-print-area,
-  #invoice-print-area * {
+  #invoice-print-area *,
+  #prescription-print-area,
+  #prescription-print-area * {
     visibility: visible !important;
   }
 

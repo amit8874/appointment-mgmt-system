@@ -1,5 +1,7 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import FormData from 'form-data';
 import { ensureOrganizationHasCredits, deductCredits } from './whatsappCreditService.js';
 
 dotenv.config();
@@ -324,7 +326,7 @@ export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, m
             {
               type: mediaType,
               [mediaType]: {
-                link: mediaUrl,
+                ...(options.mediaId ? { id: options.mediaId } : { link: mediaUrl }),
                 ...(mediaType === 'document' ? { filename } : {})
               }
             }
@@ -386,3 +388,47 @@ export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, m
     throw error;
   }
 };
+
+/**
+ * Uploads a local file to the WhatsApp Cloud API media endpoint.
+ * 
+ * @param {string} filePath - Local absolute path to the file
+ * @param {string} mimeType - The file's MIME type (e.g., 'application/pdf')
+ * @returns {Promise<string>} - The returned mediaId from Meta
+ */
+export const uploadWhatsAppMediaFromFile = async (filePath, mimeType = "application/pdf") => {
+  const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+  const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+
+  if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+    throw new Error("WHATSAPP_TOKEN or PHONE_NUMBER_ID is missing.");
+  }
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found at path: ${filePath}`);
+  }
+
+  const url = `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/media`;
+
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('file', fs.createReadStream(filePath));
+  form.append('type', mimeType);
+
+  try {
+    const response = await axios.post(url, form, {
+      headers: {
+        ...form.getHeaders(),
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+      },
+    });
+
+    const mediaId = response.data.id;
+    console.log(`[WhatsApp Media Upload] Success mediaId: ${mediaId}`);
+    return mediaId;
+  } catch (error) {
+    console.error(`[WhatsApp Media Upload] Error:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+

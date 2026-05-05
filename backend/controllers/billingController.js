@@ -8,7 +8,8 @@ import CancelledAppointment from '../models/CancelledAppointment.js';
 import Appointment from '../models/Appointment.js';
 import Organization from '../models/Organization.js';
 import InvoiceTemplate from '../models/InvoiceTemplate.js';
-import { sendWhatsAppMediaTemplate } from '../services/whatsappService.js';
+import { sendWhatsAppMediaTemplate, uploadWhatsAppMediaFromFile } from '../services/whatsappService.js';
+import fs from 'fs';
 import { generateInvoicePDF } from '../services/pdfService.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { sanitizePhone } from '../utils/phoneUtils.js';
@@ -327,13 +328,12 @@ export const sendWhatsAppInvoice = async (req, res) => {
     console.log(`[WhatsApp Billing] Generating PDF for invoice ${bill.billId}...`);
     const pdfPath = await generateInvoicePDF(bill, org, template);
     
-    // 2. Upload PDF to Cloudinary to ensure it has a public URL
+    // 2. Upload PDF to Cloudinary (keeping it for debugging as requested)
     console.log(`[WhatsApp Billing] Uploading PDF to Cloudinary for ${bill.billId}...`);
-    
     let invoicePdfUrl = '';
     try {
       const uploadResult = await cloudinary.uploader.upload(pdfPath, {
-        resource_type: 'image', // Cloudinary treats PDF as image for better handling/preview
+        resource_type: 'image',
         public_id: `invoices/Invoice-${bill.billId}-${Date.now()}`,
         folder: 'oviaan_invoices',
         access_mode: 'public'
@@ -341,20 +341,41 @@ export const sendWhatsAppInvoice = async (req, res) => {
       invoicePdfUrl = uploadResult.secure_url;
       console.log(`[WhatsApp Billing] Cloudinary Upload Success: ${invoicePdfUrl}`);
     } catch (uploadError) {
-      console.error('[WhatsApp Billing] Cloudinary Upload Failed:', uploadError);
-      throw new Error(`Failed to upload invoice to cloud storage: ${uploadError.message}`);
+      console.warn('[WhatsApp Billing] Cloudinary Upload Failed (continuing anyway):', uploadError);
     }
+
+    // NEW: Upload PDF directly to WhatsApp Media API
+    console.log(`[WhatsApp Invoice] Local PDF Path: ${pdfPath}`);
+    console.log(`[WhatsApp Invoice] Public PDF URL: ${invoicePdfUrl}`);
     
+    let mediaId = null;
+    try {
+      if (!fs.existsSync(pdfPath)) {
+        throw new Error(`Local PDF file not found at ${pdfPath}`);
+      }
+      console.log(`[WhatsApp Billing] Uploading local PDF to WhatsApp Media API...`);
+      mediaId = await uploadWhatsAppMediaFromFile(pdfPath, "application/pdf");
+      console.log(`[WhatsApp Invoice] Uploaded Media ID: ${mediaId}`);
+    } catch (mediaError) {
+      console.error('[WhatsApp Invoice] Media upload failed:', mediaError);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Invoice PDF upload to WhatsApp failed. Please try again." 
+      });
+    }
+
+    console.log(`[WhatsApp Invoice] Sending invoice template using media_id`);
     const result = await sendWhatsAppMediaTemplate(
       sanitizedPhone,
       invoiceTemplateName,
-      invoicePdfUrl,
+      invoicePdfUrl, // Fallback link
       'document',
       'en',
       bodyParameters,
       `Invoice-${bill.billId}.pdf`,
       {
-        organizationId: req.tenantId,
+        mediaId, // Use uploaded media ID
+        organizationId: bill.organizationId || req.tenantId || req.user?.organizationId,
         chargeCredit: true,
         messageType: 'INVOICE_SENT',
         relatedEntityType: 'Billing',
@@ -364,7 +385,9 @@ export const sendWhatsAppInvoice = async (req, res) => {
           source: 'billingController',
           templateName: invoiceTemplateName,
           billId: bill.billId,
-          publicUrl: invoicePdfUrl
+          publicUrl: invoicePdfUrl,
+          mediaUploadMode: "media_id",
+          mediaId
         },
         io: req.app.get('io')
       }

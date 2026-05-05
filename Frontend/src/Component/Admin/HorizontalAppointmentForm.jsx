@@ -780,34 +780,18 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-semibold">
-              Symptoms / Reason for Visit <span className="text-gray-400 font-normal italic">(Optional)</span>
-            </label>
-            <textarea
-              name="symptoms"
-              value={formData.symptoms}
-              onChange={handleChange}
-              placeholder="E.g., Severe headache and fever for 2 days. Known allergy to penicillin."
-              rows="2"
-              className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 resize-none"
-            ></textarea>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-semibold text-blue-600">
-              Administrative Notes / Instructions <span className="text-gray-400 font-normal italic">(Sent to WhatsApp)</span>
-            </label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              placeholder="Add specific notes for the patient e.g., Please carry your previous reports."
-              rows="2"
-              className="w-full border border-blue-200 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 resize-none"
-            ></textarea>
-          </div>
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-semibold">
+            Symptoms / Reason for Visit <span className="text-gray-400 font-normal italic">(Optional)</span>
+          </label>
+          <textarea
+            name="symptoms"
+            value={formData.symptoms}
+            onChange={handleChange}
+            placeholder="E.g., Severe headache and fever for 2 days. Known allergy to penicillin."
+            rows="2"
+            className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 resize-none"
+          ></textarea>
         </div>
 
         {/* Available Slots / Billing Section */}

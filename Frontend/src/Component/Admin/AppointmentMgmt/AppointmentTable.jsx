@@ -31,9 +31,11 @@ import AppointmentManagement from "./AppointmentManagment.jsx";
 import Pagination from "../../../components/common/Pagination";
 import { toast } from "react-toastify";
 import { useAuth } from "../../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export default function AppointmentTable({ rebookData }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -124,28 +126,7 @@ export default function AppointmentTable({ rebookData }) {
     }
   };
 
-  // Handle WhatsApp Notify
-  const handleWhatsAppNotify = async (app) => {
-    const phone = app.patientPhone?.replace(/\D/g, '');
-    if (!phone) return toast.warning('No phone number available for this patient.');
-    
-    // For prescriptions, we want to use the template
-    const notes = app.visitNotes || app.symptoms || app.reason || "Follow-up required";
-    
-    try {
-      setUpdatingId(app._id);
-      const clinicName = user?.organization?.name || user?.organizationId?.name || "Our Clinic";
-      const res = await whatsappApi.sendPrescription(phone, app.patientName, notes, clinicName);
-      if (res.success) {
-        toast.success(`Prescription sent to ${app.patientName} via WhatsApp!`);
-      }
-    } catch (err) {
-      console.error('WhatsApp Error:', err);
-      toast.error("Failed to send WhatsApp. Check if template is approved.");
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+
 
   // Handle status toggle (One-Click Arrived -> Completed)
   const handleStatusToggle = (appointment) => {
@@ -526,7 +507,21 @@ export default function AppointmentTable({ rebookData }) {
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <p className="text-gray-700 font-medium">{appointment.patientName || 'N/A'}</p>
+                                  <button
+                                    onClick={() => {
+                                      if (!appointment.patientId) return;
+                                      const role = user?.role;
+                                      if (role === 'receptionist') {
+                                        navigate(`/receptionist/patient/${appointment.patientId}`);
+                                      } else {
+                                        navigate(`/admin/patient/${appointment.patientId}`);
+                                      }
+                                    }}
+                                    className="text-gray-700 font-medium hover:text-blue-600 hover:underline transition-colors text-left"
+                                    title="View Patient Profile"
+                                  >
+                                    {appointment.patientName || 'N/A'}
+                                  </button>
                                     <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100">
                                       ID: {appointment.shortId}
                                     </span>
@@ -620,16 +615,7 @@ export default function AppointmentTable({ rebookData }) {
                                   </button>
                                 )}
 
-                                {/* WhatsApp Notify */}
-                                {appointment.patientPhone && appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
-                                    <button 
-                                      onClick={() => handleWhatsAppNotify(appointment)}
-                                      className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors border-l border-gray-100 ml-1 pl-3"
-                                      title="Send prescription to patient on their WhatsApp"
-                                    >
-                                      <MessageSquare className="w-4 h-4" />
-                                    </button>
-                                )}
+                                {/* Action buttons end */}
                               </div>
                           </td>
                         </tr>
@@ -712,7 +698,22 @@ export default function AppointmentTable({ rebookData }) {
                       <User className="w-6 h-6 text-green-500" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-700">{selectedAppointment.patientName || 'N/A'}</p>
+                      <button
+                        onClick={() => {
+                          if (!selectedAppointment.patientId) return;
+                          closeModal();
+                          const role = user?.role;
+                          if (role === 'receptionist') {
+                            navigate(`/receptionist/patient/${selectedAppointment.patientId}`);
+                          } else {
+                            navigate(`/admin/patient/${selectedAppointment.patientId}`);
+                          }
+                        }}
+                        className="font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors text-left"
+                        title="View Patient Profile"
+                      >
+                        {selectedAppointment.patientName || 'N/A'}
+                      </button>
                       <p className="text-sm text-gray-500">{selectedAppointment.patientAge ? `${selectedAppointment.patientAge} years` : ''}</p>
                       <p className="text-sm text-gray-500">{selectedAppointment.patientPhone}</p>
                       <p className="text-sm text-gray-500">{selectedAppointment.patientEmail}</p>

@@ -2,8 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
-import { Eye, EyeOff, Mail, Phone, Lock, ChevronRight, User as UserIcon, Shield, Headset, Store } from 'lucide-react';
+import { 
+  Eye, EyeOff, Mail, Phone, Lock, ChevronRight, 
+  User as UserIcon, Shield, Headset, Store, 
+  CheckCircle, Users, Activity, MessageSquare 
+} from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
+import "./Login.css";
+import heroImage from "../assets/img/login-hero.png";
 
 const Login = () => {
   const location = useLocation();
@@ -12,7 +18,7 @@ const Login = () => {
 
   const params = new URLSearchParams(location.search);
   const initialRole = params.get("role") || "patient";
-  const [role, setRole] = useState(initialRole); // 'patient', 'staff', 'admin'
+  const [role, setRole] = useState(initialRole);
 
   const [isOtpMode, setIsOtpMode] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -26,7 +32,6 @@ const Login = () => {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      // Use the ACTUAL role from the user object in context, not just the tab state
       const effectiveRole = user.role?.toLowerCase();
       const dashboardPath = (effectiveRole === "admin" || effectiveRole === "orgadmin" || effectiveRole === "superadmin") ? "/admin-dashboard" :
         (effectiveRole === "receptionist" || effectiveRole === "doctor") ? "/receptionist" :
@@ -39,7 +44,7 @@ const Login = () => {
   const handleSendOtp = async (e) => {
     e.preventDefault();
     if (!agreed) {
-      setErrorMessage("Please agree to the Terms and Conditions and Privacy Policy to continue.");
+      setErrorMessage("Please agree to the Terms & Conditions.");
       return;
     }
     if (!identifier) {
@@ -47,7 +52,6 @@ const Login = () => {
       return;
     }
     
-    // Normalize mobile: remove non-digits
     const normalizedMobile = identifier.replace(/\D/g, '');
     if (normalizedMobile.length !== 10) {
       setErrorMessage("Please enter a valid 10-digit mobile number.");
@@ -75,7 +79,7 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!agreed) {
-      setErrorMessage("Please agree to the Terms and Conditions and Privacy Policy to continue.");
+      setErrorMessage("Please agree to the Terms & Conditions.");
       return;
     }
     setErrorMessage("");
@@ -101,7 +105,6 @@ const Login = () => {
         const { user: userData, token } = response.data;
         login({ ...userData, token });
         
-        // Final dashboard mapping based on actual returned role
         const finalRole = userData.role.toLowerCase();
         const dashboardPath = (finalRole === "admin" || finalRole === "orgadmin" || finalRole === "superadmin") ? "/admin-dashboard" :
           (finalRole === "receptionist" || finalRole === "doctor") ? "/receptionist" :
@@ -118,10 +121,10 @@ const Login = () => {
   };
 
   const roles = [
-    { id: 'patient', label: 'User', icon: <UserIcon size={18} /> },
-    { id: 'staff', label: 'Staff', icon: <Headset size={18} /> },
-    { id: 'admin', label: 'Admin', icon: <Shield size={18} /> },
-    { id: 'pharmacy', label: 'Pharmacy', icon: <Store size={18} /> },
+    { id: 'patient', label: 'Patient', icon: <UserIcon size={14} /> },
+    { id: 'staff', label: 'Doctor/Staff', icon: <Headset size={14} /> },
+    { id: 'admin', label: 'Admin', icon: <Shield size={14} /> },
+    { id: 'pharmacy', label: 'Pharmacy', icon: <Store size={14} /> },
   ];
 
   const toggleLoginMode = () => {
@@ -132,32 +135,78 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f4f9] flex flex-col items-center justify-center p-4">
-      {/* Background blobs for premium feel */}
-      <div className="fixed top-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-400/10 rounded-full blur-[100px] pointer-events-none" />
-      <div className="fixed bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-400/10 rounded-full blur-[100px] pointer-events-none" />
+    <div className="login-page-container">
+      {/* Absolute Brand Header */}
+      <Link to="/" className="signup-brand">
+        <img src="/logo.png" alt="Oviaan" className="brand-logo" />
+        <span className="brand-name">Oviaan</span>
+      </Link>
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative z-10"
-      >
-        <div className="p-8 md:p-10">
-          {/* Logo & Header */}
-          <div className="flex flex-col items-center mb-8 text-center">
-             <Link to="/" className="flex items-center gap-2 mb-8 group">
-                <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto group-hover:scale-105 transition-transform" />
-             </Link>
-             <h2 className="text-2xl font-black text-slate-800 tracking-tight">{isOtpMode ? "Login with OTP" : "Log In"}</h2>
-             <p className="text-slate-400 font-medium text-sm mt-1">
-               {isOtpMode 
-                 ? "We'll send a code to your registered mobile number." 
-                 : "Welcome back! Please enter your details."}
-             </p>
+      {/* Left Hero Section */}
+      <section className="login-hero">
+        <div className="hero-image-wrapper">
+          <img src={heroImage} alt="Modern Healthcare" className="hero-image" />
+        </div>
+        
+        <motion.div 
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="hero-content"
+        >
+          <h1 className="hero-title">Elevate Your Practice with Oviaan</h1>
+          <p className="hero-subtitle">
+            Experience the future of healthcare management. Our all-in-one EMR platform 
+            empowers 15,000+ doctors to deliver superior patient care across 20+ specialties.
+          </p>
+
+          <div className="hero-stats">
+            {[
+              { icon: <Users className="text-blue-300" />, value: "15k+", label: "Trusted Doctors" },
+              { icon: <Activity className="text-emerald-300" />, value: "2M+", label: "Digital Records" },
+              { icon: <CheckCircle className="text-blue-300" />, value: "99.9%", label: "System Uptime" },
+              { icon: <MessageSquare className="text-emerald-300" />, value: "24/7", label: "Expert Support" }
+            ].map((stat, i) => (
+              <motion.div 
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 + (i * 0.1) }}
+                className="stat-card"
+              >
+                <div className="mb-2">{stat.icon}</div>
+                <span className="stat-value">{stat.value}</span>
+                <span className="stat-label">{stat.label}</span>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Decorative elements */}
+        <div className="absolute top-20 left-20 w-32 h-32 bg-blue-400/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-40 right-20 w-48 h-48 bg-emerald-400/10 rounded-full blur-3xl" />
+      </section>
+
+      {/* Right Form Section */}
+      <section className="login-form-section">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="login-card"
+        >
+
+          <div className="form-header">
+            <h2 className="form-title">{isOtpMode ? "Welcome Back" : "Sign In"}</h2>
+            <p className="form-subtitle">
+              {isOtpMode 
+                ? "Enter your mobile to receive an OTP." 
+                : "Enter your credentials to access your dashboard."}
+            </p>
           </div>
 
-          {/* Role Tabs */}
-          <div className="flex p-1 bg-slate-100 rounded-2xl mb-8">
+          {/* Role Selection */}
+          <div className="role-selector">
             {roles.map((r) => (
               <button
                 key={r.id}
@@ -165,71 +214,63 @@ const Login = () => {
                   setRole(r.id);
                   setErrorMessage("");
                 }}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-xl transition-all ${
-                  role === r.id 
-                    ? "bg-white text-blue-600 shadow-sm" 
-                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
-                }`}
+                className={`role-btn ${role === r.id ? "active" : ""}`}
               >
                 {r.icon}
-                {r.label}
+                <span className="hidden md:inline">{r.label}</span>
               </button>
             ))}
           </div>
 
-          {/* Login Form */}
-          <form 
-            onSubmit={isOtpMode && !otpSent ? handleSendOtp : handleLogin} 
-            className="space-y-5"
-          >
-            <div className="space-y-2">
-              <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
-                {isOtpMode ? "Mobile Number" : "Email / Mobile Number"}
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
-                  {isOtpMode || !identifier.includes('@') ? <Phone size={18} /> : <Mail size={18} />}
+          <form onSubmit={isOtpMode && !otpSent ? handleSendOtp : handleLogin}>
+            {/* Identifier Input */}
+            <div className="input-group">
+              <label className="input-label">{isOtpMode ? "Phone Number" : "Email or Phone"}</label>
+              <div className="input-wrapper">
+                <div className="input-icon">
+                  {isOtpMode || !identifier.includes('@') ? <Phone size={20} /> : <Mail size={20} />}
                 </div>
                 <input
                   type={isOtpMode ? "tel" : "text"}
-                  placeholder={isOtpMode ? "10-digit mobile number" : (role === 'admin' ? "Email Address" : "Email or Phone number")}
+                  placeholder={isOtpMode ? "10-digit number" : "Your email or phone"}
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
+                  className="login-input"
                   required
                   disabled={otpSent}
                 />
               </div>
             </div>
 
+            {/* Password or OTP Input */}
             {!isOtpMode ? (
-              <div className="space-y-2">
-                <div className="flex justify-between items-center ml-1">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Password</label>
+              <div className="input-group">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="input-label m-0">Password</label>
                   <button 
-                    type="button"
+                    type="button" 
                     onClick={toggleLoginMode}
-                    className="text-xs font-bold text-blue-600 hover:underline transition-all"
+                    className="forgot-password text-xs"
                   >
-                    Login with OTP
+                    Login with OTP?
                   </button>
                 </div>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
-                    <Lock size={18} />
+                <div className="input-wrapper">
+                  <div className="input-icon">
+                    <Lock size={20} />
                   </div>
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
+                    className="login-input"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                    className="password-toggle"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -237,44 +278,43 @@ const Login = () => {
               </div>
             ) : otpSent && (
               <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="space-y-2"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="input-group"
               >
-                <div className="flex justify-between items-center ml-1">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">6-Digit OTP</label>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="input-label m-0">6-Digit OTP</label>
                   <button 
-                    type="button"
+                    type="button" 
                     onClick={() => setOtpSent(false)}
-                    className="text-xs font-bold text-blue-600 hover:underline"
+                    className="forgot-password text-xs"
                   >
                     Change Number
                   </button>
                 </div>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
-                    <Shield size={18} />
+                <div className="input-wrapper">
+                  <div className="input-icon">
+                    <Shield size={20} />
                   </div>
                   <input
                     type="text"
                     maxLength="6"
-                    placeholder="Enter 6-digit code"
+                    placeholder="Enter OTP"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium tracking-[0.5em] text-center"
+                    className="login-input text-center tracking-[0.5em] font-bold"
                     required
                   />
                 </div>
-                <p className="text-[10px] text-slate-400 text-center font-medium">OTP sent to your WhatsApp. Code expires in 5 minutes.</p>
               </motion.div>
             )}
 
             {isOtpMode && !otpSent && (
-              <div className="text-right">
+              <div className="mb-6 text-right">
                 <button 
-                  type="button"
+                  type="button" 
                   onClick={toggleLoginMode}
-                  className="text-xs font-bold text-blue-600 hover:underline transition-all"
+                  className="forgot-password text-xs"
                 >
                   Back to Password Login
                 </button>
@@ -283,61 +323,61 @@ const Login = () => {
 
             {errorMessage && (
               <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="text-xs font-bold text-red-500 bg-red-50 p-3 rounded-xl border border-red-100"
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                className="error-message"
               >
                 {errorMessage}
               </motion.div>
             )}
 
-            <div className="flex items-center gap-3 py-2 px-1">
-              <input 
-                type="checkbox" 
-                id="terms" 
-                checked={agreed} 
-                onChange={(e) => setAgreed(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-slate-300 rounded-lg focus:ring-blue-500 cursor-pointer"
-              />
-              <label htmlFor="terms" className="text-xs font-bold text-slate-500 leading-tight cursor-pointer select-none">
-                I agree to the <Link to="/terms-conditions" target="_blank" className="text-blue-600 hover:underline">Terms & Conditions</Link> and <Link to="/privacy-policy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</Link>
+            <div className="form-footer">
+              <label className="remember-me">
+                <input 
+                  type="checkbox" 
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                />
+                <span>I agree to <Link to="/terms-conditions" className="text-blue-600">Terms</Link></span>
               </label>
+              {!isOtpMode && (
+                <Link to="/forgot-password" title="Coming soon" className="forgot-password cursor-not-allowed opacity-50">Forgot Password?</Link>
+              )}
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70 flex items-center justify-center gap-2 group"
+              className="login-submit-btn group"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  {isOtpMode && !otpSent ? "Send OTP" : (isOtpMode ? "Verify & Log In" : "Log In")}
-                  <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                  {isOtpMode && !otpSent ? "Send OTP" : "Continue"}
+                  <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Sign Up Link */}
-          <div className="mt-8 text-center">
-            <p className="text-slate-500 text-sm font-medium">
-              Don't have an account?{" "}
-              <Link to="/register-organization" className="text-blue-600 font-bold hover:underline transition-all">Sign Up</Link>
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-500">
+              New to Oviaan?{" "}
+              <Link to="/register-organization" className="text-blue-600 font-bold hover:underline">Get Started</Link>
             </p>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
-      {/* Footer info */}
-      <footer className="mt-8 text-center text-slate-400 text-xs font-medium relative z-10 pb-4">
-        <p>Copyright @ 2026 Oviaan Professional</p>
-        <div className="flex gap-4 justify-center mt-2">
-          <Link to="/privacy-policy" className="hover:text-blue-500 transition-colors">Privacy Policy</Link>
-          <Link to="/terms-conditions" className="hover:text-blue-500 transition-colors">Terms of Service</Link>
-        </div>
-      </footer>
+        <footer className="mt-2 text-center text-xs text-gray-400">
+          <p>© 2026 Oviaan Professional. All rights reserved.</p>
+          <div className="mt-1 flex gap-4 justify-center">
+            <Link to="/privacy-policy" className="hover:text-blue-600">Privacy Policy</Link>
+            <Link to="/terms-conditions" className="hover:text-blue-600">Terms of Service</Link>
+          </div>
+        </footer>
+      </section>
     </div>
   );
 };

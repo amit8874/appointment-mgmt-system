@@ -1037,16 +1037,108 @@ export const whatsappCreditsApi = {
   }
 };
 
+export const emailApi = {
+  sendPrescription: async (emailData) => {
+    const { data } = await api.post('/email/send-prescription', emailData);
+    return data;
+  }
+};
+
+export const complaintApi = {
+  getMaster: async () => {
+    const { data } = await api.get('/complaints/master');
+    return data;
+  },
+  addMaster: async (complaintData) => {
+    const { data } = await api.post('/complaints/master', complaintData);
+    return data;
+  }
+};
+
+export const diagnosisApi = {
+  getMaster: async (params = {}) => {
+    const { data } = await api.get('/diagnosis/master', { params });
+    return data;
+  },
+  search: async (q, specialty) => {
+    const { data } = await api.get('/diagnosis/search', { params: { q, specialty } });
+    return data;
+  },
+  addMaster: async (diagnosisData) => {
+    const { data } = await api.post('/diagnosis/master', diagnosisData);
+    return data;
+  }
+};
+
 // Global Medicine Database API — shared across all clinics
 export const medicineApi = {
   // Search medicines by name (for autocomplete)
-  search: async (query) => {
-    const { data } = await api.get('/medicines/search', { params: { q: query } });
+  search: async (q) => {
+    const { data } = await api.get('/medicines/search', { params: { q } });
     return data;
   },
   // Save medicine names to global DB after a pharmacy bill is saved
   bulkSave: async (names) => {
     const { data } = await api.post('/medicines/bulk-save', { names });
+    return data;
+  },
+  getMaster: async () => {
+    const { data } = await api.get('/medicines/master');
+    return data;
+  },
+  addMaster: async (medicineData) => {
+    const { data } = await api.post('/medicines/master', medicineData);
+    return data;
+  }
+};
+
+export const aiApi = {
+  translateAdvice: async (translationData) => {
+    const { data } = await api.post('/ai/translate-advice', translationData);
+    return data;
+  },
+  improveAdvice: async (improvementData) => {
+    const { data } = await api.post('/ai/improve-advice', improvementData);
+    return data;
+  }
+};
+
+export const prescriptionTemplateApi = {
+  save: async (formData) => {
+    const { data } = await api.post('/prescription-template/save', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return data;
+  },
+  list: async (organizationId) => {
+    const { data } = await api.get(`/prescription-template/list/${organizationId}`);
+    return data;
+  },
+  getDefault: async (organizationId) => {
+    const { data } = await api.get(`/prescription-template/default/${organizationId}`);
+    return data;
+  },
+  generatePdf: async (pdfData) => {
+    const { data } = await api.post('/prescription-template/generate-pdf', pdfData, {
+      responseType: 'blob' // Important for receiving binary PDF data
+    });
+    return data;
+  }
+};
+
+export const investigationApi = {
+  getMaster: async () => {
+    const { data } = await api.get('/investigations/master');
+    return data;
+  },
+  search: async (q) => {
+    const { data } = await api.get('/investigations/search', { params: { q } });
+    return data;
+  },
+  addMaster: async (investigationData) => {
+    const { data } = await api.post('/investigations/master', investigationData);
     return data;
   }
 };
