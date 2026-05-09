@@ -8,10 +8,10 @@ import Pagination from '../../components/common/Pagination';
 const UserManagementPanel = ({ limits }) => {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
-  
+
   const receptionistCount = users.filter(u => u.role === 'receptionist').length;
   const doctorCount = users.filter(u => u.role === 'doctor').length;
-  
+
   const isReceptionistFull = receptionistCount >= (limits?.receptionists || 1) && limits?.receptionists !== -1;
   const isDoctorFull = doctorCount >= (limits?.doctors || 1) && limits?.doctors !== -1;
 
@@ -157,12 +157,12 @@ const UserManagementPanel = ({ limits }) => {
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-700">
+          <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-700 md:pl-10 transition-all">
             User Management
           </h1>
-          <p className="text-slate-500 text-sm mt-1 font-medium text-slate-400">Manage Doctors, Receptionists and Patients</p>
+          <p className="text-slate-500 text-sm mt-1 font-medium text-slate-400 md:pl-10">Manage Doctors, Receptionists and Patients</p>
         </div>
-        <div 
+        <div
           className="group relative"
           title={isFull ? `Staff limit reached for your ${user?.organizationId?.planName || 'current'} plan. Please upgrade to add more.` : ""}
         >
@@ -170,8 +170,8 @@ const UserManagementPanel = ({ limits }) => {
             onClick={() => !isFull && setIsModalOpen(true)}
             disabled={isFull}
             className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all shadow-lg active:scale-95 group 
-              ${isFull 
-                ? "bg-slate-400 cursor-not-allowed opacity-75 text-white shadow-none" 
+              ${isFull
+                ? "bg-slate-400 cursor-not-allowed opacity-75 text-white shadow-none"
                 : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/25"}`}
           >
             {isFull ? (
@@ -233,11 +233,10 @@ const UserManagementPanel = ({ limits }) => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-gray-300">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                          userItem.role === 'doctor' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
-                          userItem.role === 'receptionist' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' :
-                          'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
-                        }`}>
+                        <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${userItem.role === 'doctor' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
+                            userItem.role === 'receptionist' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' :
+                              'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                          }`}>
                           {userItem.role}
                         </span>
                       </td>
@@ -258,7 +257,7 @@ const UserManagementPanel = ({ limits }) => {
                 </tbody>
               </table>
             </div>
-            <Pagination 
+            <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               onPageChange={setCurrentPage}
@@ -307,7 +306,7 @@ const UserManagementPanel = ({ limits }) => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
                     {formData.role === 'patient' ? 'Search & Select Patient' : 'Full Name'}
                   </label>
-                  
+
                   {formData.role === 'patient' ? (
                     <div className="space-y-3">
                       <div className="relative">
@@ -358,7 +357,7 @@ const UserManagementPanel = ({ limits }) => {
                               <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Selected Clinical Record</p>
                             </div>
                           </div>
-                          <button 
+                          <button
                             type="button"
                             onClick={() => { setSelectedPatient(null); setFormData(p => ({ ...p, name: '', mobile: '' })); }}
                             className="p-1 text-blue-400 hover:text-blue-600 transition-colors"

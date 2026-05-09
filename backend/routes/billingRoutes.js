@@ -9,7 +9,12 @@ import {
   deleteBill,
   getBillById,
   createPOSBill,
-  sendWhatsAppInvoice
+  sendWhatsAppInvoice,
+  getBillsByPatient,
+  downloadInvoicePDF,
+  updateBill,
+  generatePatientStatement,
+  sendWhatsAppStatement
 } from '../controllers/billingController.js';
 
 const router = express.Router();
@@ -24,14 +29,17 @@ router.get('/', getAllBills);
 // GET billing stats
 router.get('/stats', getBillingStats);
 
+// GET billing records for a specific patient
+router.get('/patient/:patientId', getBillsByPatient);
+
 // CREATE new POS bill (Fast checkout, stock deduction)
 router.post('/pos', createPOSBill);
 
 // CREATE new standard bill
 router.post('/', createBill);
 
-// UPDATE bill status
-router.put('/:id', updateBillStatus);
+// UPDATE bill (Full update)
+router.put('/:id', updateBill);
 
 // DELETE bill
 router.delete('/:id', deleteBill);
@@ -41,5 +49,12 @@ router.get('/:id', getBillById);
 
 // SEND Invoice via WhatsApp
 router.post('/:id/send-whatsapp', sendWhatsAppInvoice);
+
+// GET/GENERATE Invoice PDF
+router.get('/:id/pdf', downloadInvoicePDF);
+
+// Patient Statement Routes
+router.post('/patient/:patientId/statement', generatePatientStatement);
+router.post('/patient/:patientId/statement/whatsapp', sendWhatsAppStatement);
 
 export default router;

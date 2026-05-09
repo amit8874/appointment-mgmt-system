@@ -111,7 +111,9 @@ const Login = () => {
           (finalRole === "pharmacy") ? "/pharmacy/dashboard" :
             "/patient-dashboard";
         
-        navigate(dashboardPath, { replace: true });
+        // Use window.location.href for an "instant" and "guaranteed" redirect
+        // to avoid any SPA state sync issues during the login transition
+        window.location.href = dashboardPath;
       }
     } catch (error) {
       setErrorMessage(error.response?.data?.message || 'Login failed. Please check your credentials.');

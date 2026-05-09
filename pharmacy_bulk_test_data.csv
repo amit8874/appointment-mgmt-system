@@ -1,0 +1,21 @@
+Medicine Name,Generic Name,Manufacturer,Category,Type,Dose,Pack Size,Unit,HSN Code,GST %,MRP,Purchase Price,Selling Price,Opening Stock,Batch No,Expiry Date,Minimum Stock Alert
+Paracetamol 500mg,Acetaminophen,Abbott,Analgesic,Tablet,500mg,10,strip,3004,12,40,25,35,100,BT001,2026-12-31,10
+Amoxicillin 250mg,Amoxicillin,Cipla,Antibiotic,Capsule,250mg,15,strip,3004,12,120,80,105,50,BT002,2025-10-15,5
+Cetirizine 10mg,Cetirizine,Sun Pharma,Antihistamine,Tablet,10mg,10,strip,3004,12,35,20,30,200,BT003,2026-05-20,20
+Metformin 500mg,Metformin,Lupin,Antidiabetic,Tablet,500mg,20,strip,3004,12,90,60,85,150,BT004,2027-01-10,15
+Atorvastatin 20mg,Atorvastatin,Zydus,Cholesterol,Tablet,20mg,10,strip,3004,12,150,110,140,80,BT005,2026-08-14,10
+Ibuprofen 400mg,Ibuprofen,Dr. Reddys,Analgesic,Tablet,400mg,10,strip,3004,12,55,35,50,120,BT006,2026-11-30,12
+Amlodipine 5mg,Amlodipine,Glenmark,Hypertension,Tablet,5mg,15,strip,3004,12,45,30,40,100,BT007,2025-12-01,10
+Omeprazole 20mg,Omeprazole,Alkem,Antacid,Capsule,20mg,10,strip,3004,12,85,55,75,90,BT008,2026-03-15,15
+Azithromycin 500mg,Azithromycin,Pfizer,Antibiotic,Tablet,500mg,3,strip,3004,12,70,45,65,40,BT009,2025-09-22,5
+Losartan 50mg,Losartan,Torrent,Hypertension,Tablet,50mg,10,strip,3004,12,65,40,60,110,BT010,2026-07-05,10
+Pantoprazole 40mg,Pantoprazole,Intas,Antacid,Tablet,40mg,10,strip,3004,12,95,65,90,130,BT011,2026-10-10,20
+Montelukast 10mg,Montelukast,Mankind,Asthma,Tablet,10mg,10,strip,3004,12,140,100,130,70,BT012,2026-02-28,10
+Glimepiride 2mg,Glimepiride,Micro Labs,Antidiabetic,Tablet,2mg,15,strip,3004,12,110,75,100,60,BT013,2026-06-12,8
+Telmisartan 40mg,Telmisartan,Ipca Labs,Hypertension,Tablet,40mg,10,strip,3004,12,80,55,75,140,BT014,2027-03-01,15
+Vildagliptin 50mg,Vildagliptin,Biocon,Antidiabetic,Tablet,50mg,10,strip,3004,12,210,160,195,45,BT015,2025-11-15,5
+Diclofenac Gel,Diclofenac,GSK,Analgesic,Ointment,30g,1,tube,3004,12,130,90,120,30,BT016,2026-01-20,5
+Multivitamin Syrup,Zinc+Vitamin,AstraZeneca,Supplement,Syrup,200ml,1,bottle,3004,18,175,120,160,25,BT017,2025-08-30,5
+Dexamethasone 0.5mg,Dexamethasone,Cadila,Steroid,Tablet,0.5mg,10,strip,3004,12,20,12,18,300,BT018,2026-04-10,50
+Clopidogrel 75mg,Clopidogrel,Sanofi,Blood Thinner,Tablet,75mg,10,strip,3004,12,160,125,150,55,BT019,2026-09-05,10
+Salbutamol Inhaler,Salbutamol,Cipla,Asthma,Inhaler,100mcg,1,piece,3004,12,450,350,420,20,BT020,2027-05-20,5

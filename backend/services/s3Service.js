@@ -7,14 +7,26 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs';
 
-// Initialize the S3 Client
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'ap-south-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+// Initialize the S3 Client lazily to ensure dotenv is loaded first
+let s3Client = null;
+
+const getS3Client = () => {
+  if (!s3Client) {
+    console.log(`[AWS S3 DEBUG] AWS_REGION loaded: ${!!process.env.AWS_REGION}`);
+    console.log(`[AWS S3 DEBUG] AWS_S3_BUCKET_NAME loaded: ${!!process.env.AWS_S3_BUCKET_NAME}`);
+    console.log(`[AWS S3 DEBUG] AWS_ACCESS_KEY_ID loaded: ${!!process.env.AWS_ACCESS_KEY_ID}`);
+    console.log(`[AWS S3 DEBUG] AWS_SECRET_ACCESS_KEY loaded: ${!!process.env.AWS_SECRET_ACCESS_KEY}`);
+
+    s3Client = new S3Client({
+      region: process.env.AWS_REGION || 'ap-south-1',
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+      }
+    });
   }
-});
+  return s3Client;
+};
 
 const getBucketName = () => process.env.AWS_S3_BUCKET_NAME;
 
@@ -42,7 +54,7 @@ export const uploadBufferToS3 = async ({
   });
 
   try {
-    await s3Client.send(command);
+    await getS3Client().send(command);
     console.log(`[AWS S3] Buffer uploaded successfully. Key: ${key}`);
     return {
       key,
@@ -83,7 +95,7 @@ export const uploadLocalFileToS3 = async ({
   });
 
   try {
-    await s3Client.send(command);
+    await getS3Client().send(command);
     console.log(`[AWS S3] Local file uploaded successfully. Key: ${key}`);
     return {
       key,
@@ -112,7 +124,7 @@ export const deleteFileFromS3 = async (key) => {
   });
 
   try {
-    await s3Client.send(command);
+    await getS3Client().send(command);
     console.log(`[AWS S3] File ${key} deleted successfully.`);
     return true;
   } catch (error) {
@@ -126,18 +138,25 @@ export const deleteFileFromS3 = async (key) => {
  */
 export const getSignedDownloadUrl = async ({
   key,
-  expiresInSeconds = 600
+  expiresInSeconds = 600,
+  responseContentDisposition
 }) => {
   const bucketName = getBucketName();
   if (!bucketName) throw new Error('AWS_S3_BUCKET_NAME is not configured');
 
-  const command = new GetObjectCommand({
+  const commandArgs = {
     Bucket: bucketName,
     Key: key
-  });
+  };
+  
+  if (responseContentDisposition) {
+    commandArgs.ResponseContentDisposition = responseContentDisposition;
+  }
+
+  const command = new GetObjectCommand(commandArgs);
 
   try {
-    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
+    const signedUrl = await getSignedUrl(getS3Client(), command, { expiresIn: expiresInSeconds });
     return signedUrl;
   } catch (error) {
     console.error(`[AWS S3] Error generating signed URL for ${key}:`, error.message);

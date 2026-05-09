@@ -11,20 +11,8 @@ const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-// Ensure upload directory exists
-const uploadDir = path.join(__dirname, '..', 'uploads', 'prescriptionTemplates');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, `template-${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`);
-  }
-});
+// Configure Multer for memory storage (S3 upload handled in controller)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,

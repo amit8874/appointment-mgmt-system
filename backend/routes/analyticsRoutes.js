@@ -1,5 +1,5 @@
 import express from 'express';
-import { trackHeartbeat, getSuperAdminUsageStats, getCharts, getDashboard, getPredictiveInsights, getActivityLogs } from '../controllers/analyticsController.js';
+import { trackHeartbeat, getSuperAdminUsageStats, getCharts, getDashboard, getPredictiveInsights, getActivityLogs, getClinicAnalytics } from '../controllers/analyticsController.js';
 import { authenticateToken, requireSuperAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -15,6 +15,7 @@ router.get('/predictive', authenticateToken, getPredictiveInsights);
 
 // Activity Logs
 router.get('/activity-logs', authenticateToken, getActivityLogs);
+router.get('/clinic', authenticateToken, getClinicAnalytics);
 
 // Public heartbeat tracking (Requires authentication)
 router.post('/heartbeat', authenticateToken, trackHeartbeat);

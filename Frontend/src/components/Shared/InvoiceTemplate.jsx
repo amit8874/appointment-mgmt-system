@@ -1,7 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 
-const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
+const InvoiceTemplate = ({ invoiceData, clinicInfo, template = null }) => {
     // Safe date formatter
     const formatDateSafe = (dateStr) => {
         try {
@@ -38,6 +38,16 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
         return parts.join(', ');
     };
 
+    // Safety parse metadata if it comes as a string
+    let metadata = template?.metadata || {};
+    if (typeof metadata === 'string') {
+        try {
+            metadata = JSON.parse(metadata);
+        } catch (e) {
+            metadata = {};
+        }
+    }
+
     const info = {
         ...clinicInfo,
         name: String(clinicInfo.name || clinicInfo.clinicName || 'Clinic Name'),
@@ -45,6 +55,8 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
         phone: String(clinicInfo.phone || clinicInfo.mobile || clinicInfo.contact || ''),
         email: String(clinicInfo.email || clinicInfo.clinicEmail || clinicInfo.contactEmail || ''),
         logo: clinicInfo.logo ? String(clinicInfo.logo) : (clinicInfo.branding?.logo ? String(clinicInfo.branding.logo) : null),
+        gstNumber: metadata.gstNumber || clinicInfo.gstNumber,
+        showGst: metadata.showGst !== undefined ? metadata.showGst : true,
     };
 
     const formatCurrency = (amount) => {
@@ -56,37 +68,53 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
 
     return (
         <div id="invoice-print-area" className="invoice-print-container bg-white shadow-2xl w-full max-w-3xl mx-auto relative transform transition-all duration-300 scale-100 print:shadow-none print:w-full print:max-w-none print:m-0 print:max-h-none font-['Inter', 'sans-serif'] text-slate-800">
-            {/* Status Watermark */}
-            <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-10 pointer-events-none select-none z-0 print:opacity-10" style={{ zIndex: 0 }}>
-                <span className={`text-[100px] font-black uppercase transform -rotate-45 block ${status === 'Paid' ? 'text-green-600' : 'text-red-500'}`}>
-                    {String(status || '')}
-                </span>
+            {/* Status Watermark / Custom Watermark */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-10 pointer-events-none select-none z-0 print:opacity-10 w-full flex justify-center items-center" style={{ zIndex: 0 }}>
+                {template?.bodyType === 'custom' && template?.bodyImage ? (
+                    <img src={template.bodyImage} alt="Watermark" className="max-w-[70%] max-h-[70%] object-contain" />
+                ) : (
+                    <span className={`text-[100px] font-black uppercase transform -rotate-45 block ${status === 'Paid' ? 'text-green-600' : 'text-red-500'}`}>
+                        {String(status || '')}
+                    </span>
+                )}
             </div>
 
             {/* Invoice Content */}
             <div className="p-8 print:p-4 relative z-10 w-full bg-transparent min-h-[1000px] flex flex-col">
+                {/* GST Section */}
+                {info.showGst && (
+                    <div className="mb-4 text-xs font-bold text-slate-800">
+                        GST NO : {info.gstNumber}
+                    </div>
+                )}
                 
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">
-                    <div>
-                        <h1 className="text-4xl font-black text-slate-800 tracking-tight uppercase mb-2">INVOICE</h1>
-                        <p className="text-sm font-bold text-slate-500">#{String(billId || '')}</p>
+                {template?.headerType === 'custom' && template?.headerImage ? (
+                    <div className="mb-8 -mx-8 -mt-8">
+                        <img src={template.headerImage} alt="Header" className="w-full h-auto object-contain" />
                     </div>
-                    
-                    <div className="flex items-start text-right mt-4 sm:mt-0 gap-6">
-                        <div className="text-right">
-                            <h2 className="text-2xl font-bold text-slate-800">{String(info.name)}</h2>
-                            <p className="text-xs text-slate-600 mt-1 max-w-[250px] ml-auto">{String(info.address)}</p>
-                            <p className="text-xs text-slate-600">{String(info.email)}</p>
-                            <p className="text-xs text-slate-600">{String(info.phone)}</p>
+                ) : (
+                    <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">
+                        <div>
+                            <h1 className="text-4xl font-black text-slate-800 tracking-tight uppercase mb-2">INVOICE</h1>
+                            <p className="text-sm font-bold text-slate-500">#{String(billId || '')}</p>
                         </div>
-                        {info.logo && (
-                            <div className="flex-shrink-0">
-                                <img src={info.logo} alt="Clinic Logo" className="h-20 w-20 object-contain rounded border border-gray-100 p-1 bg-white" />
+                        
+                        <div className="flex items-start text-right mt-4 sm:mt-0 gap-6">
+                            <div className="text-right">
+                                <h2 className="text-2xl font-bold text-slate-800">{String(info.name)}</h2>
+                                <p className="text-xs text-slate-600 mt-1 max-w-[250px] ml-auto">{String(info.address)}</p>
+                                <p className="text-xs text-slate-600">{String(info.email)}</p>
+                                <p className="text-xs text-slate-600">{String(info.phone)}</p>
                             </div>
-                        )}
+                            {info.logo && (
+                                <div className="flex-shrink-0">
+                                    <img src={info.logo} alt="Clinic Logo" className="h-20 w-20 object-contain rounded border border-gray-100 p-1 bg-white" />
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Billing Info */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
@@ -149,6 +177,8 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-slate-800">
                                         {(() => {
+                                            if (item.subtotal !== undefined) return formatCurrency(item.subtotal);
+                                            if (item.totalAmount !== undefined) return formatCurrency(item.totalAmount);
                                             const price = Number(item.price || item.cost || 0);
                                             const qty = Number(item.quantity || 1);
                                             const amount = price * qty;
@@ -182,7 +212,9 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
                                 <span className="font-bold text-slate-800">{formatCurrency(subtotal)}</span>
                             </div>
                             <div className="flex justify-between mb-3 text-sm">
-                                <span className="font-medium text-slate-600">Tax ({taxRate || 0}%)</span>
+                                <span className="font-medium text-slate-600">
+                                    {taxRate > 0 ? `Tax (${taxRate}%)` : 'Tax (GST)'}
+                                </span>
                                 <span className="font-bold text-slate-800">{formatCurrency(taxAmount)}</span>
                             </div>
                             
@@ -202,9 +234,15 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="mt-12 text-center text-[10px] text-slate-400 uppercase tracking-[0.2em]">
-                    <p>Computer Generated Invoice - No Signature Required</p>
-                </div>
+                {template?.footerType === 'custom' && template?.footerImage ? (
+                    <div className="mt-12 -mx-8 -mb-8">
+                        <img src={template.footerImage} alt="Footer" className="w-full h-auto object-contain" />
+                    </div>
+                ) : (
+                    <div className="mt-12 text-center text-[10px] text-slate-400 uppercase tracking-[0.2em]">
+                        <p>Computer Generated Invoice - No Signature Required</p>
+                    </div>
+                )}
             </div>
         </div>
     );

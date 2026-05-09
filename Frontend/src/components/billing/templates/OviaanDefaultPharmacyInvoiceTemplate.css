@@ -1,0 +1,249 @@
+.oviaan-default-invoice {
+    width: 100%;
+    max-width: 190mm;
+    min-height: 260mm;
+    background-color: #ffffff;
+    border: 3px solid #000000;
+    padding: 20px;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000000;
+    box-sizing: border-box;
+    position: relative;
+    margin: 0 auto;
+}
+
+.oviaan-default-invoice * {
+    box-sizing: border-box;
+}
+
+.oviaan-default-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.oviaan-custom-header {
+    width: calc(100% + 40px);
+    margin-left: -20px;
+    margin-right: -20px;
+    margin-top: -20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #000000;
+    overflow: hidden;
+    line-height: 0;
+}
+
+.oviaan-header-img-full {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.oviaan-logo-container {
+    width: 100px;
+    height: 100px;
+    border: 1px solid #000000;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.oviaan-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.oviaan-logo-placeholder {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.oviaan-clinic-details {
+    flex: 1;
+    text-align: center;
+    margin-top: 0;
+}
+
+.oviaan-clinic-name {
+    font-size: 24px;
+    font-weight: bold;
+    margin: 0;
+    padding: 0;
+}
+
+.oviaan-clinic-info {
+    font-size: 14px;
+    margin: 3px 0;
+    padding: 0;
+}
+
+.oviaan-gst-section {
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    text-align: left;
+}
+
+.oviaan-title-container {
+    text-align: center;
+    margin: 5px 0 10px 0;
+}
+
+.oviaan-invoice-title {
+    display: inline-block;
+    background-color: #e0e0e0;
+    border: 1px solid #000000;
+    padding: 4px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: underline;
+    text-transform: uppercase;
+}
+
+.oviaan-patient-bill-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
+.oviaan-details-left {
+    width: 60%;
+}
+
+.oviaan-details-right {
+    width: 35%;
+    text-align: left;
+}
+
+.oviaan-detail-row {
+    display: flex;
+    margin-bottom: 2px;
+    line-height: 1.2;
+}
+
+.oviaan-detail-label {
+    width: 90px;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.oviaan-detail-value {
+    flex: 1;
+}
+
+.oviaan-medicine-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 0;
+}
+
+.oviaan-medicine-table thead tr {
+    border-top: 2px solid #000000;
+    border-bottom: 2px solid #000000;
+}
+
+.oviaan-medicine-table th {
+    padding: 8px 4px;
+    font-weight: bold;
+    text-align: left;
+}
+
+.oviaan-medicine-table td {
+    padding: 6px 4px;
+}
+
+.oviaan-text-center { text-align: center !important; }
+.oviaan-text-right { text-align: right !important; }
+.oviaan-text-left { text-align: left !important; }
+
+.oviaan-payment-row {
+    display: flex;
+    justify-content: space-between;
+    border-top: 2px solid #000000;
+    border-bottom: 2px solid #000000;
+    padding: 4px 0;
+    font-size: 11px;
+    font-weight: bold;
+    margin-top: 0;
+}
+
+.oviaan-payment-total {
+    width: 150px;
+    text-align: right;
+}
+
+.oviaan-bottom-section {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 11px;
+}
+
+.oviaan-bottom-left {
+    width: 60%;
+    line-height: 1.4;
+}
+
+.oviaan-bottom-right {
+    width: 35%;
+}
+
+.oviaan-amount-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2px;
+}
+
+.oviaan-amount-label {
+    font-weight: bold;
+}
+
+.oviaan-amount-value {
+    font-weight: bold;
+    width: 60px;
+    text-align: right;
+}
+
+.oviaan-balance-row {
+    border-top: 1px solid #000000;
+    margin-top: 2px;
+    padding-top: 2px;
+}
+
+.oviaan-signature-section {
+    position: absolute;
+    bottom: 40px;
+    right: 30px;
+    text-align: right;
+}
+
+.oviaan-doctor-signature {
+    width: 90px;
+    height: auto;
+}
+
+@media print {
+    .oviaan-default-invoice {
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        transform: none !important;
+        margin: 0 auto !important;
+        border: 4px solid #000 !important;
+        page-break-inside: avoid;
+        display: block !important;
+        visibility: visible !important;
+    }
+
+    @page {
+        size: A4;
+        margin: 0;
+    }
+}

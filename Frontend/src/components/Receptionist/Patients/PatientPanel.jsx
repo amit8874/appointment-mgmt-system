@@ -141,12 +141,12 @@ const PatientPanel = () => {
     setOpenMenuId(null);
     try {
       const { patientApi } = await import('../../../services/api');
-      await api.put(`/patients/${patient._id}`, { 
+      await api.put(`/patients/${patient._id}`, {
         status: 'dead',
         isDead: true,
         deathDate: new Date().toISOString()
       });
-      
+
       toast.success(`${patient.name} has been marked as dead`);
       fetchPatients();
     } catch (error) {
@@ -158,12 +158,12 @@ const PatientPanel = () => {
   const handleMarkAsUndead = async (patient) => {
     setOpenMenuId(null);
     try {
-      await api.put(`/patients/${patient._id}`, { 
+      await api.put(`/patients/${patient._id}`, {
         status: 'active',
         isDead: false,
         deathDate: null
       });
-      
+
       toast.success(`${patient.name} has been marked as active`);
       fetchPatients();
     } catch (error) {
@@ -182,23 +182,23 @@ const PatientPanel = () => {
     if (!selectedPatientForPayment) return;
     const patient = selectedPatientForPayment;
     setIsPaymentModalOpen(false);
-    
+
     try {
       const response = await api.get('/billing');
-      const pendingBills = response.data.filter(bill => 
-        (bill.patientId === patient.patientId || bill.patientId === patient._id) && 
+      const pendingBills = response.data.filter(bill =>
+        (bill.patientId === patient.patientId || bill.patientId === patient._id) &&
         (bill.status === 'Pending' || bill.status === 'pending')
       );
-      
+
       if (pendingBills.length === 0) {
         toast.info('No pending bills found for this patient');
         return;
       }
 
       for (const bill of pendingBills) {
-        await api.put(`/billing/${bill._id}`, { 
+        await api.put(`/billing/${bill._id}`, {
           status: 'Paid',
-          paymentMethod: paymentMethod 
+          paymentMethod: paymentMethod
         });
       }
       toast.success(`Marked ${pendingBills.length} bill(s) as Paid via ${paymentMethod}`);
@@ -282,11 +282,11 @@ const PatientPanel = () => {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3 md:pl-10 transition-all">
             <User className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-lg" />
             Patient Directory
           </h1>
-          <p className="text-gray-500 mt-1">Manage and track all patients in one place</p>
+          <p className="text-gray-500 mt-1 md:pl-10 transition-all">Manage and track all patients in one place</p>
         </div>
 
         <div className="relative w-full sm:w-80">
@@ -320,16 +320,14 @@ const PatientPanel = () => {
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center gap-2 ${
-                statusFilter === status
+              className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center gap-2 ${statusFilter === status
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                   : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-              }`}
+                }`}
             >
               {status}
-              <span className={`px-2 py-0.5 rounded-lg text-xs ${
-                statusFilter === status ? 'bg-white/20' : 'bg-gray-100 text-gray-500'
-              }`}>
+              <span className={`px-2 py-0.5 rounded-lg text-xs ${statusFilter === status ? 'bg-white/20' : 'bg-gray-100 text-gray-500'
+                }`}>
                 {statusCounts[status]}
               </span>
             </button>
@@ -402,13 +400,12 @@ const PatientPanel = () => {
 
                         <button
                           onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
-                          className={`p-2 rounded-xl transition-all ${
-                            openMenuId === p._id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
+                          className={`p-2 rounded-xl transition-all ${openMenuId === p._id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </button>
-                        
+
                         <AnimatePresence>
                           {openMenuId === p._id && (
                             <motion.div
@@ -471,11 +468,11 @@ const PatientPanel = () => {
                     </td>
                   </tr>
                 )
-              ))}
+                ))}
             </tbody>
           </table>
         </div>
-        <Pagination 
+        <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
@@ -499,13 +496,13 @@ const PatientPanel = () => {
             <h3 className="text-2xl font-bold text-gray-900 mb-2">Delete Patient</h3>
             <p className="text-gray-600 mb-8">Are you sure you want to delete {patientToDelete?.name}? This action is irreversible.</p>
             <div className="flex gap-4">
-              <button 
+              <button
                 onClick={() => setDeleteModalOpen(false)}
                 className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-2xl hover:bg-gray-200 transition-all border border-gray-200"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={confirmDeletePatient}
                 className="flex-1 py-3 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition-all shadow-lg shadow-red-200"
               >

@@ -111,6 +111,11 @@ const patientSchema = new mongoose.Schema({
     enum: ['active', 'dead'],
     default: 'active'
   },
+  paymentStatus: {
+    type: String,
+    enum: ['paid', 'pending', 'cancelled', 'due'],
+    default: 'pending'
+  },
   vitals: {
     bloodPressure: { type: String, default: '120/80', trim: true },
     heartRate: { type: String, default: '72', trim: true },

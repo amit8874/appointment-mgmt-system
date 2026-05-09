@@ -11,11 +11,13 @@ import useUsageTracking from './hooks/useUsageTracking';
 import PremiumLoader from "./components/common/PremiumLoader";
 import ScrollToTop from "./components/common/ScrollToTop";
 
-// Lazy load components
-const ProtectedRoute = lazy(() => import("./Component/ProtectedRoute"));
-const LandingPage = lazy(() => import("./Pages/LandingPage"));
-const Login = lazy(() => import("./Pages/Login"));
-const AdminDashboard = lazy(() => import("./Component/Admin/AdminDashboard"));
+// Direct imports for core components to ensure "instant" redirection
+import ProtectedRoute from "./Component/ProtectedRoute";
+import LandingPage from "./Pages/LandingPage";
+import Login from "./Pages/Login";
+import AdminDashboard from "./Component/Admin/AdminDashboard";
+
+// Lazy load non-critical components
 const MessagesView = lazy(() => import("./Component/Admin/Messaging/MessagesView"));
 const IntelligenceHub = lazy(() => import("./Component/Admin/IntelligenceHub"));
 const PatientChatView = lazy(() => import("./Component/Patient/PatientChatView"));
@@ -71,9 +73,6 @@ const RayByOviaan = lazy(() => import("./Pages/Services/RayByOviaan"));
 const OviaanReach = lazy(() => import("./Pages/Services/OviaanReach"));
 const WhatsAppCredits = lazy(() => import("./Pages/WhatsAppCredits"));
 
-
-
-
 // SaaS Components
 const RegisterOrganization = lazy(() => import("./Pages/RegisterOrganization"));
 const ChoosePlan = lazy(() => import("./Pages/ChoosePlan"));
@@ -106,8 +105,6 @@ const PatientOrders = lazy(() => import("./Component/Patient/PatientOrders"));
 
 // Loading Component
 const LoadingFallback = () => <PremiumLoader />;
-
-
 
 const UsageTracker = () => {
   useUsageTracking();
@@ -219,22 +216,11 @@ export default function App() {
         // SYNC: Update user data if it has changed (e.g., logo or name)
         if (isSubscribed && data.user && isAuthenticated) {
           const { updateUser } = await import('./context/AuthContext').then(mod => {
-            // This is a bit tricky since we can't easily use the hook inside useEffect without it being a dependency
-            // But we can check if the data has changed and then update if necessary
             return { updateUser }; 
           }).catch(() => ({}));
           
-          // Since we can't easily access updateUser here without causing re-renders, 
-          // we'll rely on the update happening in the next tick or via a cleaner method.
-          // Better approach: Let's use the local storage as a bridge or just trust the initial load.
-          // Actually, the best way is to pass updateUser into this effect if possible, 
-          // but that's a larger refactor. 
-          
-          // Let's use a simpler approach: update the localStorage and let the AuthContext pick it up 
-          // or just trigger an event.
           if (JSON.stringify(data.user) !== localStorage.getItem('userData')) {
              localStorage.setItem('userData', JSON.stringify(data.user));
-             // We can't easily trigger a re-render of the AuthProvider from here without an event
              window.dispatchEvent(new CustomEvent('user-data-updated', { detail: data.user }));
           }
         }
@@ -254,18 +240,15 @@ export default function App() {
     };
   }, [isAuthenticated, logout]);
 
-
-
   return (
     <>
       <ToastContainer position="top-right" autoClose={3000} style={{ zIndex: 10000 }} />
       {isAuthenticated && <SmartNotificationSystem />}
       {isImpersonating && <ShadowModeBanner />}
-      <AnimatePresence mode="wait">
-        <Router>
-          <ScrollToTop />
-          <UsageTracker />
-          <Suspense fallback={<LoadingFallback />}>
+      <Router>
+        <ScrollToTop />
+        <UsageTracker />
+        <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/find-doctors" element={<FindDoctors />} />
@@ -290,13 +273,10 @@ export default function App() {
             <Route path="/features/family-pet-care" element={<FamilyPetCare />} />
             <Route path="/features/partner-program" element={<PartnerProgram />} />
 
-
-
-
             {/* Organization Registration & Onboarding */}
             <Route path="/register-organization" element={<RegisterOrganization />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-          <Route path="/terms-conditions" element={<TermsAndConditions />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-conditions" element={<TermsAndConditions />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
             <Route path="/payment" element={<Payment />} />
 
@@ -395,8 +375,8 @@ export default function App() {
               <Route path="doctor-schedule" element={<DoctorSchedule />} />
               <Route path="whatsapp-credits" element={<WhatsAppCredits />} />
               <Route path="profile" element={<AdminProfilePage />} />
-
             </Route>
+
             <Route path="/patient-dashboard" element={
               <ProtectedRoute allowedRoles={['patient']}>
                 <PatientLayout />
@@ -426,20 +406,17 @@ export default function App() {
           </Routes>
         </Suspense>
 
-        {/* Account Deactivated Modal - shown when organization is deactivated */}
         <AccountDeactivatedModal
           isOpen={showDeactivatedModal}
           onLogout={logout}
         />
 
-        {/* Subscription Expiration Lock - blurs app and prevents interaction */}
         <SubscriptionLock 
           isExpired={isSubscriptionExpired && user?.role !== 'superadmin'} 
           planName={user?.organization?.planName || 'Trial'}
           role={user?.role}
         />
       </Router>
-    </AnimatePresence>
     </>
   );
 }

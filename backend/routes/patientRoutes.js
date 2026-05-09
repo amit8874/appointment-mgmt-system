@@ -15,6 +15,10 @@ import {
   getPatientAISummary,
   searchAvailablePatients
 } from '../controllers/patientController.js';
+import { bulkImportPatients } from '../controllers/bulkImportController.js';
+import multer from 'multer';
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const router = express.Router();
 
@@ -45,6 +49,9 @@ router.get('/stats/today', getTodayPatientStats);
 
 // Create new patient
 router.post('/', createPatient);
+
+// Bulk import patients
+router.post('/bulk-import', upload.single('file'), bulkImportPatients);
 
 // Get patient by ID
 router.get('/:id', getPatientById);

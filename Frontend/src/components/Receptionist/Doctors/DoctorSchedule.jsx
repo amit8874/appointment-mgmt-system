@@ -44,8 +44,8 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
     };
 
     const currentOverride = getOverrideForDate(selectedDate);
-    const isActuallyAvailable = currentOverride 
-        ? currentOverride.isAvailable 
+    const isActuallyAvailable = currentOverride
+        ? currentOverride.isAvailable
         : doctor.availability?.[new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()];
 
     const getBaseWorkingHours = () => {
@@ -64,8 +64,8 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
     const generateTimeSlots = (workingHours) => {
         const slots = [];
         try {
-            const shifts = Array.isArray(workingHours) ? workingHours : 
-                          (workingHours?.start ? [workingHours] : [{ start: '09:00', end: '17:00' }]);
+            const shifts = Array.isArray(workingHours) ? workingHours :
+                (workingHours?.start ? [workingHours] : [{ start: '09:00', end: '17:00' }]);
 
             shifts.forEach(shift => {
                 const start = shift.start || '09:00';
@@ -180,11 +180,10 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
                                     <button
                                         key={date}
                                         onClick={() => setSelectedDate(date)}
-                                        className={`flex-shrink-0 w-16 py-3 rounded-xl border flex flex-col items-center transition-all ${
-                                            isSelected 
-                                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' 
-                                            : 'bg-white border-gray-100 text-gray-500 hover:border-indigo-200'
-                                        } ${hasOverride && !isSelected ? 'border-amber-200 bg-amber-50/30' : ''}`}
+                                        className={`flex-shrink-0 w-16 py-3 rounded-xl border flex flex-col items-center transition-all ${isSelected
+                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg'
+                                                : 'bg-white border-gray-100 text-gray-500 hover:border-indigo-200'
+                                            } ${hasOverride && !isSelected ? 'border-amber-200 bg-amber-50/30' : ''}`}
                                     >
                                         <span className={`text-[10px] font-bold uppercase ${isSelected ? 'text-indigo-100' : 'text-gray-400'}`}>
                                             {d.toLocaleDateString('en-US', { weekday: 'short' })}
@@ -222,11 +221,10 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
                                 <button
                                     onClick={handleToggleAvailability}
                                     disabled={isSaving}
-                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
-                                        isActuallyAvailable 
-                                        ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100' 
-                                        : 'bg-green-50 text-green-600 border border-green-100 hover:bg-green-100'
-                                    }`}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${isActuallyAvailable
+                                            ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'
+                                            : 'bg-green-50 text-green-600 border border-green-100 hover:bg-green-100'
+                                        }`}
                                 >
                                     {isSaving ? 'Saving...' : (isActuallyAvailable ? 'Mark as Unavailable' : 'Make Available')}
                                 </button>
@@ -237,9 +235,8 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
                             <motion.div
                                 initial={{ opacity: 0, y: -10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className={`p-3 rounded-lg text-xs font-bold text-center ${
-                                    message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                }`}
+                                className={`p-3 rounded-lg text-xs font-bold text-center ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                    }`}
                             >
                                 {message.text}
                             </motion.div>
@@ -254,7 +251,7 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
                                         Expected Time Slots
                                     </h5>
                                     {!isEditingShifts ? (
-                                        <button 
+                                        <button
                                             onClick={() => setIsEditingShifts(true)}
                                             className="text-[10px] font-bold text-indigo-600 uppercase border-b border-indigo-200 hover:border-indigo-600 transition-all"
                                         >
@@ -262,13 +259,13 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
                                         </button>
                                     ) : (
                                         <div className="flex gap-2">
-                                            <button 
+                                            <button
                                                 onClick={() => setIsEditingShifts(false)}
                                                 className="text-[10px] font-bold text-gray-400 uppercase"
                                             >
                                                 Cancel
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={handleSaveShifts}
                                                 disabled={isSaving}
                                                 className="text-[10px] font-bold text-indigo-600 uppercase"
@@ -284,9 +281,9 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
                                         {tempWorkingHours.map((shift, idx) => (
                                             <div key={idx} className="flex items-center gap-3">
                                                 <div className="flex-1">
-                                                    <input 
-                                                        type="time" 
-                                                        value={shift.start} 
+                                                    <input
+                                                        type="time"
+                                                        value={shift.start}
                                                         onChange={(e) => {
                                                             const newHours = [...tempWorkingHours];
                                                             newHours[idx] = { ...newHours[idx], start: e.target.value };
@@ -297,9 +294,9 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
                                                 </div>
                                                 <span className="text-gray-300 text-xs">to</span>
                                                 <div className="flex-1">
-                                                    <input 
-                                                        type="time" 
-                                                        value={shift.end} 
+                                                    <input
+                                                        type="time"
+                                                        value={shift.end}
                                                         onChange={(e) => {
                                                             const newHours = [...tempWorkingHours];
                                                             newHours[idx] = { ...newHours[idx], end: e.target.value };
@@ -308,7 +305,7 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
                                                         className="w-full p-2 bg-gray-50 border border-gray-100 rounded text-xs font-bold"
                                                     />
                                                 </div>
-                                                <button 
+                                                <button
                                                     onClick={() => setTempWorkingHours(tempWorkingHours.filter((_, i) => i !== idx))}
                                                     className="p-1.5 text-gray-300 hover:text-red-500 transition-colors"
                                                 >
@@ -316,7 +313,7 @@ const DoctorScheduleModal = ({ doctor: initialDoctor, onClose }) => {
                                                 </button>
                                             </div>
                                         ))}
-                                        <button 
+                                        <button
                                             onClick={() => setTempWorkingHours([...tempWorkingHours, { start: '09:00', end: '13:00' }])}
                                             className="w-full py-2 border border-dashed border-gray-200 rounded-lg text-[10px] font-bold text-gray-400 uppercase hover:border-indigo-200 hover:text-indigo-600 transition-all"
                                         >
@@ -448,7 +445,7 @@ const DoctorSchedule = () => {
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <h1 className="text-2xl font-bold text-gray-800">Doctor Schedule</h1>
+                        <h1 className="text-2xl font-bold text-gray-800 md:pl-10 transition-all">Doctor Schedule</h1>
                         <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-sm font-medium">
                             Total Doctors : {doctors.length}
                         </span>
@@ -562,7 +559,7 @@ const DoctorSchedule = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <button 
+                                                    <button
                                                         onClick={() => setScheduleDoctor(doctor)}
                                                         className="p-2 text-gray-400 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 rounded-lg transition-all border border-transparent hover:border-indigo-100"
                                                     >

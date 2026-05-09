@@ -118,11 +118,22 @@
   #invoice-print-area,
   #invoice-print-area *,
   #prescription-print-area,
-  #prescription-print-area * {
+  #prescription-print-area *,
+  #statement-print-area,
+  #statement-print-area *,
+  #clinical-report-print-area,
+  #clinical-report-print-area *,
+  .hidden-print,
+  .hidden-print * {
     visibility: visible !important;
   }
 
-  #invoice-print-area {
+  #invoice-print-area,
+  #statement-print-area,
+  #prescription-print-area,
+  #clinical-report-print-area,
+  .print-only,
+  .hidden-print {
     display: block !important;
     position: absolute !important;
     left: 0 !important;
@@ -144,4 +155,16 @@
     size: A4;
     margin: 10mm;
   }
+}
+
+/* Hide number input arrows (spinners) */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }

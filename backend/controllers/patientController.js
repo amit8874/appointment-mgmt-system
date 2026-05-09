@@ -60,12 +60,26 @@ export const getAllPatients = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 15;
+    const search = req.query.search || '';
     const skip = (page - 1) * limit;
 
-    const totalPatients = await Patient.countDocuments({ organizationId: req.tenantId });
+    let query = { organizationId: req.tenantId };
+    
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { fullName: searchRegex },
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { mobile: searchRegex },
+        { patientId: searchRegex }
+      ];
+    }
+
+    const totalPatients = await Patient.countDocuments(query);
     const totalPages = Math.ceil(totalPatients / limit);
 
-    const patients = await Patient.find({ organizationId: req.tenantId })
+    const patients = await Patient.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -100,7 +114,7 @@ export const getAllPatients = async (req, res) => {
         paidAmount,
         pendingAmount,
         // paymentStatus logic matched with PatientPanel.jsx requirements
-        paymentStatus: hasPending ? 'pending' : (hasPaid ? 'paid' : 'pending')
+        paymentStatus: hasPending ? 'pending' : (hasPaid ? 'paid' : (p.paymentStatus === 'paid' ? 'paid' : 'pending'))
       };
     });
 

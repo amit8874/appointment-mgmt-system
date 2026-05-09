@@ -82,7 +82,7 @@ const DoctorGrid = () => {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-  
+
   const currentCount = Math.max(doctors.length, contextCount || 0);
   const isLimitReached = !limitsLoading && limits && typeof limits.doctors === 'number' && limits.doctors !== -1 && currentCount >= limits.doctors;
 
@@ -104,7 +104,7 @@ const DoctorGrid = () => {
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-gray-800">Doctor Management</h1>
+          <h1 className="text-2xl font-bold text-gray-800 md:pl-10 transition-all">Doctor Management</h1>
           <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-sm font-medium">
             Total Doctors : {doctors.length}
           </span>
@@ -113,7 +113,7 @@ const DoctorGrid = () => {
         <div className="flex items-center gap-3">
           {isLimitReached ? (
             <div className="relative group">
-              <button 
+              <button
                 className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed opacity-70 shadow-md"
                 disabled={true}
               >
@@ -155,7 +155,7 @@ const DoctorGrid = () => {
 
                 {/* Doctor Info */}
                 <div className="flex-1 min-w-0">
-                  <h3 
+                  <h3
                     className="text-lg font-bold text-gray-800 truncate mb-1 cursor-pointer hover:text-indigo-600"
                     onClick={() => navigate(`/receptionist/doctor/${doctor.id}`)}
                   >
@@ -211,7 +211,7 @@ const DoctorGrid = () => {
         )}
       </div>
 
-      <Pagination 
+      <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={setCurrentPage}

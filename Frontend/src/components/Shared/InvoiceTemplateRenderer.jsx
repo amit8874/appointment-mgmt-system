@@ -135,14 +135,48 @@ const InvoiceTemplateRenderer = ({ billData, clinicInfo, template }) => {
 
       {/* Render Final Content */}
       <div
-        className={`invoice-rendered-content bg-white ${metadata.isCompact ? 'p-4' : 'p-0'} shadow-2xl mx-auto overflow-hidden`}
+        className={`invoice-rendered-content bg-white ${metadata.isCompact ? 'p-4' : 'p-0'} shadow-2xl mx-auto overflow-hidden relative flex flex-col`}
         style={{
           width: baseLayout.type === 'thermal' ? '80mm' : '210mm',
           minHeight: baseLayout.type === 'thermal' ? 'auto' : '297mm',
           fontSize: metadata.isCompact ? '12px' : '14px'
         }}
-        dangerouslySetInnerHTML={{ __html: processedHtml }}
-      />
+      >
+        {/* Custom Header */}
+        {template.headerType === 'custom' && template.headerImage && (
+          <div className="w-full mb-4">
+            <img 
+              src={template.headerImage.startsWith('http') ? template.headerImage : `${import.meta.env.VITE_API_URL?.replace(/\/api$/, '') || 'http://localhost:5000'}${template.headerImage.startsWith('/') ? '' : '/'}${template.headerImage}`} 
+              alt="Custom Header" 
+              className="w-full h-auto object-contain"
+            />
+          </div>
+        )}
+
+        {/* Watermark / Body Image */}
+        {template.bodyType === 'custom' && template.bodyImage && (
+          <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none z-0">
+             <img 
+              src={template.bodyImage.startsWith('http') ? template.bodyImage : `${import.meta.env.VITE_API_URL?.replace(/\/api$/, '') || 'http://localhost:5000'}${template.bodyImage.startsWith('/') ? '' : '/'}${template.bodyImage}`} 
+              alt="Watermark" 
+              className="w-2/3 h-auto object-contain"
+            />
+          </div>
+        )}
+
+        <div className="flex-1 relative z-10" dangerouslySetInnerHTML={{ __html: processedHtml }} />
+
+        {/* Custom Footer */}
+        {template.footerType === 'custom' && template.footerImage && (
+          <div className="w-full mt-auto">
+            <img 
+              src={template.footerImage.startsWith('http') ? template.footerImage : `${import.meta.env.VITE_API_URL?.replace(/\/api$/, '') || 'http://localhost:5000'}${template.footerImage.startsWith('/') ? '' : '/'}${template.footerImage}`} 
+              alt="Custom Footer" 
+              className="w-full h-auto object-contain"
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

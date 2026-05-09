@@ -5,7 +5,7 @@ import { LogOut, UserCircle, Bell, Sun, Moon, Menu, ShieldCheck } from 'lucide-r
 import { getNotifications, markAllAsRead, markAsRead } from '../../api/notificationApi';
 import { organizationApi } from '../../services/api';
 
-const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
+const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashboardMode, onModeSwitch }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
@@ -292,6 +292,33 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired }) => {
           </div>
           <span className="hidden sm:inline-block max-w-[100px] truncate">{user?.name || 'Profile'}</span>
         </button>
+
+        {/* Mode Switcher Buttons */}
+        <div className="flex items-center bg-gray-100 dark:bg-gray-700/50 p-1 rounded-2xl border border-gray-200 dark:border-gray-600 shadow-inner">
+          <button
+            onClick={() => onModeSwitch('admin')}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center ${
+              dashboardMode === 'admin'
+                ? 'bg-white dark:bg-gray-800 text-indigo-600 shadow-md ring-1 ring-black/5'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <ShieldCheck className={`w-3.5 h-3.5 mr-1.5 ${dashboardMode === 'admin' ? 'animate-pulse' : ''}`} />
+            Admin
+          </button>
+          <button
+            onClick={() => onModeSwitch('pharmacy')}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center ${
+              dashboardMode === 'pharmacy'
+                ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <span className="mr-1.5">💊</span>
+            Pharmacy
+          </button>
+        </div>
+
         <button
           onClick={onLogout}
           className="flex items-center px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 border border-gray-300 rounded-xl shadow-sm hover:bg-rose-100 transition duration-200"

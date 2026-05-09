@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  Search, 
-  PlusCircle, 
-  User, 
-  CalendarPlus, 
+import {
+  Search,
+  PlusCircle,
+  User,
+  CalendarPlus,
   X,
   Eye,
   Printer,
@@ -28,14 +28,14 @@ const StatusBadge = ({ status }) => {
 };
 
 // --- Invoice List View Component ---
-const InvoiceList = React.memo(({ 
-  filteredInvoices, 
-  summaryMetrics, 
-  activeFilter, 
-  setActiveFilter, 
-  searchTerm, 
-  setSearchTerm, 
-  setViewMode, 
+const InvoiceList = React.memo(({
+  filteredInvoices,
+  summaryMetrics,
+  activeFilter,
+  setActiveFilter,
+  searchTerm,
+  setSearchTerm,
+  setViewMode,
   handleAction,
   billingTab,
   currentPage,
@@ -49,15 +49,7 @@ const InvoiceList = React.memo(({
       <h2 className="text-lg font-black text-gray-800 mb-1 md:mb-0">
         Invoice List ({filteredInvoices.length} Found)
       </h2>
-      {billingTab !== 'General' && (
-        <button
-          onClick={() => setViewMode('generate')}
-          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl shadow-md text-black ${ACCENT_COLOR_CLASS} transition ease-in-out duration-150`}
-        >
-          <PlusCircleIcon />
-          Generate New Bill
-        </button>
-      )}
+      {/* Generate New Bill removed as per user request */}
     </div>
 
     {/* Summary Cards removed for Receptionist as per request */}
@@ -161,7 +153,7 @@ const InvoiceList = React.memo(({
       ))}
     </div>
 
-    <Pagination 
+    <Pagination
       currentPage={currentPage}
       totalPages={totalPages}
       onPageChange={onPageChange}
@@ -183,7 +175,7 @@ const formatCurrency = (amount) => {
 };
 
 const transformApiData = (apiBill) => {
-  const itemsSubtotal = (apiBill.items || []).reduce((sum, i) => 
+  const itemsSubtotal = (apiBill.items || []).reduce((sum, i) =>
     sum + (parseFloat(i.subtotal) || (parseFloat(i.qty || 1) * parseFloat(i.unitPrice || i.cost || 0))), 0
   );
   const discountAmount = parseFloat(apiBill.discount) || Math.max(0, itemsSubtotal - (apiBill.amount || 0));
@@ -218,9 +210,9 @@ const transformApiData = (apiBill) => {
         const item = apiBill.items?.find(i => i.description?.toLowerCase().includes('medicine'));
         return item ? (item.cost ?? item.unitPrice ?? item.subtotal ?? 0) : 0;
       })(),
-      additionalCharges: apiBill.items?.filter(i => 
-        !i.description?.toLowerCase().includes('consultation') && 
-        !i.description?.toLowerCase().includes('test') && 
+      additionalCharges: apiBill.items?.filter(i =>
+        !i.description?.toLowerCase().includes('consultation') &&
+        !i.description?.toLowerCase().includes('test') &&
         !i.description?.toLowerCase().includes('medicine')
       ).reduce((sum, item) => sum + (item.cost || item.unitPrice || item.subtotal || 0), 0) || 0,
       discount: discountAmount,
@@ -409,7 +401,7 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
   const filteredAppts = useMemo(() => {
     if (!apptSearchQuery.trim()) return appointments.slice(0, 5);
     const query = apptSearchQuery.toLowerCase();
-    return appointments.filter(a => 
+    return appointments.filter(a =>
       String(a.patientName || '').toLowerCase().includes(query) ||
       String(a.patientId || '').toLowerCase().includes(query) ||
       String(a.patientPhone || '').includes(query)
@@ -423,7 +415,7 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
 
     const doctorId = appt.doctorId || appt.doctor?._id || appt.doctor || '';
     const doctor = doctors.find(d => (d._id === doctorId || d.id === doctorId));
-    
+
     setBillData(prev => ({
       ...prev,
       patientName: String(appt.patientName || appt.patient?.name || ''),
@@ -547,7 +539,7 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
       // Auto-save medicine names to global DB (non-blocking)
       if (billType === 'Pharmacy') {
         const names = items.map(i => i.description).filter(n => n && n.length >= 2);
-        if (names.length > 0) medicineApi.bulkSave(names).catch(() => {});
+        if (names.length > 0) medicineApi.bulkSave(names).catch(() => { });
       }
       onSave(transformedBill, shouldPrint);
       setStatusMessage(`Success! Invoice ${newBill.billId} generated.`);
@@ -579,34 +571,34 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
           <div className="p-6 bg-sky-50 rounded-xl shadow-lg border border-sky-200">
             <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">Select Appointment</h3>
             <div className="mb-6 relative">
-                <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1 mb-2 block">Search Patient/Appointment</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none"><SearchIcon /></div>
-                  <input
-                    type="text"
-                    value={apptSearchQuery}
-                    onChange={(e) => { setApptSearchQuery(e.target.value); setShowApptDropdown(true); }}
-                    onFocus={() => setShowApptDropdown(true)}
-                    placeholder="Search by Name, ID, or Number..."
-                    className="w-full pl-12 pr-4 py-4 bg-white border-2 border-sky-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 transition-all font-bold text-slate-700 shadow-sm"
-                  />
-                </div>
-                {showApptDropdown && filteredAppts.length > 0 && (
-                  <div className="absolute z-[100] w-full mt-2 bg-white rounded-2xl shadow-2xl border border-sky-100 overflow-hidden">
-                    <div className="max-h-64 overflow-y-auto">
-                      {filteredAppts.map(appt => (
-                        <div key={appt._id || appt.id} onClick={() => handleSelectAppointment(appt)} className="px-5 py-4 hover:bg-sky-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0">
-                          <h4 className="text-md font-bold text-slate-800">{appt.patientName}</h4>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
-                            <span>Dr. {appt.doctorName}</span>
-                            <span>{new Date(appt.date).toLocaleDateString()}</span>
-                          </div>
+              <label className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1 mb-2 block">Search Patient/Appointment</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none"><SearchIcon /></div>
+                <input
+                  type="text"
+                  value={apptSearchQuery}
+                  onChange={(e) => { setApptSearchQuery(e.target.value); setShowApptDropdown(true); }}
+                  onFocus={() => setShowApptDropdown(true)}
+                  placeholder="Search by Name, ID, or Number..."
+                  className="w-full pl-12 pr-4 py-4 bg-white border-2 border-sky-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 transition-all font-bold text-slate-700 shadow-sm"
+                />
+              </div>
+              {showApptDropdown && filteredAppts.length > 0 && (
+                <div className="absolute z-[100] w-full mt-2 bg-white rounded-2xl shadow-2xl border border-sky-100 overflow-hidden">
+                  <div className="max-h-64 overflow-y-auto">
+                    {filteredAppts.map(appt => (
+                      <div key={appt._id || appt.id} onClick={() => handleSelectAppointment(appt)} className="px-5 py-4 hover:bg-sky-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0">
+                        <h4 className="text-md font-bold text-slate-800">{appt.patientName}</h4>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
+                          <span>Dr. {appt.doctorName}</span>
+                          <span>{new Date(appt.date).toLocaleDateString()}</span>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                )}
-                {showApptDropdown && <div className="fixed inset-0 z-[90] bg-transparent" onClick={() => setShowApptDropdown(false)} />}
+                </div>
+              )}
+              {showApptDropdown && <div className="fixed inset-0 z-[90] bg-transparent" onClick={() => setShowApptDropdown(false)} />}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-sky-100">
               <InputField label="Patient Name" name="patientName" value={billData.patientName} onChange={handleInputChange} readOnly />
@@ -746,11 +738,11 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
   const chargeItems = isItemized
     ? invoice.items.map(item => ({ label: item.description, value: item.subtotal || (item.qty * (item.unitPrice || item.cost)) || 0, qty: item.qty, unitPrice: item.unitPrice || item.cost }))
     : [
-        { label: 'Consultation Fee', value: details.consultationFee },
-        { label: 'Tests/Lab Fees', value: details.tests },
-        { label: 'Medicines/Pharmacy', value: details.medicines },
-        { label: 'Additional Charges', value: details.additionalCharges },
-      ].filter(item => (parseFloat(item.value) || 0) > 0);
+      { label: 'Consultation Fee', value: details.consultationFee },
+      { label: 'Tests/Lab Fees', value: details.tests },
+      { label: 'Medicines/Pharmacy', value: details.medicines },
+      { label: 'Additional Charges', value: details.additionalCharges },
+    ].filter(item => (parseFloat(item.value) || 0) > 0);
 
   const subtotalCharges = isItemized ? chargeItems.reduce((sum, item) => sum + (parseFloat(item.value) || 0), 0) : [details.consultationFee, details.tests, details.medicines, details.additionalCharges].reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
   const amountAfterDiscount = Math.max(0, subtotalCharges - (parseFloat(details.discount || details.discounts) || 0));
@@ -811,6 +803,7 @@ const BillingMgmt = () => {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0, limit: 15 });
   const itemsPerPage = 15;
   const [statusMessage, setStatusMessage] = useState('');
   const [viewMode, setViewMode] = useState('list');
@@ -820,15 +813,26 @@ const BillingMgmt = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [printingInvoice, setPrintingInvoice] = useState(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (page = 1) => {
     try {
       setLoading(true);
-      const [billingData, appointmentData, doctorData] = await Promise.all([
-        billingApi.getAll(),
+      const [billingResponse, appointmentData, doctorData] = await Promise.all([
+        billingApi.getAll({
+          page,
+          limit: itemsPerPage,
+          search: searchTerm,
+          status: activeFilter === 'All' ? '' : activeFilter,
+          billType: billingTab
+        }),
         appointmentApi.getAll(),
         centralDoctorApi.getAll()
       ]);
-      setInvoices(billingData.map(transformApiData));
+
+      const billsData = billingResponse.bills || (Array.isArray(billingResponse) ? billingResponse : []);
+      setInvoices(billsData.map(transformApiData));
+      setPagination(billingResponse.pagination || { total: billsData.length, totalPages: 1, limit: itemsPerPage });
+      setCurrentPage(page);
+
       setAppointments(appointmentData || []);
       setDoctors(doctorData?.doctors || (Array.isArray(doctorData) ? doctorData : []));
     } catch (error) {
@@ -836,9 +840,18 @@ const BillingMgmt = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchTerm, activeFilter, billingTab]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData(1);
+  }, [activeFilter, billingTab]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchData(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const handleAction = (action, invoiceId) => {
     const invoice = invoices.find(inv => inv.id === invoiceId);
@@ -862,36 +875,12 @@ const BillingMgmt = () => {
     return () => clearTimeout(timeout);
   }, [printingInvoice]);
 
-  const { filteredInvoices, summaryMetrics } = useMemo(() => {
-    const lowerCaseSearch = searchTerm.toLowerCase();
-    let filtered = invoices.filter(invoice => {
-      if (invoice.billType !== billingTab) return false;
-      if (activeFilter !== 'All' && ['Cash', 'UPI', 'Card'].includes(activeFilter)) {
-        if (invoice.details?.paymentMode?.toLowerCase() !== activeFilter.toLowerCase()) return false;
-      }
-      if (searchTerm) {
-        return (
-          invoice.patient.toLowerCase().includes(lowerCaseSearch) || 
-          invoice.id.toLowerCase().includes(lowerCaseSearch) ||
-          (invoice.patientPhone || "").includes(searchTerm)
-        );
-      }
-      return true;
-    });
-
-    return {
-      filteredInvoices: filtered
-    };
-  }, [invoices, activeFilter, searchTerm, billingTab]);
-
-  const paginatedInvoices = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredInvoices.slice(start, start + itemsPerPage);
-  }, [filteredInvoices, currentPage]);
+  const paginatedInvoices = invoices; // Now paginated on server-side
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media print { 
           .no-print { display: none !important; } 
           .print-only { 
@@ -908,14 +897,13 @@ const BillingMgmt = () => {
       `}} />
 
       <div className="min-h-screen bg-gray-100 p-4 no-print">
-        <header className="mb-6"><h1 className="text-2xl font-black text-gray-900">Billing Management</h1></header>
+        <header className="mb-6"><h1 className="text-2xl font-black text-gray-900 md:pl-10 transition-all">Billing Management</h1></header>
         {statusMessage && <div className="mb-4 p-3 bg-blue-50 text-blue-800 rounded-lg font-bold">{statusMessage}</div>}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {[
             { id: 'General', label: 'Consultation', icon: User, color: 'sky' },
-            { id: 'Pharmacy', label: 'Pharmacy', icon: PlusCircle, color: 'indigo' },
-            { id: 'Lab', label: 'Lab Test', icon: Search, color: 'purple' }
+            { id: 'Pharmacy', label: 'Pharmacy', icon: PlusCircle, color: 'indigo' }
           ].map(tab => (
             <button key={tab.id} onClick={() => { setBillingTab(tab.id); setViewMode('list'); }}
               className={`p-5 rounded-2xl border-2 text-left transition-all ${billingTab === tab.id ? `bg-white border-${tab.color}-500 shadow-xl ring-4 ring-${tab.color}-500/10` : 'bg-slate-50 border-slate-100 hover:bg-white'}`}>
@@ -929,7 +917,21 @@ const BillingMgmt = () => {
 
         <div className="bg-white rounded-2xl shadow-lg p-5">
           {viewMode === 'list' ? (
-            <InvoiceList filteredInvoices={paginatedInvoices} summaryMetrics={summaryMetrics} activeFilter={activeFilter} setActiveFilter={setActiveFilter} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setViewMode={setViewMode} handleAction={handleAction} billingTab={billingTab} currentPage={currentPage} totalPages={Math.ceil(filteredInvoices.length/itemsPerPage)} onPageChange={setCurrentPage} totalItems={filteredInvoices.length} itemsPerPage={itemsPerPage} />
+            <InvoiceList
+              filteredInvoices={paginatedInvoices}
+              activeFilter={activeFilter}
+              setActiveFilter={setActiveFilter}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              setViewMode={setViewMode}
+              handleAction={handleAction}
+              billingTab={billingTab}
+              currentPage={currentPage}
+              totalPages={pagination.totalPages}
+              onPageChange={fetchData}
+              totalItems={pagination.total}
+              itemsPerPage={itemsPerPage}
+            />
           ) : (
             <GenerateBillForm onSave={(inv) => { setInvoices(p => [inv, ...p]); setViewMode('list'); }} onCancel={() => setViewMode('list')} setStatusMessage={setStatusMessage} appointments={appointments} doctors={doctors} billType={billingTab} />
           )}

@@ -244,7 +244,7 @@ const DoctorPanel = ({
     >
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 transition-all">
           <h1 className="text-2xl font-bold text-gray-800">Doctor Management</h1>
           <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-sm font-medium">
             Total Doctors : {filteredDoctors.length}

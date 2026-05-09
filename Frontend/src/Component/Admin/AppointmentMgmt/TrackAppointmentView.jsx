@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  Activity, 
-  Clock, 
-  User, 
-  Stethoscope, 
-  ChevronRight, 
-  Search, 
-  Calendar, 
+import {
+  Activity,
+  Clock,
+  User,
+  Stethoscope,
+  ChevronRight,
+  Search,
+  Calendar,
   RefreshCw,
   CheckCircle,
   XCircle,
@@ -36,22 +36,22 @@ const TrackAppointmentView = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [activeFilter, setActiveFilter] = useState('all'); 
+  const [activeFilter, setActiveFilter] = useState('all');
 
   // Socket state
   const socketRef = useRef(null);
 
   // Modal State
-  const [rescheduleData, setRescheduleData] = useState(null); 
-  const [cancelData, setCancelData] = useState(null); 
+  const [rescheduleData, setRescheduleData] = useState(null);
+  const [cancelData, setCancelData] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
-  const [processingId, setProcessingId] = useState(null); 
-  
+  const [processingId, setProcessingId] = useState(null);
+
   // Visit Notes State
   const [visitNotesData, setVisitNotesData] = useState(null);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
-  
+
   // AI Summary State
   const [aiSummaryData, setAiSummaryData] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -76,7 +76,7 @@ const TrackAppointmentView = () => {
 
   useEffect(() => {
     fetchTodayAppointments();
-    
+
     // Initialize Socket.io
     const socketUrl = getSocketUrl();
     const socket = io(socketUrl, {
@@ -93,7 +93,7 @@ const TrackAppointmentView = () => {
     });
 
     socket.on('appointment-updated', (data) => {
-      
+
       setAppointments(prev => {
         const appointmentId = data.appointmentId || data.appointment?._id || data.appointment?.id;
         if (!appointmentId) return prev;
@@ -101,11 +101,11 @@ const TrackAppointmentView = () => {
         const idStr = appointmentId.toString();
 
         if (data.type === 'cancelled') {
-           return prev.filter(app => (app._id || app.id)?.toString() !== idStr);
+          return prev.filter(app => (app._id || app.id)?.toString() !== idStr);
         }
-        
+
         const index = prev.findIndex(app => (app._id || app.id)?.toString() === idStr);
-        
+
         if (index !== -1) {
           console.log(`Updating row index ${index} for ID ${idStr}`);
           const newAppts = [...prev];
@@ -115,7 +115,7 @@ const TrackAppointmentView = () => {
           // If it's a new appointment or migrated from another collection for today, add it
           const appDateStr = data.appointment?.appointmentDate || data.appointment?.date;
           const todayStr = new Date().toISOString().split('T')[0];
-          
+
           if (appDateStr === todayStr) {
             console.log('Adding new appointment for today:', idStr);
             return [...prev, data.appointment];
@@ -166,7 +166,7 @@ const TrackAppointmentView = () => {
         res = await api.patch(`/appointments/${id}/status`, { status: newStatus, ...extraData });
         if (res.status === 200) {
           // Immediate Local Update
-          setAppointments(prev => prev.map(app => 
+          setAppointments(prev => prev.map(app =>
             (app._id || app.id)?.toString() === id.toString() ? res.data : app
           ));
         }
@@ -182,13 +182,13 @@ const TrackAppointmentView = () => {
     if (!rescheduleData.date || !rescheduleData.time) return;
     try {
       setProcessingId(rescheduleData.id);
-      const res = await api.patch(`/appointments/${rescheduleData.id}/reschedule`, { 
-        appointmentDate: rescheduleData.date, 
-        appointmentTime: rescheduleData.time 
+      const res = await api.patch(`/appointments/${rescheduleData.id}/reschedule`, {
+        appointmentDate: rescheduleData.date,
+        appointmentTime: rescheduleData.time
       });
       if (res.status === 200) {
         // Immediate Local Update
-        setAppointments(prev => prev.map(app => 
+        setAppointments(prev => prev.map(app =>
           (app._id || app.id)?.toString() === rescheduleData.id.toString() ? res.data : app
         ));
       }
@@ -199,14 +199,14 @@ const TrackAppointmentView = () => {
       setProcessingId(null);
     }
   };
-  
+
   const handleWhatsAppNotify = async (app) => {
     const phone = app.patientPhone?.replace(/\D/g, '');
     if (!phone) return toast.warning('No phone number available for this patient.');
-    
+
     // For prescriptions, we want to use the template
     const notes = app.visitNotes || app.symptoms || app.reason || "Follow-up required";
-    
+
     try {
       setProcessingId(app._id);
       const clinicName = user?.organization?.name || user?.organizationId?.name || "Our Clinic";
@@ -228,7 +228,7 @@ const TrackAppointmentView = () => {
     try {
       const res = await api.put(`/appointments/${visitNotesData.id}/notes`, { visitNotes: visitNotesData.notes });
       if (res.status === 200) {
-        setAppointments(prev => prev.map(app => 
+        setAppointments(prev => prev.map(app =>
           (app._id || app.id)?.toString() === visitNotesData.id.toString() ? { ...app, visitNotes: visitNotesData.notes } : app
         ));
         setVisitNotesData(null);
@@ -268,12 +268,12 @@ const TrackAppointmentView = () => {
     try {
       setIsAiLoading(true);
       setAiSummaryData({ loading: true, patientName, text: null });
-      
+
       let baseText = '';
       if (currentSymptoms && currentSymptoms.trim().toLowerCase() !== 'none' && currentSymptoms.trim() !== '') {
-          baseText = `📌 CURRENT VISIT REASON:\n${currentSymptoms}\n\n‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\n🏥 MAYA MEDICAL HISTORY ANALYSIS:\n`;
+        baseText = `📌 CURRENT VISIT REASON:\n${currentSymptoms}\n\n‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\n🏥 MAYA MEDICAL HISTORY ANALYSIS:\n`;
       } else {
-          baseText = `🏥 MAYA MEDICAL HISTORY ANALYSIS:\n`;
+        baseText = `🏥 MAYA MEDICAL HISTORY ANALYSIS:\n`;
       }
 
       const res = await api.get(`/patients/${patientId}/ai-summary`);
@@ -286,9 +286,9 @@ const TrackAppointmentView = () => {
       console.error('Error fetching AI Summary:', err);
       let errorText = '';
       if (currentSymptoms && currentSymptoms.trim().toLowerCase() !== 'none' && currentSymptoms.trim() !== '') {
-          errorText = `📌 CURRENT VISIT REASON:\n${currentSymptoms}\n\n‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\n🏥 MAYA MEDICAL HISTORY ANALYSIS:\nNo prior medical history available on record.`;
+        errorText = `📌 CURRENT VISIT REASON:\n${currentSymptoms}\n\n‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾\n🏥 MAYA MEDICAL HISTORY ANALYSIS:\nNo prior medical history available on record.`;
       } else {
-          errorText = `🏥 MAYA MEDICAL HISTORY ANALYSIS:\nNo prior medical history available on record.`;
+        errorText = `🏥 MAYA MEDICAL HISTORY ANALYSIS:\nNo prior medical history available on record.`;
       }
       setAiSummaryData({ loading: false, patientName, text: errorText });
     } finally {
@@ -312,7 +312,7 @@ const TrackAppointmentView = () => {
 
     return { label: 'Upcoming', color: 'yellow', bg: 'bg-yellow-100 text-yellow-700' };
   };
-  
+
   // Check if date is in the future (after today)
   const isFutureDate = (dateStr) => {
     if (!dateStr) return false;
@@ -330,7 +330,7 @@ const TrackAppointmentView = () => {
     const startTime = parseTime(app.time);
     const now = currentTime.getTime();
     const duration = 30 * 60 * 1000;
-    
+
     return startTime > 0 && now >= startTime && now < startTime + duration;
   };
 
@@ -338,11 +338,11 @@ const TrackAppointmentView = () => {
     return appointments
       .filter(app => {
         // Search Filter
-        const matchesSearch = 
+        const matchesSearch =
           app.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           app.doctorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           app.shortId?.toString().includes(searchTerm);
-        
+
         if (!matchesSearch) return false;
 
         // Tab Filter
@@ -351,7 +351,7 @@ const TrackAppointmentView = () => {
         if (activeFilter === 'cancelled') return app.status === 'cancelled';
         if (activeFilter === 'missed') return getStatusInfo(app).label === 'Missed';
         if (activeFilter === 'rescheduled') return app.isRescheduled === true;
-        
+
         return true;
       })
       .sort((a, b) => parseTime(a.time) - parseTime(b.time));
@@ -360,11 +360,11 @@ const TrackAppointmentView = () => {
   return (
     <div className="bg-gray-50 min-h-screen p-6 relative">
       <div className="max-w-full mx-auto space-y-6">
-        
+
         {/* Professional Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 md:pl-10 transition-all">
               <h1 className="text-xl md:text-2xl font-black text-gray-800 uppercase tracking-tight">Today's Appointments</h1>
               <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 border border-blue-100 rounded-lg text-blue-600 text-[10px] font-black uppercase shadow-sm">
                 <Timer size={12} className="animate-pulse" />
@@ -375,7 +375,7 @@ const TrackAppointmentView = () => {
                 <span>Active</span>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-gray-500 text-xs font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-2 text-gray-500 text-xs font-bold uppercase tracking-wider md:pl-10 transition-all">
               <Calendar size={12} />
               <span>{format(new Date(), 'EEEE, MMMM do, yyyy')}</span>
             </div>
@@ -393,7 +393,7 @@ const TrackAppointmentView = () => {
               />
             </div>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={fetchTodayAppointments}
                 className="flex-1 sm:flex-none p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-gray-600 shadow-sm flex justify-center"
                 title="Refresh"
@@ -424,16 +424,14 @@ const TrackAppointmentView = () => {
             <button
               key={tab.id}
               onClick={() => setActiveFilter(tab.id)}
-              className={`px-4 py-2 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeFilter === tab.id 
-                ? 'bg-blue-600 text-white shadow-md ring-1 ring-blue-700/10' 
-                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
-              }`}
+              className={`px-4 py-2 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${activeFilter === tab.id
+                  ? 'bg-blue-600 text-white shadow-md ring-1 ring-blue-700/10'
+                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                }`}
             >
               {tab.label}
-              <span className={`px-1.5 py-0.5 rounded-md text-[9px] ${
-                activeFilter === tab.id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'
-              }`}>
+              <span className={`px-1.5 py-0.5 rounded-md text-[9px] ${activeFilter === tab.id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'
+                }`}>
                 {tab.count}
               </span>
             </button>
@@ -472,14 +470,14 @@ const TrackAppointmentView = () => {
                       <tr key={app._id} className={`hover:bg-gray-50 transition-all group relative ${isNow ? 'bg-blue-50/30' : ''} ${app.status === 'cancelled' ? 'opacity-50 grayscale select-none' : ''}`}>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                             <span className={`font-bold ${isNow ? 'text-blue-700 scale-105 inline-block transition-transform' : 'text-gray-900'}`}>
-                                {app.time?.split('-')[0].trim() || '--:--'}
-                             </span>
-                             {isNow && (
-                                <div className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase tracking-tighter animate-pulse shadow-sm">
-                                   NOW
-                                </div>
-                             )}
+                            <span className={`font-bold ${isNow ? 'text-blue-700 scale-105 inline-block transition-transform' : 'text-gray-900'}`}>
+                              {app.time?.split('-')[0].trim() || '--:--'}
+                            </span>
+                            {isNow && (
+                              <div className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase tracking-tighter animate-pulse shadow-sm">
+                                NOW
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -490,7 +488,7 @@ const TrackAppointmentView = () => {
                             <div>
                               <div className="flex items-center gap-2">
                                 <p className={`text-sm font-semibold ${isNow ? 'text-blue-800' : 'text-gray-800'}`}>{app.patientName}</p>
-                                <button 
+                                <button
                                   onClick={() => handleFetchAiSummary(app.patientId, app.patientName, app.symptoms || app.reason)}
                                   className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 p-1 rounded-full transition-all"
                                   title="AI Medical Summary"
@@ -507,8 +505,8 @@ const TrackAppointmentView = () => {
                         </td>
                         <td className={`px-6 py-4 text-sm ${isNow ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>
                           <div className="flex items-center gap-2 text-nowrap">
-                             <Stethoscope size={14} className={isNow ? 'text-blue-600' : 'text-gray-400'} />
-                             <span>{app.doctorName}</span>
+                            <Stethoscope size={14} className={isNow ? 'text-blue-600' : 'text-gray-400'} />
+                            <span>{app.doctorName}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -526,7 +524,7 @@ const TrackAppointmentView = () => {
                               <>
                                 {/* One-Click Arrive / Complete - Hidden for future dates */}
                                 {app.status !== 'completed' && app.status !== 'cancelled' && !isFutureDate(app.date) ? (
-                                  <button 
+                                  <button
                                     onClick={() => handleStatusUpdate(app._id, 'completed')}
                                     className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
                                     title="Mark Arrived"
@@ -537,7 +535,7 @@ const TrackAppointmentView = () => {
 
                                 {/* Reschedule */}
                                 {app.status !== 'completed' && app.status !== 'cancelled' && (
-                                  <button 
+                                  <button
                                     onClick={() => setRescheduleData({ id: app._id, doctorId: app.doctorId, date: app.date, time: app.time })}
                                     className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
                                     title="Reschedule"
@@ -548,7 +546,7 @@ const TrackAppointmentView = () => {
 
                                 {/* Cancel */}
                                 {app.status !== 'completed' && app.status !== 'cancelled' && (
-                                  <button 
+                                  <button
                                     onClick={() => setCancelData({ id: app._id, patientName: app.patientName })}
                                     className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                     title="Cancel Appointment"
@@ -565,11 +563,10 @@ const TrackAppointmentView = () => {
                                     </div>
                                     <button
                                       onClick={() => setVisitNotesData({ id: app._id || app.id, notes: app.visitNotes || '', doctorName: app.doctorName, patientName: app.patientName })}
-                                      className={`p-2 rounded-lg transition-colors border-l border-gray-100 ml-1 pl-3 flex items-center justify-center ${
-                                        app.visitNotes 
-                                        ? 'text-indigo-600 hover:bg-indigo-50' 
-                                        : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
-                                      }`}
+                                      className={`p-2 rounded-lg transition-colors border-l border-gray-100 ml-1 pl-3 flex items-center justify-center ${app.visitNotes
+                                          ? 'text-indigo-600 hover:bg-indigo-50'
+                                          : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                                        }`}
                                       title={app.visitNotes ? "Edit Visit Notes" : "Add Visit Notes"}
                                     >
                                       <FileText size={18} className={app.visitNotes ? "fill-indigo-100" : ""} />
@@ -583,10 +580,10 @@ const TrackAppointmentView = () => {
                                     <XCircle size={20} />
                                   </div>
                                 )}
-                                
+
                                 {/* WhatsApp Notify - Only for Upcoming */}
                                 {app.patientPhone && app.status !== 'completed' && app.status !== 'cancelled' && app.status !== 'confirmed' && (
-                                  <button 
+                                  <button
                                     onClick={() => handleWhatsAppNotify(app)}
                                     className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors border-l border-gray-100 ml-1 pl-3"
                                     title="Send prescription to patient on their WhatsApp"
@@ -624,15 +621,15 @@ const TrackAppointmentView = () => {
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">Reschedule</h2>
               <button onClick={() => setRescheduleData(null)}><X className="text-slate-400 hover:text-slate-600" /></button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 block">New Date</label>
-                <input 
+                <input
                   type="date"
                   className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-700"
                   value={rescheduleData.date}
-                  onChange={(e) => setRescheduleData({...rescheduleData, date: e.target.value, time: ''})}
+                  onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value, time: '' })}
                 />
               </div>
 
@@ -644,10 +641,10 @@ const TrackAppointmentView = () => {
                     Checking Availability...
                   </div>
                 ) : (
-                  <select 
+                  <select
                     className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-700 appearance-none"
                     value={rescheduleData.time}
-                    onChange={(e) => setRescheduleData({...rescheduleData, time: e.target.value})}
+                    onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
                   >
                     <option value="" disabled>Select a slot</option>
                     {availableSlots.map(slot => (
@@ -658,7 +655,7 @@ const TrackAppointmentView = () => {
               </div>
             </div>
 
-            <button 
+            <button
               onClick={handleReschedule}
               disabled={!rescheduleData.time}
               className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-200 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
@@ -677,23 +674,23 @@ const TrackAppointmentView = () => {
               <h2 className="text-2xl font-black text-rose-800 tracking-tight">Cancel Appt</h2>
               <button onClick={() => setCancelData(null)}><X className="text-slate-400 hover:text-slate-600" /></button>
             </div>
-            
+
             <p className="text-slate-500 font-medium">Are you sure you want to cancel <span className="font-bold text-slate-700">{cancelData.patientName}</span>'s appointment?</p>
 
-            <textarea 
+            <textarea
               placeholder="Enter cancellation reason (optional)..."
               className="w-full p-4 bg-slate-50 border-none rounded-2xl font-medium text-slate-700 min-h-[120px] focus:ring-2 focus:ring-rose-500"
-              onChange={(e) => setCancelData({...cancelData, reason: e.target.value})}
+              onChange={(e) => setCancelData({ ...cancelData, reason: e.target.value })}
             />
 
             <div className="flex gap-4">
-              <button 
+              <button
                 onClick={() => setCancelData(null)}
                 className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
               >
                 No, Keep
               </button>
-              <button 
+              <button
                 onClick={() => {
                   handleStatusUpdate(cancelData.id, 'cancelled', { cancellationReason: cancelData.reason });
                   setCancelData(null);
@@ -712,7 +709,7 @@ const TrackAppointmentView = () => {
         <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl border border-slate-100 flex flex-col gap-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full -mr-16 -mt-16 opacity-50 blur-2xl"></div>
-            
+
             <div className="flex justify-between items-start relative">
               <div>
                 <div className="flex items-center gap-2 mb-1 text-amber-500">
@@ -725,7 +722,7 @@ const TrackAppointmentView = () => {
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="bg-slate-50 border border-slate-100 p-6 rounded-3xl min-h-[150px] relative">
               {aiSummaryData.loading ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-3">
@@ -743,7 +740,7 @@ const TrackAppointmentView = () => {
               )}
             </div>
 
-            <button 
+            <button
               onClick={() => setAiSummaryData(null)}
               className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-slate-200 hover:bg-slate-800 active:scale-95 transition-all text-sm"
             >
@@ -769,23 +766,23 @@ const TrackAppointmentView = () => {
                   Patient: <span className="text-slate-600">{visitNotesData.patientName}</span> • Dr. <span className="text-slate-600">{visitNotesData.doctorName}</span>
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => setVisitNotesData(null)}
                 className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <label className="text-[10px] sm:text-xs font-black uppercase text-slate-400 tracking-widest block">
                 Clinical Observations & Prescriptions
               </label>
-              <textarea 
+              <textarea
                 className="w-full h-48 sm:h-64 p-4 sm:p-5 bg-slate-50 border border-slate-200 focus:border-indigo-400 rounded-2xl font-medium text-slate-700 text-sm sm:text-base resize-none focus:outline-none focus:ring-4 focus:ring-indigo-100 transition-all custom-scrollbar placeholder:text-slate-300 placeholder:italic"
                 placeholder="Type your notes, observations, or prescribed medications here..."
                 value={visitNotesData.notes}
-                onChange={(e) => setVisitNotesData({...visitNotesData, notes: e.target.value})}
+                onChange={(e) => setVisitNotesData({ ...visitNotesData, notes: e.target.value })}
                 autoFocus
               />
               <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 opacity-80 mt-2">
@@ -795,14 +792,14 @@ const TrackAppointmentView = () => {
             </div>
 
             <div className="flex items-center gap-3 pt-4 border-t border-slate-100 mt-2">
-              <button 
+              <button
                 onClick={() => setVisitNotesData(null)}
                 className="flex-1 py-3 sm:py-4 bg-slate-50 text-slate-500 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest hover:bg-slate-100 transition-colors text-[10px] sm:text-xs"
                 disabled={isSavingNotes}
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleSaveNotes}
                 disabled={isSavingNotes}
                 className="flex-[2] py-3 sm:py-4 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-xl sm:rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-indigo-200 hover:shadow-xl hover:shadow-indigo-300 transition-all disabled:opacity-70 disabled:cursor-not-allowed text-[10px] sm:text-xs flex items-center justify-center gap-2"
@@ -816,14 +813,14 @@ const TrackAppointmentView = () => {
                   <>Save Notes</>
                 )}
               </button>
-              <button 
+              <button
                 onClick={async () => {
                   const app = appointments.find(a => (a._id || a.id)?.toString() === visitNotesData.id?.toString());
                   if (app) {
                     // 1. Save notes first so they are updated in the database
                     await handleSaveNotes();
                     // 2. Then send via WhatsApp
-                    handleWhatsAppNotify({...app, visitNotes: visitNotesData.notes});
+                    handleWhatsAppNotify({ ...app, visitNotes: visitNotesData.notes });
                   } else {
                     toast.error("Appointment not found");
                   }

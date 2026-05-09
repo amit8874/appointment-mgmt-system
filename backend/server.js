@@ -4,8 +4,7 @@ import { Server } from "socket.io";
 import cors from "cors";
 import dotenv from "dotenv";
 import multer from "multer";
-import { v2 as cloudinary } from "cloudinary";
-import { CloudinaryStorage } from "multer-storage-cloudinary";
+import { uploadToS3 } from "./utils/uploadToS3.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -47,10 +46,15 @@ import investigationRoutes from "./routes/investigationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import prescriptionTemplateRoutes from "./routes/prescriptionTemplateRoutes.js";
 import devRoutes from "./routes/devRoutes.js";
+import patientProgressImageRoutes from "./routes/patientProgressImageRoutes.js";
+import patientProgressComparisonRoutes from "./routes/patientProgressComparisonRoutes.js";
+import translationRoutes from "./routes/translationRoutes.js";
+import clinicalNoteRoutes from "./routes/clinicalNoteRoutes.js";
 import { seedGlobalComplaints } from "./controllers/complaintController.js";
 import { seedDiagnosisMaster } from "./controllers/diagnosisController.js";
 import { seedMedicineMaster } from "./controllers/medicineController.js";
 import { seedInvestigationMaster } from "./controllers/investigationController.js";
+import internalPharmacyRoutes from "./routes/internalPharmacyRoutes.js";
 import { detectTenant } from "./middleware/tenant.js";
 
 // Load environment variables based on NODE_ENV
@@ -110,14 +114,8 @@ io.on("connection", (socket) => {
 });
 
 /* --------------------------------------------------
-Cloudinary Configuration
+S3 Configuration is handled in services/s3Service.js
 -------------------------------------------------- */
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 /* --------------------------------------------------
 Connect Database
@@ -178,35 +176,11 @@ app.get("/", (req, res) => {
 });
 
 /* --------------------------------------------------
-Multer + Cloudinary Storage
+Multer Memory Storage
 -------------------------------------------------- */
 
-const cloudStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "hospital-profiles",
-    allowed_formats: ["jpg", "png", "jpeg", "gif", "webp", "pdf"],
-    transformation: [{ width: 1000, height: 1000, crop: "limit" }],
-  },
-
-});
-
-// Local Disk Storage for development/fallback
-const diskStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-// Use diskStorage in development/fallback to avoid Cloudinary timeouts
-// Use the nodeEnv declared at the top
-const isDev = nodeEnv === "development" || nodeEnv === "dev";
 const upload = multer({
-  storage: isDev ? diskStorage : cloudStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/") || file.mimetype === "application/pdf") {
@@ -215,7 +189,6 @@ const upload = multer({
       cb(new Error("Only image files or PDFs are allowed!"), false);
     }
   },
-
 });
 
 global.upload = upload;
@@ -232,7 +205,11 @@ API Routes
 
 app.use("/api/users", userRoutes);
 app.use("/api/patients", patientRoutes);
+app.use("/api/patients", patientProgressImageRoutes);
+app.use("/api/patients", patientProgressComparisonRoutes);
+app.use("/api/patients", clinicalNoteRoutes);
 app.use("/api/appointments", appointmentRoutes);
+app.use("/api/translate", translationRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/receptionists", receptionistRoutes);
 app.use("/api/auth", authRoutes);
@@ -248,6 +225,7 @@ app.use("/api/chatbot", chatbotRoutes);
 app.use("/api/medical-records", medicalRecordRoutes);
 app.use("/api/service-requests", serviceRequestRoutes);
 app.use("/api/pharmacy", pharmacyRoutes);
+app.use("/api/internal-pharmacy", internalPharmacyRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/invoice-templates", templateRoutes);
 app.use("/api/specializations", specializationRoutes);
@@ -280,7 +258,7 @@ app.post("/api/upload", (req, res) => {
   console.log("Upload request received");
   console.log("Headers:", req.headers['content-type']);
   
-  upload.single("image")(req, res, (err) => {
+  upload.single("image")(req, res, async (err) => {
     if (err) {
       console.error("Multer error:", err);
       return res.status(500).json({
@@ -294,16 +272,37 @@ app.post("/api/upload", (req, res) => {
       return res.status(400).json({ message: "No file uploaded. Please ensure you are sending an image or PDF file." });
     }
 
-    const imageUrl = req.file.path.startsWith('http') 
-      ? req.file.path 
-      : `${req.protocol}://${req.get('host')}/${req.file.path.replace(/\\/g, '/')}`;
+    try {
+      const folderType = req.body.folderType || req.body.type || 'general';
+      const organizationId = req.tenantId || req.body.organizationId || 'global';
+      
+      const s3Result = await uploadToS3({
+        file: req.file,
+        folderType,
+        organizationId
+      });
 
-    console.log("File uploaded successfully. URL:", imageUrl);
-    
-    res.json({
-      message: "Image uploaded successfully",
-      imageUrl: imageUrl,
-    });
+      // Use signedUrl if available for private access, else public fileUrl
+      const imageUrl = s3Result.signedUrl || s3Result.fileUrl;
+
+      console.log("File uploaded to S3 successfully. URL:", imageUrl);
+      
+      res.json({
+        message: "Image uploaded successfully",
+        imageUrl: imageUrl,
+        s3Metadata: {
+          storageProvider: s3Result.storageProvider,
+          s3Bucket: s3Result.s3Bucket,
+          s3Key: s3Result.s3Key
+        }
+      });
+    } catch (uploadError) {
+      console.error("S3 Upload Error:", uploadError);
+      return res.status(500).json({
+        message: "Failed to upload file to S3",
+        error: uploadError.message
+      });
+    }
   });
 });
 

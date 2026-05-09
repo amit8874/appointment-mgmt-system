@@ -4,19 +4,37 @@ import puppeteer from 'puppeteer';
 import mongoose from 'mongoose';
 import fs from 'fs';
 import path from 'path';
+import { uploadToS3 } from '../utils/uploadToS3.js';
 
 const extractObjectId = (value) => {
   if (!value) return null;
 
-  if (typeof value === "object") {
-    return value._id || value.id || null;
+  // Handle Mongoose ObjectId instances
+  if (value instanceof mongoose.Types.ObjectId) {
+    return value.toString();
   }
 
-  if (typeof value === "string" && (value === "[object Object]" || value === "undefined" || value === "null")) {
+  if (typeof value === "object") {
+    // If it's a populated document object
+    if (value._id) return value._id.toString();
+    if (value.id) return value.id.toString();
+    // If it's somehow an object without _id but has toString that returns hex
+    if (value.toString && mongoose.Types.ObjectId.isValid(value.toString())) {
+      return value.toString();
+    }
     return null;
   }
 
-  return value;
+  if (typeof value === "string") {
+    if (value === "[object Object]" || value === "undefined" || value === "null") {
+      return null;
+    }
+    if (mongoose.Types.ObjectId.isValid(value)) {
+      return value;
+    }
+  }
+
+  return null;
 };
 
 export const saveTemplate = async (req, res) => {
@@ -27,7 +45,8 @@ export const saveTemplate = async (req, res) => {
     let organizationId = extractObjectId(rawOrgId) || 
                          extractObjectId(req.user?.organizationId) || 
                          extractObjectId(req.user?.organization) || 
-                         extractObjectId(req.organization);
+                         extractObjectId(req.organization) ||
+                         req.tenantId;
 
     console.log("Raw Org Value:", rawOrgId);
     console.log("Final OrgId:", organizationId);
@@ -50,17 +69,25 @@ export const saveTemplate = async (req, res) => {
 
     const files = req.files || {};
     
-    // Construct URLs for uploaded images
-    const getFileUrl = (fieldname) => {
+    const uploadFileToS3 = async (fieldname) => {
       if (files[fieldname] && files[fieldname].length > 0) {
-        return `/uploads/prescriptionTemplates/${files[fieldname][0].filename}`;
+        try {
+          const s3Result = await uploadToS3({
+            file: files[fieldname][0],
+            folderType: 'prescriptions',
+            organizationId
+          });
+          return s3Result.signedUrl || s3Result.fileUrl;
+        } catch (err) {
+          console.error(`Failed to upload ${fieldname} to S3:`, err);
+        }
       }
       return null;
     };
 
-    const headerImage = getFileUrl('headerImage');
-    const bodyImage = getFileUrl('bodyImage');
-    const footerImage = getFileUrl('footerImage');
+    const headerImage = await uploadFileToS3('headerImage');
+    const bodyImage = await uploadFileToS3('bodyImage');
+    const footerImage = await uploadFileToS3('footerImage');
 
     // Extract createdBy safely
     const createdBy = req.user?._id || req.user?.id;
@@ -105,7 +132,9 @@ export const saveTemplate = async (req, res) => {
 
 export const listTemplates = async (req, res) => {
   try {
-    const organizationId = extractObjectId(req.params.organizationId);
+    const organizationId = extractObjectId(req.params.organizationId) || 
+                           extractObjectId(req.tenantId) || 
+                           extractObjectId(req.user?.organizationId);
     
     if (!organizationId || !mongoose.Types.ObjectId.isValid(organizationId)) {
       return res.status(400).json({ success: false, message: "Valid organizationId is required" });
@@ -124,7 +153,9 @@ export const listTemplates = async (req, res) => {
 
 export const getDefaultTemplate = async (req, res) => {
   try {
-    const organizationId = extractObjectId(req.params.organizationId);
+    const organizationId = extractObjectId(req.params.organizationId) || 
+                           extractObjectId(req.tenantId) || 
+                           extractObjectId(req.user?.organizationId);
 
     if (!organizationId || !mongoose.Types.ObjectId.isValid(organizationId)) {
       return res.status(400).json({ success: false, message: "Valid organizationId is required" });
@@ -143,7 +174,9 @@ export const getDefaultTemplate = async (req, res) => {
 
 export const generatePdf = async (req, res) => {
   try {
-    const organizationId = extractObjectId(req.body.organizationId);
+    const organizationId = extractObjectId(req.body.organizationId) || 
+                           extractObjectId(req.tenantId) || 
+                           extractObjectId(req.user?.organizationId);
 
     if (!organizationId || !mongoose.Types.ObjectId.isValid(organizationId)) {
       return res.status(400).json({ success: false, message: "Valid organizationId is required" });
@@ -151,42 +184,45 @@ export const generatePdf = async (req, res) => {
 
     const { prescriptionData, patientData, templateId } = req.body;
     
+    console.log("[generatePdf] Received templateId:", templateId);
+    
     // Fetch template (specified or default)
     let template = null;
-    if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
+    if (templateId === 'system_default') {
+      console.log("[generatePdf] Explicitly requested system default. Skipping custom templates.");
+      // template remains null, so it falls back to system layout
+    } else if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
       template = await PrescriptionTemplate.findById(templateId);
-    }
-    
-    if (!template) {
+      console.log("[generatePdf] Found template by ID:", template ? template._id : "Not Found");
+    } else {
+      // Fallback to organization's custom default if no specific template is requested
       template = await PrescriptionTemplate.findOne({ organizationId, isDefault: true });
+      console.log("[generatePdf] Using default template:", template ? template._id : "None");
     }
     
     // Fetch organization for logo and name
     const organization = await Organization.findById(organizationId);
     
     // Helper to get image as base64 for Puppeteer
-    const getBase64Image = (filePath) => {
+    const getBase64Image = async (filePath) => {
       if (!filePath) return null;
       try {
-        // If it's a full URL, extract the relative path
-        let relativePath = filePath;
         if (filePath.startsWith('http')) {
-          try {
-            const url = new URL(filePath);
-            relativePath = url.pathname; // e.g., /uploads/image...
-          } catch (e) {
-            console.error("URL parsing error:", e);
-          }
+          const axios = (await import('axios')).default;
+          const response = await axios.get(filePath, { responseType: 'arraybuffer' });
+          const buffer = Buffer.from(response.data, 'binary');
+          const ext = filePath.split('?')[0].split('.').pop() || 'png';
+          return `data:image/${ext};base64,${buffer.toString('base64')}`;
         }
 
         // Fix for Windows: ensure we don't treat '/uploads/...' as root of the E: drive
         let absolutePath;
-        if (path.isAbsolute(relativePath) && /^[a-zA-Z]:/.test(relativePath)) {
+        if (path.isAbsolute(filePath) && /^[a-zA-Z]:/.test(filePath)) {
           // It's a full Windows absolute path (e.g., E:\...)
-          absolutePath = relativePath;
+          absolutePath = filePath;
         } else {
           // It's a relative path or absolute from project root (e.g., /uploads/...)
-          const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+          const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
           absolutePath = path.join(process.cwd(), cleanPath);
         }
         
@@ -200,17 +236,17 @@ export const generatePdf = async (req, res) => {
           console.warn("Image file does not exist at:", absolutePath);
         }
       } catch (err) {
-        console.error("Base64 conversion error:", err);
+        console.error("Base64 conversion error:", err.message);
       }
       return null;
     };
 
     // Construct Logo
-    const logoBase64 = organization?.branding?.logo ? getBase64Image(organization.branding.logo) : null;
+    const logoBase64 = organization?.branding?.logo ? await getBase64Image(organization.branding.logo) : null;
 
     let headerHtml = '';
     if (template?.headerType === 'custom' && template?.headerImage) {
-      const headerBase64 = getBase64Image(template.headerImage);
+      const headerBase64 = await getBase64Image(template.headerImage);
       headerHtml = headerBase64 ? `<img src="${headerBase64}" style="width: 100%; max-height: 150px; object-fit: contain;" />` : '';
     } else {
       headerHtml = `
@@ -241,7 +277,7 @@ export const generatePdf = async (req, res) => {
       
     let footerHtml = '';
     if (template?.footerType === 'custom' && template?.footerImage) {
-      const footerBase64 = getBase64Image(template.footerImage);
+      const footerBase64 = await getBase64Image(template.footerImage);
       footerHtml = footerBase64 ? `<img src="${footerBase64}" style="width: 100%; max-height: 80px; object-fit: contain;" />` : '';
     } else {
       footerHtml = `<div style="padding: 10px; text-align: center; border-top: 1px solid #eee; font-size: 10px; color: #999; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Powered by Oviaan</div>`;
@@ -249,7 +285,7 @@ export const generatePdf = async (req, res) => {
       
     let bodyBg = '';
     if (template?.bodyType === 'custom' && template?.bodyImage) {
-      const bodyBase64 = getBase64Image(template.bodyImage);
+      const bodyBase64 = await getBase64Image(template.bodyImage);
       if (bodyBase64) {
         bodyBg = `background-image: url('${bodyBase64}'); background-size: 60%; background-position: center; background-repeat: no-repeat; opacity: 0.05;`;
       }
@@ -370,26 +406,33 @@ export const generatePdf = async (req, res) => {
 
     console.log("PDF generated successfully. Size:", pdfBuffer.length, "bytes");
 
-    // Save to disk and return URL to avoid binary corruption over HTTP
+    // Upload PDF buffer to S3 directly
     try {
       const fileName = `prescription_${Date.now()}_${Math.round(Math.random() * 1E9)}.pdf`;
-      const prescriptionsDir = path.join(process.cwd(), 'uploads', 'prescriptions');
-      if (!fs.existsSync(prescriptionsDir)) {
-        fs.mkdirSync(prescriptionsDir, { recursive: true });
-      }
       
-      const pdfPath = path.join(prescriptionsDir, fileName);
-      fs.writeFileSync(pdfPath, pdfBuffer);
-      console.log("Saved PDF to:", pdfPath);
+      const s3Result = await uploadToS3({
+        buffer: pdfBuffer,
+        originalName: fileName,
+        mimeType: 'application/pdf',
+        folderType: 'prescriptions',
+        organizationId
+      });
+      
+      console.log("Uploaded PDF to S3 successfully:", s3Result.fileUrl);
 
       return res.status(200).json({ 
         success: true, 
-        url: `/uploads/prescriptions/${fileName}` 
+        url: s3Result.signedUrl || s3Result.fileUrl,
+        s3Metadata: {
+          storageProvider: s3Result.storageProvider,
+          s3Bucket: s3Result.s3Bucket,
+          s3Key: s3Result.s3Key
+        }
       });
       
     } catch (e) {
-      console.error("Failed to save PDF to disk:", e);
-      return res.status(500).json({ success: false, message: "Failed to save generated PDF" });
+      console.error("Failed to upload PDF to S3:", e);
+      return res.status(500).json({ success: false, message: "Failed to upload generated PDF to S3" });
     }
   } catch (error) {
     console.error("PDF Generation Error:", error);

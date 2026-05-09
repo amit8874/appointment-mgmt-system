@@ -12,9 +12,12 @@ import {
   Maximize,
   Check,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  Image as ImageIcon,
+  Upload,
+  ShieldCheck
 } from 'lucide-react';
-import api from '../../../services/api';
+import { invoiceTemplateApi } from '../../../services/api';
 import { toast } from 'react-hot-toast';
 import InvoiceTemplateRenderer from '../../../components/Shared/InvoiceTemplateRenderer';
 import { INVOICE_LAYOUTS, CLINIC_THEMES } from '../../../constants/invoiceCustomization';
@@ -60,8 +63,8 @@ const InvoiceCustomizer = () => {
   useEffect(() => {
     const fetchTemplate = async () => {
       try {
-        const response = await api.get(`/invoice-templates/${id}`);
-        setTemplate(response.data);
+        const data = await invoiceTemplateApi.getById(id);
+        setTemplate(data);
       } catch (error) {
         toast.error('Failed to load template settings');
         navigate('/admin-dashboard?tab=Invoice Templates');
@@ -92,16 +95,61 @@ const InvoiceCustomizer = () => {
         fontFamily: theme.font
       }
     }));
-    toast.success(`Applied ${theme.name} Theme`);
+  const [brandingFiles, setBrandingFiles] = useState({
+    headerImage: null,
+    bodyImage: null,
+    footerImage: null
+  });
+
+  const [previews, setPreviews] = useState({
+    headerImage: null,
+    bodyImage: null,
+    footerImage: null
+  });
+
+  const handleFileChange = (e, field) => {
+    const file = e.target.files[0];
+    if (file) {
+      setBrandingFiles(prev => ({ ...prev, [field]: file }));
+      setPreviews(prev => ({ ...prev, [field]: URL.createObjectURL(file) }));
+      
+      // Also update the template object for real-time preview in the renderer
+      setTemplate(prev => ({
+        ...prev,
+        [field]: URL.createObjectURL(file)
+      }));
+    }
   };
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      await api.put(`/invoice-templates/${id}`, template);
-      toast.success('Template customization saved successfully!');
+      
+      const formData = new FormData();
+      // Add all basic template fields
+      Object.keys(template).forEach(key => {
+        if (key === 'metadata') {
+          formData.append(key, JSON.stringify(template[key]));
+        } else if (!['headerImage', 'bodyImage', 'footerImage', 'createdAt', 'updatedAt', '_id', '__v'].includes(key)) {
+          formData.append(key, template[key]);
+        }
+      });
+
+      // Add branding types
+      formData.append('headerType', template.headerType || 'default');
+      formData.append('bodyType', template.bodyType || 'default');
+      formData.append('footerType', template.footerType || 'default');
+
+      // Add new files if selected
+      if (brandingFiles.headerImage) formData.append('headerImage', brandingFiles.headerImage);
+      if (brandingFiles.bodyImage) formData.append('bodyImage', brandingFiles.bodyImage);
+      if (brandingFiles.footerImage) formData.append('footerImage', brandingFiles.footerImage);
+
+      await invoiceTemplateApi.update(id, formData);
+      toast.success('Template branding and settings saved!');
     } catch (error) {
-      toast.error('Error saving template');
+      toast.error('Error saving template branding');
+      console.error(error);
     } finally {
       setSaving(false);
     }
@@ -131,19 +179,19 @@ const InvoiceCustomizer = () => {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex p-2 gap-1 bg-slate-50 border-b border-slate-100">
-           {['layout', 'style', 'content'].map(tab => (
-             <button 
-               key={tab}
-               onClick={() => setActiveSettingsTab(tab)}
-               className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
-                 activeSettingsTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-               }`}
-             >
-               {tab}
-             </button>
-           ))}
-        </div>
+         <div className="flex p-2 gap-1 bg-slate-50 border-b border-slate-100">
+            {['layout', 'style', 'branding', 'content'].map(tab => (
+              <button 
+                key={tab}
+                onClick={() => setActiveSettingsTab(tab)}
+                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
+                  activeSettingsTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
           
@@ -241,6 +289,120 @@ const InvoiceCustomizer = () => {
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {/* Branding Customization */}
+          {activeSettingsTab === 'branding' && (
+            <div className="space-y-8">
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <ShieldCheck className="w-3 h-3" /> Header Branding
+                </label>
+                <div className="flex p-1 bg-slate-100 rounded-xl">
+                  <button 
+                    onClick={() => setTemplate(prev => ({ ...prev, headerType: 'default' }))}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${template.headerType !== 'custom' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                  >
+                    Default Clinic Info
+                  </button>
+                  <button 
+                    onClick={() => setTemplate(prev => ({ ...prev, headerType: 'custom' }))}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${template.headerType === 'custom' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                  >
+                    Custom Letterhead
+                  </button>
+                </div>
+
+                {template.headerType === 'custom' && (
+                  <div className="space-y-3">
+                    <div className="relative group aspect-video bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden">
+                      {template.headerImage ? (
+                        <img src={template.headerImage} alt="Header" className="w-full h-full object-contain" />
+                      ) : (
+                        <ImageIcon className="w-8 h-8 text-slate-300" />
+                      )}
+                      <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                        <Upload className="text-white w-6 h-6" />
+                        <input type="file" className="hidden" onChange={(e) => handleFileChange(e, 'headerImage')} accept="image/*" />
+                      </label>
+                    </div>
+                    <p className="text-[10px] text-slate-400 text-center italic">Recommended: 1200x300px (PNG/JPG)</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <ShieldCheck className="w-3 h-3" /> Footer Branding
+                </label>
+                <div className="flex p-1 bg-slate-100 rounded-xl">
+                  <button 
+                    onClick={() => setTemplate(prev => ({ ...prev, footerType: 'default' }))}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${template.footerType !== 'custom' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                  >
+                    Default Footer
+                  </button>
+                  <button 
+                    onClick={() => setTemplate(prev => ({ ...prev, footerType: 'custom' }))}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${template.footerType === 'custom' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                  >
+                    Custom Footer Image
+                  </button>
+                </div>
+
+                {template.footerType === 'custom' && (
+                  <div className="space-y-3">
+                    <div className="relative group h-24 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden">
+                      {template.footerImage ? (
+                        <img src={template.footerImage} alt="Footer" className="w-full h-full object-contain" />
+                      ) : (
+                        <ImageIcon className="w-8 h-8 text-slate-300" />
+                      )}
+                      <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                        <Upload className="text-white w-6 h-6" />
+                        <input type="file" className="hidden" onChange={(e) => handleFileChange(e, 'footerImage')} accept="image/*" />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <ShieldCheck className="w-3 h-3" /> Watermark / Body
+                </label>
+                <div className="flex p-1 bg-slate-100 rounded-xl">
+                  <button 
+                    onClick={() => setTemplate(prev => ({ ...prev, bodyType: 'default' }))}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${template.bodyType !== 'custom' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                  >
+                    None
+                  </button>
+                  <button 
+                    onClick={() => setTemplate(prev => ({ ...prev, bodyType: 'custom' }))}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${template.bodyType === 'custom' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                  >
+                    Custom Watermark
+                  </button>
+                </div>
+
+                {template.bodyType === 'custom' && (
+                  <div className="space-y-3">
+                    <div className="relative group aspect-square w-32 mx-auto bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden">
+                      {template.bodyImage ? (
+                        <img src={template.bodyImage} alt="Watermark" className="w-full h-full object-contain opacity-50" />
+                      ) : (
+                        <ImageIcon className="w-8 h-8 text-slate-300" />
+                      )}
+                      <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                        <Upload className="text-white w-6 h-6" />
+                        <input type="file" className="hidden" onChange={(e) => handleFileChange(e, 'bodyImage')} accept="image/*" />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

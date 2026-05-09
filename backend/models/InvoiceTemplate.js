@@ -12,9 +12,36 @@ const invoiceTemplateSchema = new mongoose.Schema({
     trim: true,
   },
   description: String,
+  headerType: {
+    type: String,
+    enum: ['default', 'custom'],
+    default: 'default'
+  },
+  headerImage: {
+    type: String, // URL or path to uploaded header image
+    default: null
+  },
+  bodyType: {
+    type: String,
+    enum: ['default', 'custom'],
+    default: 'default'
+  },
+  bodyImage: {
+    type: String, // URL or path to uploaded body watermark/background
+    default: null
+  },
+  footerType: {
+    type: String,
+    enum: ['default', 'custom'],
+    default: 'default'
+  },
+  footerImage: {
+    type: String, // URL or path to uploaded footer image
+    default: null
+  },
   layoutType: {
     type: String,
-    enum: ['standard', 'sidebar', 'modern', 'minimal', 'thermal'],
+    enum: ['standard', 'sidebar', 'modern', 'minimal', 'thermal', 'pharmacy'],
     default: 'standard',
   },
   category: {
@@ -43,6 +70,7 @@ const invoiceTemplateSchema = new mongoose.Schema({
     showPatientId: { type: Boolean, default: true },
     showDoctor: { type: Boolean, default: true },
     isCompact: { type: Boolean, default: false },
+    gstNumber: { type: String, default: '' },
   }
 }, {
   timestamps: true,

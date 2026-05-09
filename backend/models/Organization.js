@@ -52,6 +52,14 @@ const organizationSchema = new mongoose.Schema({
     },
     clinicName: String, // Display name
     footerText: String,
+    pharmacyTerms: {
+      type: String,
+      default: '1. Medicine can be returned only within 7 days with valid bill.\n2. Storage items (Fridge) and Loose Tablets cannot be returned.'
+    },
+    showPharmacyTerms: {
+      type: Boolean,
+      default: true
+    },
   },
   // New clinic fields
   clinicType: {

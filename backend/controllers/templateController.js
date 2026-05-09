@@ -1,4 +1,29 @@
 import InvoiceTemplate from '../models/InvoiceTemplate.js';
+import { uploadToS3 } from '../utils/uploadToS3.js';
+import { getSignedDownloadUrl } from '../services/s3Service.js';
+
+// Helper to freshen S3 URLs
+const freshenS3Urls = async (template) => {
+  const fields = ['headerImage', 'bodyImage', 'footerImage'];
+  for (const field of fields) {
+    const url = template[field];
+    if (url && (url.includes('s3.amazonaws.com') || url.includes('.s3.'))) {
+      try {
+        // Extract key: everything after the bucket name part
+        // Pattern: https://bucket-name.s3.region.amazonaws.com/key
+        const urlParts = url.split('.com/');
+        if (urlParts.length > 1) {
+          const key = urlParts[1].split('?')[0]; // Remove existing query params
+          const freshUrl = await getSignedDownloadUrl({ key, expiresInSeconds: 3600 });
+          template[field] = freshUrl;
+        }
+      } catch (err) {
+        console.warn(`[TEMPLATES] Failed to freshen ${field} for template ${template._id}:`, err.message);
+      }
+    }
+  }
+  return template;
+};
 
 // Get all templates for an organization
 export const getTemplates = async (req, res) => {
@@ -6,9 +31,12 @@ export const getTemplates = async (req, res) => {
     console.log(`[TEMPLATES] Fetching templates for organization: ${req.tenantId}`);
     const templates = await InvoiceTemplate.find({ 
       organizationId: req.tenantId 
-    }).sort({ createdAt: -1 });
-    console.log(`[TEMPLATES] Found ${templates.length} templates`);
-    res.json(templates);
+    }).sort({ createdAt: -1 }).lean(); // Use lean for easy modification
+
+    const freshenedTemplates = await Promise.all(templates.map(t => freshenS3Urls(t)));
+    
+    console.log(`[TEMPLATES] Found ${freshenedTemplates.length} templates`);
+    res.json(freshenedTemplates);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -17,13 +45,59 @@ export const getTemplates = async (req, res) => {
 // Create a new template
 export const createTemplate = async (req, res) => {
   try {
+    const organizationId = req.tenantId;
+    const files = req.files || {};
+    
+    const uploadFileToS3 = async (fieldname) => {
+      if (files[fieldname] && files[fieldname].length > 0) {
+        try {
+          const s3Result = await uploadToS3({
+            file: files[fieldname][0],
+            folderType: 'invoices',
+            organizationId
+          });
+          return s3Result.signedUrl || s3Result.fileUrl;
+        } catch (err) {
+          console.error(`Failed to upload ${fieldname} to S3:`, err);
+        }
+      }
+      return null;
+    };
+
+    const headerImage = await uploadFileToS3('headerImage');
+    const bodyImage = await uploadFileToS3('bodyImage');
+    const footerImage = await uploadFileToS3('footerImage');
+
+    // Handle stringified objects if multipart form data is used
+    let data = { ...req.body };
+    if (typeof data.metadata === 'string') {
+      try {
+        data.metadata = JSON.parse(data.metadata);
+      } catch (e) {
+        console.warn('Failed to parse metadata string');
+      }
+    }
+
+    if (!data.htmlLayout) {
+      data.htmlLayout = 'CORE_LAYOUT_REFERENCE';
+    }
+
+    if (typeof data.isDefault === 'string') {
+      data.isDefault = data.isDefault === 'true';
+    }
+
     const newTemplate = new InvoiceTemplate({
-      ...req.body,
-      organizationId: req.tenantId,
+      ...data,
+      organizationId,
+      headerImage,
+      bodyImage,
+      footerImage
     });
+
     await newTemplate.save();
     res.status(201).json(newTemplate);
   } catch (error) {
+    console.error('Create Template Error:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -31,14 +105,56 @@ export const createTemplate = async (req, res) => {
 // Update a template
 export const updateTemplate = async (req, res) => {
   try {
+    const organizationId = req.tenantId;
+    const files = req.files || {};
+    
+    const uploadFileToS3 = async (fieldname) => {
+      if (files[fieldname] && files[fieldname].length > 0) {
+        try {
+          const s3Result = await uploadToS3({
+            file: files[fieldname][0],
+            folderType: 'invoices',
+            organizationId
+          });
+          return s3Result.signedUrl || s3Result.fileUrl;
+        } catch (err) {
+          console.error(`Failed to upload ${fieldname} to S3:`, err);
+        }
+      }
+      return null;
+    };
+
+    const headerImage = await uploadFileToS3('headerImage');
+    const bodyImage = await uploadFileToS3('bodyImage');
+    const footerImage = await uploadFileToS3('footerImage');
+
+    let updateData = { ...req.body };
+    if (typeof updateData.metadata === 'string') {
+      try {
+        updateData.metadata = JSON.parse(updateData.metadata);
+      } catch (e) {
+        console.warn('Failed to parse metadata string');
+      }
+    }
+
+    if (headerImage) updateData.headerImage = headerImage;
+    if (bodyImage) updateData.bodyImage = bodyImage;
+    if (footerImage) updateData.footerImage = footerImage;
+
+    if (typeof updateData.isDefault === 'string') {
+      updateData.isDefault = updateData.isDefault === 'true';
+    }
+
     const template = await InvoiceTemplate.findOneAndUpdate(
-      { _id: req.params.id, organizationId: req.tenantId },
-      req.body,
+      { _id: req.params.id, organizationId },
+      updateData,
       { new: true }
     );
+
     if (!template) return res.status(404).json({ message: 'Template not found' });
     res.json(template);
   } catch (error) {
+    console.error('Update Template Error:', error);
     res.status(400).json({ message: error.message });
   }
 };

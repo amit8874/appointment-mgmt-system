@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CalendarCheck, X, User, Users, Stethoscope, HandHeart, Wallet, BarChart3, Lock, TrendingUp, MessageSquare } from 'lucide-react';
+import { CalendarCheck, X, User, Users, Stethoscope, HandHeart, Wallet, BarChart3, Lock, TrendingUp, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import PatientForm from './Patient/PatientForm.jsx';
 import AddDoctorForm from './Doctor/AddDoctorForm.jsx';
 import ReceptionistForm from './Receptionist/ReceptionistForm.jsx';
@@ -23,31 +23,72 @@ import { useUserManagement } from '../../hooks/useUserManagement';
 import TrialNotification from '../Organization/TrialNotification';
 import LogoutConfirmationModal from '../../components/common/LogoutConfirmationModal';
 import OnboardingTour from '../../components/common/OnboardingTour';
+import AddMedicine from './Pharmacy/AddMedicine.jsx';
 
 // Main App Component
 const Admin = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user, isAuthenticated } = useAuth();
-  
-  // Initialize tab from URL or fallback to 'Dashboard'
+
+  // Initialize tab and mode from URL or fallback
   const queryParams = new URLSearchParams(location.search);
   const initialTab = queryParams.get('tab') || 'New Appointment';
+
+  // List of tabs that belong to pharmacy mode to help with auto-detection if mode param is missing
+  const pharmacyTabs = [
+    'Pharmacy Dashboard', 'Inventory', 'Bulk Upload', 'Opening Stock',
+    'Purchase Stock', 'Pharmacy Billing', 'Expiry & Low Stock', 'Suppliers', 'Reports'
+  ];
+
+  const initialMode = queryParams.get('mode') || (pharmacyTabs.includes(initialTab) ? 'pharmacy' : 'admin');
+
   const [activeTab, setActiveTab] = useState(initialTab);
-  
-  // Update URL when activeTab changes
+  const [dashboardMode, setDashboardMode] = useState(initialMode);
+
+  // Handle mode switching
+  const handleModeSwitch = (mode) => {
+    setDashboardMode(mode);
+    if (mode === 'pharmacy') {
+      setActiveTab('Pharmacy Dashboard');
+    } else {
+      setActiveTab('New Appointment');
+    }
+    setPreSelectedMedicine(null);
+    setEditingMedicine(null);
+  };
+
+  // Expose tab change to window for Header/Notifications to use
+  useEffect(() => {
+    window.handleTabChange = (tabName) => {
+      setActiveTab(tabName);
+    };
+    return () => { delete window.handleTabChange; };
+  }, []);
+
+  // Update URL when activeTab or dashboardMode changes
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    let hasChanged = false;
+
     if (params.get('tab') !== activeTab) {
       params.set('tab', activeTab);
+      hasChanged = true;
+    }
+
+    if (params.get('mode') !== dashboardMode) {
+      params.set('mode', dashboardMode);
+      hasChanged = true;
+    }
+
+    if (hasChanged) {
       navigate(`?${params.toString()}`, { replace: true });
     }
-  }, [activeTab, navigate]);
+  }, [activeTab, dashboardMode, navigate]);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // State for mobile sidebar visibility
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-
-  // Dashboard filter state
   const [timeRange, setTimeRange] = useState('weekly');
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('all');
   const [totalAppointments, setTotalAppointments] = useState(0);
@@ -196,7 +237,7 @@ const Admin = () => {
     try {
       const rawOrgId = user?.organizationId || user?.organization?._id || user?.organization;
       const orgId = typeof rawOrgId === 'object' ? (rawOrgId?._id || rawOrgId?.id) : rawOrgId;
-      
+
       if (!orgId || typeof orgId !== 'string' || orgId.includes('[object')) return;
 
       const data = await api.get(`/organizations/${orgId}/trial-status`);
@@ -315,6 +356,20 @@ const Admin = () => {
 
   // Charts data is now managed in state variables above
 
+  const [showAddMedicineModal, setShowAddMedicineModal] = useState(false);
+  const [editingMedicine, setEditingMedicine] = useState(null);
+  const [preSelectedMedicine, setPreSelectedMedicine] = useState(null);
+
+  const handleEditMedicine = (medicine) => {
+    setEditingMedicine(medicine);
+    setShowAddMedicineModal(true);
+  };
+
+  const handleAddStock = (medicine) => {
+    setPreSelectedMedicine(medicine);
+    setActiveTab('Opening Stock');
+  };
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 font-sans antialiased transition-colors duration-500 overflow-x-hidden">
@@ -324,13 +379,13 @@ const Admin = () => {
         )}
         <AnimatePresence>
           {trialStatus?.isTrialExpired && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[9999] backdrop-blur-md bg-white/40 dark:bg-gray-900/60 flex items-center justify-center p-6 text-center"
             >
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.9, y: 20 }}
                 animate={{ scale: 1, y: 0 }}
                 className="max-w-md bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-gray-700 p-8"
@@ -343,13 +398,13 @@ const Admin = () => {
                   Your 14-day free trial has officially ended. To continue managing your clinic and serving patients, please choose a subscription plan.
                 </p>
                 <div className="space-y-3">
-                  <button 
+                  <button
                     onClick={() => navigate('/organization/subscription')}
                     className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all active:scale-95 text-sm uppercase tracking-widest"
                   >
-                     Select Plan & Unlock
+                    Select Plan & Unlock
                   </button>
-                  <button 
+                  <button
                     onClick={() => logout()}
                     className="w-full py-3 bg-transparent text-slate-500 dark:text-slate-400 font-bold hover:text-slate-700 transition-all text-xs"
                   >
@@ -376,20 +431,29 @@ const Admin = () => {
             navigate={navigate}
             user={user}
             isTrialExpired={trialStatus?.isTrialExpired}
+            dashboardMode={dashboardMode}
+            onModeSwitch={handleModeSwitch}
           />
         </div>
         <div className="flex flex-grow h-[calc(100vh-81px)] sm:h-[calc(100vh-89px)] overflow-hidden relative">
-          <div className="no-print h-full">
+          <div 
+            className="no-print h-full"
+            onMouseEnter={() => setIsSidebarCollapsed(false)}
+            onMouseLeave={() => setIsSidebarCollapsed(true)}
+          >
             <AdminSidebar
               isSidebarOpen={isSidebarOpen}
               toggleSidebar={toggleSidebar}
+              isSidebarCollapsed={isSidebarCollapsed}
+              setIsSidebarCollapsed={setIsSidebarCollapsed}
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               user={user}
-               onDoctorAdd={doctorsHook.openDoctorForm}
+              onDoctorAdd={doctorsHook.openDoctorForm}
               isTrialExpired={trialStatus?.isTrialExpired}
               limits={trialStatus?.limits}
               totalDoctors={Math.max(doctorsHook.totalDoctors || 0, (doctorsHook.doctors || []).length)}
+              dashboardMode={dashboardMode}
             />
           </div>
 
@@ -453,11 +517,53 @@ const Admin = () => {
               doctorsTotalItems={doctorsHook.totalDoctors}
               onDoctorsPageChange={doctorsHook.fetchDoctors}
               limits={trialStatus?.limits}
+              onAddMedicine={() => {
+                setEditingMedicine(null);
+                setShowAddMedicineModal(true);
+              }}
+              onEditMedicine={handleEditMedicine}
+              onAddStock={handleAddStock}
+              preSelectedMedicine={preSelectedMedicine}
             />
           </main>
         </div>
 
         {/* Modal Components */}
+
+        {/* Add Medicine Modal */}
+        <AnimatePresence>
+          {showAddMedicineModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowAddMedicineModal(false)}
+                className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative bg-white dark:bg-gray-900 rounded-[2rem] shadow-2xl border border-slate-200 dark:border-gray-700 w-full max-w-5xl max-h-[90vh] overflow-hidden"
+              >
+                <div className="overflow-y-auto max-h-[90vh]">
+                  <AddMedicine
+                    medicine={editingMedicine}
+                    onSuccess={() => {
+                      setShowAddMedicineModal(false);
+                      setEditingMedicine(null);
+                    }}
+                    onCancel={() => {
+                      setShowAddMedicineModal(false);
+                      setEditingMedicine(null);
+                    }}
+                  />
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Patient Form Modal */}
         <AnimatePresence>

@@ -69,7 +69,7 @@ export default function AppointmentTable({ rebookData }) {
         api.get('/appointments'),
         api.get('/billing')
       ]);
-      
+
       const appointmentsData = appointmentsRes.data || [];
       const billsData = billsRes.data || [];
 
@@ -132,7 +132,7 @@ export default function AppointmentTable({ rebookData }) {
   const handleStatusToggle = (appointment) => {
     // If pending/confirmed/arrived -> mark as completed (Confirmed)
     if (appointment.status !== 'completed' && appointment.status !== 'cancelled') {
-        updateAppointmentStatus(appointment._id, 'completed');
+      updateAppointmentStatus(appointment._id, 'completed');
     }
   };
 
@@ -198,11 +198,11 @@ export default function AppointmentTable({ rebookData }) {
       cancelled: 'bg-red-100 text-red-800',
       completed: 'bg-green-100 text-green-800' // Show green Confirmed for completed
     };
-    
-    const label = status === 'completed' ? 'Completed' : 
-                  status === 'confirmed' ? 'Confirmed' :
-                  (status?.charAt(0).toUpperCase() + status?.slice(1));
-    
+
+    const label = status === 'completed' ? 'Completed' :
+      status === 'confirmed' ? 'Confirmed' :
+        (status?.charAt(0).toUpperCase() + status?.slice(1));
+
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status] || styles.pending}`}>
         {label}
@@ -218,23 +218,23 @@ export default function AppointmentTable({ rebookData }) {
     const riskScore = hash % 100;
 
     if (riskScore < 60) {
-      return { 
-        level: 'Low', 
-        color: 'text-emerald-600 bg-emerald-50 border-emerald-100', 
+      return {
+        level: 'Low',
+        color: 'text-emerald-600 bg-emerald-50 border-emerald-100',
         icon: <ShieldCheck className="w-3 h-3" />,
         desc: 'Consistent attendance history.'
       };
     } else if (riskScore < 85) {
-      return { 
-        level: 'Medium', 
-        color: 'text-amber-600 bg-amber-50 border-amber-100', 
+      return {
+        level: 'Medium',
+        color: 'text-amber-600 bg-amber-50 border-amber-100',
         icon: <ShieldAlert className="w-3 h-3" />,
         desc: 'Occasional rescheduling detected.'
       };
     } else {
-      return { 
-        level: 'High', 
-        color: 'text-red-600 bg-red-50 border-red-100', 
+      return {
+        level: 'High',
+        color: 'text-red-600 bg-red-50 border-red-100',
         icon: <ShieldX className="w-3 h-3" />,
         desc: 'High probability of No-Show.'
       };
@@ -310,7 +310,7 @@ export default function AppointmentTable({ rebookData }) {
               <span className="text-indigo-600">Appointments</span>
             </nav>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {/* View Toggle */}
             <div className="flex items-center bg-slate-100 p-1 rounded-2xl shadow-inner w-full sm:w-auto">
@@ -344,7 +344,7 @@ export default function AppointmentTable({ rebookData }) {
                 <RefreshCw className={`w-4 h-4 group-hover:rotate-180 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
                 <span className="text-[10px] font-black uppercase tracking-widest sm:hidden lg:inline">Refresh</span>
               </button>
-              
+
             </div>
           </div>
         </div>
@@ -522,10 +522,9 @@ export default function AppointmentTable({ rebookData }) {
                                   >
                                     {appointment.patientName || 'N/A'}
                                   </button>
-                                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100">
-                                      ID: {appointment.shortId}
-                                    </span>
-                                  )}
+                                  <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100">
+                                    ID: {appointment.shortId}
+                                  </span>
                                   {appointment.visitType === 'WALK_IN' && (
                                     <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded border border-emerald-100 uppercase tracking-tighter">
                                       Walk-in
@@ -538,7 +537,7 @@ export default function AppointmentTable({ rebookData }) {
                                   {(() => {
                                     const risk = getRiskIndicator(appointment.patientId, appointment.patientName);
                                     return (
-                                      <div 
+                                      <div
                                         className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-tighter ${risk.color}`}
                                         title={`AI Prediction: ${risk.level} Risk. ${risk.desc}`}
                                       >
@@ -583,40 +582,40 @@ export default function AppointmentTable({ rebookData }) {
                                 <Eye className="w-4 h-4" />
                               </button>
 
-                                {/* One-Click Arrive Button - Hidden for future dates */}
-                                {appointment.status !== 'completed' && appointment.status !== 'cancelled' && appointment.visitType !== 'WALK_IN' && !isFutureDate(appointment.date) && (
-                                  <button
-                                    onClick={() => handleStatusToggle(appointment)}
-                                    disabled={updatingId === appointment._id}
-                                    className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
-                                    title="Mark as Arrived"
-                                  >
-                                    {updatingId === appointment._id ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <CheckCircle className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                )}
+                              {/* One-Click Arrive Button - Hidden for future dates */}
+                              {appointment.status !== 'completed' && appointment.status !== 'cancelled' && appointment.visitType !== 'WALK_IN' && !isFutureDate(appointment.date) && (
+                                <button
+                                  onClick={() => handleStatusToggle(appointment)}
+                                  disabled={updatingId === appointment._id}
+                                  className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                  title="Mark as Arrived"
+                                >
+                                  {updatingId === appointment._id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="w-4 h-4" />
+                                  )}
+                                </button>
+                              )}
 
-                                {/* Cancel Button (Only for non-completed) */}
-                                {appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
-                                  <button
-                                    onClick={() => updateAppointmentStatus(appointment._id, 'cancelled')}
-                                    disabled={updatingId === appointment._id}
-                                    className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
-                                    title="Cancel Appointment"
-                                  >
-                                    {updatingId === appointment._id ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <XCircle className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                )}
+                              {/* Cancel Button (Only for non-completed) */}
+                              {appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
+                                <button
+                                  onClick={() => updateAppointmentStatus(appointment._id, 'cancelled')}
+                                  disabled={updatingId === appointment._id}
+                                  className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                  title="Cancel Appointment"
+                                >
+                                  {updatingId === appointment._id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <XCircle className="w-4 h-4" />
+                                  )}
+                                </button>
+                              )}
 
-                                {/* Action buttons end */}
-                              </div>
+                              {/* Action buttons end */}
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -626,7 +625,7 @@ export default function AppointmentTable({ rebookData }) {
               </div>
 
               {/* Footer */}
-              <Pagination 
+              <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
                 onPageChange={setCurrentPage}

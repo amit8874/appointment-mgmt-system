@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import HorizontalAppointmentForm from './HorizontalAppointmentForm';
+import DashboardPanel from './DashboardPanel.jsx';
+import ClinicAnalytics from './Analytics/ClinicAnalytics.jsx';
 import DoctorPanel from './Doctor/DoctorPanel.jsx';
 import ReceptionistPanel from './Receptionist/ReceptionistPanel.jsx';
 import AppointmentManagement from './AppointmentMgmt/AppointmentManagment.jsx';
@@ -8,8 +10,6 @@ import TrackAppointmentView from './AppointmentMgmt/TrackAppointmentView.jsx';
 import AppointmentTable from './AppointmentMgmt/AppointmentTable.jsx';
 import BillingDashboard from './Billing/BillingDashboard.jsx';
 import UserManagementPanel from './UserManagementPanel.jsx';
-import ReportsPanel from './ReportsPanel.jsx';
-import AdminDashboardPanel from './AdminDashboardPanel.jsx';
 import PatientProfileModal from './PatientProfileModal.jsx';
 import DoctorProfileModal from './DoctorProfileModal.jsx';
 import AdminDoctorSchedule from './Doctor/AdminDoctorSchedule.jsx';
@@ -17,6 +17,15 @@ import PatientPanel from './Patient/PatientPanel.jsx';
 import MessagesView from './Messaging/MessagesView.jsx';
 import IntelligenceHub from './IntelligenceHub.jsx';
 import WhatsAppCredits from '../../Pages/WhatsAppCredits.jsx';
+import PharmacyDashboard from './Pharmacy/PharmacyDashboard.jsx';
+import Inventory from './Pharmacy/Inventory.jsx';
+import AddMedicine from './Pharmacy/AddMedicine.jsx';
+import BulkUpload from './Pharmacy/BulkUpload.jsx';
+import OpeningStock from './Pharmacy/OpeningStock.jsx';
+import PurchaseStock from './Pharmacy/PurchaseStock.jsx';
+import PharmacyBilling from './Pharmacy/PharmacyBilling.jsx';
+import ExpiryLowStock from './Pharmacy/ExpiryLowStock.jsx';
+import Suppliers from './Pharmacy/Suppliers.jsx';
 
 const MainContent = ({
   activeTab,
@@ -69,6 +78,10 @@ const MainContent = ({
   onDoctorsPageChange,
   doctorsTotalItems,
   limits,
+  onAddMedicine,
+  onEditMedicine,
+  onAddStock,
+  preSelectedMedicine,
   recentAppointments = []
 }) => {
   const content = useMemo(() => {
@@ -82,25 +95,9 @@ const MainContent = ({
     }
 
     switch (activeTab) {
-      case 'New Appointment':
+      case 'Dashboard':
         return (
-          <div className="p-6">
-            <HorizontalAppointmentForm 
-              doctors={doctors} 
-              onSuccess={() => {
-                setActiveTab('Appointment Mgmt');
-                if (onPatientsRefresh) onPatientsRefresh();
-              }} 
-              openDoctorForm={openDoctorForm} 
-              initialData={rebookData}
-              limits={limits}
-              totalDoctors={doctorsTotalItems}
-            />
-          </div>
-        );
-      case 'Analysis':
-        return (
-          <AdminDashboardPanel
+          <DashboardPanel
             stats={stats}
             timeRange={timeRange}
             setTimeRange={setTimeRange}
@@ -110,13 +107,28 @@ const MainContent = ({
             openModal={openModal}
             openPatientForm={openPatientForm}
             openDoctorForm={openDoctorForm}
-            openReceptionistForm={openReceptionistForm}
             appointmentTrendsData={appointmentTrendsData}
             revenueByDoctorData={revenueByDoctorData}
             monthlyIncomeExpenseData={monthlyIncomeExpenseData}
-            recentAppointments={recentAppointments}
-            hideForm={true}
           />
+        );
+      case 'Analysis':
+        return <ClinicAnalytics />;
+      case 'New Appointment':
+        return (
+          <div className="p-6">
+            <HorizontalAppointmentForm
+              doctors={doctors}
+              onSuccess={() => {
+                setActiveTab('Appointment Mgmt');
+                if (onPatientsRefresh) onPatientsRefresh();
+              }}
+              openDoctorForm={openDoctorForm}
+              initialData={rebookData}
+              limits={limits}
+              totalDoctors={doctorsTotalItems}
+            />
+          </div>
         );
       case 'Patients':
         return (
@@ -133,6 +145,7 @@ const MainContent = ({
             totalItems={patientsTotalItems}
             itemsPerPage={15}
             onPageChange={onPatientsPageChange}
+            onRefresh={onPatientsRefresh}
           />
         );
       case 'Doctor':
@@ -187,10 +200,38 @@ const MainContent = ({
         );
       case 'Today Appointment':
         return <TrackAppointmentView />;
+      case 'Pharmacy Dashboard':
+      case 'pharmacy-dashboard':
+        return <PharmacyDashboard />;
+      case 'Inventory':
+      case 'pharmacy-inventory':
+        return (
+          <Inventory
+            onAddMedicine={onAddMedicine}
+            onEditMedicine={onEditMedicine}
+            onAddStock={onAddStock}
+          />
+        );
+      case 'Bulk Upload':
+      case 'pharmacy-bulk-upload':
+        return <BulkUpload />;
+      case 'Opening Stock':
+      case 'pharmacy-opening-stock':
+        return <OpeningStock onAddMedicine={onAddMedicine} medicine={preSelectedMedicine} />;
+      case 'Purchase Stock':
+      case 'pharmacy-purchase-stock':
+        return <PurchaseStock onAddMedicine={onAddMedicine} />;
+      case 'Pharmacy Billing':
+      case 'pharmacy-billing':
+        return <PharmacyBilling />;
+      case 'Expiry & Low Stock':
+      case 'pharmacy-expiry-low-stock':
+        return <ExpiryLowStock />;
+      case 'Suppliers':
+      case 'pharmacy-suppliers':
+        return <Suppliers />;
       case 'Billing & Payments':
         return <BillingDashboard />;
-      case 'Reports & Analytics':
-        return <ReportsPanel />;
       case 'Oviaan Intelligence':
         return <IntelligenceHub />;
       case 'User Management':

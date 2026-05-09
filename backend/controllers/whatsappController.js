@@ -1,7 +1,16 @@
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
-import { sendWhatsAppMessage, sendWhatsAppTemplate } from '../services/whatsappService.js';
+import { sendWhatsAppMessage, sendWhatsAppTemplate, sendWhatsAppMediaTemplate, uploadWhatsAppMediaFromFile } from '../services/whatsappService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
+import { generatePrescriptionPDF } from '../services/pdfService.js';
+import { uploadToS3 } from '../utils/uploadToS3.js';
+import Organization from '../models/Organization.js';
+import PrescriptionTemplate from '../models/PrescriptionTemplate.js';
+import Patient from '../models/PaitentEditProfile.js';
+import path from 'path';
+import fs from 'fs';
+import os from 'os';
+import mongoose from 'mongoose';
 
 dotenv.config();
 
@@ -181,3 +190,122 @@ export const sendPrescriptionWhatsApp = async (req, res) => {
   }
 };
 
+
+/**
+ * Generates and sends a high-fidelity Prescription PDF via WhatsApp.
+ */
+export const sendPrescriptionPdfWhatsApp = async (req, res) => {
+  try {
+    const { 
+      phone, 
+      patientId, 
+      prescriptionData, 
+      templateId,
+      organizationId 
+    } = req.body;
+
+    const orgId = organizationId || req.tenantId || req.user?.organizationId;
+
+    if (!phone || !orgId) {
+      return res.status(400).json({ success: false, message: "Phone and Organization ID are required." });
+    }
+
+    // 1. Fetch Organization and Patient Details
+    const [org, patient] = await Promise.all([
+      Organization.findById(orgId),
+      Patient.findOne({ patientId, organizationId: orgId })
+    ]);
+
+    if (!org) return res.status(404).json({ success: false, message: "Organization not found." });
+
+    // 2. Determine Template
+    let template = null;
+    if (templateId && templateId !== 'default' && mongoose.Types.ObjectId.isValid(templateId)) {
+      template = await PrescriptionTemplate.findById(templateId);
+    } else {
+      template = await PrescriptionTemplate.findOne({ organizationId: orgId, isDefault: true });
+    }
+
+    // 3. Generate PDF Buffer
+    console.log(`[WhatsApp Prescription] Generating PDF for ${patient?.fullName || 'Patient'}...`);
+    const pdfBuffer = await generatePrescriptionPDF(prescriptionData, patient, org, template);
+
+    // 4. Upload to S3 for storage
+    const fileName = `Prescription-${patient?.fullName?.replace(/\s+/g, '_') || 'Patient'}-${Date.now()}.pdf`;
+    const s3Result = await uploadToS3({
+      buffer: pdfBuffer,
+      originalName: fileName,
+      mimeType: 'application/pdf',
+      folderType: 'prescriptions',
+      organizationId: orgId,
+    });
+
+    // 5. Upload to WhatsApp Media API
+    const tempPdfPath = path.join(os.tmpdir(), `temp-rx-${Date.now()}.pdf`);
+    let mediaId = null;
+    try {
+      fs.writeFileSync(tempPdfPath, pdfBuffer);
+      mediaId = await uploadWhatsAppMediaFromFile(tempPdfPath, "application/pdf");
+    } finally {
+      if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
+    }
+
+    // 6. Send WhatsApp Media Template
+    const sanitizedPhone = sanitizePhone(phone);
+    const whatsappTemplateName = process.env.WHATSAPP_PRESCRIPTION_PDF_TEMPLATE || 'billing_invoice_pdf'; // Reusing invoice template layout
+    
+    const bodyParameters = [
+      patient?.fullName || 'Valued Patient',
+      org.clinicName || org.name || 'Our Clinic'
+    ];
+
+    console.log(`[WhatsApp Prescription] Dispatching PDF to ${sanitizedPhone}...`);
+    const result = await sendWhatsAppMediaTemplate(
+      sanitizedPhone,
+      whatsappTemplateName,
+      s3Result.signedUrl || s3Result.fileUrl,
+      'document',
+      'en',
+      bodyParameters,
+      fileName,
+      {
+        mediaId,
+        organizationId: orgId,
+        chargeCredit: true,
+        messageType: 'PRESCRIPTION_SENT',
+        relatedEntityType: 'Prescription',
+        createdBy: req.user?._id,
+        metadata: {
+          source: 'whatsappController',
+          templateName: whatsappTemplateName,
+          publicUrl: s3Result.fileUrl,
+          mediaId
+        }
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Prescription PDF sent successfully via WhatsApp.",
+      data: result,
+      pdfUrl: s3Result.signedUrl || s3Result.fileUrl
+    });
+
+  } catch (error) {
+    console.error(`[WhatsApp Prescription Error]:`, error);
+    
+    if (error.code === "INSUFFICIENT_WHATSAPP_CREDITS") {
+      return res.status(402).json({
+        success: false,
+        code: "INSUFFICIENT_WHATSAPP_CREDITS",
+        message: "Your WhatsApp communication credits are finished. Please recharge to continue."
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send Prescription PDF via WhatsApp.",
+      error: error.message
+    });
+  }
+};

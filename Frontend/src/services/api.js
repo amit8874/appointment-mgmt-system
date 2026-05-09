@@ -50,7 +50,7 @@ const getTenantSlug = () => {
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -513,12 +513,16 @@ export const billingApi = {
     const { data } = await api.get('/billing/stats');
     return data;
   },
-  getAll: async () => {
-    const { data } = await api.get('/billing');
+  getAll: async (params = {}) => {
+    const { data } = await api.get('/billing', { params });
     return data;
   },
   getById: async (id) => {
     const { data } = await api.get(`/billing/${id}`);
+    return data;
+  },
+  getByPatient: async (patientId, params = {}) => {
+    const { data } = await api.get(`/billing/patient/${patientId}`, { params });
     return data;
   },
   create: async (billData) => {
@@ -535,6 +539,21 @@ export const billingApi = {
   },
   sendWhatsApp: async (id) => {
     const { data } = await api.post(`/billing/${id}/send-whatsapp`);
+    return data;
+  },
+  downloadPDF: async (id, isDownload = false, templateId = null) => {
+    let url = `/billing/${id}/pdf?`;
+    if (isDownload) url += 'download=true&';
+    if (templateId) url += `templateId=${templateId}`;
+    const { data } = await api.get(url);
+    return data;
+  },
+  generateStatement: async (patientId, payload) => {
+    const { data } = await api.post(`/billing/patient/${patientId}/statement`, payload);
+    return data;
+  },
+  sendStatementWhatsApp: async (patientId, payload) => {
+    const { data } = await api.post(`/billing/patient/${patientId}/statement/whatsapp`, payload);
     return data;
   }
 };
@@ -932,6 +951,10 @@ export const analyticsApi = {
     const { data } = await api.get('/analytics/doctors');
     return data;
   },
+  getClinicAnalytics: async (params = {}) => {
+    const { data } = await api.get('/analytics/clinic', { params });
+    return data;
+  },
   getPatients: async () => {
     const { data } = await api.get('/analytics/patients');
     return data;
@@ -1016,6 +1039,10 @@ export const whatsappApi = {
   },
   sendPrescription: async (phone, patientName, notes, clinicName) => {
     const { data } = await api.post('/whatsapp/send-prescription', { phone, patientName, notes, clinicName });
+    return data;
+  },
+  sendPrescriptionPdf: async (payload) => {
+    const { data } = await api.post('/whatsapp/send-prescription-pdf', payload);
     return data;
   }
 };
@@ -1160,3 +1187,143 @@ export const investigationApi = {
     return data;
   }
 };
+
+export const patientProgressImageApi = {
+  upload: async (patientId, formData) => {
+    const { data } = await api.post(`/patients/${patientId}/progress-images`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return data;
+  },
+  list: async (patientId) => {
+    const { data } = await api.get(`/patients/${patientId}/progress-images`);
+    return data;
+  },
+  getSignedUrl: async (patientId, imageId) => {
+    const { data } = await api.get(`/patients/${patientId}/progress-images/${imageId}/signed-url`);
+    return data;
+  },
+  update: async (patientId, imageId, updateData) => {
+    const { data } = await api.put(`/patients/${patientId}/progress-images/${imageId}`, updateData);
+    return data;
+  },
+  delete: async (patientId, imageId) => {
+    const { data } = await api.delete(`/patients/${patientId}/progress-images/${imageId}`);
+    return data;
+  }
+};
+
+export const patientProgressComparisonApi = {
+  create: async (patientId, formData) => {
+    const { data } = await api.post(`/patients/${patientId}/progress-comparisons`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return data;
+  },
+  list: async (patientId) => {
+    const { data } = await api.get(`/patients/${patientId}/progress-comparisons`);
+    return data;
+  },
+  getDetail: async (patientId, comparisonId) => {
+    const { data } = await api.get(`/patients/${patientId}/progress-comparisons/${comparisonId}`);
+    return data;
+  },
+  getSignedUrls: async (patientId, comparisonId) => {
+    const { data } = await api.get(`/patients/${patientId}/progress-comparisons/${comparisonId}/signed-urls`);
+    return data;
+  },
+  update: async (patientId, comparisonId, updateData) => {
+    const { data } = await api.put(`/patients/${patientId}/progress-comparisons/${comparisonId}`, updateData);
+    return data;
+  },
+  replaceImages: async (patientId, comparisonId, formData) => {
+    const { data } = await api.patch(`/patients/${patientId}/progress-comparisons/${comparisonId}/images`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return data;
+  },
+  delete: async (patientId, comparisonId) => {
+    const { data } = await api.delete(`/patients/${patientId}/progress-comparisons/${comparisonId}`);
+    return data;
+  },
+  generatePdf: async (patientId, comparisonId) => {
+    const { data } = await api.get(`/patients/${patientId}/progress-comparisons/${comparisonId}/generate-pdf`);
+    return data;
+  }
+};
+
+export const translationApi = {
+  translate: async (text, targetLanguage, sourceLanguage = 'auto') => {
+    const { data } = await api.post('/translate', { text, targetLanguage, sourceLanguage });
+    return data;
+  }
+};
+
+export const clinicalNoteApi = {
+  create: async (patientId, noteData) => {
+    const { data } = await api.post(`/patients/${patientId}/clinical-notes`, noteData);
+    return data;
+  },
+  list: async (patientId, params = {}) => {
+    const { data } = await api.get(`/patients/${patientId}/clinical-notes`, { params });
+    return data;
+  },
+  get: async (patientId, noteId) => {
+    const { data } = await api.get(`/patients/${patientId}/clinical-notes/${noteId}`);
+    return data;
+  },
+  update: async (patientId, noteId, noteData) => {
+    const { data } = await api.put(`/patients/${patientId}/clinical-notes/${noteId}`, noteData);
+    return data;
+  },
+  delete: async (patientId, noteId) => {
+    const { data } = await api.delete(`/patients/${patientId}/clinical-notes/${noteId}`);
+    return data;
+  }
+};
+
+export const invoiceTemplateApi = {
+  getAll: async () => {
+    const { data } = await api.get('/invoice-templates');
+    return data;
+  },
+  getById: async (id) => {
+    const { data } = await api.get(`/invoice-templates/${id}`);
+    return data;
+  },
+  create: async (formData) => {
+    const { data } = await api.post('/invoice-templates', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return data;
+  },
+  update: async (id, formData) => {
+    const { data } = await api.put(`/invoice-templates/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return data;
+  },
+  delete: async (id) => {
+    const { data } = await api.delete(`/invoice-templates/${id}`);
+    return data;
+  },
+  setDefault: async (id) => {
+    const { data } = await api.put(`/invoice-templates/${id}/default`);
+    return data;
+  },
+  seed: async (force = false) => {
+    const { data } = await api.post(`/invoice-templates/seed${force ? '?force=true' : ''}`);
+    return data;
+  }
+};
+

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  User, Search, PlusCircle, Edit2, Trash2, Eye, 
+import {
+  User, Search, PlusCircle, Edit2, Trash2, Eye,
   Calendar, Clock, MapPin, Mail, Phone, Briefcase,
   CheckCircle2, XCircle, Clock3, Filter,
   ChevronDown, ChevronUp, X, UserCircle, Lock
@@ -28,8 +28,8 @@ const DetailItem = ({ label, value }) => (
 );
 
 const StatusBadge = ({ status }) => {
-  const color = status === 'Active' 
-    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+  const color = status === 'Active'
+    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
     : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
   return (
     <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${color}`}>
@@ -38,10 +38,10 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-const ReceptionistPanel = ({ 
-  openReceptionistForm, 
-  onViewReceptionist, 
-  onEditReceptionist, 
+const ReceptionistPanel = ({
+  openReceptionistForm,
+  onViewReceptionist,
+  onEditReceptionist,
   onDeleteReceptionist,
   receptionists = [],
   receptionistsLoading,
@@ -61,14 +61,14 @@ const ReceptionistPanel = ({
 
   // Filter receptionists based on search term and status
   const filteredReceptionists = (receptionists || []).filter(receptionist => {
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       receptionist.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       receptionist.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       receptionist.phone.includes(searchTerm);
-      
-    const matchesStatus = statusFilter === 'All' || 
+
+    const matchesStatus = statusFilter === 'All' ||
       (receptionist.status && receptionist.status.toLowerCase() === statusFilter.toLowerCase());
-      
+
     return matchesSearch && matchesStatus;
   });
 
@@ -117,14 +117,14 @@ const ReceptionistPanel = ({
       className="space-y-6 sm:space-y-8 p-4 sm:p-8"
     >
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-        <div>
+        <div className="flex items-center gap-3 transition-all">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Receptionist Management</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Manage receptionist accounts and their details
           </p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
-          <div 
+          <div
             className="group relative"
             title={isLimitReached ? `Receptionist limit reached for your plan. Please upgrade to add more.` : ""}
           >
@@ -132,8 +132,8 @@ const ReceptionistPanel = ({
               onClick={() => !isLimitReached && openReceptionistForm(null)}
               disabled={isLimitReached}
               className={`flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-xl text-white transition-all duration-200 
-                ${isLimitReached 
-                  ? "bg-gray-400 cursor-not-allowed opacity-75" 
+                ${isLimitReached
+                  ? "bg-gray-400 cursor-not-allowed opacity-75"
                   : "bg-blue-600 hover:bg-blue-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"} 
                 whitespace-nowrap`}
             >
@@ -169,7 +169,7 @@ const ReceptionistPanel = ({
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <div className="relative">
               <select
@@ -185,7 +185,7 @@ const ReceptionistPanel = ({
                 <ChevronDown className="h-4 w-4" />
               </div>
             </div>
-            
+
             <button
               onClick={() => setShowFilters(!showFilters)}
               className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -283,7 +283,7 @@ const ReceptionistPanel = ({
             </tbody>
           </table>
         </div>
-        <Pagination 
+        <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
@@ -308,7 +308,7 @@ const ReceptionistPanel = ({
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              
+
               <div className="space-y-6">
                 <div className="flex flex-col items-center">
                   {selectedReceptionist.profilePhoto ? (
@@ -330,39 +330,39 @@ const ReceptionistPanel = ({
                     <StatusBadge status={selectedReceptionist.status || 'Active'} />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <InfoCard title="Contact Information" icon={User}>
-                    <DetailItem 
-                      label="Email" 
-                      value={selectedReceptionist.email || 'N/A'} 
+                    <DetailItem
+                      label="Email"
+                      value={selectedReceptionist.email || 'N/A'}
                     />
-                    <DetailItem 
-                      label="Phone" 
-                      value={selectedReceptionist.phone || 'N/A'} 
+                    <DetailItem
+                      label="Phone"
+                      value={selectedReceptionist.phone || 'N/A'}
                     />
-                    <DetailItem 
-                      label="Address" 
-                      value={selectedReceptionist.address || 'N/A'} 
+                    <DetailItem
+                      label="Address"
+                      value={selectedReceptionist.address || 'N/A'}
                     />
                   </InfoCard>
-                  
+
                   <InfoCard title="Employment Details" icon={Briefcase}>
-                    <DetailItem 
-                      label="Join Date" 
-                      value={selectedReceptionist.joinDate || 'N/A'} 
+                    <DetailItem
+                      label="Join Date"
+                      value={selectedReceptionist.joinDate || 'N/A'}
                     />
-                    <DetailItem 
-                      label="Shift" 
-                      value={selectedReceptionist.shift || 'N/A'} 
+                    <DetailItem
+                      label="Shift"
+                      value={selectedReceptionist.shift || 'N/A'}
                     />
-                    <DetailItem 
-                      label="Status" 
-                      value={selectedReceptionist.status || 'N/A'} 
+                    <DetailItem
+                      label="Status"
+                      value={selectedReceptionist.status || 'N/A'}
                     />
                   </InfoCard>
                 </div>
-                
+
                 <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <button
                     type="button"
@@ -397,11 +397,11 @@ const ReceptionistPanel = ({
 };
 
 ReceptionistPanel.defaultProps = {
-  openReceptionistForm: () => {},
+  openReceptionistForm: () => { },
   onViewReceptionist: null,
   onEditReceptionist: null,
   onDeleteReceptionist: null,
-  refreshReceptionists: () => {}
+  refreshReceptionists: () => { }
 };
 
 export default ReceptionistPanel;

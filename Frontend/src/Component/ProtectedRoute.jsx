@@ -7,7 +7,9 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const location = useLocation();
 
   if (loading) {
-    return <div>Loading...</div>; // Or a proper loading component
+    return <div className="h-screen w-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+    </div>;
   }
 
   if (!isAuthenticated) {

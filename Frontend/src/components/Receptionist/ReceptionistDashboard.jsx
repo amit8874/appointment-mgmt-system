@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Calendar, Users, FileText, BarChart3, Bell, User, LogOut, Stethoscope, Grid, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, FileText, BarChart3, Bell, User, LogOut, Stethoscope, Grid, MessageSquare, ChevronRight, ChevronLeft } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import TopNav from './components/TopNav';
 import Notification from './components/Notification';
@@ -12,6 +12,7 @@ import api, { centralDoctorApi } from '../../services/api';
 
 const ReceptionistLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 1024);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
@@ -33,23 +34,23 @@ const ReceptionistLayout = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  
+
   const fetchSubscriptionLimits = async () => {
     try {
       setLimitsLoading(true);
       const rawOrgId = user?.organizationId || user?.organization?._id || user?.organization;
       const orgId = typeof rawOrgId === 'object' ? (rawOrgId?._id || rawOrgId?.id) : rawOrgId;
-      
+
       if (!orgId || typeof orgId !== 'string' || orgId.includes('[object')) {
         setLimitsLoading(false);
         return;
       }
-      
+
       const response = await api.get(`/organizations/${orgId}/trial-status`);
       const data = response.data || response;
       const limits = data.limits;
       setSubscriptionLimits(limits);
-      
+
       // Also fetch doctor count
       const count = await centralDoctorApi.getCount();
       setDoctorCount(count || 0);
@@ -59,7 +60,7 @@ const ReceptionistLayout = () => {
       setLimitsLoading(false);
     }
   };
-  
+
   useEffect(() => {
     if (user) {
       fetchSubscriptionLimits();
@@ -85,9 +86,9 @@ const ReceptionistLayout = () => {
       icon: Stethoscope,
       children: [
         { name: 'Doctor', href: '/receptionist/doctor', icon: Stethoscope },
-        { 
-          name: 'Add Doctor', 
-          href: '/receptionist/add-doctor', 
+        {
+          name: 'Add Doctor',
+          href: '/receptionist/add-doctor',
           icon: User,
           disabled: !limitsLoading && subscriptionLimits && subscriptionLimits.doctors !== -1 && doctorCount >= subscriptionLimits.doctors
         },
@@ -143,15 +144,22 @@ const ReceptionistLayout = () => {
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <OnboardingTour role="receptionist" />
       {/* Sidebar */}
-      <Sidebar
-        navigation={navigation}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        onLogout={() => setIsLogoutModalOpen(true)}
-      />
+      <div 
+        onMouseEnter={() => setIsSidebarCollapsed(false)}
+        onMouseLeave={() => setIsSidebarCollapsed(true)}
+      >
+        <Sidebar
+          navigation={navigation}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          isSidebarCollapsed={isSidebarCollapsed}
+          setIsSidebarCollapsed={setIsSidebarCollapsed}
+          onLogout={() => setIsLogoutModalOpen(true)}
+        />
+      </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300`}>
         {/* Top navigation */}
         <TopNav
           sidebarOpen={sidebarOpen}
@@ -163,7 +171,8 @@ const ReceptionistLayout = () => {
         />
 
         {/* Main content area */}
-        <main className="flex-1 overflow-y-auto bg-gray-200 focus:outline-none">
+        <main className="flex-1 overflow-y-auto bg-gray-200 focus:outline-none relative">
+
           <div className="bg-gray-200 h-full">
             <div className="max-w-7xl mx-auto px-0 md:px-8 ">
               <AnimatePresence mode="wait">

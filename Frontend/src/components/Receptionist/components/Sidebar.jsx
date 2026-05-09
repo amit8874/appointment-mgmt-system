@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronDown, ChevronRight } from 'lucide-react';
+import { LogOut, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 
-const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
+const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, setIsSidebarCollapsed, onLogout }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
@@ -28,29 +28,36 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
       {/* Sidebar */}
       <motion.div
         initial={{ x: -256 }}
-        animate={{ x: sidebarOpen ? 0 : -256 }}
+        animate={{ x: sidebarOpen ? 0 : (isSidebarCollapsed ? -80 : -256) }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-800 shadow-xl transform lg:translate-x-0 lg:static lg:inset-0 transition-transform duration-300 border-r border-gray-100 dark:border-gray-700"
+        className={`fixed inset-y-0 left-0 z-30 ${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-white dark:bg-gray-800 shadow-xl transform lg:translate-x-0 lg:static lg:inset-0 transition-all duration-300 border-r border-gray-100 dark:border-gray-700`}
       >
-        <div className="flex flex-col h-full p-4">
+        <div className="flex flex-col h-full p-4 relative">
           {/* Logo */}
-          <div className="flex items-center justify-center mb-8 px-4 bg-transparent text-center">
+          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-center'} mb-8 px-4 bg-transparent text-center transition-all duration-300`}>
             {(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) ? (
               <img
                 src={user?.organization?.branding?.logo || user?.organizationId?.branding?.logo}
                 alt="Clinic Logo"
-                className="h-16 w-auto object-contain"
+                className={`${isSidebarCollapsed ? 'h-8' : 'h-16'} w-auto object-contain transition-all duration-300`}
               />
             ) : (
-              <h1 className="text-blue-600 text-2xl font-black italic tracking-tighter uppercase">
-                {user?.organization?.name || user?.organizationId?.name || "Oviaan"}
-              </h1>
+              !isSidebarCollapsed && (
+                <h1 className="text-blue-600 text-2xl font-black italic tracking-tighter uppercase whitespace-nowrap">
+                  {user?.organization?.name || user?.organizationId?.name || "Oviaan"}
+                </h1>
+              )
+            )}
+            {isSidebarCollapsed && !(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) && (
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black">
+                {(user?.organization?.name || user?.organizationId?.name || "O").charAt(0)}
+              </div>
             )}
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-3 overflow-y-auto">
-            <h2 className="text-[10px] font-black uppercase text-gray-400 mb-5 ml-4 tracking-[0.2em]">MAIN</h2>
+          <nav className={`flex-1 space-y-3 overflow-y-auto ${isSidebarCollapsed ? 'px-0' : ''}`}>
+            {!isSidebarCollapsed && <h2 className="text-[10px] font-black uppercase text-gray-400 mb-5 ml-4 tracking-[0.2em]">MAIN</h2>}
             {navigation.map((item) => (
               <div key={item.name}>
                 {item.children ? (
@@ -67,23 +74,25 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                     >
                       <div className="flex items-center">
                         <item.icon
-                          className={`mr-3 h-5 w-5 flex-shrink-0 z-10 ${
+                          className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} h-5 w-5 flex-shrink-0 z-10 ${
                             item.children.some(child => window.location.pathname === child.href) 
                             ? 'text-white' 
                             : 'text-blue-500 dark:text-blue-400'
                           }`}
                           aria-hidden="true"
                         />
-                        <span className="z-10">{item.name}</span>
+                        {!isSidebarCollapsed && <span className="z-10">{item.name}</span>}
                       </div>
-                      {expandedItems[item.name] ? (
-                        <ChevronDown className={`h-5 w-5 ${item.children.some(child => window.location.pathname === child.href) ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
-                      ) : (
-                        <ChevronRight className={`h-5 w-5 ${item.children.some(child => window.location.pathname === child.href) ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
+                      {!isSidebarCollapsed && (
+                        expandedItems[item.name] ? (
+                          <ChevronDown className={`h-5 w-5 ${item.children.some(child => window.location.pathname === child.href) ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
+                        ) : (
+                          <ChevronRight className={`h-5 w-5 ${item.children.some(child => window.location.pathname === child.href) ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
+                        )
                       )}
                     </button>
                     {/* Sub-menu items */}
-                    {expandedItems[item.name] && (
+                    {expandedItems[item.name] && !isSidebarCollapsed && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -156,13 +165,13 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                       <>
                         {isActive && !item.disabled && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-3/4 w-1 bg-white rounded-full"></div>}
                         <item.icon
-                          className={`mr-3 h-5 w-5 flex-shrink-0 z-10 ${isActive && !item.disabled
+                          className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} h-5 w-5 flex-shrink-0 z-10 ${isActive && !item.disabled
                             ? 'text-white'
                             : 'text-blue-500 dark:text-blue-400'
                             }`}
                           aria-hidden="true"
                         />
-                        <span className="z-10">{item.name}</span>
+                        {!isSidebarCollapsed && <span className="z-10">{item.name}</span>}
                       </>
                     )}
                   </NavLink>
@@ -173,9 +182,9 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
 
           {/* User Profile Section (Matching Admin Style) */}
           <div className="mt-auto pt-6 border-t border-gray-100 dark:border-gray-700">
-            <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl flex items-center justify-between">
+            <div className={`bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
               <div className="flex items-center min-w-0">
-                <div className="relative">
+                <div className="relative flex-shrink-0">
                   <img
                     className="h-10 w-10 rounded-xl object-cover border-2 border-white shadow-sm"
                     src={user?.profilePhoto || `https://ui-avatars.com/api/?name=${user?.name || 'Rec'}&background=2563eb&color=fff`}
@@ -183,23 +192,27 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, onLogout }) => {
                   />
                   <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
-                <div className="ml-3 overflow-hidden">
-                  <p className="text-sm font-black text-gray-900 dark:text-white truncate uppercase tracking-tighter">
-                    {user?.name || 'Receptionist'}
-                  </p>
-                  <p className="text-[10px] font-bold text-gray-400 truncate tracking-wide">
-                    RECEPTIONIST
-                  </p>
-                </div>
+                {!isSidebarCollapsed && (
+                  <div className="ml-3 overflow-hidden">
+                    <p className="text-sm font-black text-gray-900 dark:text-white truncate uppercase tracking-tighter">
+                      {user?.name || 'Receptionist'}
+                    </p>
+                    <p className="text-[10px] font-bold text-gray-400 truncate tracking-wide">
+                      RECEPTIONIST
+                    </p>
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={onLogout}
-                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all"
-                title="Logout"
-              >
-                <LogOut className="h-5 w-5" />
-              </button>
+              {!isSidebarCollapsed && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all"
+                  title="Logout"
+                >
+                  <LogOut className="h-5 w-5" />
+                </button>
+              )}
             </div>
           </div>
         </div>

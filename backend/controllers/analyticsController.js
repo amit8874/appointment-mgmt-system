@@ -10,6 +10,9 @@ import CancelledAppointment from "../models/CancelledAppointment.js";
 import Doctor from "../models/Doctor.js";
 import Patient from "../models/PaitentEditProfile.js";
 import AuditLog from "../models/AuditLog.js";
+import Medicine from "../models/Medicine.js";
+import MedicineBatch from "../models/MedicineBatch.js";
+import WhatsAppCreditTransaction from "../models/WhatsAppCreditTransaction.js";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 
@@ -538,8 +541,7 @@ export const getActivityLogs = async (req, res) => {
         adminName: log.adminId?.name || 'Unknown',
         time: log.createdAt,
         ip: log.ipAddress,
-        details: log.details,
-        targetType: log.targetType
+        details: log.details
       })),
       total,
       pages: Math.ceil(total / limit)
@@ -547,5 +549,250 @@ export const getActivityLogs = async (req, res) => {
   } catch (error) {
     console.error("Error fetching activity logs:", error);
     res.status(500).json({ message: "Failed to fetch activity logs." });
+  }
+};
+
+// GET Comprehensive Clinic Analytics (BI Engine)
+export const getClinicAnalytics = async (req, res) => {
+  try {
+    const organizationId = req.tenantId;
+    const { startDate, endDate, doctorId } = req.query;
+
+    const orgId = new mongoose.Types.ObjectId(organizationId);
+    
+    // Base filters
+    const matchQuery = { organizationId: orgId };
+    const dateMatch = { organizationId: orgId };
+    
+    if (startDate && endDate) {
+      dateMatch.createdAt = { 
+        $gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)), 
+        $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) 
+      };
+    }
+
+    if (doctorId && doctorId !== 'all') {
+      const docIdStr = doctorId.toString();
+      dateMatch.doctorId = docIdStr;
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now.setHours(0, 0, 0, 0));
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const [
+      overviewStats,
+      revenueTrends,
+      revenueBreakdown,
+      paymentModeStats,
+      appointmentAnalytics,
+      patientAnalytics,
+      doctorPerformance,
+      pharmacyStats,
+      whatsappStats,
+      billingStats
+    ] = await Promise.all([
+      // 1. Overview Summary Cards
+      Promise.all([
+        Billing.aggregate([
+          { $match: { organizationId: orgId, status: { $nin: ['Cancelled', 'Dead'] } } },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]),
+        Billing.aggregate([
+          { $match: { organizationId: orgId, status: { $nin: ['Cancelled', 'Dead'] }, createdAt: { $gte: todayStart } } },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]),
+        Billing.aggregate([
+          { $match: { organizationId: orgId, status: { $nin: ['Cancelled', 'Dead'] }, createdAt: { $gte: monthStart } } },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]),
+        Billing.aggregate([
+          { $match: { organizationId: orgId, status: 'Due' } },
+          { $group: { _id: null, total: { $sum: '$dueAmount' } } }
+        ]),
+        Appointment.countDocuments({ organizationId: orgId }),
+        Patient.countDocuments({ organizationId: orgId }),
+        Doctor.countDocuments({ organizationId: orgId, status: 'Active' }),
+        Patient.countDocuments({ organizationId: orgId, createdAt: { $gte: monthStart } })
+      ]),
+
+      // 2. Revenue Trends
+      Billing.aggregate([
+        { $match: { ...dateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            amount: { $sum: "$amount" }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
+
+      // 3. Revenue Breakdown
+      Billing.aggregate([
+        { $match: { ...dateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
+        { $group: { _id: "$billType", total: { $sum: "$amount" } } }
+      ]),
+
+      // 4. Payment Modes
+      Billing.aggregate([
+        { $match: { ...dateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
+        { $group: { _id: "$paymentMethod", count: { $sum: 1 }, amount: { $sum: "$amount" } } }
+      ]),
+
+      // 5. Detailed Appointment Analytics
+      Promise.all([
+        Appointment.aggregate([
+          { $match: dateMatch },
+          { $group: { _id: "$status", count: { $sum: 1 } } }
+        ]),
+        Appointment.aggregate([
+          { $match: dateMatch },
+          {
+            $project: {
+              hour: { $hour: "$createdAt" }
+            }
+          },
+          { $group: { _id: "$hour", count: { $sum: 1 } } },
+          { $sort: { _id: 1 } }
+        ]),
+        Appointment.aggregate([
+          { $match: dateMatch },
+          { $group: { _id: "$visitType", count: { $sum: 1 } } }
+        ])
+      ]),
+
+      // 6. Patient Demographics & Growth
+      Promise.all([
+        Patient.aggregate([
+          { $match: { organizationId: orgId } },
+          {
+            $group: {
+              _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+              count: { $sum: 1 }
+            }
+          },
+          { $sort: { _id: 1 } }
+        ]),
+        Patient.aggregate([
+          { $match: { organizationId: orgId } },
+          { $group: { _id: "$gender", count: { $sum: 1 } } }
+        ]),
+        Patient.aggregate([
+          { $match: { organizationId: orgId } },
+          {
+            $project: {
+              ageGroup: {
+                $switch: {
+                  branches: [
+                    { case: { $lt: ["$age", 18] }, then: "0-17" },
+                    { case: { $lt: ["$age", 35] }, then: "18-34" },
+                    { case: { $lt: ["$age", 50] }, then: "35-49" }
+                  ],
+                  default: "50+"
+                }
+              }
+            }
+          },
+          { $group: { _id: "$ageGroup", count: { $sum: 1 } } }
+        ])
+      ]),
+
+      // 7. Doctor Performance
+      Appointment.aggregate([
+        { $match: dateMatch },
+        {
+          $group: {
+            _id: "$doctorId",
+            doctorName: { $first: "$doctorName" },
+            totalAppointments: { $sum: 1 },
+            completedAppointments: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+            cancelledAppointments: { $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] } },
+            revenue: { $sum: { $cond: [{ $ne: ["$paymentStatus", "refunded"] }, "$amount", 0] } }
+          }
+        },
+        { $sort: { revenue: -1 } }
+      ]),
+
+      // 8. Pharmacy BI
+      Promise.all([
+        MedicineBatch.aggregate([
+          { $match: { organizationId: orgId, status: 'Active' } },
+          { $group: { 
+              _id: null, 
+              totalValue: { $sum: { $multiply: ["$stockQuantity", "$purchasePrice"] } },
+              lowStockCount: { $sum: { $cond: [{ $lt: ["$stockQuantity", 10] }, 1, 0] } }
+          } }
+        ]),
+        MedicineBatch.countDocuments({ organizationId: orgId, expiryDate: { $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }, status: 'Active' }),
+        Billing.aggregate([
+          { $match: { organizationId: orgId, billType: 'Pharmacy', status: { $nin: ['Cancelled', 'Dead'] } } },
+          { $unwind: "$items" },
+          { $group: { _id: "$items.description", totalSold: { $sum: "$items.qty" }, revenue: { $sum: "$items.subtotal" } } },
+          { $sort: { totalSold: -1 } },
+          { $limit: 10 }
+        ])
+      ]),
+
+      // 9. WhatsApp Credits
+      WhatsAppCreditTransaction.aggregate([
+        { $match: { organizationId: orgId } },
+        { $group: { _id: "$type", total: { $sum: "$amount" } } }
+      ]),
+
+      // 10. Billing Breakdown
+      Billing.aggregate([
+        { $match: dateMatch },
+        { $group: { _id: "$status", count: { $sum: 1 }, amount: { $sum: "$amount" } } }
+      ])
+    ]);
+
+    // Format Response
+    const overview = {
+      totalRevenue: overviewStats[0][0]?.total || 0,
+      todayRevenue: overviewStats[1][0]?.total || 0,
+      thisMonthRevenue: overviewStats[2][0]?.total || 0,
+      pendingPayment: overviewStats[3][0]?.total || 0,
+      totalAppointments: overviewStats[4],
+      totalPatients: overviewStats[5],
+      totalDoctors: overviewStats[6],
+      newPatientsThisMonth: overviewStats[7]
+    };
+
+    // Insights Generation Engine
+    const insights = [];
+    if (overview.thisMonthRevenue > 0) insights.push({ type: 'revenue', message: `Monthly revenue is ₹${overview.thisMonthRevenue.toLocaleString()}.` });
+    if (overview.pendingPayment > 5000) insights.push({ type: 'billing', message: `High pending payments: ₹${overview.pendingPayment.toLocaleString()}. Consider follow-ups.` });
+    
+    const topDoc = doctorPerformance[0];
+    if (topDoc) insights.push({ type: 'appointment', message: `${topDoc.doctorName} is leading with ${topDoc.totalAppointments} appointments.` });
+    
+    const lowStock = pharmacyStats[0][0]?.lowStockCount || 0;
+    if (lowStock > 0) insights.push({ type: 'pharmacy', message: `${lowStock} medicines are running low on stock.` });
+
+    res.json({
+      success: true,
+      data: {
+        overview,
+        revenue: { trends: revenueTrends, breakdown: revenueBreakdown, paymentModes: paymentModeStats },
+        appointments: { status: appointmentAnalytics[0], peakHours: appointmentAnalytics[1], visitTypes: appointmentAnalytics[2] },
+        patients: { growth: patientAnalytics[0], gender: patientAnalytics[1], ageGroups: patientAnalytics[2] },
+        doctors: doctorPerformance,
+        pharmacy: {
+          inventoryValue: pharmacyStats[0][0]?.totalValue || 0,
+          lowStockCount: pharmacyStats[0][0]?.lowStockCount || 0,
+          expiringSoon: pharmacyStats[1] || 0,
+          topSelling: pharmacyStats[2]
+        },
+        billing: billingStats,
+        whatsapp: whatsappStats,
+        insights
+      }
+    });
+
+  } catch (error) {
+    console.error("Clinic Analytics Error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch clinic analytics." });
   }
 };

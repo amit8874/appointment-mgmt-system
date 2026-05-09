@@ -1,5 +1,6 @@
 import { uploadBufferToS3, uploadLocalFileToS3, getPublicUrl, getSignedDownloadUrl } from '../services/s3Service.js';
 import fs from 'fs';
+import mongoose from 'mongoose';
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -8,6 +9,17 @@ const ALLOWED_MIME_TYPES = [
   'image/png',
   'image/webp'
 ];
+
+/**
+ * Robustly extracts a string ID from a string, ObjectId, or nested object.
+ */
+const extractId = (val) => {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (val._id) return String(val._id);
+  if (mongoose.Types.ObjectId.isValid(val)) return String(val);
+  return String(val); // Fallback
+};
 
 /**
  * Universal wrapper for uploading files to AWS S3.
@@ -20,7 +32,8 @@ export const uploadToS3 = async ({
   mimeType,
   folderType = 'default',
   organizationId = 'global',
-  metadata = {}
+  metadata = {},
+  customKey = null
 }) => {
   try {
     // 1. Resolve inputs
@@ -56,17 +69,22 @@ export const uploadToS3 = async ({
 
     // 4. Generate S3 Key (Path)
     // Format: organizations/{organizationId}/{folderType}/{timestamp}_{originalName}
-    const timestamp = new Date().toISOString().replace(/[-:.]/g, '');
+    const safeOrgId = extractId(organizationId) || 'global';
     const safeOriginalName = finalOriginalName.replace(/[^a-zA-Z0-9.\-_]/g, '_'); // Remove special characters
-    const s3Key = `organizations/${organizationId}/${folderType}/${timestamp}-${safeOriginalName}`;
+    const timestamp = new Date().toISOString().replace(/[-:.]/g, '');
+    const s3Key = customKey || `organizations/${safeOrgId}/${folderType}/${timestamp}-${safeOriginalName}`;
 
     // 5. Upload
     let uploadResult;
     const s3Metadata = {
-      organizationId: String(organizationId),
-      folderType: String(folderType),
-      ...metadata
+      organizationId: safeOrgId,
+      folderType: String(folderType)
     };
+
+    // Sanitize metadata values (ensure no objects are passed as headers)
+    Object.keys(metadata).forEach(key => {
+      s3Metadata[key] = extractId(metadata[key]);
+    });
 
     if (finalBuffer) {
       uploadResult = await uploadBufferToS3({
@@ -90,7 +108,11 @@ export const uploadToS3 = async ({
     // In production, the client should request a signed URL when they need to view the file.
     let signedUrl = null;
     try {
-      signedUrl = await getSignedDownloadUrl({ key: s3Key, expiresInSeconds: 3600 });
+      signedUrl = await getSignedDownloadUrl({ 
+        key: s3Key, 
+        expiresInSeconds: 3600,
+        responseContentDisposition: finalMimeType === 'application/pdf' ? `attachment; filename="${safeOriginalName}"` : undefined
+      });
     } catch (err) {
       console.warn(`[UploadToS3] Could not generate immediate signed URL for ${s3Key}:`, err.message);
     }

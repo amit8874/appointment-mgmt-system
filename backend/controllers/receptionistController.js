@@ -1,6 +1,7 @@
 import Receptionist from '../models/Receptionist.js';
 import Counter from '../models/Counter.js';
 import Subscription from '../models/Subscription.js';
+import { uploadToS3 } from '../utils/uploadToS3.js';
 
 // GET /api/receptionists - Get all receptionists
 export const getAllReceptionists = async (req, res) => {
@@ -97,7 +98,16 @@ export const addReceptionist = async (req, res) => {
     // Handle profile photo upload
     let profilePhotoPath = profilePhoto;
     if (req.file) {
-      profilePhotoPath = `/uploads/${req.file.filename}`;
+      try {
+        const s3Result = await uploadToS3({
+          file: req.file,
+          folderType: 'doctors', // Reuse doctors folder for clinic staff
+          organizationId: req.tenantId
+        });
+        profilePhotoPath = s3Result.signedUrl || s3Result.fileUrl;
+      } catch (err) {
+        console.error('Failed to upload receptionist photo to S3:', err);
+      }
     }
 
     // Parse JSON fields
@@ -201,7 +211,16 @@ export const updateReceptionist = async (req, res) => {
 
     // Handle profile photo upload for updates
     if (req.file) {
-      updates.profilePhoto = `/uploads/${req.file.filename}`;
+      try {
+        const s3Result = await uploadToS3({
+          file: req.file,
+          folderType: 'doctors', // Reuse doctors folder for clinic staff
+          organizationId: req.tenantId
+        });
+        updates.profilePhoto = s3Result.signedUrl || s3Result.fileUrl;
+      } catch (err) {
+        console.error('Failed to upload receptionist photo to S3:', err);
+      }
     }
 
     // Parse JSON fields if they exist

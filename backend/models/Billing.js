@@ -32,6 +32,18 @@ const billingSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  patientAddress: {
+    type: String,
+    default: ''
+  },
+  age: {
+    type: String,
+    default: ''
+  },
+  gender: {
+    type: String,
+    default: ''
+  },
   doctorId: {
     type: String,
     default: ''
@@ -106,9 +118,20 @@ const billingSchema = new mongoose.Schema({
     unitPrice: Number,
     cost: Number,
     tax: { type: Number, default: 0 },
-    subtotal: Number
+    subtotal: Number,
+    batchNo: String,
+    expiryDate: String,
+    mrp: Number,
+    discountPercentage: Number,
+    gstPercentage: Number
   }],
-  notes: String
+  notes: String,
+  storageProvider: { type: String, default: 'local' }, // 'local', 'cloudinary', 'aws_s3'
+  invoiceS3Bucket: { type: String },
+  invoiceS3Key: { type: String },
+  invoiceUrl: { type: String },
+  invoiceFileName: { type: String },
+  invoiceMimeType: { type: String }
 }, {
   timestamps: true
 });

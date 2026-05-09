@@ -1,4 +1,4 @@
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download, MessageSquare } from "lucide-react";
+import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download, MessageSquare, Upload } from "lucide-react";
 import { exportPatientsToExcel } from "../../../utils/excelExport";
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import { toast } from "react-toastify";
 import Pagination from "../../../components/common/Pagination";
 import PaymentModeModal from "../../../components/common/PaymentModeModal";
 import { TableSkeleton } from "../../../components/Shared/DashboardSkeletons";
+import BulkImportModal from "./BulkImportModal";
 
 const PatientPanel = ({
   onViewPatient,
@@ -21,7 +22,8 @@ const PatientPanel = ({
   totalPages,
   totalItems,
   itemsPerPage,
-  onPageChange
+  onPageChange,
+  onRefresh
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
@@ -31,6 +33,7 @@ const PatientPanel = ({
   const [statusFilter, setStatusFilter] = useState("All");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
@@ -170,7 +173,7 @@ const PatientPanel = ({
     try {
       // Find the patient's billing records
       const billsResponse = await api.get('/billing');
-      
+
       // Match by patientId or patient name - be more flexible with matching
       const patientBills = billsResponse.data.filter(bill => {
         const billPatientId = String(bill.patientId || '');
@@ -178,10 +181,10 @@ const PatientPanel = ({
         const patientIdObj = String(patient._id || '');
         const patientNameLower = (patient.name || '').toLowerCase();
         const billPatientNameLower = (bill.patientName || '').toLowerCase();
-        
-        return billPatientId === patientIdStr || 
-               billPatientId === patientIdObj ||
-               billPatientNameLower === patientNameLower;
+
+        return billPatientId === patientIdStr ||
+          billPatientId === patientIdObj ||
+          billPatientNameLower === patientNameLower;
       });
 
       if (patientBills.length === 0) {
@@ -192,7 +195,7 @@ const PatientPanel = ({
       let updatedCount = 0;
       for (const bill of patientBills) {
         try {
-          await api.put(`/billing/${bill._id}`, { 
+          await api.put(`/billing/${bill._id}`, {
             status: 'Dead'
           });
           updatedCount++;
@@ -203,7 +206,7 @@ const PatientPanel = ({
 
       // Also update the patient user status (even if no bills found)
       try {
-        await api.put(`/patients/${patient._id}`, { 
+        await api.put(`/patients/${patient._id}`, {
           status: 'dead',
           isDead: true,
           deathDate: new Date().toISOString()
@@ -213,14 +216,12 @@ const PatientPanel = ({
       }
 
       toast.success(`${patient.name} has been marked as dead (${updatedCount} bills updated)`);
-      
+
       // Small delay to ensure database updates are committed before refresh
       setTimeout(() => {
-        // Refresh using the add prop callback if available
-        if (onAddPatient) {
-          onAddPatient();
+        if (onRefresh) {
+          onRefresh();
         }
-        // Fallback to reload
         window.location.reload();
       }, 500);
     } catch (error) {
@@ -235,7 +236,7 @@ const PatientPanel = ({
     try {
       // Find the patient's billing records
       const billsResponse = await api.get('/billing');
-      
+
       // Match by patientId or patient name
       const patientBills = billsResponse.data.filter(bill => {
         const billPatientId = String(bill.patientId || '');
@@ -243,17 +244,17 @@ const PatientPanel = ({
         const patientIdObj = String(patient._id || '');
         const patientNameLower = (patient.name || '').toLowerCase();
         const billPatientNameLower = (bill.patientName || '').toLowerCase();
-        
-        return billPatientId === patientIdStr || 
-               billPatientId === patientIdObj ||
-               billPatientNameLower === patientNameLower;
+
+        return billPatientId === patientIdStr ||
+          billPatientId === patientIdObj ||
+          billPatientNameLower === patientNameLower;
       });
 
       // Update each bill back to Pending status
       let updatedCount = 0;
       for (const bill of patientBills) {
         try {
-          await api.put(`/billing/${bill._id}`, { 
+          await api.put(`/billing/${bill._id}`, {
             status: 'Pending'
           });
           updatedCount++;
@@ -264,7 +265,7 @@ const PatientPanel = ({
 
       // Update the patient status back to active
       try {
-        await api.put(`/patients/${patient._id}`, { 
+        await api.put(`/patients/${patient._id}`, {
           status: 'active',
           isDead: false,
           deathDate: null
@@ -274,7 +275,7 @@ const PatientPanel = ({
       }
 
       toast.success(`${patient.name} has been marked as active (${updatedCount} bills updated)`);
-      
+
       // Small delay to ensure database updates are committed before refresh
       setTimeout(() => {
         if (onAddPatient) {
@@ -304,27 +305,27 @@ const PatientPanel = ({
     if (!selectedPatientForPayment) return;
     const patient = selectedPatientForPayment;
     setIsPaymentModalOpen(false);
-    
+
     try {
       // Find pending bills for this patient and mark as paid
       const response = await api.get('/billing');
-      const pendingBills = response.data.filter(bill => 
+      const pendingBills = response.data.filter(bill =>
         bill.patientId === patient.patientId && (bill.status === 'Pending' || bill.status === 'pending')
       );
-      
+
       if (pendingBills.length === 0) {
         toast.info('No pending bills found for this patient');
         return;
       }
 
       for (const bill of pendingBills) {
-        await api.put(`/billing/${bill._id}`, { 
+        await api.put(`/billing/${bill._id}`, {
           status: 'Paid',
-          paymentMethod: paymentMethod 
+          paymentMethod: paymentMethod
         });
       }
       toast.success(`Marked ${pendingBills.length} bill(s) as Paid via ${paymentMethod}`);
-      
+
       // Small delay and refresh to show updated status
       setTimeout(() => {
         if (onAddPatient) {
@@ -353,7 +354,7 @@ const PatientPanel = ({
       pendingAmount: patient.pendingAmount,
       generatedAt: new Date().toLocaleString()
     };
-    
+
     // Open report in new window
     const reportWindow = window.open('', '_blank');
     reportWindow.document.write(`
@@ -401,7 +402,7 @@ const PatientPanel = ({
     >
       {/*Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-gray-50 tracking-tight flex items-center">
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-gray-50 tracking-tight flex items-center transition-all">
           <User className="w-8 h-8 mr-3 text-blue-600" /> Patient Directory
         </h2>
 
@@ -426,7 +427,16 @@ const PatientPanel = ({
               title="Export to Excel"
             >
               <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
-              Export Excel
+              Export
+            </button>
+
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-md shadow-blue-600/20 font-bold text-xs sm:text-sm whitespace-nowrap"
+              title="Import from Excel/CSV"
+            >
+              <Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+              Import
             </button>
           </div>
         </div>
@@ -440,18 +450,16 @@ const PatientPanel = ({
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                statusFilter === status
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${statusFilter === status
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+                }`}
             >
               {status}
-              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                statusFilter === status
+              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${statusFilter === status
                   ? 'bg-white/20 text-white'
                   : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
-              }`}>
+                }`}>
                 {statusCounts[status]}
               </span>
             </button>
@@ -515,161 +523,161 @@ const PatientPanel = ({
           <>
             <div className="overflow-x-auto w-full">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-blue-50 dark:bg-blue-900/40">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Patient ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Patient Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Age
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Phone
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Appointment Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Amount (₹)
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Payment
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-                {paginatedPatients.map((p) => (
-                  <tr
-                    key={p._id}
-                    className="hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {p.patientId || p.id || '-'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => handleViewProfile(p)}
-                        className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 hover:underline transition-colors text-left"
-                        title="View Patient Profile"
-                      >
-                        {p.name || '-'}
-                      </button>
-                      {p.lastShortId && (
-                        <div className="text-[10px] text-blue-500 font-bold uppercase tracking-tighter">Last Appt ID: {p.lastShortId}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      {p.age || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      {p.mobile || p.phone || p.contactNumber || p.contact || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      {p.lastVisit || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-700 dark:text-gray-200">
-                      ₹{(p.paidAmount || p.pendingAmount || 0).toLocaleString('en-US')}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      {p.paymentStatus === 'paid' ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
-                          <CheckCircle className="w-3 h-3" /> Paid
-                        </span>
-                      ) : p.paymentStatus === 'cancelled' ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
-                          <XCircle className="w-3 h-3" /> Cancelled
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">
-                          <Clock className="w-3 h-3" /> Pending{p.pendingAmount > 0 ? ` ₹${p.pendingAmount.toLocaleString('en-US')}` : ''}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm relative">
-                      <div className="flex items-center gap-2" ref={menuRef}>
-
-                        <button
-                          onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
-                          className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
-                          title="More options"
-                        >
-                          <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-                        </button>
-                        
-                        {/* Dropdown Menu */}
-                        <AnimatePresence>
-                          {openMenuId === p._id && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.95 }}
-                              className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50"
-                              style={{ zIndex: 100 }}
-                            >
-                              <button
-                                onClick={() => handleViewProfile(p)}
-                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                              >
-                                <Eye className="h-4 w-4 text-blue-600" />
-                                View Profile
-                              </button>
-                              <button
-                                onClick={() => handleGenerateReport(p)}
-                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-green-900/30"
-                              >
-                                <FileText className="h-4 w-4 text-green-600" />
-                                Generate Report
-                              </button>
-                              <button
-                                onClick={() => handleReappointment(p)}
-                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/30"
-                              >
-                                <CalendarPlus className="h-4 w-4 text-orange-600" />
-                                Re-Appointment
-                              </button>
-                              {p.paymentStatus !== 'paid' && (
-                                <button
-                                  onClick={() => handleMarkAsPaid(p)}
-                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-amber-50 dark:hover:bg-amber-900/30"
-                                >
-                                  <span className="h-4 w-4 text-amber-600 font-bold">₹</span>
-                                  Mark as Paid
-                                </button>
-                              )}
-                              {p.paymentStatus === 'dead' ? (
-                                <button
-                                  onClick={() => handleMarkAsUndead(p)}
-                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                  Mark as Undead
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleMarkAsDead(p)}
-                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Mark as Dead
-                                </button>
-                              )}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </td>
+                <thead className="bg-blue-50 dark:bg-blue-900/40">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                      Patient ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                      Patient Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                      Age
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                      Phone
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                      Appointment Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                      Amount (₹)
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                      Payment
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-            <Pagination 
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+                  {paginatedPatients.map((p) => (
+                    <tr
+                      key={p._id}
+                      className="hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {p.patientId || p.id || '-'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => handleViewProfile(p)}
+                          className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 hover:underline transition-colors text-left"
+                          title="View Patient Profile"
+                        >
+                          {p.name || '-'}
+                        </button>
+                        {p.lastShortId && (
+                          <div className="text-[10px] text-blue-500 font-bold uppercase tracking-tighter">Last Appt ID: {p.lastShortId}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                        {p.age || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                        {p.mobile || p.phone || p.contactNumber || p.contact || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                        {p.lastVisit || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                        ₹{(p.paidAmount || p.pendingAmount || 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {p.paymentStatus === 'paid' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                            <CheckCircle className="w-3 h-3" /> Paid
+                          </span>
+                        ) : p.paymentStatus === 'cancelled' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+                            <XCircle className="w-3 h-3" /> Cancelled
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3" /> Pending{p.pendingAmount > 0 ? ` ₹${p.pendingAmount.toLocaleString('en-US')}` : ''}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm relative">
+                        <div className="flex items-center gap-2" ref={menuRef}>
+
+                          <button
+                            onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
+                            className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+                            title="More options"
+                          >
+                            <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+                          </button>
+
+                          {/* Dropdown Menu */}
+                          <AnimatePresence>
+                            {openMenuId === p._id && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50"
+                                style={{ zIndex: 100 }}
+                              >
+                                <button
+                                  onClick={() => handleViewProfile(p)}
+                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                                >
+                                  <Eye className="h-4 w-4 text-blue-600" />
+                                  View Profile
+                                </button>
+                                <button
+                                  onClick={() => handleGenerateReport(p)}
+                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-green-900/30"
+                                >
+                                  <FileText className="h-4 w-4 text-green-600" />
+                                  Generate Report
+                                </button>
+                                <button
+                                  onClick={() => handleReappointment(p)}
+                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/30"
+                                >
+                                  <CalendarPlus className="h-4 w-4 text-orange-600" />
+                                  Re-Appointment
+                                </button>
+                                {p.paymentStatus !== 'paid' && (
+                                  <button
+                                    onClick={() => handleMarkAsPaid(p)}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                                  >
+                                    <span className="h-4 w-4 text-amber-600 font-bold">₹</span>
+                                    Mark as Paid
+                                  </button>
+                                )}
+                                {p.paymentStatus === 'dead' ? (
+                                  <button
+                                    onClick={() => handleMarkAsUndead(p)}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30"
+                                  >
+                                    <CheckCircle className="h-4 w-4" />
+                                    Mark as Undead
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleMarkAsDead(p)}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Mark as Dead
+                                  </button>
+                                )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
               currentPage={serverCurrentPage}
               totalPages={totalPages}
               totalItems={totalItems}
@@ -759,7 +767,7 @@ const PatientPanel = ({
           </motion.div>
         </div>
       )}
-      
+
       {/* Payment Mode Selection Modal */}
       <PaymentModeModal
         isOpen={isPaymentModalOpen}
@@ -768,6 +776,19 @@ const PatientPanel = ({
         patientName={selectedPatientForPayment?.name}
       />
 
+
+      {/* Bulk Import Modal */}
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onRefresh={() => {
+          if (onRefresh) {
+            onRefresh();
+          } else {
+            window.location.reload();
+          }
+        }}
+      />
 
     </motion.div>
   );
