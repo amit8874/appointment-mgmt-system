@@ -525,7 +525,7 @@ export const createPharmacyBill = async (req, res) => {
     const bill = new Billing({
       ...billData,
       billId,
-      organizationId,
+      organizationId: new mongoose.Types.ObjectId(organizationId),
       billType: 'Pharmacy',
       items: [] 
     });
@@ -676,6 +676,7 @@ export const addSupplier = async (req, res) => {
 export const getPharmacyReports = async (req, res) => {
   try {
     const organizationId = req.tenantId;
+    const orgId = new mongoose.Types.ObjectId(organizationId);
     const { type, startDate, endDate } = req.query;
     
     console.log(`BACKEND DEBUG: Generating ${type} | Start: ${startDate} | End: ${endDate} | Org: ${organizationId}`);
@@ -685,30 +686,52 @@ export const getPharmacyReports = async (req, res) => {
     end.setHours(23, 59, 59, 999);
 
     let data = [];
-    if (type === 'Stock Report') {
-      data = await MedicineBatch.find({ organizationId })
+    const normalizedType = type?.toLowerCase().trim();
+
+    if (normalizedType === 'stock report' || normalizedType === 'stock') {
+      data = await MedicineBatch.find({ organizationId: organizationId })
         .populate('medicineId', 'name genericName manufacturer')
         .sort({ createdAt: -1 });
-    } else if (type === 'Sales Report') {
-      data = await Billing.find({ 
-        organizationId, 
+    } else if (normalizedType === 'sales report' || normalizedType === 'sales' || normalizedType === 'sales report') {
+      const salesQuery = { 
+        organizationId: organizationId, 
         billType: 'Pharmacy', 
         date: { $gte: start, $lte: end } 
-      }).populate('patientId', 'name phone').sort({ date: -1 });
-    } else if (type === 'Purchase Report') {
-      data = await Purchase.find({ 
-        organizationId, 
-        purchaseDate: { $gte: start, $lte: end } 
-      }).populate('supplierId', 'name phone').sort({ purchaseDate: -1 });
-    } else if (type === 'Expiry Report') {
+      };
+      if (req.query.paymentMethod) salesQuery.paymentMethod = req.query.paymentMethod;
+      if (req.query.status) salesQuery.status = req.query.status;
+
+      data = await Billing.find(salesQuery).populate('patientId', 'name phone').sort({ date: -1 });
+    } else if (normalizedType === 'purchase report' || normalizedType === 'purchase') {
+      data = await Purchase.aggregate([
+        { $match: { 
+          organizationId: orgId, 
+          purchaseDate: { $gte: start, $lte: end } 
+        }},
+        { $lookup: {
+          from: 'suppliers',
+          localField: 'supplierId',
+          foreignField: '_id',
+          as: 'supplierId'
+        }},
+        { $unwind: { path: '$supplierId', preserveNullAndEmptyArrays: true } },
+        { $lookup: {
+          from: 'purchaseitems',
+          localField: '_id',
+          foreignField: 'purchaseId',
+          as: 'items'
+        }},
+        { $sort: { purchaseDate: -1 } }
+      ]);
+    } else if (normalizedType === 'expiry report' || normalizedType === 'expiry') {
       data = await MedicineBatch.find({ 
-        organizationId, 
+        organizationId: organizationId, 
         expiryDate: { $lte: end } 
       }).populate('medicineId', 'name manufacturer').sort({ expiryDate: 1 });
     } else if (type === 'Low Stock Report') {
-      const medicines = await Medicine.find({ organizationId }).lean();
+      const medicines = await Medicine.find({ organizationId: organizationId }).lean();
       const medIds = medicines.map(m => m._id);
-      const batches = await MedicineBatch.find({ organizationId, medicineId: { $in: medIds }, status: 'Active' }).lean();
+      const batches = await MedicineBatch.find({ organizationId: organizationId, medicineId: { $in: medIds }, status: 'Active' }).lean();
       
       data = medicines.map(med => {
         const totalStock = batches.filter(b => b.medicineId.toString() === med._id.toString())
@@ -717,7 +740,7 @@ export const getPharmacyReports = async (req, res) => {
       }).filter(med => med.totalStock <= (med.minimumStockAlert || 10));
     } else if (type === 'GST Report') {
       data = await PharmacyBillItem.find({
-        organizationId,
+        organizationId: organizationId,
         createdAt: { $gte: start, $lte: end }
       }).populate({
         path: 'billId',

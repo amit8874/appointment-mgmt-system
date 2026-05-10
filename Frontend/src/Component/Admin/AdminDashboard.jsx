@@ -510,8 +510,13 @@ const Admin = () => {
               patientsCurrentPage={patientsHook.currentPage}
               patientsTotalPages={patientsHook.totalPages}
               patientsTotalItems={patientsHook.totalPatients}
-              onPatientsPageChange={patientsHook.fetchPatients}
+              onPatientsPageChange={(page) => patientsHook.fetchPatients(page, 15, patientsHook.searchTerm)}
               onPatientsRefresh={patientsHook.fetchPatients}
+              searchTerm={patientsHook.searchTerm}
+              onPatientsSearch={(search) => {
+                patientsHook.setSearchTerm(search);
+                patientsHook.fetchPatients(1, 15, search);
+              }}
               doctorsCurrentPage={doctorsHook.currentPage}
               doctorsTotalPages={doctorsHook.totalPages}
               doctorsTotalItems={doctorsHook.totalDoctors}

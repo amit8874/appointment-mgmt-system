@@ -12,12 +12,16 @@ export const usePatients = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [patientsCountLoading, setPatientsCountLoading] = useState(true);
 
-  // Fetch patients with pagination
-  const fetchPatients = useCallback(async (page = 1, limit = 15) => {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Fetch patients with pagination and search
+  const fetchPatients = useCallback(async (page = 1, limit = 15, search = null) => {
     try {
       setPatientsLoading(true);
       setPatientsError('');
-      const response = await patientApi.getAll({ page, limit });
+      // If search is not provided as argument, use the current state
+      const finalSearch = search !== null ? search : searchTerm;
+      const response = await patientApi.getAll({ page, limit, search: finalSearch });
       
       if (response && response.patients) {
         setPatients(response.patients);
@@ -35,7 +39,7 @@ export const usePatients = () => {
     } finally {
       setPatientsLoading(false);
     }
-  }, []);
+  }, [searchTerm]);
 
   // Fetch patient count
   const fetchPatientCount = useCallback(async () => {
@@ -77,6 +81,7 @@ export const usePatients = () => {
   totalPages,
   currentPage,
   patientsCountLoading,
+  searchTerm,
 
   // Setters (IMPORTANT)
   setPatients,
@@ -87,6 +92,7 @@ export const usePatients = () => {
   setTotalPages,
   setCurrentPage,
   setPatientsCountLoading,
+  setSearchTerm,
   
 
   // Actions

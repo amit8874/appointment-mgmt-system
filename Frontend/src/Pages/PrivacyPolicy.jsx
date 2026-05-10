@@ -1,160 +1,108 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Shield, Lock, Eye, Share2, Clipboard, UserCheck, MessageSquare, PhoneCall } from 'lucide-react';
 import PublicHeader from '../components/Shared/PublicHeader';
 import PublicFooter from '../components/Shared/PublicFooter';
 
 const PrivacyPolicy = () => {
-  const sections = [
-    {
-      icon: <Eye className="text-blue-500" />,
-      title: "1. Information We Collect",
-      content: (
-        <div className="space-y-3 text-slate-600">
-          <p>We process several types of information to provide our services effectively:</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>Personal identification:</strong> Name, mobile number, email address, date of birth, and gender.</li>
-            <li><strong>Medical Records:</strong> Past history, allergies, vitals (BP, Heart Rate, etc.), prescriptions, and uploaded lab reports.</li>
-            <li><strong>Billing Data:</strong> Consultation fees, payment status, and transaction history.</li>
-            <li><strong>Technical Data:</strong> IP addresses and browser types for security monitoring.</li>
-          </ul>
-        </div>
-      )
-    },
-    {
-      icon: <Clipboard className="text-emerald-500" />,
-      title: "2. How We Use Your Information",
-      content: (
-        <div className="space-y-3 text-slate-600">
-          <p>Your data is used strictly for healthcare delivery and clinic management:</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li>To manage appointments and send reminders via WhatsApp/SMS.</li>
-            <li>To enable doctors to maintain accurate Electronic Health Records (EHR).</li>
-            <li>To process payments and generate invoices.</li>
-            <li>To verify identity through OTPs and secure login systems.</li>
-          </ul>
-        </div>
-      )
-    },
-    {
-      icon: <Share2 className="text-purple-500" />,
-      title: "3. Data Sharing and Disclosure",
-      content: (
-        <div className="space-y-3 text-slate-600">
-          <p>Oviaan acts as a technology intermediary and does not sell your personal data. We only share information with:</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>Your Healthcare Provider:</strong> The specific clinic, doctor, or pharmacy where you are receiving care has full control over their patient database.</li>
-            <li><strong>Infrastructure Partners:</strong> Secure infrastructure providers (e.g., WhatsApp API for notifications and Payment Gateways for SaaS subscription billing).</li>
-            <li><strong>Legal Authorities:</strong> Only when strictly required by law or to protect life and safety.</li>
-          </ul>
-        </div>
-      )
-    },
-    {
-      icon: <Lock className="text-orange-500" />,
-      title: "4. Data Security",
-      content: (
-        <div className="space-y-3 text-slate-600">
-          <p>We employ enterprise-grade security measures:</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>Multi-Tenancy Isolation:</strong> Patient data from one clinic is strictly separated from others.</li>
-            <li><strong>Encryption:</strong> All data is encrypted during transit (SSL/TLS) and at rest.</li>
-            <li><strong>Access Control:</strong> Role-based permissions ensure only authorized personnel see medical history.</li>
-          </ul>
-        </div>
-      )
-    },
-    {
-      icon: <UserCheck className="text-teal-500" />,
-      title: "5. Your Rights",
-      content: (
-        <p className="text-slate-600 leading-relaxed">
-          Patients have the right to access their medical records, request corrections to inaccurate data, and 
-          receive a digital copy of their reports. For data deletion requests, please contact your clinic directly, 
-          bearing in mind that certain medical records must be retained by law for specific periods.
-        </p>
-      )
-    }
-  ];
-
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <PublicHeader />
       
-      {/* Hero Section */}
-      <section className="pt-32 pb-16 px-4 bg-white border-b border-slate-100">
-        <div className="max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-full mb-6"
-          >
-            <Shield size={16} />
-            <span className="text-sm font-bold uppercase tracking-wider">Privacy & Security</span>
-          </motion.div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 mb-6">Privacy Policy</h1>
-          <p className="text-lg text-slate-500 font-medium max-w-2xl mx-auto">
-            At Oviaan Professional, we act as a secure Data Processor for healthcare providers and clinical entities. 
-            This policy outlines how we handle healthcare information with the highest clinical and legal standards.
+      {/* Simple Blue Header - Matching Screenshot */}
+      <div className="bg-[#283593] pt-32 pb-10 text-center">
+        <h1 className="text-white text-3xl md:text-4xl font-bold">Privacy Policy</h1>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="max-w-5xl mx-auto px-6 py-12 text-gray-800 font-sans leading-relaxed text-sm md:text-base">
+        <div className="space-y-6">
+          <p>
+            <strong>Oviaan Technologies Private Limited</strong> (“us”, “we”, or “Oviaan”, which also includes its affiliates) is the author and publisher of the internet resource 
+            www.oviaan.com (“Website”) as well as the software, services and applications provided by Oviaan, including but not limited to the ‘Oviaan CMS’ 
+            application (together with the Website, referred to as the “Services”).
           </p>
-        </div>
-      </section>
 
-      {/* Content Section */}
-      <section className="py-16 px-4">
-        <div className="max-w-4xl mx-auto space-y-8">
-          {sections.map((section, idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: idx * 0.1 }}
-              className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start gap-4">
-                <div className="mt-1 p-3 bg-slate-50 rounded-2xl">
-                  {section.icon}
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-black text-slate-900 mb-4">{section.title}</h2>
-                  {section.content}
-                </div>
-              </div>
-            </motion.div>
-          ))}
+          <p>
+            This privacy policy ("Privacy Policy") explains how we collect, use, share, disclose and protect Personal information about the Users of the Services, 
+            including the Practitioners, the End-Users, and the visitors of Website. We created this Privacy Policy to demonstrate our commitment to the 
+            protection of your privacy and your personal information. Your use of and access to the Services is subject to this Privacy Policy and our Terms of Use.
+          </p>
 
-          {/* Contact Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-blue-600 text-white p-8 rounded-3xl shadow-xl shadow-blue-500/20 text-center"
-          >
-            <h2 className="text-2xl font-black mb-4">Questions about your privacy?</h2>
-            <p className="text-blue-100 mb-8 font-medium">
-              If you have any questions regarding this policy or how your data is managed, 
-              please reach out to our Data Protection team.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="mailto:amitmaurya3276@gmail.com" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">
-                <MessageSquare size={18} />
-                Email Support
-              </a>
-              <a href="tel:+918874614138" className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-700 text-white font-bold rounded-xl hover:bg-blue-800 transition-colors border border-blue-500/30">
-                <PhoneCall size={18} />
-                Call Support
-              </a>
-            </div>
-          </motion.div>
+          <div className="bg-gray-50 p-4 border border-gray-200 uppercase text-xs font-bold">
+            BY USING THE SERVICES OR BY OTHERWISE GIVING US YOUR INFORMATION, YOU WILL BE DEEMED TO HAVE READ, UNDERSTOOD AND AGREED TO THE PRACTICES AND POLICIES OUTLINED IN THIS PRIVACY POLICY.
+          </div>
+
+          <h2 className="text-xl font-bold border-b border-gray-300 pb-2">1. WHY THIS PRIVACY POLICY?</h2>
+          <p>This Privacy Policy is published in compliance with, inter alia:</p>
+          <ul className="list-decimal pl-8 space-y-2">
+            <li>Section 43A of the Information Technology Act, 2000;</li>
+            <li>Regulation 4 of the Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Information) Rules, 2011 (the “SPI Rules”);</li>
+            <li>Regulation 3(1) of the Information Technology (Intermediaries Guidelines) Rules, 2011.</li>
+          </ul>
+
+          <h2 className="text-xl font-bold border-b border-gray-300 pb-2">2. COLLECTION OF PERSONAL INFORMATION</h2>
+          <p>
+            When you access the Services, we may ask you to voluntarily provide us with certain information that personally identifies you. 
+            Information collected by us may include:
+          </p>
+          <ul className="list-disc pl-8 space-y-1">
+            <li>Contact data (such as your email address and phone number);</li>
+            <li>Demographic data (such as your gender, date of birth and pin code);</li>
+            <li>Medical records and history shared by Practitioners or yourself;</li>
+            <li>Data regarding your usage of the services and history of appointments;</li>
+            <li>Insurance data (such as your insurance carrier and plan).</li>
+          </ul>
+
+          <h2 className="text-xl font-bold border-b border-gray-300 pb-2">3. PRIVACY STATEMENTS</h2>
           
-          <div className="text-center py-8">
-            <p className="text-slate-400 text-sm font-medium">
-              Last Updated: April 5, 2026 • © {new Date().getFullYear()} Oviaan Professional
+          <h3 className="font-bold text-lg">3.1 ALL USERS NOTE:</h3>
+          <p>
+            All information provided to Oviaan by a User, including Personal Information or Sensitive Personal Data, is voluntary. 
+            Oviaan may use this information for (a) providing Services, (b) business intelligence and research purposes in non-personally identifiable form, 
+            (c) communication purposes like appointment reminders and feedback.
+          </p>
+
+          <h3 className="font-bold text-lg">3.2 PRACTITIONERS NOTE:</h3>
+          <p>
+            As part of the registration process, certain information is collected from Practitioners. This information is used to help 
+            End-Users find and book appointments. Oviaan automatically enables the listing of Practitioners’ information on its Website 
+            for every doctor or clinic added to a Practice using our software.
+          </p>
+
+          <h3 className="font-bold text-lg">3.3 END-USERS NOTE:</h3>
+          <p>
+            End-Users’ personally identifiable information is used to identify them for healthcare purposes. Oviaan may keep records of 
+            electronic communications and telephone calls for administration of Services, customer support, and research.
+          </p>
+
+          <h2 className="text-xl font-bold border-b border-gray-300 pb-2">4. CONFIDENTIALITY AND SECURITY</h2>
+          <p>
+            Your Personal Information is maintained by Oviaan in electronic form. Oviaan takes all necessary precautions to protect 
+            your personal information both online and off-line, and implements reasonable security practices and measures including 
+            managerial, technical, and physical security control measures.
+          </p>
+
+          <h2 className="text-xl font-bold border-b border-gray-300 pb-2">5. CHANGE TO PRIVACY POLICY</h2>
+          <p>
+            Oviaan may update this Privacy Policy at any time, with or without advance notice. Significant changes will be 
+            notified via notice on the Website or email.
+          </p>
+
+          <h2 className="text-xl font-bold border-b border-gray-300 pb-2">6. CONTACT INFORMATION</h2>
+          <div className="bg-blue-50 p-6 border border-blue-100">
+            <p className="font-bold">Data Protection Team</p>
+            <p>Oviaan Technologies Pvt Ltd</p>
+            <p>Email: amitmaurya3276@gmail.com</p>
+            <p>Support: +91 8874614138</p>
+            <p>Address: 633/3 New Panchwati Colony, Kamta, Lucknow - 226028</p>
+          </div>
+
+          <div className="text-center pt-10 border-t border-gray-200">
+            <p className="text-gray-400 text-sm italic">
+              Last Updated: May 10, 2026 • © {new Date().getFullYear()} Oviaan Technologies Private Limited
             </p>
           </div>
         </div>
-      </section>
+      </div>
 
       <PublicFooter />
     </div>

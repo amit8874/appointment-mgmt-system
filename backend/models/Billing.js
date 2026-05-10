@@ -68,6 +68,27 @@ const billingSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Pharmacy/Detailed Billing Fields
+  grossAmount: {
+    type: Number,
+    default: 0
+  },
+  discountAmount: {
+    type: Number,
+    default: 0
+  },
+  taxableAmount: {
+    type: Number,
+    default: 0
+  },
+  grandTotal: {
+    type: Number,
+    default: 0
+  },
+  netAmount: {
+    type: Number,
+    default: 0
+  },
   paidAmount: {
     type: Number,
     default: 0

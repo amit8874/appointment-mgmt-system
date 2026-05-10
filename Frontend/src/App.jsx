@@ -63,6 +63,7 @@ const FamilyPetCare = lazy(() => import("./Pages/Features/FamilyPetCare"));
 const PartnerProgram = lazy(() => import("./Pages/Features/PartnerProgram"));
 const PrivacyPolicy = lazy(() => import("./Pages/PrivacyPolicy"));
 const TermsAndConditions = lazy(() => import("./Pages/TermsAndConditions"));
+const CancellationPolicy = lazy(() => import("./Pages/CancellationPolicy"));
 const About = lazy(() => import("./Pages/About"));
 const Blog = lazy(() => import("./Pages/Blog"));
 const Careers = lazy(() => import("./Pages/Careers"));
@@ -277,6 +278,7 @@ export default function App() {
             <Route path="/register-organization" element={<RegisterOrganization />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-conditions" element={<TermsAndConditions />} />
+            <Route path="/cancellation-policy" element={<CancellationPolicy />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
             <Route path="/payment" element={<Payment />} />
 

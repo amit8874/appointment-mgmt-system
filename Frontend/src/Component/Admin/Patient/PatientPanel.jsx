@@ -23,9 +23,11 @@ const PatientPanel = ({
   totalItems,
   itemsPerPage,
   onPageChange,
-  onRefresh
+  onRefresh,
+  searchTerm: globalSearchTerm,
+  onSearchChange
 }) => {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [localSearchTerm, setLocalSearchTerm] = useState(globalSearchTerm || "");
   const [deletingId, setDeletingId] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState(null);
@@ -39,15 +41,24 @@ const PatientPanel = ({
 
 
 
-  // Filter patients
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearchTerm !== globalSearchTerm) {
+        onSearchChange(localSearchTerm);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [localSearchTerm, onSearchChange, globalSearchTerm]);
+
+  // Sync local search with global if changed externally (e.g. cleared)
+  useEffect(() => {
+    setLocalSearchTerm(globalSearchTerm || "");
+  }, [globalSearchTerm]);
+
+  // Filter patients by status (Search is now handled by backend)
   const filteredPatients = useMemo(() => {
     return (patients || []).filter((patient) => {
-      const matchesSearch =
-        patient.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.patientId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (patient.mobile || patient.phone || patient.contactNumber || patient.contact || '').includes(searchTerm) ||
-        patient.lastShortId?.toString().includes(searchTerm);
-
       const patientStatus = patient.paymentStatus || patient.status || 'active';
       let matchesStatus = true;
       if (statusFilter === 'Paid') {
@@ -60,9 +71,9 @@ const PatientPanel = ({
         matchesStatus = patientStatus === 'dead';
       }
 
-      return matchesSearch && matchesStatus;
+      return matchesStatus;
     });
-  }, [patients, searchTerm, statusFilter]);
+  }, [patients, statusFilter]);
 
   // Use the filtered patients directly (already limited by server)
   const paginatedPatients = filteredPatients;
@@ -414,8 +425,8 @@ const PatientPanel = ({
             <input
               type="text"
               placeholder="Search patient..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={localSearchTerm}
+              onChange={(e) => setLocalSearchTerm(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
             />
           </div>
@@ -513,7 +524,10 @@ const PatientPanel = ({
           <div className="text-center py-8">
             <p className="text-gray-500 text-lg mb-4">No patients match your search criteria.</p>
             <button
-              onClick={() => setSearchTerm('')}
+              onClick={() => {
+                setLocalSearchTerm('');
+                onSearchChange('');
+              }}
               className="text-blue-500 hover:text-blue-700 underline"
             >
               Clear search

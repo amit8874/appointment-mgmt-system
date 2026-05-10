@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, PlusCircle, FileText, User, Filter, ChevronLeft, ChevronRight, Download, Send, Phone, Trash2, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Search, PlusCircle, FileText, User, Filter, ChevronLeft, ChevronRight, Send, Phone, Trash2, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { billingApi, appointmentApi, centralDoctorApi, authApi } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
@@ -60,7 +60,7 @@ const InvoiceList = React.memo(({
 
       {/* Filter Tabs */}
       <div className="flex space-x-2 text-black bg-gray-200 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
-        {['All', 'Cash', 'UPI', 'Card'].map(filter => (
+        {['All', 'Paid', 'Pending', 'Cash', 'UPI', 'Card'].map(filter => (
           <button
             key={filter}
             onClick={() => setActiveFilter(filter)}
@@ -152,14 +152,7 @@ const InvoiceList = React.memo(({
                 <PrinterIcon className="text-gray-500 group-hover:text-green-800 transition-colors duration-300" />
                 Print
               </button>
-              <button
-                onClick={() => handleAction('WhatsApp', invoice.id)}
-                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ease-in-out duration-150 group-hover:bg-indigo-500"
-                title="Send to WhatsApp"
-              >
-                <Phone size={14} className="mr-1" />
-                Send
-              </button>
+
             </div>
           </div>
         </div>
@@ -380,6 +373,7 @@ const XIcon = (props) => (
     <path d="M18 6 6 18" /><path d="m6 6 12 12" />
   </svg>
 );
+
 
 // Payment Mode Icons (imported for form, kept here for completeness)
 const WalletIcon = (props) => (
@@ -703,6 +697,8 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
         doctorId: billData.doctorId || 'DID-001',
         doctorName: billData.doctorName,
         amount: billData.totalAmount,
+        paidAmount: billData.status === 'Paid' ? billData.totalAmount : 0,
+        dueAmount: billData.status === 'Paid' ? 0 : billData.totalAmount,
         items: items,
         status: billData.status,
         discount: billData.discounts,
@@ -1106,7 +1102,7 @@ const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
 
 
 // --- Invoice Detail Modal Component ---
-const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, onSendWhatsApp, clinicInfo = {} }) => {
+const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, clinicInfo = {} }) => {
   const details = invoice.details || {};
 
   // Map the detail fields to readable labels or use the itemized list
@@ -1337,13 +1333,7 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
               </svg>
               Print Invoice
             </button>
-            <button
-              onClick={() => onSendWhatsApp && onSendWhatsApp(invoice)}
-              className="inline-flex items-center px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white font-medium rounded-lg transition-colors shadow-md"
-            >
-              <Phone size={18} className="mr-2" />
-              Send on WhatsApp
-            </button>
+
           </div>
 
         </div>
@@ -1411,7 +1401,8 @@ const BillingDashboard = () => {
           page,
           limit: itemsPerPage,
           search: searchTerm,
-          status: activeFilter === 'All' ? '' : activeFilter,
+          status: ['Paid', 'Pending', 'Due'].includes(activeFilter) ? activeFilter : '',
+          paymentMethod: ['Cash', 'UPI', 'Card'].includes(activeFilter) ? activeFilter : '',
           billType: billingTab
         }),
         appointmentApi.getAll(),
@@ -1446,19 +1437,6 @@ const BillingDashboard = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Handler for WhatsApp sending
-  const handleSendWhatsApp = async (invoice) => {
-    try {
-      setStatusMessage(`Sending invoice ${invoice.id} to ${invoice.patient} via WhatsApp...`);
-
-      await billingApi.sendWhatsApp(invoice._id);
-
-      setStatusMessage(`Success! Invoice ${invoice.id} sent to ${invoice.patient} via WhatsApp.`);
-    } catch (error) {
-      console.error('Error sending WhatsApp invoice:', error);
-      setStatusMessage('Error: Failed to send invoice via WhatsApp.');
-    }
-  };
 
   // Handler for actions from the list
   const handleAction = (action, invoiceId) => {
@@ -1468,9 +1446,6 @@ const BillingDashboard = () => {
         setSelectedInvoice(invoice);
       } else if (action === 'Print') {
         setPrintingInvoice(invoice);
-        setStatusMessage(`Printing Invoice ${invoice.id} for ${invoice.patient}`);
-      } else if (action === 'WhatsApp') {
-        handleSendWhatsApp(invoice);
       }
     }
   };
@@ -1712,7 +1687,7 @@ const BillingDashboard = () => {
             onUpdateStatus={handleUpdateStatus}
             onDelete={handleDeleteInvoice}
             onPrint={handlePrintFromModal}
-            onSendWhatsApp={handleSendWhatsApp}
+
             clinicInfo={clinicInfo}
           />
         )}

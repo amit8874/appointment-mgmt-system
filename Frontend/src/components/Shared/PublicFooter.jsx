@@ -49,6 +49,7 @@ More</h4>
             <ul className="space-y-3 text-sm font-medium text-slate-300">
               <li><Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
               <li><Link to="/terms-conditions" className="hover:text-white transition-colors">Terms and Conditions</Link></li>
+              <li><Link to="/cancellation-policy" className="hover:text-white transition-colors">Cancellation Policy</Link></li>
             </ul>
           </div>
 

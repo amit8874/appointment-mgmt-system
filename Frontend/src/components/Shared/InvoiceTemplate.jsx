@@ -50,11 +50,11 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo, template = null }) => {
 
     const info = {
         ...clinicInfo,
-        name: String(clinicInfo.name || clinicInfo.clinicName || 'Clinic Name'),
+        name: String(clinicInfo.branding?.clinicName || clinicInfo.clinicName || clinicInfo.name || 'Clinic Name'),
         address: String(formatAddress(clinicInfo.address || clinicInfo.clinicAddress || clinicInfo.location)),
         phone: String(clinicInfo.phone || clinicInfo.mobile || clinicInfo.contact || ''),
         email: String(clinicInfo.email || clinicInfo.clinicEmail || clinicInfo.contactEmail || ''),
-        logo: clinicInfo.logo ? String(clinicInfo.logo) : (clinicInfo.branding?.logo ? String(clinicInfo.branding.logo) : null),
+        logo: clinicInfo.branding?.logo || clinicInfo.logo || clinicInfo.clinicLogo || null,
         gstNumber: metadata.gstNumber || clinicInfo.gstNumber,
         showGst: metadata.showGst !== undefined ? metadata.showGst : true,
     };

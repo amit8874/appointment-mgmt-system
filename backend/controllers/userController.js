@@ -120,6 +120,7 @@ export const checkSession = async (req, res) => {
         branding: org.branding,
         phone: org.phone,
         email: org.email,
+        address: org.address,
         status: org.status,
         isSubscriptionExpired,
         trialDaysRemaining,

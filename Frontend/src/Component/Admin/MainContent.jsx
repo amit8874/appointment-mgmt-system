@@ -26,6 +26,7 @@ import PurchaseStock from './Pharmacy/PurchaseStock.jsx';
 import PharmacyBilling from './Pharmacy/PharmacyBilling.jsx';
 import ExpiryLowStock from './Pharmacy/ExpiryLowStock.jsx';
 import Suppliers from './Pharmacy/Suppliers.jsx';
+import Reports from './Pharmacy/Reports.jsx';
 
 const MainContent = ({
   activeTab,
@@ -73,6 +74,8 @@ const MainContent = ({
   onPatientsPageChange,
   onPatientsRefresh,
   patientsTotalItems,
+  searchTerm,
+  onPatientsSearch,
   doctorsCurrentPage,
   doctorsTotalPages,
   onDoctorsPageChange,
@@ -144,8 +147,10 @@ const MainContent = ({
             totalPages={patientsTotalPages}
             totalItems={patientsTotalItems}
             itemsPerPage={15}
-            onPageChange={onPatientsPageChange}
+            onPageChange={(page) => onPatientsPageChange(page, 15, searchTerm)}
             onRefresh={onPatientsRefresh}
+            searchTerm={searchTerm}
+            onSearchChange={onPatientsSearch}
           />
         );
       case 'Doctor':
@@ -230,6 +235,9 @@ const MainContent = ({
       case 'Suppliers':
       case 'pharmacy-suppliers':
         return <Suppliers />;
+      case 'Reports':
+      case 'pharmacy-reports':
+        return <Reports />;
       case 'Billing & Payments':
         return <BillingDashboard />;
       case 'Oviaan Intelligence':

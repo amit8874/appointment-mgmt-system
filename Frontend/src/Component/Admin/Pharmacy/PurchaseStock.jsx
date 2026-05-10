@@ -276,6 +276,7 @@ const PurchaseStock = ({ onAddMedicine }) => {
                   <th className="px-3 py-3 text-left">Expiry</th>
                   <th className="px-3 py-3 text-center">MRP</th>
                   <th className="px-3 py-3 text-center">Price</th>
+                  <th className="px-3 py-3 text-center">Selling Price</th>
                   <th className="px-3 py-3 text-center">Qty</th>
                   <th className="px-3 py-3 text-center">Free</th>
                   <th className="px-3 py-3 text-center">GST %</th>
@@ -334,8 +335,9 @@ const PurchaseStock = ({ onAddMedicine }) => {
                                       <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mt-0.5">{med.manufacturer} • {med.type} • {med.packSize}</p>
                                     </div>
                                     <div className="text-right">
-                                      <p className="text-[10px] font-black text-indigo-600">MRP: ₹{med.mrp || 0}</p>
+                                      <p className="text-[10px] font-black text-indigo-600">Last MRP: ₹{med.lastMrp || 0}</p>
                                       <p className="text-[8px] font-bold text-slate-400 uppercase">GST: {med.gstPercentage || 0}%</p>
+                                      <p className="text-[8px] font-bold text-emerald-600 uppercase">Last CP: ₹{med.lastPurchasePrice || 0}</p>
                                     </div>
                                   </div>
                                 </div>
@@ -383,6 +385,14 @@ const PurchaseStock = ({ onAddMedicine }) => {
                         className="w-full px-1 py-2 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg text-[11px] text-center outline-none font-bold"
                         value={item.purchasePrice}
                         onChange={(e) => handleItemChange(index, 'purchasePrice', e.target.value === '' ? '' : Number(e.target.value))}
+                      />
+                    </td>
+                    <td className="px-3 py-2 w-20">
+                      <input 
+                        type="number" 
+                        className="w-full px-1 py-2 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg text-[11px] text-center outline-none font-bold text-emerald-600"
+                        value={item.sellingPrice}
+                        onChange={(e) => handleItemChange(index, 'sellingPrice', e.target.value === '' ? '' : Number(e.target.value))}
                       />
                     </td>
                     <td className="px-3 py-2 w-16">

@@ -100,7 +100,13 @@ export const normalizePharmacyInvoice = (invoice = {}) => {
   const taxableAmount = round2(invoice.taxableAmount || Math.max(grossAmount - discountAmount, 0));
   const taxAmount = round2(invoice.taxAmount || invoice.gstAmount || 0);
   const grandTotal = round2(invoice.grandTotal || invoice.netAmount || invoice.totalAmount || invoice.finalAmount || taxableAmount + taxAmount);
-  const paidAmount = round2(invoice.paidAmount || invoice.paid || 0);
+  let paidAmount = round2(invoice.paidAmount || invoice.paid || 0);
+  
+  // If status is Paid, but paidAmount is 0, assume fully paid
+  if (invoice.status === 'Paid' && paidAmount === 0 && grandTotal > 0) {
+    paidAmount = grandTotal;
+  }
+  
   const dueAmount = round2(invoice.dueAmount || invoice.due || Math.max(grandTotal - paidAmount, 0));
 
   return {

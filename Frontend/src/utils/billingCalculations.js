@@ -78,7 +78,13 @@ export const calculateInvoiceTotals = (invoice) => {
   }
 
   const grandTotal = taxableAmount + taxAmount;
-  const paidAmount = parseFloat(invoice.paidAmount || invoice.paid || 0);
+  let paidAmount = parseFloat(invoice.paidAmount || invoice.paid || 0);
+  
+  // If status is Paid, but paidAmount is 0, we assume it's fully paid (handling legacy data/sync issues)
+  if (invoice.status === 'Paid' && paidAmount === 0 && grandTotal > 0) {
+    paidAmount = grandTotal;
+  }
+  
   const dueAmount = Math.max(0, grandTotal - paidAmount);
 
   return {

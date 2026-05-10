@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, ChevronLeft, User, Calendar, ShieldCheck, Grid, Activity, MessageSquare, Crown, PlusSquare, Upload, Package, ShoppingCart, AlertTriangle, Truck } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, ChevronLeft, User, Calendar, ShieldCheck, Grid, Activity, MessageSquare, Crown, PlusSquare, Upload, Package, ShoppingCart, AlertTriangle, Truck, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NavItem from './NavItem.jsx';
 
@@ -194,6 +194,7 @@ const AdminSidebar = ({
             <NavItem id="pharmacy-billing" name="Pharmacy Billing" icon={Wallet} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             <NavItem id="pharmacy-expiry-low-stock" name="Expiry & Low Stock" icon={AlertTriangle} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             <NavItem id="pharmacy-suppliers" name="Suppliers" icon={Truck} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
+            <NavItem id="pharmacy-reports" name="Reports" icon={FileText} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
           </>
         )}
 

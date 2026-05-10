@@ -126,7 +126,6 @@ const Login = () => {
     { id: 'patient', label: 'Patient', icon: <UserIcon size={14} /> },
     { id: 'staff', label: 'Doctor/Staff', icon: <Headset size={14} /> },
     { id: 'admin', label: 'Admin', icon: <Shield size={14} /> },
-    { id: 'pharmacy', label: 'Pharmacy', icon: <Store size={14} /> },
   ];
 
   const toggleLoginMode = () => {

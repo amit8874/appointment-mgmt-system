@@ -55,6 +55,7 @@ export const getAllBills = async (req, res) => {
     // Support filtering in the query
     if (req.query.billType) query.billType = req.query.billType;
     if (req.query.status) query.status = req.query.status;
+    if (req.query.paymentMethod) query.paymentMethod = req.query.paymentMethod;
     
     // Support search
     if (req.query.search) {
@@ -84,8 +85,14 @@ export const getAllBills = async (req, res) => {
     }
 
     // Calculate summary metrics for the filtered query
+    // NOTE: aggregate match requires explicit ObjectId casting
+    const aggregateQuery = { ...query };
+    if (aggregateQuery.organizationId && typeof aggregateQuery.organizationId === 'string') {
+      aggregateQuery.organizationId = new mongoose.Types.ObjectId(aggregateQuery.organizationId);
+    }
+
     const summary = await Billing.aggregate([
-      { $match: query },
+      { $match: aggregateQuery },
       { $group: {
           _id: null,
           totalPaid: { $sum: { $cond: [{ $eq: ["$status", "Paid"] }, "$amount", 0] } },
@@ -204,8 +211,10 @@ export const createBill = async (req, res) => {
     const totals = calculateInvoiceTotals({
       amount,
       discountValue: discount,
-      discountType: 'flat', // createBill usually passes flat discount
-      items: items || []
+      discountType: 'flat',
+      items: items || [],
+      status: status || 'Pending',
+      paidAmount: paidAmount || 0
     });
 
     const newBill = new Billing({
@@ -221,7 +230,7 @@ export const createBill = async (req, res) => {
       discountAmount: totals.discountAmount,
       taxAmount: totals.taxAmount,
       taxableAmount: totals.taxableAmount,
-      paidAmount: paidAmount || 0,
+      paidAmount: totals.paidAmount,
       dueAmount: totals.dueAmount,
       appointmentId: appointmentId || null,
       appointmentDate: appointmentDate || null,

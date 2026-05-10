@@ -12,37 +12,55 @@ const OviaanDefaultPharmacyInvoiceTemplate = ({ billData = {}, clinicData = {} }
     billNo = '',
     paymentMode = 'cash',
     cardNo = '',
-    grossAmount = 0,
-    discountAmount = 0,
-    taxableAmount = 0,
-    taxAmount = 0,
     grandTotal = 0,
     netAmount = 0,
+    amount = 0,
+    grossAmount = 0,
     totalAmount = 0,
+    subtotal = 0,
+    discountAmount = 0,
+    discount = 0,
+    taxableAmount = 0,
+    taxAmount = 0,
     paidAmount = 0,
     balanceAmount = 0,
     amountInWords = '',
     medicines = []
   } = billData;
 
-  // STRICT MAPPING: For Pharmacy, totalAmount IS the Gross and grandTotal/netAmount IS the Final.
-  const finalTotal = grandTotal || netAmount || 0;
-  const initialGross = grossAmount || totalAmount || 0;
-  const finalTaxable = taxableAmount || (initialGross - discountAmount);
-  const finalTax = taxAmount || 0;
+  // STRICT MAPPING: For Pharmacy, grandTotal/netAmount IS the Final Net Payable.
+  // We use multiple fallbacks to ensure compatibility with both internal and standard billing objects.
+  const finalTotal = Number(grandTotal || netAmount || amount || 0);
+  const initialGross = Number(grossAmount || totalAmount || subtotal || 0);
+  const finalDiscount = Number(discountAmount || discount || 0);
+  const finalTaxable = Number(taxableAmount || (initialGross - finalDiscount));
+  const finalTax = Number(taxAmount || 0);
+
+  const formatAddress = (addr) => {
+    if (!addr) return 'Clinic Full address with pincode';
+    if (typeof addr === 'string') return addr;
+    const parts = [addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : 'Clinic Full address with pincode';
+  };
 
   const {
     logo = '',
     headerImage = '',
     headerType = 'default',
-    name: clinicName = 'Clinic Name',
-    address: clinicAddress = 'Clinic Full address with pincode',
+    name = '',
+    clinicName: altClinicName = '',
+    branding = null,
+    address = null,
     email: clinicEmail = 'Clinic email',
     phone: clinicPhone = 'phone number',
     gstNumber = '',
     showGst = true,
     doctorSignature = ''
   } = clinicData;
+
+  const clinicName = branding?.clinicName || altClinicName || name || 'Clinic Name';
+
+  const clinicAddress = formatAddress(address || clinicData.clinicAddress || clinicData.location);
 
   // Handle both boolean and string "false" for maximum reliability
   const isGstVisible = showGst === true || showGst === 'true';

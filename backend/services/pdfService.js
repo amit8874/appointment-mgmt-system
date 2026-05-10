@@ -97,34 +97,44 @@ const numberToWords = (num) => {
   return word;
 };
 
+let cachedBrowser = null;
+
+const getBrowser = async () => {
+  if (cachedBrowser && cachedBrowser.connected) {
+    return cachedBrowser;
+  }
+  cachedBrowser = await puppeteer.launch({
+    headless: 'new',
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+  });
+  return cachedBrowser;
+};
+
 export const generateInvoicePDF = async (bill, org, template = null) => {
   let browser = null;
+  let page = null;
   try {
     const fileName = `Invoice-${bill.billId}.pdf`;
-
 
     // 1. Generate HTML Content
     const html = await getInvoiceHtml(bill, org, template);
 
-    // 2. Launch Puppeteer
-    console.log(`[PDF] Launching Puppeteer for ${bill.billId}...`);
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
-
-    const page = await browser.newPage();
+    // 2. Get Browser and Page
+    console.log(`[PDF] Getting browser instance for ${bill.billId}...`);
+    browser = await getBrowser();
+    page = await browser.newPage();
     
     // Set viewport to A4 dimensions at 96 DPI
     await page.setViewport({ width: 794, height: 1123 });
 
-    // Set HTML content with a more robust wait strategy
+    // 3. Set HTML content
+    // Since images are base64, we don't need to wait for network
     await page.setContent(html, { waitUntil: 'domcontentloaded' });
     
-    // Additional wait for any dynamic content/styles to settle (crucial for fonts/colors)
-    await new Promise(r => setTimeout(r, 1000));
+    // Minimal wait for styles/fonts
+    await new Promise(r => setTimeout(r, 500));
 
-    // 3. Generate PDF Buffer
+    // 4. Generate PDF Buffer
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -136,13 +146,11 @@ export const generateInvoicePDF = async (bill, org, template = null) => {
       }
     });
 
-    // 4. Validate Buffer Size
+    // 5. Validate Buffer Size
     if (pdfBuffer.length < 1024) { // 1KB
-      console.error(`[PDF ERROR] Generated PDF for ${bill.billId} is suspiciously small: ${pdfBuffer.length} bytes`);
       throw new Error(`Generated PDF is too small (${pdfBuffer.length} bytes). Rendering might have failed.`);
     }
 
-    // 5. Return the PDF Buffer
     console.log(`[PDF] Successfully generated PDF buffer: (${pdfBuffer.length} bytes)`);
 
     return pdfBuffer;
@@ -150,7 +158,7 @@ export const generateInvoicePDF = async (bill, org, template = null) => {
     console.error(`[PDF GENERATION ERROR]:`, err);
     throw err;
   } finally {
-    if (browser) await browser.close();
+    if (page) await page.close();
   }
 };
 
@@ -158,7 +166,7 @@ function formatAddress(addr) {
   if (!addr) return '';
   if (typeof addr === 'string') return addr;
   const parts = [addr.street, addr.city, addr.state, addr.zipCode, addr.pincode, addr.country].filter(Boolean);
-  return parts.join(', ');
+  return parts.length > 0 ? parts.join(', ') : '';
 }
 
 async function getOviaanDefaultPharmacyHtml(bill, org, template) {
@@ -183,7 +191,7 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
   const gstNumber = metadata.gstNumber || org.gstNumber ;
   const showGst = metadata.showGst !== undefined ? metadata.showGst : true;
 
-  const clinicName = org.clinicName || org.name || 'Clinic Name';
+  const clinicName = org.branding?.clinicName || org.clinicName || org.name || 'Clinic Name';
   const clinicAddress = formatAddress(org.address || org.location) || 'Clinic Full address with pincode';
   const clinicEmail = org.email || 'Clinic email';
   const clinicPhone = org.phone || 'phone number';
@@ -404,7 +412,7 @@ async function getInvoiceHtml(bill, org, template) {
     : (template?.htmlLayout || getBaseLayoutHtml('layout-standard'));
 
   const values = {
-    '{{clinic_name}}': org.clinicName || org.name || 'Our Clinic',
+    '{{clinic_name}}': org.branding?.clinicName || org.clinicName || org.name || 'Our Clinic',
     '{{clinic_address}}': formatAddress(org.address || org.location),
     '{{clinic_phone}}': org.phone || '',
     '{{clinic_email}}': org.email || '',

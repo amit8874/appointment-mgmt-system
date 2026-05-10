@@ -6,8 +6,6 @@ import {
   Trash2,
   Save,
   Printer,
-  Download,
-  Phone,
   X,
   User,
   Calendar,
@@ -16,7 +14,7 @@ import {
   Package,
   ChevronRight
 } from 'lucide-react';
-import api from '../../../services/api';
+import api, { billingApi, authApi } from '../../../services/api';
 import { calculatePharmacyInvoice } from '../../../utils/pharmacyInvoiceCalculator';
 import OviaanDefaultPharmacyInvoiceTemplate from '../../../components/billing/templates/OviaanDefaultPharmacyInvoiceTemplate';
 
@@ -77,8 +75,9 @@ const PharmacyBilling = () => {
 
   const fetchClinicData = async () => {
     try {
-      const response = await api.get('/auth/session');
-      setClinicData(response.data?.user?.organization || {});
+      const response = await authApi.checkSession();
+      const organization = response.user?.organization || response.user?.organizationId || {};
+      setClinicData(organization);
       
       // Also fetch the default template to ensure settings persist on refresh
       const templateRes = await api.get('/invoice-templates');
@@ -268,11 +267,6 @@ const PharmacyBilling = () => {
     window.print();
   };
 
-  const handleWhatsApp = () => {
-    if (!lastGeneratedBill) return alert('Please save the bill first');
-    // Implement WhatsApp logic or use existing billingApi.sendWhatsApp if compatible
-    alert('WhatsApp feature coming soon or use Billing & Payments section.');
-  };
 
   return (
     <div className="p-4 space-y-4 bg-gray-50 dark:bg-gray-900 min-h-full">
@@ -576,7 +570,7 @@ const PharmacyBilling = () => {
             <div className="space-y-2 pt-2">
               <label className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Payment</label>
               <div className="grid grid-cols-2 gap-2">
-                {['Cash', 'UPI', 'Card', 'Credit'].map((m) => (
+                {['Cash', 'UPI', 'Card'].map((m) => (
                   <button
                     key={m}
                     onClick={() => setBillInfo({ ...billInfo, paymentMethod: m })}
@@ -602,19 +596,14 @@ const PharmacyBilling = () => {
                   </>
                 )}
               </button>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 <button
                   onClick={handlePrint}
                   className="py-2.5 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider"
                 >
                   <Printer className="w-4 h-4" /> Print
                 </button>
-                <button
-                  onClick={handleWhatsApp}
-                  className="py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider"
-                >
-                  <Phone className="w-4 h-4" /> WhatsApp
-                </button>
+
               </div>
             </div>
           </div>
