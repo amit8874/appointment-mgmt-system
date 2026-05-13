@@ -10,6 +10,7 @@ import Organization from '../models/Organization.js';
 import InvoiceTemplate from '../models/InvoiceTemplate.js';
 import Patient from '../models/PaitentEditProfile.js';
 import { sendWhatsAppMediaTemplate, uploadWhatsAppMediaFromFile } from '../services/whatsappService.js';
+import { sendInvoiceEmail } from '../services/emailService.js';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -573,6 +574,60 @@ export const sendWhatsAppInvoice = async (req, res) => {
       success: false,
       message: 'Failed to send WhatsApp invoice.',
       error: error.response?.data || error.message
+    });
+  }
+};
+
+export const sendEmailInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const bill = await Billing.findOne({ _id: id, organizationId: req.tenantId });
+
+    if (!bill) {
+      return res.status(404).json({ success: false, message: 'Bill not found' });
+    }
+
+    // Get Patient Details for Email
+    const patient = await Patient.findOne({ patientId: bill.patientId, organizationId: req.tenantId });
+    const patientEmail = patient?.email || req.body.email; // Fallback to email in body if provided
+
+    if (!patientEmail) {
+      return res.status(400).json({ success: false, message: 'Patient email address is missing. Please update patient profile or provide an email.' });
+    }
+
+    // Get Organization Details for branding
+    const org = await Organization.findById(req.tenantId);
+    const clinicName = org?.clinicName || org?.name || 'Our Clinic';
+
+    // Get Default Invoice Template
+    const template = await InvoiceTemplate.findOne({ organizationId: req.tenantId, isDefault: true }) || 
+                     await InvoiceTemplate.findOne({ organizationId: req.tenantId });
+
+    // Generate REAL PDF Invoice Buffer
+    console.log(`[Email Billing] Generating PDF for invoice ${bill.billId}...`);
+    const pdfBuffer = await generateInvoicePDF(bill, org, template);
+
+    // Send Email
+    console.log(`[Email Billing] Sending invoice to ${patientEmail}...`);
+    await sendInvoiceEmail(
+      patientEmail,
+      bill.patientName || 'Valued Patient',
+      bill.billId,
+      bill.amount,
+      clinicName,
+      pdfBuffer
+    );
+
+    res.json({
+      success: true,
+      message: `Invoice email sent successfully to ${patientEmail}`
+    });
+  } catch (error) {
+    console.error('[Email Billing Error]:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send email invoice.',
+      error: error.message
     });
   }
 };

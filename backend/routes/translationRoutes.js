@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { translateText } from '../controllers/translationController.js';
+import { translateText, translatePrescription } from '../controllers/translationController.js';
 
 const router = express.Router();
 
@@ -12,5 +12,11 @@ router.use(authenticateToken);
  * @desc Translate clinical text
  */
 router.post('/', translateText);
+
+/**
+ * @route POST /api/translate/prescription-structured
+ * @desc Translate specific prescription fields
+ */
+router.post('/prescription-structured', translatePrescription);
 
 export default router;

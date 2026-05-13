@@ -201,7 +201,10 @@ export const sendPrescriptionPdfWhatsApp = async (req, res) => {
       patientId, 
       prescriptionData, 
       templateId,
-      organizationId 
+      organizationId,
+      doctorName,
+      doctorQualification,
+      doctorSpecialization
     } = req.body;
 
     const orgId = organizationId || req.tenantId || req.user?.organizationId;
@@ -226,70 +229,82 @@ export const sendPrescriptionPdfWhatsApp = async (req, res) => {
       template = await PrescriptionTemplate.findOne({ organizationId: orgId, isDefault: true });
     }
 
-    // 3. Generate PDF Buffer
-    console.log(`[WhatsApp Prescription] Generating PDF for ${patient?.fullName || 'Patient'}...`);
-    const pdfBuffer = await generatePrescriptionPDF(prescriptionData, patient, org, template);
-
-    // 4. Upload to S3 for storage
-    const fileName = `Prescription-${patient?.fullName?.replace(/\s+/g, '_') || 'Patient'}-${Date.now()}.pdf`;
-    const s3Result = await uploadToS3({
-      buffer: pdfBuffer,
-      originalName: fileName,
-      mimeType: 'application/pdf',
-      folderType: 'prescriptions',
-      organizationId: orgId,
-    });
-
-    // 5. Upload to WhatsApp Media API
-    const tempPdfPath = path.join(os.tmpdir(), `temp-rx-${Date.now()}.pdf`);
-    let mediaId = null;
-    try {
-      fs.writeFileSync(tempPdfPath, pdfBuffer);
-      mediaId = await uploadWhatsAppMediaFromFile(tempPdfPath, "application/pdf");
-    } finally {
-      if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
-    }
-
-    // 6. Send WhatsApp Media Template
-    const sanitizedPhone = sanitizePhone(phone);
-    const whatsappTemplateName = process.env.WHATSAPP_PRESCRIPTION_PDF_TEMPLATE || 'billing_invoice_pdf'; // Reusing invoice template layout
-    
-    const bodyParameters = [
-      patient?.fullName || 'Valued Patient',
-      org.clinicName || org.name || 'Our Clinic'
-    ];
-
-    console.log(`[WhatsApp Prescription] Dispatching PDF to ${sanitizedPhone}...`);
-    const result = await sendWhatsAppMediaTemplate(
-      sanitizedPhone,
-      whatsappTemplateName,
-      s3Result.signedUrl || s3Result.fileUrl,
-      'document',
-      'en',
-      bodyParameters,
-      fileName,
-      {
-        mediaId,
-        organizationId: orgId,
-        chargeCredit: true,
-        messageType: 'PRESCRIPTION_SENT',
-        relatedEntityType: 'Prescription',
-        createdBy: req.user?._id,
-        metadata: {
-          source: 'whatsappController',
-          templateName: whatsappTemplateName,
-          publicUrl: s3Result.fileUrl,
-          mediaId
-        }
-      }
-    );
-
-    return res.status(200).json({
+    // 3. Return Response Early to avoid timeout
+    res.status(200).json({
       success: true,
-      message: "Prescription PDF sent successfully via WhatsApp.",
-      data: result,
-      pdfUrl: s3Result.signedUrl || s3Result.fileUrl
+      message: "Prescription is being generated and will be sent via WhatsApp shortly."
     });
+
+    // 4. Dispatch Heavy Tasks in Background
+    (async () => {
+      try {
+        // Generate PDF Buffer
+        console.log(`[WhatsApp Background Dispatch] Generating PDF for ${patient?.fullName || 'Patient'}...`);
+        const pdfBuffer = await generatePrescriptionPDF(
+          prescriptionData, 
+          patient, 
+          org, 
+          template,
+          { doctorName, doctorQualification, doctorSpecialization }
+        );
+
+        // Upload to S3 for storage
+        const fileName = `Prescription-${patient?.fullName?.replace(/\s+/g, '_') || 'Patient'}-${Date.now()}.pdf`;
+        const s3Result = await uploadToS3({
+          buffer: pdfBuffer,
+          originalName: fileName,
+          mimeType: 'application/pdf',
+          folderType: 'prescriptions',
+          organizationId: orgId,
+        });
+
+        // Upload to WhatsApp Media API
+        const tempPdfPath = path.join(os.tmpdir(), `temp-rx-${Date.now()}.pdf`);
+        let mediaId = null;
+        try {
+          fs.writeFileSync(tempPdfPath, pdfBuffer);
+          mediaId = await uploadWhatsAppMediaFromFile(tempPdfPath, "application/pdf");
+        } finally {
+          if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
+        }
+
+        const sanitizedPhone = sanitizePhone(phone);
+        const whatsappTemplateName = process.env.WHATSAPP_PRESCRIPTION_PDF_TEMPLATE || 'billing_invoice_pdf';
+        
+        const bodyParameters = [
+          patient?.fullName || 'Valued Patient',
+          org.clinicName || org.name || 'Our Clinic'
+        ];
+
+        console.log(`[WhatsApp Background Dispatch] Sending PDF to ${sanitizedPhone}...`);
+        await sendWhatsAppMediaTemplate(
+          sanitizedPhone,
+          whatsappTemplateName,
+          s3Result.signedUrl || s3Result.fileUrl,
+          'document',
+          'en',
+          bodyParameters,
+          fileName,
+          {
+            mediaId,
+            organizationId: orgId,
+            chargeCredit: true,
+            messageType: 'PRESCRIPTION_SENT',
+            relatedEntityType: 'Prescription',
+            createdBy: req.user?._id,
+            metadata: {
+              source: 'whatsappController',
+              templateName: whatsappTemplateName,
+              publicUrl: s3Result.fileUrl,
+              mediaId
+            }
+          }
+        );
+        console.log(`[WhatsApp Background Dispatch] Successfully sent prescription to ${sanitizedPhone}`);
+      } catch (bgError) {
+        console.error(`[WhatsApp Background Dispatch Error]:`, bgError.message || bgError);
+      }
+    })();
 
   } catch (error) {
     console.error(`[WhatsApp Prescription Error]:`, error);

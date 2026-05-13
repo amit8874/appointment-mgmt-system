@@ -169,14 +169,8 @@ const TopNav = ({ sidebarOpen, setSidebarOpen, notifications, unreadCount, onNot
                 aria-labelledby="user-menu"
               >
                 <div className="py-1" role="none">
-                  <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-                    Your Profile
-                  </a>
-                  <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-                    Settings
-                  </a>
                   <button
-                    className="w-full block text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="w-full block text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 font-medium"
                     onClick={() => {
                       onLogout();
                       setUserMenuOpen(false);

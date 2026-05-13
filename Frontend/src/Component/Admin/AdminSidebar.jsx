@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, ChevronLeft, User, Calendar, ShieldCheck, Grid, Activity, MessageSquare, Crown, PlusSquare, Upload, Package, ShoppingCart, AlertTriangle, Truck, FileText } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, ChevronLeft, User, Calendar, ShieldCheck, Grid, Activity, MessageSquare, Crown, PlusSquare, Upload, Package, ShoppingCart, AlertTriangle, Truck, FileText, Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NavItem from './NavItem.jsx';
 
@@ -115,7 +115,7 @@ const AdminSidebar = ({
         md:relative md:translate-x-0 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 px-2 py-4 border-r border-gray-400 dark:border-gray-600
         h-full overflow-y-auto overflow-x-hidden z-50 transition-all duration-300 ease-in-out`}
     >
-      <div className={`flex ${isSidebarCollapsed ? 'justify-center' : 'justify-end'} items-center mb-8 px-2`}>
+      <div className={`flex ${isSidebarCollapsed ? 'justify-center' : 'justify-end'} items-center mb-2 px-2`}>
         {/* Logo/Branding removed as per user request (already in header) */}
         <button onClick={toggleSidebar} className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-none md:hidden">
           <X className="w-5 h-5" />
@@ -125,7 +125,8 @@ const AdminSidebar = ({
       <nav className="space-y-1">
         {dashboardMode === 'admin' ? (
           <>
-            {!isSidebarCollapsed && <h2 className="text-xs font-semibold uppercase text-gray-400 mb-2 ml-3 tracking-wider">MAIN</h2>}
+            <NavItem id="tour-admin-followup-reminder" name="Followup and Reminder" icon={Bell} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
+            {!isSidebarCollapsed && <h2 className="text-xs font-semibold uppercase text-gray-400 mb-2 ml-3 tracking-wider mt-2">MAIN</h2>}
             <NavItem id="tour-admin-new-appointment" name="New Appointment" icon={CalendarCheck} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             <NavItem id="tour-admin-patients" name="Patients" icon={Users} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             <NavItem id="tour-admin-analysis" name="Analysis" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />

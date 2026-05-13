@@ -54,9 +54,11 @@ import {
   AlertCircle,
   History,
   Layout,
+  Bell,
+  Tag,
   Calendar as CalendarIcon
 } from 'lucide-react';
-import { patientApi, appointmentApi, medicalRecordApi, emailApi, prescriptionTemplateApi, invoiceTemplateApi, organizationApi, centralDoctorApi, billingApi, authApi, patientProgressImageApi, patientProgressComparisonApi, translationApi, clinicalNoteApi } from '../../../services/api';
+import { patientApi, appointmentApi, medicalRecordApi, emailApi, whatsappApi, prescriptionTemplateApi, invoiceTemplateApi, organizationApi, centralDoctorApi, billingApi, authApi, patientProgressImageApi, patientProgressComparisonApi, translationApi, clinicalNoteApi, progressNoteApi, followUpReminderApi } from '../../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -70,6 +72,7 @@ import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
 import OviaanDefaultPharmacyInvoiceTemplate from '../../../components/billing/templates/OviaanDefaultPharmacyInvoiceTemplate';
 import { useAuth } from '../../../context/AuthContext';
 import Pagination from '../../../components/common/Pagination';
+import AddFollowUpReminderModal from '../../../components/reminders/AddFollowUpReminderModal';
 
 // --- Utility Components ---
 
@@ -794,7 +797,7 @@ const PrescriptionContent = ({ notes }) => {
   );
 };
 
-const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescription, onOpenTemplateModal, onEmail, onPrint, onDownload, templates = [], selectedTemplate, setSelectedTemplate, pdfProgress }) => {
+const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescription, onOpenTemplateModal, onEmail, onWhatsApp, onPrint, onDownload, onEdit, templates = [], selectedTemplate, setSelectedTemplate, pdfProgress }) => {
   const allPrescriptions = [
     ...appointments.filter(a => a.visitNotes).map(a => ({
       id: a._id,
@@ -886,9 +889,13 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button onClick={() => onEmail(p.notes)} className="flex items-center gap-1.5 text-blue-500 hover:text-blue-600 transition-colors">
+                  <button onClick={() => onEmail(p)} className="flex items-center gap-1.5 text-blue-500 hover:text-blue-600 transition-colors">
                     <Mail size={16} />
                     <span className="text-sm font-semibold">Email</span>
+                  </button>
+                  <button onClick={() => onWhatsApp(p)} className="flex items-center gap-1.5 text-emerald-500 hover:text-emerald-600 transition-colors">
+                    <Phone size={16} />
+                    <span className="text-sm font-semibold">WhatsApp</span>
                   </button>
                   <button 
                     onClick={() => onDownload(p)} 
@@ -910,6 +917,10 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
                   <button onClick={() => onPrint(p)} className="flex items-center gap-1.5 text-blue-500 hover:text-blue-600 transition-colors">
                     <Printer size={16} />
                     <span className="text-sm font-semibold">Print</span>
+                  </button>
+                  <button onClick={() => onEdit(p)} className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 transition-colors bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 hover:border-indigo-300">
+                    <Edit2 size={16} />
+                    <span className="text-sm font-bold uppercase tracking-wider">Edit</span>
                   </button>
                   <div className="flex items-center gap-2 px-3 py-1 bg-white border border-slate-100 rounded-full text-[9px] font-bold text-slate-500 uppercase tracking-widest shadow-sm ml-2">
                     <Clock size={10} />
@@ -939,6 +950,162 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
           </div>
         )}
       </div>
+    </div>
+  );
+};const TabFollowUps = ({ patient, user }) => {
+  const [reminders, setReminders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  const fetchReminders = async () => {
+    setLoading(true);
+    try {
+      const patientId = patient.patientId || patient._id;
+      const response = await followUpReminderApi.getFollowUpReminders({ patientId });
+      setReminders(response.reminders || []);
+    } catch (error) {
+      console.error("Failed to fetch reminders:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (patient) fetchReminders();
+  }, [patient]);
+
+  const handleAction = async (actionFn, id, successMsg) => {
+    try {
+      await actionFn(id);
+      toast.success(successMsg);
+      fetchReminders();
+    } catch (error) {
+      toast.error("Action failed");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm("Delete this reminder?")) {
+      handleAction(followUpReminderApi.deleteFollowUpReminder, id, "Deleted");
+    }
+  };
+
+  const getPriorityStyle = (priority) => {
+    switch (priority) {
+      case 'URGENT': return 'bg-red-50 text-red-700 border-red-100';
+      case 'HIGH': return 'bg-orange-50 text-orange-700 border-orange-100';
+      case 'MEDIUM': return 'bg-blue-50 text-blue-700 border-blue-100';
+      case 'LOW': return 'bg-gray-50 text-gray-700 border-gray-100';
+      default: return 'bg-blue-50 text-blue-700 border-blue-100';
+    }
+  };
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'COMPLETED': return 'bg-green-100 text-green-700';
+      case 'CANCELLED': return 'bg-red-100 text-red-700';
+      case 'PENDING': return 'bg-blue-100 text-blue-700';
+      case 'SNOOZED': return 'bg-yellow-100 text-yellow-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between border-b pb-4">
+        <div>
+          <h3 className="text-lg font-bold text-gray-800">Follow-up Reminders</h3>
+          <p className="text-xs text-gray-500">Track care coordination for this patient</p>
+        </div>
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+        >
+          <Plus size={16} /> Add Reminder
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {loading ? (
+          <div className="py-10 flex flex-col items-center">
+            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+          </div>
+        ) : reminders.length > 0 ? (
+          reminders.map((r) => (
+            <div key={r._id} className="bg-white border rounded-lg p-4 hover:border-blue-300 transition-colors shadow-sm">
+              <div className="flex justify-between items-start gap-4">
+                <div className="flex gap-4">
+                  <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 border ${getPriorityStyle(r.priority)}`}>
+                    <Bell size={18} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-semibold text-black text-sm">{r.title}</span>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border uppercase ${getPriorityStyle(r.priority)}`}>
+                        {r.priority}
+                      </span>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded uppercase ${getStatusStyle(r.status)}`}>
+                        {r.status}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 text-[11px] text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <CalendarIcon size={12} className="text-gray-400" />
+                        {new Date(r.reminderAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Tag size={12} className="text-gray-400" />
+                        {r.reminderType?.replace(/_/g, ' ')}
+                      </div>
+                    </div>
+                    {r.note && (
+                      <p className="mt-2 text-xs text-gray-700 bg-gray-50 p-2 rounded border border-dashed">
+                        {r.note}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  {r.status !== 'COMPLETED' && r.status !== 'CANCELLED' && (
+                    <>
+                      <button 
+                        onClick={() => handleAction(followUpReminderApi.completeFollowUpReminder, r._id, "Done")}
+                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                      >
+                        <CheckCircle size={16} />
+                      </button>
+                    </>
+                  )}
+                  <button 
+                    onClick={() => handleDelete(r._id)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-12 bg-gray-50 border-2 border-dashed rounded-lg">
+            <Bell size={32} className="mx-auto text-gray-300 mb-2" />
+            <p className="text-gray-500 text-sm">No follow-ups scheduled</p>
+          </div>
+        )}
+      </div>
+
+      {showAddModal && (
+        <AddFollowUpReminderModal 
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSuccess={() => {
+            setShowAddModal(false);
+            fetchReminders();
+          }}
+          patient={patient}
+        />
+      )}
     </div>
   );
 };
@@ -1957,7 +2124,7 @@ const TabBilling = ({
     </div>
   );
 };
-const TabProgressGallery = ({ patientId, patientName, appointments = [], onPrintReport }) => {
+const TabProgressGallery = ({ patientId, user, patientName, appointments = [], onPrintReport }) => {
   const [images, setImages] = useState([]);
   const [comparisons, setComparisons] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2118,6 +2285,7 @@ const TabProgressGallery = ({ patientId, patientName, appointments = [], onPrint
         {(showUploadModal || showComparisonUploadModal) && (
           <ProgressCaseModal
             patientId={patientId}
+            organizationId={user?.organization?._id || user?.organizationId}
             defaultDoctorName={appointments[0]?.doctorName}
             defaultAppointmentId={appointments[0]?._id}
             onClose={() => { setShowUploadModal(false); setShowComparisonUploadModal(false); }}
@@ -2127,6 +2295,7 @@ const TabProgressGallery = ({ patientId, patientName, appointments = [], onPrint
         {editingComparison && (
           <ProgressCaseModal
             patientId={patientId}
+            organizationId={user?.organization?._id || user?.organizationId}
             comparison={editingComparison}
             onClose={() => setEditingComparison(null)}
             onSuccess={() => { setEditingComparison(null); fetchGallery(); }}
@@ -2164,7 +2333,127 @@ const TabProgressGallery = ({ patientId, patientName, appointments = [], onPrint
 Clinical Progress Modals
 -------------------------------------------------- */
 
-const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultDoctorName, defaultAppointmentId }) => {
+const SavedNotesManager = ({ value, onSelect, fieldType, organizationId, doctorId }) => {
+  const [notes, setNotes] = useState([]);
+  const [showList, setShowList] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const fetchNotes = async () => {
+    try {
+      const response = await progressNoteApi.list(organizationId);
+      setNotes(response.notes || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (showList) fetchNotes();
+  }, [showList]);
+
+  const handleSave = async () => {
+    if (!value?.trim()) return;
+    setLoading(true);
+    try {
+      await progressNoteApi.save({
+        note: value,
+        noteType: fieldType,
+        organizationId,
+        doctorId
+      });
+      toast.success('Note saved to library');
+      fetchNotes();
+    } catch (err) {
+      toast.error('Failed to save note');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await progressNoteApi.delete(id);
+      setNotes(notes.filter(n => n._id !== id));
+      toast.success('Note removed');
+    } catch (err) {
+      toast.error('Failed to delete note');
+    }
+  };
+
+  return (
+    <div className="relative flex items-center gap-2">
+      <AnimatePresence>
+        {value?.trim() && !notes.some(n => n.note === value) && (
+          <motion.button
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            onClick={handleSave}
+            disabled={loading}
+            className="flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded border border-indigo-100 hover:bg-indigo-100 transition-colors"
+          >
+            {loading ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />}
+            Save Note
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <div className="relative">
+        <button
+          onClick={() => setShowList(!showList)}
+          className={`p-1 rounded transition-colors ${showList ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
+          title="Saved Notes Library"
+        >
+          <History size={16} />
+        </button>
+
+        {showList && (
+          <>
+            <div className="fixed inset-0 z-[110]" onClick={() => setShowList(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              className="absolute right-0 top-full mt-2 w-64 bg-white rounded-lg shadow-xl border border-slate-200 z-[120] overflow-hidden flex flex-col max-h-64"
+            >
+              <div className="p-2 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Note Library</span>
+                <button onClick={() => setShowList(false)}><X size={12} /></button>
+              </div>
+              <div className="overflow-y-auto custom-scrollbar p-1">
+                {notes.length === 0 ? (
+                  <div className="p-4 text-center text-[10px] text-slate-400">No saved notes yet</div>
+                ) : (
+                  notes.map((n) => (
+                    <div
+                      key={n._id}
+                      onClick={() => {
+                        onSelect(n.note);
+                        setShowList(false);
+                      }}
+                      className="group p-2 hover:bg-indigo-50 rounded cursor-pointer transition-all border-b border-slate-50 last:border-0 flex justify-between items-start gap-2"
+                    >
+                      <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">{n.note}</p>
+                      <button
+                        onClick={(e) => handleDelete(e, n._id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-rose-500 transition-all"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
+const ProgressCaseModal = ({ patientId, organizationId, comparison, onClose, onSuccess, defaultDoctorName, defaultAppointmentId }) => {
   const [loading, setLoading] = useState(false);
   const [dragActiveBefore, setDragActiveBefore] = useState(false);
   const [dragActiveAfter, setDragActiveAfter] = useState(false);
@@ -2274,21 +2563,41 @@ const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultD
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-1">
               <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Case Title / Treatment Name</label>
-              <input 
-                value={formData.title}
-                onChange={e => setFormData({...formData, title: e.target.value})}
-                placeholder="e.g., Facial Rejuvenation Cycle 1"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-md text-sm focus:ring-1 focus:ring-slate-900 outline-none transition-all"
-              />
+              <div className="relative group">
+                <input 
+                  value={formData.title}
+                  onChange={e => setFormData({...formData, title: e.target.value})}
+                  placeholder="e.g., Facial Rejuvenation Cycle 1"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-md text-sm focus:ring-1 focus:ring-slate-900 outline-none transition-all pr-12"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <SavedNotesManager 
+                    value={formData.title}
+                    onSelect={text => setFormData(prev => ({ ...prev, title: text }))}
+                    fieldType="title"
+                    organizationId={organizationId}
+                  />
+                </div>
+              </div>
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Treatment Area / Category</label>
-              <input 
-                value={formData.treatmentArea}
-                onChange={e => setFormData({...formData, treatmentArea: e.target.value})}
-                placeholder="e.g., Dermatology, Aesthetics"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-md text-sm focus:ring-1 focus:ring-slate-900 outline-none transition-all"
-              />
+              <div className="relative group">
+                <input 
+                  value={formData.treatmentArea}
+                  onChange={e => setFormData({...formData, treatmentArea: e.target.value})}
+                  placeholder="e.g., Dermatology, Aesthetics"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-md text-sm focus:ring-1 focus:ring-slate-900 outline-none transition-all pr-12"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <SavedNotesManager 
+                    value={formData.treatmentArea}
+                    onSelect={text => setFormData(prev => ({ ...prev, treatmentArea: text }))}
+                    fieldType="area"
+                    organizationId={organizationId}
+                  />
+                </div>
+              </div>
             </div>
             <div className="space-y-1">
               <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Treating Doctor</label>
@@ -2307,11 +2616,13 @@ const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultD
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-1">
                 <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-medium uppercase tracking-widest rounded-sm">Before Treatment</span>
-                <LanguageTranslator 
-                  text={originalNotes.beforeNote} 
-                  onTranslated={text => handleTranslation('beforeNote', text)} 
-                  onReset={() => handleResetTranslation('beforeNote')}
-                />
+                <div className="flex items-center gap-2">
+                  <LanguageTranslator 
+                    text={originalNotes.beforeNote} 
+                    onTranslated={text => handleTranslation('beforeNote', text)} 
+                    onReset={() => handleResetTranslation('beforeNote')}
+                  />
+                </div>
               </div>
               <div 
                 className={`relative h-64 border-2 border-dashed rounded-md flex flex-col items-center justify-center overflow-hidden transition-all ${dragActiveBefore ? 'bg-slate-50 border-slate-900' : 'bg-slate-50/50 border-slate-200'}`}
@@ -2338,7 +2649,7 @@ const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultD
                   </div>
                 )}
               </div>
-              <div className="relative">
+              <div className="relative group">
                 <textarea 
                   placeholder="Initial condition notes..."
                   value={formData.beforeNote}
@@ -2347,8 +2658,19 @@ const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultD
                     setOriginalNotes({...originalNotes, beforeNote: e.target.value});
                   }}
                   rows="3"
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-slate-900 outline-none resize-none pr-10"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-slate-900 outline-none resize-none pr-12"
                 />
+                <div className="absolute top-2 right-2 flex flex-col gap-2">
+                  <SavedNotesManager 
+                    value={formData.beforeNote}
+                    onSelect={text => {
+                      setFormData(prev => ({ ...prev, beforeNote: text }));
+                      setOriginalNotes(prev => ({ ...prev, beforeNote: text }));
+                    }}
+                    fieldType="before"
+                    organizationId={organizationId}
+                  />
+                </div>
                 <VoiceInputButton 
                   onTranscript={text => handleTranscript('beforeNote', text)}
                   className="absolute bottom-2 right-2"
@@ -2360,11 +2682,13 @@ const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultD
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-1">
                 <span className="px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-medium uppercase tracking-widest rounded-sm">After Treatment</span>
-                <LanguageTranslator 
-                  text={originalNotes.afterNote} 
-                  onTranslated={text => handleTranslation('afterNote', text)} 
-                  onReset={() => handleResetTranslation('afterNote')}
-                />
+                <div className="flex items-center gap-2">
+                  <LanguageTranslator 
+                    text={originalNotes.afterNote} 
+                    onTranslated={text => handleTranslation('afterNote', text)} 
+                    onReset={() => handleResetTranslation('afterNote')}
+                  />
+                </div>
               </div>
               <div 
                 className={`relative h-64 border-2 border-dashed rounded-md flex flex-col items-center justify-center overflow-hidden transition-all ${dragActiveAfter ? 'bg-slate-50 border-slate-900' : 'bg-slate-50/50 border-slate-200'}`}
@@ -2391,7 +2715,7 @@ const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultD
                   </div>
                 )}
               </div>
-              <div className="relative">
+              <div className="relative group">
                 <textarea 
                   placeholder="Post-treatment observation notes..."
                   value={formData.afterNote}
@@ -2400,8 +2724,19 @@ const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultD
                     setOriginalNotes({...originalNotes, afterNote: e.target.value});
                   }}
                   rows="3"
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-slate-900 outline-none resize-none pr-10"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-md text-xs focus:ring-1 focus:ring-slate-900 outline-none resize-none pr-12"
                 />
+                <div className="absolute top-2 right-2 flex flex-col gap-2">
+                  <SavedNotesManager 
+                    value={formData.afterNote}
+                    onSelect={text => {
+                      setFormData(prev => ({ ...prev, afterNote: text }));
+                      setOriginalNotes(prev => ({ ...prev, afterNote: text }));
+                    }}
+                    fieldType="after"
+                    organizationId={organizationId}
+                  />
+                </div>
                 <VoiceInputButton 
                   onTranscript={text => handleTranscript('afterNote', text)}
                   className="absolute bottom-2 right-2"
@@ -2414,13 +2749,15 @@ const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultD
           <div className="space-y-2 pt-4 border-t border-slate-100">
             <div className="flex items-center justify-between mb-1">
               <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Final Clinical Outcome / Summary</label>
-              <LanguageTranslator 
-                text={originalNotes.resultNote} 
-                onTranslated={text => handleTranslation('resultNote', text)} 
-                onReset={() => handleResetTranslation('resultNote')}
-              />
+              <div className="flex items-center gap-2">
+                <LanguageTranslator 
+                  text={originalNotes.resultNote} 
+                  onTranslated={text => handleTranslation('resultNote', text)} 
+                  onReset={() => handleResetTranslation('resultNote')}
+                />
+              </div>
             </div>
-            <div className="relative">
+            <div className="relative group">
               <textarea 
                 placeholder="Enter the overall result and doctor's final observations..."
                 value={formData.resultNote}
@@ -2429,8 +2766,19 @@ const ProgressCaseModal = ({ patientId, comparison, onClose, onSuccess, defaultD
                   setOriginalNotes({...originalNotes, resultNote: e.target.value});
                 }}
                 rows="4"
-                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-md text-sm focus:ring-1 focus:ring-slate-900 outline-none resize-none pr-12"
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-md text-sm focus:ring-1 focus:ring-slate-900 outline-none resize-none pr-14"
               />
+              <div className="absolute top-3 right-3 flex flex-col gap-2">
+                <SavedNotesManager 
+                  value={formData.resultNote}
+                  onSelect={text => {
+                    setFormData(prev => ({ ...prev, resultNote: text }));
+                    setOriginalNotes(prev => ({ ...prev, resultNote: text }));
+                  }}
+                  fieldType="general"
+                  organizationId={organizationId}
+                />
+              </div>
               <VoiceInputButton 
                 onTranscript={text => handleTranscript('resultNote', text)}
                 className="absolute bottom-3 right-3"
@@ -3211,6 +3559,7 @@ const PatientProfile = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(new URLSearchParams(location.search).get('tab') || 'personal');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showInvoiceTemplateModal, setShowInvoiceTemplateModal] = useState(false);
@@ -3225,6 +3574,7 @@ const PatientProfile = () => {
   const [orgDetails, setOrgDetails] = useState(null);
   const [pdfProgress, setPdfProgress] = useState({ isGenerating: false, percent: 0, prescriptionId: null });
   const [printingClinicalReport, setPrintingClinicalReport] = useState(null);
+  const [editingPrescription, setEditingPrescription] = useState(null);
 
   const fetchTemplates = async () => {
     if (user) {
@@ -3402,7 +3752,46 @@ const PatientProfile = () => {
     }
   };
 
-  const handleEmail = async (notes) => {
+  const handlePrescriptionWhatsApp = async (prescription) => {
+    if (!data.mobile && !data.phone) {
+      toast.warning("Patient phone number is missing.");
+      return;
+    }
+    
+    const toastId = toast.loading("Sending Prescription via WhatsApp...");
+    
+    try {
+      const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null);
+      
+      await whatsappApi.sendPrescriptionPdf({
+        phone: data.mobile || data.phone,
+        patientId: data.patientId,
+        prescriptionData: prescription.notes,
+        doctorName: prescription.doctorName,
+        doctorQualification: prescription.qualification,
+        doctorSpecialization: prescription.specialty,
+        templateId: selectedTemplate?._id || 'default',
+        organizationId: orgId
+      });
+      
+      toast.update(toastId, {
+        render: "Prescription sent via WhatsApp successfully!",
+        type: "success",
+        isLoading: false,
+        autoClose: 3000
+      });
+    } catch (error) {
+      console.error("WhatsApp Prescription Error:", error);
+      toast.update(toastId, {
+        render: error.response?.data?.message || "Failed to send WhatsApp prescription.",
+        type: "error",
+        isLoading: false,
+        autoClose: 3000
+      });
+    }
+  };
+
+  const handleEmail = async (p) => {
     if (!data.email) {
       toast.warning("Please provide patient's email first in Personal Info.");
       setActiveTab('personal');
@@ -3410,12 +3799,18 @@ const PatientProfile = () => {
     }
     try {
       toast.info("Sending email...");
+      const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null);
+      
       await emailApi.sendPrescription({
         email: data.email,
         patientName: data.fullName || `${data.firstName} ${data.lastName}`,
-        notes: notes,
+        patientId: data.patientId,
+        notes: p.notes,
+        doctorName: p.doctorName,
+        doctorQualification: p.qualification,
+        doctorSpecialization: p.specialty,
         clinicName: orgDetails?.name || user?.organization?.name || user?.clinicName || "Oviaan Clinic",
-        organizationId: user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null),
+        organizationId: orgId,
         useTemplate: true,
         templateId: selectedTemplate?._id
       });
@@ -3442,16 +3837,22 @@ const PatientProfile = () => {
     setPrintingPrescription(p);
   };
 
+  const handleEditPrescription = (p) => {
+    setEditingPrescription(p);
+    setShowPrescriptionModal(true);
+  };
+
   const tabs = [
     { key: 'personal', name: 'Personal Info', icon: User },
     { key: 'prescriptions', name: 'Prescriptions', icon: Pill },
     { key: 'appointments', name: 'Appointments', icon: CalendarIcon },
     { key: 'billing', name: 'Billing', icon: IndianRupee },
     { key: 'progress', name: 'Progress Gallery', icon: Camera },
+    { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
     { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote }
   ].filter(tab => {
     if (user?.role === 'receptionist') {
-      return ['personal', 'appointments'].includes(tab.key);
+      return ['personal', 'appointments', 'follow-ups'].includes(tab.key);
     }
     return true;
   });
@@ -3690,6 +4091,13 @@ const PatientProfile = () => {
 
               <div className="flex items-center gap-3">
                 <button
+                  onClick={() => setShowFollowUpModal(true)}
+                  className="flex items-center gap-2 px-6 py-3.5 bg-white border-2 border-slate-100 text-slate-700 rounded-[1.25rem] text-sm font-bold hover:bg-slate-50 hover:border-indigo-200 transition-all shadow-sm active:scale-95"
+                >
+                  <Bell size={16} className="text-indigo-600" />
+                  Add Follow-up
+                </button>
+                <button
                   onClick={() => handleRebook({ doctorId: data.assignedDoctorId, doctorName: data.assignedDoctor, specialty: 'General' })}
                   className="flex items-center gap-2 px-6 py-3.5 bg-slate-900 text-white rounded-[1.25rem] text-sm font-bold hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200 hover:shadow-indigo-100 group"
                 >
@@ -3718,9 +4126,11 @@ const PatientProfile = () => {
                     appointments={appointments}
                     medicalRecords={medicalRecords}
                     onEmail={handleEmail}
+                    onWhatsApp={handlePrescriptionWhatsApp}
                     onPrint={handlePrint}
                     onDownload={handleDownloadPDF}
-                    onNewPrescription={() => setShowPrescriptionModal(true)}
+                    onEdit={handleEditPrescription}
+                    onNewPrescription={() => { setEditingPrescription(null); setShowPrescriptionModal(true); }}
                     onOpenTemplateModal={() => setShowTemplateModal(true)}
                     templates={templates}
                     selectedTemplate={selectedTemplate}
@@ -3747,9 +4157,16 @@ const PatientProfile = () => {
                 {activeTab === 'progress' && (
                   <TabProgressGallery
                     patientId={id}
+                    user={user}
                     patientName={data.fullName || `${data.firstName} ${data.lastName}`}
                     appointments={appointments}
                     onPrintReport={(comp) => setPrintingClinicalReport(comp)}
+                  />
+                )}
+                {activeTab === 'follow-ups' && (
+                  <TabFollowUps 
+                    patient={data}
+                    user={user}
                   />
                 )}
                 {activeTab === 'clinical-notes' && (
@@ -3765,8 +4182,25 @@ const PatientProfile = () => {
       </div>
 
         {showEditModal && <EditProfileModal data={data} onClose={() => setShowEditModal(false)} onSave={(updated) => setData(prev => ({ ...prev, ...updated }))} />}
-        <PrescriptionModal isOpen={showPrescriptionModal} onClose={() => setShowPrescriptionModal(false)} patient={data} onSaveSuccess={() => fetchData(false)} />
+        <PrescriptionModal 
+          isOpen={showPrescriptionModal} 
+          onClose={() => { setShowPrescriptionModal(false); setEditingPrescription(null); }} 
+          patient={data} 
+          onSaveSuccess={() => { fetchData(false); setEditingPrescription(null); }} 
+          editData={editingPrescription}
+        />
         <TemplateModal isOpen={showTemplateModal} onClose={() => setShowTemplateModal(false)} onSaveSuccess={fetchTemplates} />
+        {showFollowUpModal && (
+          <AddFollowUpReminderModal 
+            isOpen={showFollowUpModal}
+            onClose={() => setShowFollowUpModal(false)}
+            onSuccess={() => {
+              setShowFollowUpModal(false);
+              fetchData(false);
+            }}
+            patient={data}
+          />
+        )}
         <InvoiceTemplateModal 
           isOpen={showInvoiceTemplateModal} 
           onClose={() => setShowInvoiceTemplateModal(false)} 

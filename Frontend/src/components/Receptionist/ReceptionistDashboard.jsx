@@ -174,7 +174,7 @@ const ReceptionistLayout = () => {
         <main className="flex-1 overflow-y-auto bg-gray-200 focus:outline-none relative">
 
           <div className="bg-gray-200 h-full">
-            <div className="max-w-7xl mx-auto px-0 md:px-8 ">
+            <div className="w-full px-0">
               <AnimatePresence mode="wait">
                 <PageTransition>
                   <Outlet context={{ limits: subscriptionLimits, doctorCount, limitsLoading }} />

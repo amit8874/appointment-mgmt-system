@@ -34,8 +34,6 @@ export const getPharmacyDashboard = async (req, res) => {
       Medicine.countDocuments({ 
         $or: [
           { organizationId },
-          { organizationId: null },
-          { organizationId: { $exists: false } },
           { _id: { $in: medicineIdsWithBatches } }
         ]
       }),
@@ -43,8 +41,6 @@ export const getPharmacyDashboard = async (req, res) => {
       Medicine.find({ 
         $or: [
           { organizationId },
-          { organizationId: null },
-          { organizationId: { $exists: false } },
           { _id: { $in: medicineIdsWithBatches } }
         ]
       }).lean(),
@@ -118,11 +114,11 @@ export const getPharmacyDashboard = async (req, res) => {
 export const getAllMedicines = async (req, res) => {
   try {
     const organizationId = req.tenantId;
+    const medicineIdsWithBatches = await MedicineBatch.distinct('medicineId', { organizationId, status: 'Active' });
     const medicines = await Medicine.find({
       $or: [
         { organizationId },
-        { organizationId: null },
-        { organizationId: { $exists: false } }
+        { _id: { $in: medicineIdsWithBatches } }
       ]
     }).sort({ name: 1 }).lean();
 
@@ -174,8 +170,6 @@ export const getFullInventory = async (req, res) => {
     const visibilityFilter = {
       $or: [
         { organizationId: orgFilter },
-        { organizationId: null },
-        { organizationId: { $exists: false } },
         { _id: { $in: medicineIdsWithBatches } }
       ]
     };

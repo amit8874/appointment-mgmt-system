@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, PlusCircle, FileText, User, Filter, ChevronLeft, ChevronRight, Send, Phone, Trash2, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Search, PlusCircle, FileText, User, Filter, ChevronLeft, ChevronRight, Send, Phone, Trash2, CheckCircle, Clock, AlertCircle, Eye, Printer, X, Download } from 'lucide-react';
 import { billingApi, appointmentApi, centralDoctorApi, authApi } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
@@ -137,22 +137,37 @@ const InvoiceList = React.memo(({
             </div>
 
             {/* Footer: Actions */}
-            <div className="p-4 bg-green-100 border-t border-green-200 flex justify-end space-x-3 group-hover:bg-green-800 group-hover:border-green-900 transition-colors duration-300">
+            <div className="p-3 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-2 group-hover:bg-slate-800 transition-colors duration-300">
+              <button
+                onClick={() => handleAction('Email', invoice.id)}
+                className="flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm active:scale-95"
+                title="Send via Email"
+              >
+                <Send className="w-3.5 h-3.5" />
+                Email
+              </button>
+              <button
+                onClick={() => handleAction('WhatsApp', invoice.id)}
+                className="flex items-center justify-center gap-1.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm active:scale-95"
+                title="Send via WhatsApp"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                WhatsApp
+              </button>
               <button
                 onClick={() => handleAction('View', invoice.id)}
-                className={`inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition ease-in-out duration-150 group-hover:bg-green-500 group-hover:hover:bg-green-400`}
+                className="flex items-center justify-center gap-1.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm active:scale-95"
               >
-                <EyeIcon />
+                <Eye className="w-3.5 h-3.5" />
                 View
               </button>
               <button
                 onClick={() => handleAction('Print', invoice.id)}
-                className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition ease-in-out duration-150 group-hover:bg-green-100 group-hover:text-green-800 group-hover:border-green-400"
+                className="flex items-center justify-center gap-1.5 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all shadow-sm group-hover:bg-slate-700 group-hover:text-white group-hover:border-slate-600 active:scale-95"
               >
-                <PrinterIcon className="text-gray-500 group-hover:text-green-800 transition-colors duration-300" />
+                <Printer className="w-3.5 h-3.5" />
                 Print
               </button>
-
             </div>
           </div>
         </div>
@@ -1102,7 +1117,7 @@ const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
 
 
 // --- Invoice Detail Modal Component ---
-const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, clinicInfo = {} }) => {
+const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, onSend, clinicInfo = {} }) => {
   const details = invoice.details || {};
 
   // Map the detail fields to readable labels or use the itemized list
@@ -1316,8 +1331,22 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
             <p>This is a computer-generated invoice and does not require a signature.</p>
           </div>
 
-          {/* Print Button (Hidden on Print) */}
-          <div className="mt-6 flex justify-center gap-3 no-print">
+          {/* Action Buttons (Hidden on Print) */}
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 no-print px-2">
+            <button
+              onClick={() => onSend(invoice, 'Email')}
+              className="flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-100 active:scale-95"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              Email Invoice
+            </button>
+            <button
+              onClick={() => onSend(invoice, 'WhatsApp')}
+              className="flex items-center justify-center px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-emerald-100 active:scale-95"
+            >
+              <Phone className="w-4 h-4 mr-2" />
+              WhatsApp
+            </button>
             <button
               onClick={() => {
                 if (onPrint) {
@@ -1326,14 +1355,11 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
                   window.print();
                 }
               }}
-              className="inline-flex items-center px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition-colors shadow-md shadow-slate-100"
+              className="flex items-center justify-center px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-slate-100 active:scale-95"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
+              <Printer className="w-4 h-4 mr-2" />
               Print Invoice
             </button>
-
           </div>
 
         </div>
@@ -1439,13 +1465,31 @@ const BillingDashboard = () => {
 
 
   // Handler for actions from the list
-  const handleAction = (action, invoiceId) => {
+  const handleAction = async (action, invoiceId) => {
     const invoice = invoices.find(inv => inv.id === invoiceId);
     if (invoice) {
       if (action === 'View') {
         setSelectedInvoice(invoice);
       } else if (action === 'Print') {
         setPrintingInvoice(invoice);
+      } else if (action === 'Email' || action === 'Send') {
+        try {
+          setStatusMessage(`Sending invoice ${invoice.id} to patient email...`);
+          await billingApi.sendEmail(invoice._id);
+          setStatusMessage(`Success! Invoice ${invoice.id} sent to patient's email.`);
+        } catch (err) {
+          console.error('Error sending invoice:', err);
+          setStatusMessage(`Error: ${err.response?.data?.message || 'Failed to send invoice email.'}`);
+        }
+      } else if (action === 'WhatsApp') {
+        try {
+          setStatusMessage(`Sending invoice ${invoice.id} via WhatsApp...`);
+          await billingApi.sendWhatsApp(invoice._id);
+          setStatusMessage(`Success! Invoice ${invoice.id} sent via WhatsApp.`);
+        } catch (err) {
+          console.error('Error sending WhatsApp invoice:', err);
+          setStatusMessage(`Error: ${err.response?.data?.message || 'Failed to send WhatsApp invoice.'}`);
+        }
       }
     }
   };
@@ -1687,7 +1731,7 @@ const BillingDashboard = () => {
             onUpdateStatus={handleUpdateStatus}
             onDelete={handleDeleteInvoice}
             onPrint={handlePrintFromModal}
-
+            onSend={(invoice, method) => handleAction(method, invoice.id)}
             clinicInfo={clinicInfo}
           />
         )}

@@ -54,7 +54,7 @@ export const registerOrganization = async (req, res) => {
       return res.status(400).json({ message: 'Invalid owner email format' });
     }
 
-    // Check if organization with email or subdomain already exists
+    // 1. Check if organization exists
     const existingOrg = await Organization.findOne({
       $or: [
         { email: email.toLowerCase().trim() }, 
@@ -63,19 +63,36 @@ export const registerOrganization = async (req, res) => {
     });
 
     if (existingOrg) {
-      return res.status(400).json({ 
-        message: 'Organization with this email or subdomain already exists',
-        existing: existingOrg.email === email.toLowerCase() ? 'email' : 'subdomain'
-      });
+      // Check if the owner is verified
+      const owner = await User.findById(existingOrg.ownerId);
+      if (owner && owner.isVerified) {
+        return res.status(400).json({ 
+          message: 'Organization with this email or subdomain already exists',
+          existing: existingOrg.email === email.toLowerCase() ? 'email' : 'subdomain'
+        });
+      } else {
+        // If not verified, we'll delete the partial registration and allow a fresh start
+        console.log(`[Registration] Found unverified organization ${existingOrg.name}. Cleaning up for re-registration.`);
+        await Organization.findByIdAndDelete(existingOrg._id);
+        if (owner) await User.findByIdAndDelete(owner._id);
+        // Also delete associated subscription if exists
+        const Subscription = (await import('../models/Subscription.js')).default;
+        await Subscription.deleteMany({ organizationId: existingOrg._id });
+      }
     }
 
-    // Check if user with email already exists
+    // 2. Check if user exists independently
     const existingUser = await User.findOne({ 
       email: ownerEmail.toLowerCase().trim() 
     });
 
     if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
+      if (existingUser.isVerified) {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      } else {
+        console.log(`[Registration] Found unverified user ${existingUser.email}. Cleaning up.`);
+        await User.findByIdAndDelete(existingUser._id);
+      }
     }
 
     // Create organization owner user (without organizationId initially)
@@ -226,9 +243,8 @@ export const registerOrganization = async (req, res) => {
       }
     } catch (whatsappError) {
       console.error('Failed to send registration OTP via WhatsApp:', whatsappError);
-      // We don't fail registration if WhatsApp fails, but maybe we should?
-      // For now, let's keep going but log it.
     }
+
 
     res.status(201).json({
       message: 'Organization registered successfully. Please verify your mobile number with the OTP sent to WhatsApp.',
@@ -319,6 +335,20 @@ export const verifyRegistrationOTP = async (req, res) => {
       console.log(`[Registration] Welcome message sent to ${sanitizedMobile}`);
     } catch (welcomeError) {
       console.error('Failed to send welcome message via WhatsApp:', welcomeError);
+    }
+
+    // Send Verification Success Message (Optional, could be a different template)
+    try {
+      const sanitizedMobile = sanitizePhone(user.mobile);
+      const verificationSuccessTemplate = process.env.WHATSAPP_VERIFICATION_SUCCESS_TEMPLATE || 'registration_success';
+      const welcomeLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+      
+      // Notify them that their account is now active
+      await sendWhatsAppTemplate(sanitizedMobile, verificationSuccessTemplate, welcomeLang, [user.name]);
+      console.log(`[Registration] Verification success message sent to ${sanitizedMobile}`);
+    } catch (verifySuccessError) {
+      // Silently fail if success template doesn't exist
+      console.warn('[Registration] Could not send verification success message:', verifySuccessError.message);
     }
 
     // Generate final JWT token

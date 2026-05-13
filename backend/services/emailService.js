@@ -171,3 +171,63 @@ export const sendPrescriptionEmail = async (patientEmail, patientName, notes, cl
         throw error;
     }
 };
+
+/**
+ * Send a billing invoice to a patient via email.
+ */
+export const sendInvoiceEmail = async (patientEmail, patientName, billId, amount, clinicName, pdfBuffer = null) => {
+    try {
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER || 'amitmaurya3276@gmail.com',
+                pass: process.env.EMAIL_PASS
+            }
+        });
+
+        const mailOptions = {
+            from: `"${clinicName || 'Oviaan Clinic'}" <${process.env.EMAIL_USER || 'amitmaurya3276@gmail.com'}>`,
+            to: patientEmail,
+            subject: `🧾 Invoice #${billId} from ${clinicName || 'Oviaan Clinic'}`,
+            attachments: pdfBuffer ? [
+                {
+                    filename: `Invoice-${billId}.pdf`,
+                    content: pdfBuffer
+                }
+            ] : [],
+            html: `
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+                    <div style="background: #10b981; padding: 30px; text-align: center; color: white;">
+                        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">Invoice Generated</h1>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Billing & Payments</p>
+                    </div>
+                    <div style="padding: 30px; background: white;">
+                        <p style="font-size: 16px; margin-bottom: 20px;">Dear <strong>${patientName}</strong>,</p>
+                        <p style="font-size: 14px; color: #64748b; margin-bottom: 25px;">Your invoice from <strong>${clinicName || 'Oviaan Clinic'}</strong> has been generated. Please find the summary below:</p>
+                        
+                        <div style="background: #f8fafc; padding: 25px; border-radius: 12px; border: 1px solid #f1f5f9; margin-bottom: 25px;">
+                            <h3 style="margin-top: 0; color: #10b981; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">Invoice Summary</h3>
+                            <p style="margin: 5px 0; font-size: 14px;"><strong>Invoice ID:</strong> #${billId}</p>
+                            <p style="margin: 5px 0; font-size: 14px;"><strong>Total Amount:</strong> ₹${amount}</p>
+                            <p style="margin: 5px 0; font-size: 14px;"><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                        </div>
+
+                        <p style="font-size: 14px; color: #64748b; margin-bottom: 25px;">The detailed invoice PDF is attached to this email for your records.</p>
+
+                        <p style="font-size: 13px; color: #94a3b8; margin-top: 30px; text-align: center;">This is an automatically generated email. Please do not reply directly to this message.</p>
+                    </div>
+                    <div style="background: #f1f5f9; padding: 20px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0;">
+                        &copy; ${new Date().getFullYear()} ${clinicName || 'Oviaan Platform'}. All rights reserved.
+                    </div>
+                </div>
+            `
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log('[Email Service] Invoice email sent:', info.messageId);
+        return true;
+    } catch (error) {
+        console.error('[Email Service] Error sending invoice email:', error);
+        throw error;
+    }
+};

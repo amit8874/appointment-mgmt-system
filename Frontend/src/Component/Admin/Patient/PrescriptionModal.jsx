@@ -6,7 +6,7 @@ import {
   ChevronDown, History, BookOpen, User, Loader2, Sparkles,
   Mic, MicOff, Languages, Wand2, Copy, RotateCcw, Check, Calendar, Phone
 } from 'lucide-react';
-import { medicalRecordApi, centralDoctorApi, complaintApi, chatbotApi, diagnosisApi, aiApi, patientApi } from '../../../services/api';
+import { medicalRecordApi, appointmentApi, centralDoctorApi, complaintApi, chatbotApi, diagnosisApi, aiApi, patientApi, translationApi } from '../../../services/api';
 import { COMPLAINT_FREQUENCY_MAP, COMMON_FREQUENCIES } from '../../../data/complaintFrequencyMap';
 import { DIAGNOSIS_DURATION_OPTIONS } from '../../../data/diagnosisDurationMap';
 import SmartDiagnosisInput from '../../../components/emr/SmartDiagnosisInput';
@@ -628,7 +628,7 @@ const ComplaintDropdownInput = ({ index, value, onChange, masterComplaints, onAd
   );
 };
 
-const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess }) => {
+const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }) => {
   const { user } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [doctors, setDoctors] = useState([]);
@@ -655,57 +655,104 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess }) => {
   const [translatedAdvice, setTranslatedAdvice] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [speechLanguage, setSpeechLanguage] = useState('en-IN');
-  const [targetLanguage, setTargetLanguage] = useState('Hindi');
+  const [targetLanguage, setTargetLanguage] = useState('English');
   const [isTranslating, setIsTranslating] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
+  const [showTranslateMenu, setShowTranslateMenu] = useState(false);
   const recognitionRef = useRef(null);
+  const translateMenuRef = useRef(null);
 
-  // Reset form and fetch doctors when opening
+  // Click outside handling for Translate Menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (translateMenuRef.current && !translateMenuRef.current.contains(event.target)) {
+        setShowTranslateMenu(false);
+      }
+    };
+    if (showTranslateMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showTranslateMenu]);
+
+  // 1. Fetch initial data (Doctors, Master Complaints)
   useEffect(() => {
     if (isOpen) {
-      // Fetch doctors
-      const fetchDoctors = async () => {
+      const fetchData = async () => {
         try {
-          const response = await centralDoctorApi.getAll();
-          const docs = Array.isArray(response) ? response : (response.doctors || []);
+          const [docsResponse, masterComplaintsResponse] = await Promise.all([
+            centralDoctorApi.getAll(),
+            complaintApi.getMaster()
+          ]);
+          
+          const docs = Array.isArray(docsResponse) ? docsResponse : (docsResponse.doctors || []);
           setDoctors(docs);
-          // Pre-select current user if they are a doctor
-          if (user?.role === 'doctor') {
-            setSelectedDoctor(docs.find(d => d._id === user._id || d.userId === user._id) || null);
+          setMasterComplaints(masterComplaintsResponse);
+
+          // If editing, match doctor after fetching
+          if (editData?.doctorId) {
+             const matched = docs.find(d => d._id === editData.doctorId || d.userId === editData.doctorId);
+             if (matched) setSelectedDoctor(matched);
+          } else if (user?.role === 'doctor') {
+             // Pre-select current user if they are a doctor for new prescriptions
+             const matched = docs.find(d => d._id === user._id || d.userId === user._id);
+             if (matched) setSelectedDoctor(matched);
           }
         } catch (error) {
-          console.error("Error fetching doctors:", error);
-          setDoctors([]);
+          console.error("Error fetching modal data:", error);
         }
       };
-      fetchDoctors();
-
-      // Fetch Master Complaints
-      const fetchComplaints = async () => {
-        try {
-          const master = await complaintApi.getMaster();
-          setMasterComplaints(master);
-        } catch (error) {
-          console.error("Error fetching master complaints:", error);
-        }
-      };
-      fetchComplaints();
-
-      setVitals({
-        height: patient?.vitals?.height || patient?.height || '',
-        weight: patient?.vitals?.weight || patient?.weight || '',
-        pulse: patient?.vitals?.pulse || '',
-        bp_sys: (patient?.vitals?.bloodPressure || patient?.bloodPressure || '').split('/')[0] || '',
-        bp_dia: (patient?.vitals?.bloodPressure || patient?.bloodPressure || '').split('/')[1] || '',
-        temp: patient?.vitals?.temp || ''
-      });
-      setComplaints([{ name: '', frequency: 'daily', severity: 'mild', duration: '', durationUnit: 'days' }]);
-      setDiagnosis([{ name: '', duration: '', durationUnit: 'days' }]);
-      setMedications([{ name: '', dose: '', when: 'After Food', frequency: 'Daily', duration: '', instructions: '' }]);
-      setAdvice('');
-      setTestsRequested([]);
+      fetchData();
     }
   }, [isOpen]);
+
+  // 2. Initialize Form Fields
+  useEffect(() => {
+    if (isOpen) {
+      if (editData) {
+        // Edit Mode: Pre-populate from record
+        let parsedNotes = {};
+        try {
+          parsedNotes = typeof editData.notes === 'string' ? JSON.parse(editData.notes) : editData.notes;
+        } catch (e) {
+          console.error("Error parsing prescription notes for edit:", e);
+        }
+
+        setVitals({
+          height: parsedNotes.vitals?.height || '',
+          weight: parsedNotes.vitals?.weight || '',
+          pulse: parsedNotes.vitals?.pulse || '',
+          bp_sys: parsedNotes.vitals?.bp_sys || '',
+          bp_dia: parsedNotes.vitals?.bp_dia || '',
+          temp: parsedNotes.vitals?.temp || ''
+        });
+        setComplaints(parsedNotes.complaints || [{ name: '', frequency: 'daily', severity: 'mild', duration: '', durationUnit: 'days' }]);
+        setDiagnosis(parsedNotes.diagnosis || [{ name: '', duration: '', durationUnit: 'days' }]);
+        setMedications(parsedNotes.medications || [{ name: '', dose: '', when: 'After Food', frequency: 'Daily', duration: '', instructions: '' }]);
+        setAdvice(parsedNotes.advice || '');
+        setTranslatedAdvice(parsedNotes.translatedAdvice || '');
+        setTargetLanguage(parsedNotes.adviceLanguage || 'English');
+        setTestsRequested(parsedNotes.testsRequested || []);
+      } else {
+        // Create Mode: Use patient vitals as default
+        setVitals({
+          height: patient?.vitals?.height || patient?.height || '',
+          weight: patient?.vitals?.weight || patient?.weight || '',
+          pulse: patient?.vitals?.pulse || '',
+          bp_sys: (patient?.vitals?.bloodPressure || patient?.bloodPressure || '').split('/')[0] || '',
+          bp_dia: (patient?.vitals?.bloodPressure || patient?.bloodPressure || '').split('/')[1] || '',
+          temp: patient?.vitals?.temp || ''
+        });
+        setComplaints([{ name: '', frequency: 'daily', severity: 'mild', duration: '', durationUnit: 'days' }]);
+        setDiagnosis([{ name: '', duration: '', durationUnit: 'days' }]);
+        setMedications([{ name: '', dose: '', when: 'After Food', frequency: 'Daily', duration: '', instructions: '' }]);
+        setAdvice('');
+        setTranslatedAdvice('');
+        setTargetLanguage('English');
+        setTestsRequested([]);
+      }
+    }
+  }, [isOpen, editData]);
 
   // --- Voice to Text Logic ---
   useEffect(() => {
@@ -772,6 +819,11 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess }) => {
       toast.warning("Please enter advice to translate.");
       return;
     }
+    if (targetLanguage === 'English') {
+      setTranslatedAdvice('');
+      toast.info("English is already selected.");
+      return;
+    }
     setIsTranslating(true);
     try {
       const response = await aiApi.translateAdvice({
@@ -792,6 +844,77 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess }) => {
       toast.error("Failed to translate advice.");
     } finally {
       setIsTranslating(false);
+    }
+  };
+
+  const handleFullTranslation = async (lang) => {
+    setTargetLanguage(lang);
+    
+    // 1. Translate Advice if exists
+    if (advice.trim()) {
+      if (lang === 'English') {
+        setTranslatedAdvice('');
+      } else {
+        setIsTranslating(true);
+        try {
+          const response = await aiApi.translateAdvice({
+            originalAdvice: advice,
+            targetLanguage: lang,
+            patientContext: {
+              age: `${patient?.age} ${patient?.ageType}`,
+              gender: patient?.gender,
+              diagnosis: diagnosis.map(d => d.name).join(', '),
+              complaints: complaints.map(c => c.name),
+              medicines: medications
+            }
+          });
+          setTranslatedAdvice(response.translatedAdvice);
+        } catch (err) {
+          console.error("Advice translation failed:", err);
+        } finally {
+          setIsTranslating(false);
+        }
+      }
+    }
+
+    // 2. Translate Medications & Complaints
+    const filteredMeds = medications.filter(m => m.name);
+    const filteredComplaints = complaints.filter(c => c.name);
+    
+    if (filteredMeds.length > 0 || filteredComplaints.length > 0) {
+      setIsSaving(true); // Reuse isSaving as a global loading state or add a new one
+      try {
+        const result = await translationApi.translatePrescription(
+          filteredMeds,
+          filteredComplaints,
+          lang
+        );
+        
+        if (result.success) {
+          // Update medications state while preserving non-translated rows if any
+          const updatedMeds = medications.map(m => {
+            if (!m.name) return m;
+            const translated = result.medications.find(tm => tm.name === m.name);
+            return translated ? { ...m, ...translated } : m;
+          });
+          setMedications(updatedMeds);
+
+          // Update complaints state
+          const updatedComplaints = complaints.map(c => {
+            if (!c.name) return c;
+            const translated = result.complaints.find(tc => tc.name === c.name);
+            return translated ? { ...c, ...translated } : c;
+          });
+          setComplaints(updatedComplaints);
+          
+          toast.success(`Prescription switched to ${lang}`);
+        }
+      } catch (err) {
+        console.error("Prescription translation failed:", err);
+        toast.error("Failed to translate clinical fields.");
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -871,16 +994,39 @@ setDiagnosis(newArr);
   const handleSave = async () => {
     if (!patient?._id) return;
     
-    const docId = patient?.assignedDoctorId || selectedDoctor?._id || user?._id || 'unknown';
+    const docId = patient?.assignedDoctorId || selectedDoctor?._id || user?._id || null;
     const docName = patient?.assignedDoctor || selectedDoctor?.name || selectedDoctor?.fullName || user?.name || user?.fullName || 'Unknown Doctor';
 
     setIsSaving(true);
     try {
+      let finalMedications = medications.filter(m => m.name);
+      let finalComplaints = complaints.filter(c => c.name);
+
+      // --- AUTOMATED TRANSLATION TRIGGER ---
+      if (targetLanguage && targetLanguage !== 'English') {
+        try {
+          const translationResult = await translationApi.translatePrescription(
+            finalMedications,
+            finalComplaints,
+            targetLanguage
+          );
+          
+          if (translationResult.success) {
+            finalMedications = translationResult.medications;
+            finalComplaints = translationResult.complaints;
+            toast.info(`Prescription instructions translated to ${targetLanguage}`);
+          }
+        } catch (transErr) {
+          console.error("Prescription Translation Error:", transErr);
+          toast.warning("Failed to translate some fields, saving in English.");
+        }
+      }
+
       const detailedData = {
         vitals,
-        complaints: complaints.filter(c => c.name),
+        complaints: finalComplaints,
         diagnosis: diagnosis.filter(d => d.name),
-        medications: medications.filter(m => m.name),
+        medications: finalMedications,
         advice,
         translatedAdvice,
         adviceLanguage: targetLanguage,
@@ -899,8 +1045,19 @@ setDiagnosis(newArr);
         date: new Date()
       };
 
-      await medicalRecordApi.create(recordData);
-      toast.success("Prescription saved successfully!");
+      if (editData && editData.id) {
+        if (editData.type === 'Visit Note') {
+          await appointmentApi.updateNotes(editData.id, recordData.description);
+          toast.success("Visit notes updated successfully!");
+        } else {
+          await medicalRecordApi.update(editData.id, recordData);
+          toast.success("Prescription updated successfully!");
+        }
+      } else {
+        await medicalRecordApi.create(recordData);
+        toast.success("Prescription saved successfully!");
+      }
+
       // Sync Vitals Back To Patient Profile
       try {
         const bpStr = (vitals.bp_sys || vitals.bp_dia) ? `${vitals.bp_sys || ''}/${vitals.bp_dia || ''}` : '';
@@ -1310,7 +1467,7 @@ setDiagnosis(newArr);
                           onChange={(e) => setSpeechLanguage(e.target.value)}
                           className="bg-transparent border-none p-0 text-[10px] font-black text-slate-500 uppercase tracking-widest focus:ring-0 cursor-pointer"
                         >
-                          {VOICE_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                          {VOICE_LANGUAGES.map(l => <option key={l.name} value={l.code}>{l.name}</option>)}
                         </select>
                         <button 
                           onClick={toggleRecording}
@@ -1357,7 +1514,11 @@ setDiagnosis(newArr);
                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Translation Target</span>
                           <select 
                             value={targetLanguage}
-                            onChange={(e) => setTargetLanguage(e.target.value)}
+                            onChange={(e) => {
+                              const newLang = e.target.value;
+                              setTargetLanguage(newLang);
+                              handleFullTranslation(newLang);
+                            }}
                             className="bg-transparent border-none p-0 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-0 cursor-pointer"
                           >
                             {TARGET_LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
@@ -1427,7 +1588,48 @@ setDiagnosis(newArr);
                <History size={16} />
                <span className="text-xs font-medium text-slate-500">Draft automatically saved</span>
             </div>
-            <div className="flex gap-4">
+            <div className="flex gap-4 relative">
+              <div ref={translateMenuRef} className="relative">
+                <button
+                  onClick={() => setShowTranslateMenu(!showTranslateMenu)}
+                  className="px-8 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-sm font-black rounded-2xl hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all active:scale-95 flex items-center gap-2"
+                >
+                  <Languages size={18} />
+                  {targetLanguage}
+                </button>
+
+                <AnimatePresence>
+                  {showTranslateMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute bottom-full mb-3 left-0 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-[9999] py-3 overflow-hidden"
+                    >
+                      <div className="px-4 py-2 border-b border-slate-50 dark:border-slate-700 mb-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Language</span>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto custom-scrollbar">
+                        {TARGET_LANGUAGES.map((lang) => (
+                          <button
+                            key={lang}
+                            onClick={() => {
+                              setTargetLanguage(lang);
+                              handleFullTranslation(lang);
+                              setShowTranslateMenu(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center justify-between"
+                          >
+                            {lang}
+                            {targetLanguage === lang && <Check size={14} className="text-emerald-500" />}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               <button
                 onClick={onClose}
                 className="px-8 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-black rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-95"

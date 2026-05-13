@@ -21,7 +21,6 @@ import AdminDashboard from "./Component/Admin/AdminDashboard";
 const MessagesView = lazy(() => import("./Component/Admin/Messaging/MessagesView"));
 const IntelligenceHub = lazy(() => import("./Component/Admin/IntelligenceHub"));
 const PatientChatView = lazy(() => import("./Component/Patient/PatientChatView"));
-const SmartNotificationSystem = lazy(() => import("./components/common/SmartNotificationSystem"));
 
 const ReceptionistDashboard = lazy(() => import("./components/Receptionist/ReceptionistDashboard"));
 const PatientPage = lazy(() => import("./Component/Patient/PatientPage"));
@@ -103,6 +102,7 @@ const PharmacySettings = lazy(() => import("./Component/Pharmacy/PharmacySetting
 const OrderOnline = lazy(() => import("./Pages/OrderOnline"));
 const PharmacyRegistration = lazy(() => import("./Pages/PharmacyRegistration"));
 const PatientOrders = lazy(() => import("./Component/Patient/PatientOrders"));
+const FollowUpReminderPanel = lazy(() => import("./Component/Admin/FollowUpReminderPanel"));
 
 // Loading Component
 const LoadingFallback = () => <PremiumLoader />;
@@ -111,6 +111,9 @@ const UsageTracker = () => {
   useUsageTracking();
   return null;
 };
+
+import SmartNotificationSystem from "./components/common/SmartNotificationSystem";
+import GlobalReminderWatcher from "./components/reminders/GlobalReminderWatcher";
 
 export default function App() {
   const { isAuthenticated, user, login, logout } = useAuth();
@@ -245,6 +248,7 @@ export default function App() {
     <>
       <ToastContainer position="top-right" autoClose={3000} style={{ zIndex: 10000 }} />
       {isAuthenticated && <SmartNotificationSystem />}
+      {isAuthenticated && <GlobalReminderWatcher />}
       {isImpersonating && <ShadowModeBanner />}
       <Router>
         <ScrollToTop />
@@ -376,6 +380,7 @@ export default function App() {
               <Route path="add-doctor" element={<AddDoctor />} />
               <Route path="doctor-schedule" element={<DoctorSchedule />} />
               <Route path="whatsapp-credits" element={<WhatsAppCredits />} />
+              <Route path="followup" element={<FollowUpReminderPanel />} />
               <Route path="profile" element={<AdminProfilePage />} />
             </Route>
 

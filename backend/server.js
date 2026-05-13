@@ -50,11 +50,13 @@ import patientProgressImageRoutes from "./routes/patientProgressImageRoutes.js";
 import patientProgressComparisonRoutes from "./routes/patientProgressComparisonRoutes.js";
 import translationRoutes from "./routes/translationRoutes.js";
 import clinicalNoteRoutes from "./routes/clinicalNoteRoutes.js";
+import progressNoteRoutes from "./routes/progressNoteRoutes.js";
 import { seedGlobalComplaints } from "./controllers/complaintController.js";
 import { seedDiagnosisMaster } from "./controllers/diagnosisController.js";
 import { seedMedicineMaster } from "./controllers/medicineController.js";
 import { seedInvestigationMaster } from "./controllers/investigationController.js";
 import internalPharmacyRoutes from "./routes/internalPharmacyRoutes.js";
+import followUpReminderRoutes from "./routes/followUpReminderRoutes.js";
 import { detectTenant } from "./middleware/tenant.js";
 
 // Load environment variables based on NODE_ENV
@@ -242,12 +244,14 @@ app.use("/api/diagnosis", diagnosisRoutes);
 app.use("/api/investigations", investigationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/prescription-template", prescriptionTemplateRoutes);
+app.use("/api/follow-up-reminders", followUpReminderRoutes);
+app.use("/api/progress-notes", progressNoteRoutes);
 app.use("/api/dev", devRoutes);
 
 // Seed Data
 seedGlobalComplaints();
 seedDiagnosisMaster();
-seedMedicineMaster();
+// seedMedicineMaster();
 seedInvestigationMaster();
 
 /* --------------------------------------------------

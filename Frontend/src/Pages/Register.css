@@ -305,25 +305,108 @@
 }
 
 .otp-wrapper {
-  text-align: center;
-  padding: 2rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.otp-icon-container {
+  width: 80px;
+  height: 80px;
+  background: #eff6ff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  color: var(--primary-color);
+}
+
+.otp-shield-icon {
+  filter: drop-shadow(0 4px 6px rgba(59, 130, 246, 0.2));
 }
 
 .otp-title {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 800;
+  color: var(--text-main);
   margin-bottom: 0.5rem;
 }
 
-.otp-input {
-  width: 100%;
-  max-width: 200px;
-  padding: 1rem;
+.otp-instruction {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-bottom: 2rem;
+  max-width: 250px;
+  line-height: 1.5;
+}
+
+.otp-box-container {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.otp-digit-box {
+  width: 50px;
+  height: 60px;
   border: 2px solid #e2e8f0;
-  border-radius: 1rem;
-  font-size: 2rem;
+  border-radius: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 800;
   text-align: center;
-  letter-spacing: 0.5em;
-  font-weight: 900;
-  margin: 1.5rem 0;
+  background: #f8fafc;
+  color: var(--primary-color);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.otp-digit-box:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background: white;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  transform: translateY(-2px);
+}
+
+.otp-verify-btn {
+  height: 56px;
+  margin-bottom: 1.5rem;
+}
+
+.otp-footer {
+  width: 100%;
+}
+
+.otp-back-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.813rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.otp-back-btn:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .otp-digit-box {
+    width: 40px;
+    height: 50px;
+    font-size: 1.25rem;
+  }
+  .otp-box-container {
+    gap: 0.5rem;
+  }
 }

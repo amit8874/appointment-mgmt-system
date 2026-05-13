@@ -27,6 +27,7 @@ import PharmacyBilling from './Pharmacy/PharmacyBilling.jsx';
 import ExpiryLowStock from './Pharmacy/ExpiryLowStock.jsx';
 import Suppliers from './Pharmacy/Suppliers.jsx';
 import Reports from './Pharmacy/Reports.jsx';
+import FollowUpReminderPanel from './FollowUpReminderPanel.jsx';
 
 const MainContent = ({
   activeTab,
@@ -98,6 +99,8 @@ const MainContent = ({
     }
 
     switch (activeTab) {
+      case 'Followup and Reminder':
+        return <FollowUpReminderPanel />;
       case 'Dashboard':
         return (
           <DashboardPanel

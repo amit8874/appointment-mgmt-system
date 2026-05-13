@@ -118,7 +118,7 @@ const PrintablePrescription = ({
           })()}
         </span>
         <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase">Age/Sex: {patient?.age || '--'}Y / {patient?.gender || '--'}</span>
-        <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase ml-auto">Date: {new Date(prescription.date).toLocaleDateString()}</span>
+        <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase ml-auto">Date: {new Date(prescription.date).toLocaleDateString()} {prescription.time && `| ${prescription.time}`}</span>
       </div>
 
       {/* PREVIEW BODY */}
@@ -159,7 +159,8 @@ const PrintablePrescription = ({
                         <th className="py-2.5 px-3 font-black text-slate-500 uppercase text-[10px] tracking-wider">#</th>
                         <th className="py-2.5 px-3 font-black text-slate-500 uppercase text-[10px] tracking-wider">Medicine</th>
                         <th className="py-2.5 px-3 font-black text-slate-500 uppercase text-[10px] tracking-wider">Dose</th>
-                        <th className="py-2.5 px-3 font-black text-slate-500 uppercase text-[10px] tracking-wider">Timing & Freq</th>
+                        <th className="py-2.5 px-3 font-black text-slate-500 uppercase text-[10px] tracking-wider">Timing</th>
+                        <th className="py-2.5 px-3 font-black text-slate-500 uppercase text-[10px] tracking-wider">Frequency</th>
                         <th className="py-2.5 px-3 font-black text-slate-500 uppercase text-[10px] tracking-wider text-right">Duration</th>
                       </tr>
                     </thead>
@@ -172,7 +173,8 @@ const PrintablePrescription = ({
                             {(m.composition || m.genericName) && <div className="text-[10px] text-slate-500 font-medium mt-0.5">{m.composition || m.genericName}</div>}
                           </td>
                           <td className="py-4 px-3 font-black text-slate-700">{m.dose}</td>
-                          <td className="py-4 px-3 text-slate-600 font-bold">{m.when} — {m.frequency}</td>
+                          <td className="py-4 px-3 text-slate-600 font-bold">{m.when}</td>
+                          <td className="py-4 px-3 text-slate-600 font-bold">{m.frequency}</td>
                           <td className="py-4 px-3 text-slate-900 font-black text-right">{m.duration || '-'}</td>
                         </tr>
                       ))}

@@ -33,9 +33,10 @@ const RegisterOrganization = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [step, setStep] = useState('form');
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [resendTimer, setResendTimer] = useState(0);
   const [isVerifying, setIsVerifying] = useState(false);
+  const otpInputs = React.useRef([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -55,11 +56,42 @@ const RegisterOrganization = () => {
     if (error) setError('');
   };
 
+  const handleOtpChange = (element, index) => {
+    if (isNaN(element.value)) return false;
+
+    const newOtp = [...otp];
+    newOtp[index] = element.value;
+    setOtp(newOtp);
+
+    // Focus next input
+    if (element.value !== "" && index < 5) {
+      otpInputs.current[index + 1].focus();
+    }
+  };
+
+  const handleKeyDown = (e, index) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      otpInputs.current[index - 1].focus();
+    }
+  };
+
   const isPasswordMatch = formData.ownerPassword && formData.confirmPassword 
     ? formData.ownerPassword === formData.confirmPassword 
     : null;
 
   useEffect(() => {
+    // Check for pending registration on load
+    const pendingData = localStorage.getItem('pendingRegistration');
+    if (pendingData) {
+      try {
+        const parsed = JSON.parse(pendingData);
+        setFormData(parsed);
+        setStep('otp');
+      } catch (e) {
+        localStorage.removeItem('pendingRegistration');
+      }
+    }
+
     let interval = null;
     if (resendTimer > 0) {
       interval = setInterval(() => {
@@ -90,6 +122,8 @@ const RegisterOrganization = () => {
       };
       const response = await organizationApi.register(registrationData);
       if (response.verificationRequired) {
+        // Remember them so they can resume on refresh
+        localStorage.setItem('pendingRegistration', JSON.stringify(formData));
         setStep('otp');
         setResendTimer(20);
       } else {
@@ -105,14 +139,19 @@ const RegisterOrganization = () => {
 
   const handleOtpVerify = async (e) => {
     e.preventDefault();
-    if (otp.length !== 6) return;
+    const finalOtp = otp.join('');
+    if (finalOtp.length !== 6) return;
     setIsVerifying(true);
     try {
       const response = await organizationApi.verifyOTP({
         email: formData.ownerEmail || formData.email,
-        otp
+        otp: finalOtp
       });
       const { token, organization } = response;
+      
+      // Clear pending registration on success
+      localStorage.removeItem('pendingRegistration');
+      
       localStorage.setItem('token', token);
       localStorage.setItem('tenantSlug', organization.slug);
       localStorage.setItem('userData', JSON.stringify(response.user));
@@ -122,6 +161,11 @@ const RegisterOrganization = () => {
     } finally {
       setIsVerifying(false);
     }
+  };
+
+  const handleBackToForm = () => {
+    localStorage.removeItem('pendingRegistration');
+    setStep('form');
   };
 
   return (
@@ -308,28 +352,46 @@ const RegisterOrganization = () => {
             </form>
           ) : (
             <div className="otp-wrapper">
-              <h3 className="otp-title">Verify Your Phone</h3>
-              <p className="text-sm text-gray-500">We've sent a code to your WhatsApp</p>
+              <div className="otp-icon-container">
+                 <ShieldCheck size={48} className="otp-shield-icon" />
+              </div>
+              <h3 className="otp-title">Verify Your Mobile</h3>
+              <p className="otp-instruction">We've sent a 6-digit code to your WhatsApp</p>
+              
               <form onSubmit={handleOtpVerify}>
-                <input
-                  type="text"
-                  maxLength="6"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  className="otp-input"
-                  placeholder="000000"
-                  required
-                />
-                <button type="submit" disabled={isVerifying} className="signup-submit-btn">
-                  {isVerifying ? "Verifying..." : "Verify & Get Started"}
+                <div className="otp-box-container">
+                  {otp.map((data, index) => (
+                    <input
+                      key={index}
+                      type="text"
+                      maxLength="1"
+                      ref={(el) => (otpInputs.current[index] = el)}
+                      value={data}
+                      onChange={(e) => handleOtpChange(e.target, index)}
+                      onKeyDown={(e) => handleKeyDown(e, index)}
+                      className="otp-digit-box"
+                      required
+                    />
+                  ))}
+                </div>
+                
+                {error && <div className="text-red-500 text-xs font-bold mb-4">{error}</div>}
+
+                <button type="submit" disabled={isVerifying} className="signup-submit-btn otp-verify-btn">
+                  {isVerifying ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : "Verify & Activate Account"}
                 </button>
               </form>
-              <button 
-                onClick={() => setStep('form')} 
-                className="mt-4 text-xs text-blue-600 font-bold hover:underline"
-              >
-                ← Change Details
-              </button>
+              
+              <div className="otp-footer">
+                <button 
+                  onClick={handleBackToForm} 
+                  className="otp-back-btn"
+                >
+                  ← Edit registration details
+                </button>
+              </div>
             </div>
           )}
 

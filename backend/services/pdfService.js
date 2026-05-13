@@ -21,7 +21,10 @@ const getBase64Image = async (filePath) => {
   try {
     if (filePath.startsWith('http')) {
       const axios = (await import('axios')).default;
-      const response = await axios.get(filePath, { responseType: 'arraybuffer' });
+      const response = await axios.get(filePath, { 
+        responseType: 'arraybuffer',
+        timeout: 5000 // 5 second timeout for image fetching
+      });
       const buffer = Buffer.from(response.data, 'binary');
       const ext = filePath.split('?')[0].split('.').pop() || 'png';
       return `data:image/${ext};base64,${buffer.toString('base64')}`;
@@ -688,18 +691,15 @@ function formatCurrency(amount) {
  */
 export const generateBillingStatementPDF = async (bills, patient, org) => {
   let browser = null;
+  let page = null;
   try {
     const html = getStatementHtml(bills, patient, org);
 
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
-
-    const page = await browser.newPage();
+    browser = await getBrowser();
+    page = await browser.newPage();
     await page.setViewport({ width: 794, height: 1123 });
     await page.setContent(html, { waitUntil: 'domcontentloaded' });
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 500));
 
     const pdfBuffer = await page.pdf({
       format: 'A4',
@@ -717,7 +717,7 @@ export const generateBillingStatementPDF = async (bills, patient, org) => {
     console.error(`[STATEMENT PDF ERROR]:`, err);
     throw err;
   } finally {
-    if (browser) await browser.close();
+    if (page) await page.close();
   }
 };
 
@@ -835,20 +835,17 @@ function getStatementHtml(bills, patient, org) {
 /**
  * Generates a high-fidelity PDF prescription.
  */
-export const generatePrescriptionPDF = async (prescriptionData, patientData, org, template = null) => {
+export const generatePrescriptionPDF = async (prescriptionData, patientData, org, template = null, doctorDetails = {}) => {
   let browser = null;
+  let page = null;
   try {
-    const html = await getPrescriptionHtml(prescriptionData, patientData, org, template);
-
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
-
-    const page = await browser.newPage();
+    const html = await getPrescriptionHtml(prescriptionData, patientData, org, template, doctorDetails);
+    
+    browser = await getBrowser();
+    page = await browser.newPage();
     await page.setViewport({ width: 794, height: 1123 });
     await page.setContent(html, { waitUntil: 'domcontentloaded' });
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 500));
 
     const pdfBuffer = await page.pdf({
       format: 'A4',
@@ -866,11 +863,12 @@ export const generatePrescriptionPDF = async (prescriptionData, patientData, org
     console.error(`[PRESCRIPTION PDF ERROR]:`, err);
     throw err;
   } finally {
-    if (browser) await browser.close();
+    // DO NOT close browser, just close page to keep browser cached
+    if (page) await page.close();
   }
 };
 
-async function getPrescriptionHtml(prescriptionData, patientData, org, template) {
+async function getPrescriptionHtml(prescriptionData, patientData, org, template, doctorDetails = {}) {
   const logoBase64 = (template?.headerType === 'custom' && template?.headerImage) 
     ? await getBase64Image(template.headerImage) 
     : (org?.branding?.logo ? await getBase64Image(org.branding.logo) : (org?.logo ? await getBase64Image(org.logo) : null));
@@ -878,6 +876,33 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template)
   const signatureBase64 = (template?.footerType === 'custom' && template?.footerImage)
     ? await getBase64Image(template.footerImage)
     : (org?.doctorSignature ? await getBase64Image(org.doctorSignature) : null);
+  
+  let parsedData = null;
+  let rawContent = prescriptionData;
+
+  // 1. Resolve rawContent if prescriptionData is an object
+  if (typeof prescriptionData === 'object' && prescriptionData !== null) {
+    rawContent = prescriptionData.notes || prescriptionData.description || prescriptionData.content || (prescriptionData.medications ? prescriptionData : null);
+  }
+
+  // 2. Parse rawContent into parsedData
+  try {
+    if (typeof rawContent === 'string') {
+      const trimmed = rawContent.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        parsedData = JSON.parse(trimmed);
+      }
+    } else if (typeof rawContent === 'object' && rawContent !== null) {
+      parsedData = rawContent;
+    }
+  } catch (e) {
+    console.error('[PDF Service] Error parsing prescription content:', e.message);
+  }
+
+  // 3. Fallback for doctor name and credentials
+  const doctorName = doctorDetails.doctorName || prescriptionData?.doctorName || parsedData?.doctorName || 'Doctor';
+  const doctorQualification = doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || 'MBBS, MD';
+  const doctorSpecialization = doctorDetails.doctorSpecialization || prescriptionData?.doctorSpecialization || parsedData?.doctorSpecialization || 'Specialist';
 
   let headerHtml = '';
   if (template?.headerType === 'custom' && template?.headerImage && logoBase64) {
@@ -896,9 +921,9 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template)
           </div>
         </div>
         <div style="text-align: right;">
-          <h2 style="margin: 0; color: #4338ca; font-size: 22px; font-weight: 900; text-transform: uppercase;">Dr. ${prescriptionData.doctorName || 'Doctor'}</h2>
-          <p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #6366f1; text-transform: uppercase; border-bottom: 2px solid #eef2ff; padding-bottom: 2px; display: inline-block;">${prescriptionData.doctorQualification || 'MBBS, MD'}</p>
-          <p style="margin: 2px 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">${prescriptionData.doctorSpecialization || 'Specialist'}</p>
+          <h2 style="margin: 0; color: #4338ca; font-size: 22px; font-weight: 900; text-transform: uppercase;">Dr. ${doctorName}</h2>
+          <p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #6366f1; text-transform: uppercase; border-bottom: 2px solid #eef2ff; padding-bottom: 2px; display: inline-block;">${doctorQualification}</p>
+          <p style="margin: 2px 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">${doctorSpecialization}</p>
         </div>
       </div>
     `;
@@ -919,14 +944,6 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template)
     }
   }
 
-  let parsedData = null;
-  try {
-    if (typeof prescriptionData?.notes === 'string' && prescriptionData.notes.trim().startsWith('{')) {
-      parsedData = JSON.parse(prescriptionData.notes);
-    } else if (typeof prescriptionData?.notes === 'object') {
-      parsedData = prescriptionData.notes;
-    }
-  } catch (e) {}
 
   let contentHtml = '';
   if (parsedData) {
@@ -950,6 +967,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template)
                 <th style="padding: 10px; border-bottom: 2px solid #dee2e6; text-align: left;">Dose</th>
                 <th style="padding: 10px; border-bottom: 2px solid #dee2e6; text-align: left;">Timing</th>
                 <th style="padding: 10px; border-bottom: 2px solid #dee2e6; text-align: left;">Freq</th>
+                <th style="padding: 10px; border-bottom: 2px solid #dee2e6; text-align: left;">Duration</th>
               </tr>
             </thead>
             <tbody>
@@ -959,6 +977,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template)
                   <td style="padding: 10px; border-bottom: 1px solid #eee;">${m.dose}</td>
                   <td style="padding: 10px; border-bottom: 1px solid #eee;">${m.when}</td>
                   <td style="padding: 10px; border-bottom: 1px solid #eee;">${m.frequency}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">${m.duration || '--'}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -988,7 +1007,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template)
       </div>
     `;
   } else {
-    contentHtml = `<div style="font-size: 14px; line-height: 1.8; white-space: pre-wrap;">${prescriptionData?.notes || ''}</div>`;
+    contentHtml = `<div style="font-size: 14px; line-height: 1.8; white-space: pre-wrap;">${prescriptionData?.notes || prescriptionData?.description || ''}</div>`;
   }
 
   return `
@@ -998,7 +1017,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template)
       <meta charset="UTF-8">
       <style>
         body { font-family: 'Helvetica', 'Arial', sans-serif; margin: 0; padding: 0; box-sizing: border-box; color: #1e293b; }
-        .container { width: 100%; min-height: 290mm; position: relative; display: flex; flex-direction: column; background: #fff; border: 1px solid #eee; }
+        .container { width: 100%; position: relative; display: flex; flex-direction: column; background: #fff; }
         .header-wrapper { padding: 30px 40px 10px 40px; }
         .patient-info { padding: 12px 40px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
         .content { padding: 30px 40px; flex: 1; position: relative; }
@@ -1015,7 +1034,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template)
         <div class="patient-info">
           <span>Name: ${patientData?.fullName || patientData?.name || 'Unknown'}</span>
           <span>Age/Sex: ${patientData?.age || '--'} / ${patientData?.gender || '--'}</span>
-          <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
+          <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()} ${prescriptionData?.time ? `| ${prescriptionData.time}` : ''}</span>
         </div>
         <div class="content">
           <div class="watermark"></div>

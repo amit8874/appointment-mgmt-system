@@ -48,7 +48,7 @@ const getTenantSlug = () => {
 };
 
 
-const api = axios.create({
+export const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 60000,
   headers: {
@@ -56,6 +56,8 @@ const api = axios.create({
     'Accept': 'application/json',
   },
 });
+
+export { followUpReminderApi } from './followUpReminderApi';
 
 // Request interceptor for adding auth token and tenant header
 api.interceptors.request.use(
@@ -506,6 +508,10 @@ export const appointmentApi = {
     const { data } = await api.get(`/appointments/patient/${patientId}/summary`);
     return data;
   },
+  updateNotes: async (id, visitNotes) => {
+    const { data } = await api.put(`/appointments/${id}/notes`, { visitNotes });
+    return data;
+  }
 };
 
 export const billingApi = {
@@ -539,6 +545,10 @@ export const billingApi = {
   },
   sendWhatsApp: async (id) => {
     const { data } = await api.post(`/billing/${id}/send-whatsapp`);
+    return data;
+  },
+  sendEmail: async (id) => {
+    const { data } = await api.post(`/billing/${id}/send-email`);
     return data;
   },
   downloadPDF: async (id, isDownload = false, templateId = null) => {
@@ -1055,6 +1065,10 @@ export const medicalRecordApi = {
   create: async (recordData) => {
     const { data } = await api.post('/medical-records', recordData);
     return data;
+  },
+  update: async (id, recordData) => {
+    const { data } = await api.put(`/medical-records/${id}`, recordData);
+    return data;
   }
 };
 export const whatsappCreditsApi = {
@@ -1164,7 +1178,9 @@ export const prescriptionTemplateApi = {
     return data;
   },
   generatePdf: async (pdfData) => {
-    const { data } = await api.post('/prescription-template/generate-pdf', pdfData);
+    const { data } = await api.post('/prescription-template/generate-pdf', pdfData, {
+      timeout: 120000 // Increase timeout to 2 minutes for PDF generation
+    });
     return data;
   },
   delete: async (id) => {
@@ -1262,6 +1278,10 @@ export const translationApi = {
   translate: async (text, targetLanguage, sourceLanguage = 'auto') => {
     const { data } = await api.post('/translate', { text, targetLanguage, sourceLanguage });
     return data;
+  },
+  translatePrescription: async (medications, complaints, targetLanguage) => {
+    const { data } = await api.post('/translate/prescription-structured', { medications, complaints, targetLanguage });
+    return data;
   }
 };
 
@@ -1323,6 +1343,30 @@ export const invoiceTemplateApi = {
   },
   seed: async (force = false) => {
     const { data } = await api.post(`/invoice-templates/seed${force ? '?force=true' : ''}`);
+    return data;
+  }
+};
+
+export const progressNoteApi = {
+  save: async (noteData) => {
+    const { data } = await api.post('/progress-notes/save', noteData);
+    return data;
+  },
+  list: async (organizationId, noteType) => {
+    const params = noteType ? { noteType } : {};
+    const { data } = await api.get(`/progress-notes/list/${organizationId}`, { params });
+    return data;
+  },
+  update: async (id, noteData) => {
+    const { data } = await api.put(`/progress-notes/${id}`, noteData);
+    return data;
+  },
+  delete: async (id) => {
+    const { data } = await api.delete(`/progress-notes/${id}`);
+    return data;
+  },
+  incrementUsage: async (id) => {
+    const { data } = await api.post(`/progress-notes/${id}/usage`);
     return data;
   }
 };

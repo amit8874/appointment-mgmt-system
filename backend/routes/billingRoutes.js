@@ -10,6 +10,7 @@ import {
   getBillById,
   createPOSBill,
   sendWhatsAppInvoice,
+  sendEmailInvoice,
   getBillsByPatient,
   downloadInvoicePDF,
   updateBill,
@@ -49,6 +50,9 @@ router.get('/:id', getBillById);
 
 // SEND Invoice via WhatsApp
 router.post('/:id/send-whatsapp', sendWhatsAppInvoice);
+
+// SEND Invoice via Email
+router.post('/:id/send-email', sendEmailInvoice);
 
 // GET/GENERATE Invoice PDF
 router.get('/:id/pdf', downloadInvoicePDF);

@@ -10,7 +10,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const [isDefault, setIsDefault] = useState(false);
 
   const { user } = useAuth();
-  
+
   // Header State
   const [headerType, setHeaderType] = useState('default'); // 'default' | 'custom'
   const [headerImagePreview, setHeaderImagePreview] = useState(null);
@@ -48,7 +48,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
       try {
         const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null) || user?._id;
         if (orgId) {
-          const org = await organizationApi.getById(orgId); 
+          const org = await organizationApi.getById(orgId);
           setOrganization(org);
         }
       } catch (error) {
@@ -65,13 +65,13 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
         const t = response.template;
         setTemplateName(t.name || '');
         setIsDefault(t.isDefault || false);
-        
+
         setHeaderType(t.headerType || 'default');
         if (t.headerImage) setHeaderImagePreview(getImageUrl(t.headerImage));
-        
+
         setBodyType(t.bodyType || 'default');
         if (t.bodyImage) setBodyImagePreview(getImageUrl(t.bodyImage));
-        
+
         setFooterType(t.footerType || 'default');
         if (t.footerImage) setFooterImagePreview(getImageUrl(t.footerImage));
       }
@@ -91,7 +91,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const handleDeleteTemplate = async (e, id) => {
     e.stopPropagation();
     if (!window.confirm("Are you sure you want to delete this template?")) return;
-    
+
     try {
       setIsDeleting(id);
       await prescriptionTemplateApi.delete(id);
@@ -108,15 +108,15 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
   const handleSelectTemplate = (t) => {
     setTemplateName(t.templateName || t.name || '');
     setIsDefault(t.isDefault || false);
-    
+
     setHeaderType(t.headerType || 'default');
     setHeaderImagePreview(t.headerImage ? getImageUrl(t.headerImage) : null);
     setHeaderImageFile(null);
-    
+
     setBodyType(t.bodyType || 'default');
     setBodyImagePreview(t.bodyImage ? getImageUrl(t.bodyImage) : null);
     setBodyImageFile(null);
-    
+
     setFooterType(t.footerType || 'default');
     setFooterImagePreview(t.footerImage ? getImageUrl(t.footerImage) : null);
     setFooterImageFile(null);
@@ -163,7 +163,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
       formData.append('bodyType', bodyType);
       formData.append('footerType', footerType);
       formData.append('isDefault', isDefault);
-      
+
       if (headerType === 'custom' && headerImageFile) {
         formData.append('headerImage', headerImageFile);
       }
@@ -192,7 +192,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
     <AnimatePresence mode="wait">
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
         {/* Backdrop */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -201,7 +201,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
         />
 
         {/* Modal Body */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.98, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.98, y: 20 }}
@@ -218,7 +218,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                 <p className="text-xs text-slate-500 font-medium mt-0.5">Customize your clinic's prescription layout and branding</p>
               </div>
             </div>
-            <button 
+            <button
               onClick={onClose}
               className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-lg transition-colors"
             >
@@ -228,7 +228,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
           {/* Main Content Split */}
           <div className="flex flex-1 overflow-hidden">
-            
+
             {/* LEFT PANEL - CONTROLS */}
             <div className="w-[400px] flex-shrink-0 border-r border-slate-200 bg-slate-50 flex flex-col overflow-y-auto">
               <div className="p-6 space-y-8">
@@ -241,10 +241,10 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                     </h3>
                     <span className="px-2 py-0.5 bg-slate-200 text-slate-600 rounded text-[10px] font-bold">{templates.length}</span>
                   </div>
-                  
+
                   <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                     {templates.length > 0 ? templates.map(t => (
-                      <div 
+                      <div
                         key={t._id}
                         onClick={() => handleSelectTemplate(t)}
                         className={`group p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${templateName === t.templateName ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-200'}`}
@@ -255,7 +255,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                           </span>
                           {t.isDefault && <span className="text-[9px] font-black text-emerald-600 uppercase mt-0.5">Default</span>}
                         </div>
-                        <button 
+                        <button
                           onClick={(e) => handleDeleteTemplate(e, t._id)}
                           disabled={isDeleting === t._id}
                           className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50"
@@ -277,7 +277,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
                 {/* Template Config */}
                 <div className="space-y-6">
-                  
+
                   {/* HEADER SECTION */}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm font-bold text-slate-800 border-b border-slate-200 pb-2">
@@ -313,12 +313,12 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                           <div className="relative rounded-xl overflow-hidden border-2 border-indigo-200 bg-white group shadow-md ring-4 ring-indigo-50">
                             <img src={headerImagePreview} alt="Header Preview" className="w-full h-24 object-contain p-2" />
                             <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                              <button 
-                                onClick={() => { 
-                                  setHeaderImagePreview(null); 
-                                  setHeaderImageFile(null); 
-                                  setHeaderType('default'); 
-                                }} 
+                              <button
+                                onClick={() => {
+                                  setHeaderImagePreview(null);
+                                  setHeaderImageFile(null);
+                                  setHeaderType('default');
+                                }}
                                 className="px-4 py-2 bg-white text-red-600 rounded-xl hover:bg-red-50 transition-all shadow-xl flex items-center gap-2 text-xs font-black uppercase tracking-wider transform hover:scale-105 active:scale-95"
                               >
                                 <Trash2 size={16} /> Delete & Revert to Default
@@ -364,12 +364,12 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                           <div className="relative rounded-xl overflow-hidden border-2 border-indigo-200 bg-white group shadow-md ring-4 ring-indigo-50">
                             <img src={bodyImagePreview} alt="Body Preview" className="w-full h-32 object-contain p-4 opacity-40" />
                             <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                              <button 
-                                onClick={() => { 
-                                  setBodyImagePreview(null); 
-                                  setBodyImageFile(null); 
-                                  setBodyType('default'); 
-                                }} 
+                              <button
+                                onClick={() => {
+                                  setBodyImagePreview(null);
+                                  setBodyImageFile(null);
+                                  setBodyType('default');
+                                }}
                                 className="px-4 py-2 bg-white text-red-600 rounded-xl hover:bg-red-50 transition-all shadow-xl flex items-center gap-2 text-xs font-black uppercase tracking-wider transform hover:scale-105 active:scale-95"
                               >
                                 <Trash2 size={16} /> Delete & Revert to Default
@@ -415,12 +415,12 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                           <div className="relative rounded-xl overflow-hidden border-2 border-indigo-200 bg-white group shadow-md ring-4 ring-indigo-50">
                             <img src={footerImagePreview} alt="Footer Preview" className="w-full h-16 object-contain p-2" />
                             <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                              <button 
-                                onClick={() => { 
-                                  setFooterImagePreview(null); 
-                                  setFooterImageFile(null); 
-                                  setFooterType('default'); 
-                                }} 
+                              <button
+                                onClick={() => {
+                                  setFooterImagePreview(null);
+                                  setFooterImageFile(null);
+                                  setFooterType('default');
+                                }}
                                 className="px-4 py-2 bg-white text-red-600 rounded-xl hover:bg-red-50 transition-all shadow-xl flex items-center gap-2 text-xs font-black uppercase tracking-wider transform hover:scale-105 active:scale-95"
                               >
                                 <Trash2 size={16} /> Delete & Revert to Default
@@ -440,8 +440,8 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                 <div className="space-y-4">
                   <div>
                     <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block mb-2">Template Name</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="e.g. My Clinic OPD Template"
                       value={templateName}
                       onChange={(e) => setTemplateName(e.target.value)}
@@ -461,7 +461,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
               {/* Action Buttons */}
               <div className="mt-auto p-6 bg-white border-t border-slate-200 space-y-3">
-                <button 
+                <button
                   onClick={handleSaveTemplate}
                   disabled={isSaving}
                   className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
@@ -478,7 +478,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
             {/* RIGHT PANEL - LIVE PREVIEW */}
             <div className="flex-1 bg-slate-200/50 flex flex-col p-8 overflow-y-auto items-center">
-              
+
               <div className="w-full max-w-3xl flex justify-between items-center mb-4">
                 <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                   <FileText size={16} /> Live A4 Preview
@@ -487,7 +487,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
               {/* A4 Paper Container (Aspect Ratio ~ 1:1.414) */}
               <div className="bg-white w-full max-w-3xl min-h-[900px] shadow-xl border border-slate-300 flex flex-col relative overflow-hidden" style={{ aspectRatio: '1 / 1.414' }}>
-                
+
                 {/* PREVIEW HEADER */}
                 <div className="w-full border-b border-slate-200 min-h-[120px] relative">
                   {headerType === 'custom' && headerImagePreview ? (
@@ -498,10 +498,10 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                       <div className="flex items-start gap-4 flex-1">
                         {(organization?.branding?.logo || user?.organization?.branding?.logo) && (
                           <div className="w-16 h-16 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
-                            <img 
-                              src={getImageUrl(organization?.branding?.logo || user?.organization?.branding?.logo)} 
-                              alt="Clinic Logo" 
-                              className="max-h-full max-w-full object-contain p-1" 
+                            <img
+                              src={getImageUrl(organization?.branding?.logo || user?.organization?.branding?.logo)}
+                              alt="Clinic Logo"
+                              className="max-h-full max-w-full object-contain p-1"
                             />
                           </div>
                         )}
