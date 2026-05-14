@@ -45,6 +45,16 @@ export const followUpReminderApi = {
   },
 
   /**
+   * Update a follow-up reminder (generic update)
+   * @param {string} id - Reminder ID
+   * @param {Object} payload - Update data
+   */
+  updateFollowUpReminder: async (id, payload) => {
+    const { data } = await api.put(`/follow-up-reminders/${id}`, payload);
+    return data;
+  },
+
+  /**
    * Mark a follow-up reminder as completed
    * @param {string} id - Reminder ID
    */

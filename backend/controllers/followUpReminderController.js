@@ -173,7 +173,7 @@ export const getDueFollowUpReminders = async (req, res) => {
     let query = { 
       organizationId,
       status: { $nin: ['COMPLETED', 'CANCELLED'] },
-      isPopupShown: false,
+      shownToUsers: { $ne: userId },
       $or: [
         { status: { $ne: 'SNOOZED' }, reminderAt: { $lte: now } },
         { status: 'SNOOZED', snoozedUntil: { $lte: now } }
@@ -208,7 +208,7 @@ export const markReminderPopupShown = async (req, res) => {
     const reminder = await FollowUpReminder.findOneAndUpdate(
       { _id: id, organizationId },
       { 
-        isPopupShown: true, 
+        $addToSet: { shownToUsers: req.user._id },
         popupShownAt: Date.now() 
       },
       { new: true }
@@ -281,7 +281,7 @@ export const snoozeFollowUpReminder = async (req, res) => {
       { 
         status: 'SNOOZED', 
         snoozedUntil: new Date(snoozedUntil),
-        isPopupShown: false,
+        shownToUsers: [],
         popupShownAt: null
       },
       { new: true }
@@ -321,7 +321,7 @@ export const rescheduleFollowUpReminder = async (req, res) => {
       { 
         status: 'RESCHEDULED', 
         reminderAt: new Date(reminderAt),
-        isPopupShown: false,
+        shownToUsers: [],
         popupShownAt: null
       },
       { new: true }
@@ -338,6 +338,49 @@ export const rescheduleFollowUpReminder = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error rescheduling reminder', error: error.message });
+  }
+};
+
+/**
+ * @desc    Update a follow-up reminder (generic update)
+ * @route   PUT /api/reminders/:id
+ * @access  Private
+ */
+export const updateFollowUpReminder = async (req, res) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Remove sensitive or protected fields
+    delete updateData.organizationId;
+    delete updateData.createdBy;
+
+    // If reminderAt is updated, reset visibility and status so it triggers again
+    if (updateData.reminderAt) {
+      updateData.shownToUsers = [];
+      updateData.popupShownAt = null;
+      // If it was completed or cancelled, bring it back to life
+      updateData.status = 'RESCHEDULED';
+    }
+
+    const reminder = await FollowUpReminder.findOneAndUpdate(
+      { _id: id, organizationId },
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!reminder) {
+      return res.status(404).json({ success: false, message: 'Reminder not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Reminder updated successfully',
+      reminder
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error updating reminder', error: error.message });
   }
 };
 

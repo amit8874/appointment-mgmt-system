@@ -9,59 +9,58 @@ import Pagination from '../../common/Pagination';
 import PaymentModeModal from '../../common/PaymentModeModal';
 import { TableSkeleton } from '../../Shared/DashboardSkeletons';
 
+import { usePatients } from '../../../hooks/usePatients';
+
 const PatientPanel = () => {
-  const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const {
+    patients,
+    patientsLoading: loading,
+    patientsError: error,
+    totalPatients,
+    totalPages,
+    currentPage,
+    setCurrentPage,
+    searchTerm,
+    setSearchTerm,
+    fetchPatients
+  } = usePatients();
+
+  const [localSearchTerm, setLocalSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
-  const [currentPage, setCurrentPage] = useState(1);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
   const itemsPerPage = 15;
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
-
-
-  // Fetch patients from backend
-  const fetchPatients = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { patientApi } = await import('../../../services/api');
-      const data = await patientApi.getAll();
-      // Handle both array (legacy) and object (paginated) responses
-      if (data && data.patients && Array.isArray(data.patients)) {
-        setPatients(data.patients);
-      } else {
-        setPatients(Array.isArray(data) ? data : []);
-      }
-    } catch (err) {
-      console.error('Error fetching patients:', err);
-      setError("Failed to load patients. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Debounce search
   useEffect(() => {
-    fetchPatients();
-  }, []);
+    const timer = setTimeout(() => {
+      if (localSearchTerm !== searchTerm) {
+        setSearchTerm(localSearchTerm);
+        setCurrentPage(1); // Reset to first page on search
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [localSearchTerm, searchTerm, setSearchTerm, setCurrentPage]);
 
-  // Filter patients
+  // Sync local search with global if changed externally
+  useEffect(() => {
+    setLocalSearchTerm(searchTerm || "");
+  }, [searchTerm]);
+
+  // Fetch patients on mount or when page/search changes
+  useEffect(() => {
+    fetchPatients(currentPage, itemsPerPage, searchTerm);
+  }, [currentPage, searchTerm, fetchPatients]);
+
+  // Filter patients by status (frontend-only for now, search is server-side)
   const filteredPatients = useMemo(() => {
     return (patients || []).filter((patient) => {
-      const matchesSearch =
-        patient.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (patient.patientId || patient.id)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.phone?.includes(searchTerm) ||
-        patient.contact?.includes(searchTerm);
-
       // Status filter - check paymentStatus or status field
       const patientStatus = (patient.paymentStatus || patient.status || 'active').toLowerCase();
       let matchesStatus = true;
@@ -70,34 +69,28 @@ const PatientPanel = () => {
       } else if (statusFilter === 'Pending') {
         matchesStatus = patientStatus === 'pending';
       } else if (statusFilter === 'Active') {
-        // Active = not dead (includes paid, pending, or undefined/null)
         matchesStatus = patientStatus !== 'dead';
       } else if (statusFilter === 'Dead') {
         matchesStatus = patientStatus === 'dead';
       }
 
-      return matchesSearch && matchesStatus;
+      return matchesStatus;
     });
-  }, [patients, searchTerm, statusFilter]);
+  }, [patients, statusFilter]);
 
-  // Reset to first page when filters change
+  // Reset to first page when search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, setCurrentPage]);
 
-  // Paginate patients
-  const paginatedPatients = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredPatients.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredPatients, currentPage]);
+  // Use the patients directly from hook (server-paginated)
+  const paginatedPatients = filteredPatients;
 
-  const totalPages = Math.ceil(filteredPatients.length / itemsPerPage);
-
-  // Calculate counts for each status
+  // Calculate counts for each status (on current page)
   const statusCounts = useMemo(() => {
     const all = patients || [];
     return {
-      All: all.length,
+      All: totalPatients, // Total across all pages for 'All'
       Paid: all.filter(p => (p.paymentStatus || p.status || '').toLowerCase() === 'paid').length,
       Pending: all.filter(p => (p.paymentStatus || p.status || '').toLowerCase() === 'pending').length,
       Active: all.filter(p => {
@@ -106,7 +99,7 @@ const PatientPanel = () => {
       }).length,
       Dead: all.filter(p => (p.paymentStatus || p.status || '').toLowerCase() === 'dead').length
     };
-  }, [patients]);
+  }, [patients, totalPatients]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -294,8 +287,8 @@ const PatientPanel = () => {
           <input
             type="text"
             placeholder="Search patient..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={localSearchTerm}
+            onChange={(e) => setLocalSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
           />
         </div>
@@ -476,7 +469,7 @@ const PatientPanel = () => {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
-          totalItems={filteredPatients.length}
+          totalItems={totalPatients}
           itemsPerPage={itemsPerPage}
         />
       </div>

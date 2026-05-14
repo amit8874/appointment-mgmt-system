@@ -78,10 +78,10 @@ const followUpReminderSchema = new mongoose.Schema({
     enum: ['PENDING', 'COMPLETED', 'SNOOZED', 'RESCHEDULED', 'CANCELLED'],
     default: 'PENDING',
   },
-  isPopupShown: {
-    type: Boolean,
-    default: false,
-  },
+  shownToUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   popupShownAt: {
     type: Date,
     default: null,

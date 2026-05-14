@@ -57,33 +57,6 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
 
           {/* Navigation */}
           <nav className={`flex-1 space-y-3 overflow-y-auto ${isSidebarCollapsed ? 'px-0' : ''}`}>
-            <NavLink
-              to="/receptionist/followup"
-              onClick={() => {
-                if (window.innerWidth <= 1024) setSidebarOpen(false);
-              }}
-              className={({ isActive }) =>
-                `group flex items-center px-4 py-3 text-sm rounded-2xl transition-all duration-300 transform hover:translate-x-1 ${
-                  isActive
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50 font-bold'
-                  : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-blue-400 font-medium'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-3/4 w-1 bg-white rounded-full"></div>}
-                  <Bell
-                    className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} h-5 w-5 flex-shrink-0 z-10 ${isActive
-                      ? 'text-white'
-                      : 'text-blue-500 dark:text-blue-400'
-                      }`}
-                    aria-hidden="true"
-                  />
-                  {!isSidebarCollapsed && <span className="z-10">Followup and Reminder</span>}
-                </>
-              )}
-            </NavLink>
             {!isSidebarCollapsed && <h2 className="text-[10px] font-black uppercase text-gray-400 mb-5 ml-4 tracking-[0.2em] mt-2">MAIN</h2>}
             {navigation.map((item) => (
               <div key={item.name}>

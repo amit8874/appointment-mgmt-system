@@ -3,7 +3,7 @@ import { X, Bell, Calendar, Clock, Search, User, AlertCircle, ChevronDown, Check
 import { patientApi, userApi, followUpReminderApi } from '../../services/api';
 import { toast } from 'react-toastify';
 
-const AddFollowUpReminderModal = ({ isOpen, onClose, onSuccess, patient = null, onReminderAdded }) => {
+const AddFollowUpReminderModal = ({ isOpen, onClose, onSuccess, patient = null, onReminderAdded, editReminder = null }) => {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -21,6 +21,28 @@ const AddFollowUpReminderModal = ({ isOpen, onClose, onSuccess, patient = null, 
     customPatientName: '',
     customPatientMobile: ''
   });
+
+  useEffect(() => {
+    if (editReminder) {
+      const reminderAt = new Date(editReminder.reminderAt);
+      setFormData({
+        title: editReminder.title || '',
+        note: editReminder.note || '',
+        reminderType: editReminder.reminderType || 'FOLLOW_UP_VISIT',
+        priority: editReminder.priority || 'MEDIUM',
+        reminderDate: reminderAt.toISOString().split('T')[0],
+        reminderTime: reminderAt.toTimeString().split(' ')[0].substring(0, 5),
+        customPatientName: editReminder.customPatientName || '',
+        customPatientMobile: editReminder.customPatientMobile || ''
+      });
+      setSelectedPatient(editReminder.patientId);
+      if (!editReminder.patientId) {
+        setSearchQuery(editReminder.customPatientName || '');
+      }
+    } else if (patient) {
+      setSelectedPatient(patient);
+    }
+  }, [editReminder, patient, isOpen]);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
@@ -102,13 +124,19 @@ const AddFollowUpReminderModal = ({ isOpen, onClose, onSuccess, patient = null, 
       const payload = {
         ...formData,
         patientId: selectedPatient?._id || selectedPatient?.id || null,
-        customPatientName: selectedPatient ? null : searchQuery.trim(),
+        customPatientName: selectedPatient ? null : (editReminder ? editReminder.customPatientName : searchQuery.trim()),
         doctorId: selectedPatient?.assignedDoctorId || selectedPatient?.doctorId || null,
         reminderAt: new Date(`${formData.reminderDate}T${formData.reminderTime}`)
       };
 
-      await followUpReminderApi.createFollowUpReminder(payload);
-      toast.success('Reminder scheduled');
+      if (editReminder) {
+        await followUpReminderApi.updateFollowUpReminder(editReminder._id, payload);
+        toast.success('Reminder updated');
+      } else {
+        await followUpReminderApi.createFollowUpReminder(payload);
+        toast.success('Reminder scheduled');
+      }
+
       if (onReminderAdded) onReminderAdded();
       if (onSuccess) onSuccess();
       onClose();
@@ -129,7 +157,7 @@ const AddFollowUpReminderModal = ({ isOpen, onClose, onSuccess, patient = null, 
         <div className="px-5 py-3 border-b flex justify-between items-center bg-gray-50">
           <div className="flex items-center gap-2">
             <Bell size={16} className="text-blue-600" />
-            <h2 className="text-sm font-bold text-black">Schedule Follow-up</h2>
+            <h2 className="text-sm font-bold text-black">{editReminder ? 'Edit Follow-up' : 'Schedule Follow-up'}</h2>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded text-gray-500">
             <X size={18} />
@@ -309,7 +337,7 @@ const AddFollowUpReminderModal = ({ isOpen, onClose, onSuccess, patient = null, 
             className="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-            Schedule
+            {editReminder ? 'Update' : 'Schedule'}
           </button>
         </div>
       </div>

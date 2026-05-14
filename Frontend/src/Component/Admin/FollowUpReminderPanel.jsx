@@ -18,6 +18,7 @@ const FollowUpReminderPanel = () => {
   const [reminders, setReminders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingReminder, setEditingReminder] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); 
   const [statusFilter, setStatusFilter] = useState('all');
@@ -70,6 +71,11 @@ const FollowUpReminderPanel = () => {
     if (window.confirm("Are you sure you want to delete this reminder?")) {
       handleAction(followUpReminderApi.deleteFollowUpReminder, id, "Reminder deleted");
     }
+  };
+
+  const handleEdit = (reminder) => {
+    setEditingReminder(reminder);
+    setShowAddModal(true);
   };
 
   const getPriorityBadge = (priority) => {
@@ -165,7 +171,10 @@ const FollowUpReminderPanel = () => {
           </p>
         </div>
         <button 
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setEditingReminder(null);
+            setShowAddModal(true);
+          }}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm font-semibold"
         >
           <Bell size={16} /> Add Reminder
@@ -334,7 +343,11 @@ const FollowUpReminderPanel = () => {
                           </button>
                         )}
 
-                        <button className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors">
+                        <button 
+                          onClick={() => handleEdit(r)}
+                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                          title="Edit Reminder"
+                        >
                           <CalendarClock size={16} />
                         </button>
 
@@ -407,9 +420,14 @@ const FollowUpReminderPanel = () => {
       {showAddModal && (
         <AddFollowUpReminderModal 
           isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
+          onClose={() => {
+            setShowAddModal(false);
+            setEditingReminder(null);
+          }}
+          editReminder={editingReminder}
           onSuccess={() => {
             setShowAddModal(false);
+            setEditingReminder(null);
             fetchReminders();
           }}
         />

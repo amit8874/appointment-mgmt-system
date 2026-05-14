@@ -10,6 +10,7 @@ import {
   completeFollowUpReminder,
   snoozeFollowUpReminder,
   rescheduleFollowUpReminder,
+  updateFollowUpReminder,
   cancelFollowUpReminder,
   deleteFollowUpReminder
 } from '../controllers/followUpReminderController.js';
@@ -27,12 +28,14 @@ router.route('/')
 router.get('/today', getTodayFollowUpReminders);
 router.get('/due', getDueFollowUpReminders);
 
+router.route('/:id')
+  .put(updateFollowUpReminder)
+  .delete(deleteFollowUpReminder);
+
 router.patch('/:id/popup-shown', markReminderPopupShown);
 router.patch('/:id/complete', completeFollowUpReminder);
 router.patch('/:id/snooze', snoozeFollowUpReminder);
 router.patch('/:id/reschedule', rescheduleFollowUpReminder);
 router.patch('/:id/cancel', cancelFollowUpReminder);
-
-router.delete('/:id', deleteFollowUpReminder);
 
 export default router;

@@ -92,7 +92,13 @@ export const getAllPatients = async (req, res) => {
       patientId: { $in: patientIds } 
     }).lean();
 
-    // Map billing data to patients
+    // Fetch latest appointment for each patient to get lastVisit date and doctor
+    const appointments = await Appointment.find({
+      organizationId: req.tenantId,
+      patientId: { $in: patientIds }
+    }).sort({ date: -1 }).lean();
+
+    // Map billing and appointment data to patients
     const patientsWithData = patients.map(p => {
       const patientBills = bills.filter(b => b.patientId === p.patientId);
       
@@ -106,6 +112,11 @@ export const getAllPatients = async (req, res) => {
       
       const hasPending = patientBills.some(b => b.status === 'Pending' || b.status === 'Due');
       const hasPaid = patientBills.some(b => b.status === 'Paid');
+      const isDead = p.status === 'dead' || p.isDead || patientBills.some(b => b.status === 'Dead');
+      
+      // Get latest appointment
+      const patientAppointments = appointments.filter(a => a.patientId === p.patientId);
+      const latestAppt = patientAppointments[0];
       
       return {
         ...p,
@@ -113,8 +124,10 @@ export const getAllPatients = async (req, res) => {
         status: p.status || 'active',
         paidAmount,
         pendingAmount,
+        lastVisit: latestAppt ? latestAppt.date : (p.lastVisit || p.date || 'No Visit'),
+        assignedDoctor: p.assignedDoctor || latestAppt?.doctorName || 'Unassigned',
         // paymentStatus logic matched with PatientPanel.jsx requirements
-        paymentStatus: hasPending ? 'pending' : (hasPaid ? 'paid' : (p.paymentStatus === 'paid' ? 'paid' : 'pending'))
+        paymentStatus: isDead ? 'dead' : (hasPending ? 'pending' : (hasPaid ? 'paid' : (p.paymentStatus === 'paid' ? 'paid' : 'pending')))
       };
     });
 

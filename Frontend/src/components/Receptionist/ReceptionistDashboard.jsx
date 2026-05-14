@@ -68,6 +68,7 @@ const ReceptionistLayout = () => {
   }, [user?.id || user?._id]);
 
   const navigation = [
+    { name: 'Follow up & Reminder', href: '/receptionist/followup', icon: Bell },
     { name: 'New Appointment', href: '/receptionist', icon: Calendar },
     {
       name: 'Appointment Mgmt',

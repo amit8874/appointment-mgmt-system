@@ -245,27 +245,66 @@ export const fetchCounts = async () => {
 
 export const patientApi = {
   getAll: async (params = {}) => {
-    const [patientsRes, billsRes, appointmentsRes] = await Promise.all([
-      api.get('/patients', { params }),
-      api.get('/billing'),
-      api.get('/appointments').catch(() => ({ data: [] })) // fallback if error
-    ]);
+    // If we're doing server-side pagination, the backend already merges billing/appt data
+    // for the current page. We only need to do it here for legacy or specific cases.
+    const patientsRes = await api.get('/patients', { params });
     
     // Check if the response is paginated (object) or legacy (array)
     const isPaginated = !Array.isArray(patientsRes.data);
-    const patients = isPaginated ? patientsRes.data.patients : patientsRes.data;
+    
+    // If it's paginated, use the backend's data as it's already optimized
+    if (isPaginated) {
+      const formattedPatients = patientsRes.data.patients.map(patient => {
+        const rawName = patient.fullName || `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Unknown';
+        const cleanName = (() => {
+          const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
+          let parts = rawName.split(/\s+/);
+          while (parts.length > 1) {
+            const p0 = parts[0].toUpperCase().replace(/\./g, '');
+            const p1 = parts[1].toUpperCase().replace(/\./g, '');
+            if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
+              parts.shift();
+            } else {
+              break;
+            }
+          }
+          return parts.join(' ');
+        })();
+
+        return {
+          ...patient,
+          id: patient.patientId,
+          name: cleanName,
+          phone: patient.mobile || patient.contactNumber || '',
+          contact: patient.mobile || patient.contactNumber || '',
+          doc: patient.assignedDoctor,
+          date: patient.lastVisit,
+        };
+      });
+
+      return {
+        ...patientsRes.data,
+        patients: formattedPatients
+      };
+    }
+
+    // LEGACY: If not paginated, we still need to merge manually
+    const [billsRes, appointmentsRes] = await Promise.all([
+      api.get('/billing'),
+      api.get('/appointments').catch(() => ({ data: [] }))
+    ]);
+    
+    const patients = patientsRes.data;
     const bills = billsRes.data;
     const appointments = appointmentsRes.data;
     
-    // Create a map of patientId → latest bill info
+    // ... rest of the legacy merging logic ...
     const billMap = {};
     bills.forEach(bill => {
       const key = bill.patientId;
       if (key) {
         const billDate = new Date(bill.createdAt || bill.date || 0);
         const existingBillDate = billMap[key] ? new Date(billMap[key].createdAt || billMap[key].date || 0) : new Date(0);
-        
-        // Always take the latest bill for synchronization
         if (!billMap[key] || billDate >= existingBillDate) {
           billMap[key] = {
             status: (bill.status || 'Pending').toLowerCase(),
@@ -277,79 +316,34 @@ export const patientApi = {
       }
     });
 
-    const appointmentAmountMap = {};
-    appointments.forEach(appt => {
-      const key = appt.patientId;
-      if (key && appt.amount > 0 && !appointmentAmountMap[key]) {
-        appointmentAmountMap[key] = appt.amount;
-      }
-    });
-    
     const formattedPatients = patients.map(patient => {
       const billingInfo = billMap[patient.patientId] || null;
-      const fallbackAmount = appointmentAmountMap[patient.patientId] || 0;
-      const totalAmount = billingInfo ? billingInfo.amount : fallbackAmount;
+      const totalAmount = billingInfo ? billingInfo.amount : 0;
       const isPaid = billingInfo?.status === 'paid';
       const isDead = billingInfo?.status === 'dead' || patient.status === 'dead';
       const isCancelled = billingInfo?.status === 'cancelled';
 
-      // Map appointments for each patient to find their latest appointment date and doctor
       const patientAppointments = appointments.filter(a => a.patientId === patient.patientId);
       const sortedAppts = [...patientAppointments].sort((a, b) => new Date(b.date) - new Date(a.date));
       const latestAppointmentDate = sortedAppts[0]?.date || patient.lastVisit || 'No Visit';
       const assignedDoctor = patient.assignedDoctor || sortedAppts[0]?.doctorName || 'Unassigned';
 
       const rawName = patient.fullName || `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Unknown';
-      const cleanName = (() => {
-        const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
-        let parts = rawName.split(/\s+/);
-        while (parts.length > 1) {
-          const p0 = parts[0].toUpperCase().replace(/\./g, '');
-          const p1 = parts[1].toUpperCase().replace(/\./g, '');
-          if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
-            parts.shift();
-          } else {
-            break;
-          }
-        }
-        return parts.join(' ');
-      })();
-
       return {
+        ...patient,
         id: patient.patientId,
-        patientId: patient.patientId,
-        _id: patient._id,
-        name: cleanName,
-        firstName: patient.firstName || '',
-        lastName: patient.lastName || '',
-        age: patient.age || '',
-        gender: patient.gender || '',
-        bloodGroup: patient.bloodGroup || '',
-        dateOfBirth: patient.dateOfBirth || '',
+        name: rawName,
         phone: patient.mobile || patient.contactNumber || '',
-        address: patient.address || '',
-        city: patient.city || '',
-        state: patient.state || '',
-        zip: patient.zip || '',
         contact: patient.mobile || patient.contactNumber || '',
         doc: assignedDoctor,
-        disease: patient.disease || 'Not Specified',
-        date: latestAppointmentDate, // Using scheduled date
+        date: latestAppointmentDate,
         lastVisit: latestAppointmentDate,
-        status: patient.status || null,
         paymentStatus: isDead ? 'dead' : (isCancelled ? 'cancelled' : (isPaid ? 'paid' : 'pending')),
         paidAmount: isPaid ? totalAmount : 0,
         pendingAmount: !isPaid && !isDead && !isCancelled ? totalAmount : 0,
-        email: patient.email || '',
       };
     });
 
-    if (isPaginated) {
-      return {
-        ...patientsRes.data,
-        patients: formattedPatients
-      };
-    }
     return formattedPatients;
   },
   getCount: async () => {
