@@ -231,3 +231,93 @@ export const sendInvoiceEmail = async (patientEmail, patientName, billId, amount
         throw error;
     }
 };
+
+/**
+ * Send daily appointment summary to organization admin via email.
+ */
+export const sendDailyAppointmentSummaryEmail = async (adminEmail, adminName, clinicName, dateStr, appointmentsCount, appointmentsList = []) => {
+    try {
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER || 'amitmaurya3276@gmail.com',
+                pass: process.env.EMAIL_PASS
+            }
+        });
+
+        // Generate dynamic table rows of today's appointments
+        let tableRows = '';
+        if (appointmentsList.length > 0) {
+            tableRows = appointmentsList.map((app, index) => `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 12px 10px; font-size: 14px; color: #334155; font-weight: 600;">${index + 1}</td>
+                    <td style="padding: 12px 10px; font-size: 14px; color: #334155; font-weight: 600;">${app.patientName || `${app.firstName || ''} ${app.lastName || ''}`.trim() || 'N/A'}</td>
+                    <td style="padding: 12px 10px; font-size: 14px; color: #4f46e5; font-weight: 700;">${app.time}</td>
+                    <td style="padding: 12px 10px; font-size: 14px; color: #64748b;">Dr. ${app.doctorName || 'N/A'}</td>
+                    <td style="padding: 12px 10px; font-size: 14px; color: #64748b;">${app.patientPhone || 'N/A'}</td>
+                </tr>
+            `).join('');
+        } else {
+            tableRows = `
+                <tr>
+                    <td colspan="5" style="padding: 30px; text-align: center; font-size: 14px; color: #94a3b8; font-style: italic;">
+                        No appointments scheduled for today.
+                    </td>
+                </tr>
+            `;
+        }
+
+        const mailOptions = {
+            from: `"Clicnic Platform" <${process.env.EMAIL_USER || 'amitmaurya3276@gmail.com'}>`,
+            to: adminEmail,
+            subject: `🗓️ Daily Appointment Summary: ${appointmentsCount} Appointments Scheduled`,
+            html: `
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+                    <div style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); padding: 35px 20px; text-align: center; color: white;">
+                        <span style="background: rgba(255,255,255,0.2); padding: 6px 16px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; margin-bottom: 15px;">Daily Briefing</span>
+                        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.025em;">${clinicName}</h1>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px; font-weight: 500;">Schedule for ${dateStr}</p>
+                    </div>
+                    <div style="padding: 30px; background: white;">
+                        <p style="font-size: 16px; margin-bottom: 20px; color: #1e293b;">Hello <strong>${adminName}</strong>,</p>
+                        <p style="font-size: 14px; color: #64748b; margin-bottom: 25px;">Here is the daily overview of your scheduled appointments for today, <strong>${dateStr}</strong>:</p>
+                        
+                        <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #f1f5f9; margin-bottom: 25px; text-align: center;">
+                            <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;">Total Appointments</span>
+                            <h2 style="font-size: 36px; font-weight: 900; margin: 5px 0 0 0; color: #4f46e5;">${appointmentsCount}</h2>
+                        </div>
+
+                        <div style="border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin-bottom: 25px;">
+                            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                                <thead>
+                                    <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                                        <th style="padding: 12px 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; width: 30px;">#</th>
+                                        <th style="padding: 12px 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b;">Patient</th>
+                                        <th style="padding: 12px 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; width: 80px;">Time</th>
+                                        <th style="padding: 12px 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b;">Doctor</th>
+                                        <th style="padding: 12px 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b;">Phone</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <p style="font-size: 13px; color: #94a3b8; margin-top: 30px; text-align: center;">This is an automatically generated daily report. Please do not reply directly to this message.</p>
+                    </div>
+                    <div style="background: #f1f5f9; padding: 20px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0;">
+                        &copy; ${new Date().getFullYear()} ${clinicName}. Powered by Clicnic. All rights reserved.
+                    </div>
+                </div>
+            `
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log('[Email Service] Daily Appointment Summary email sent:', info.messageId);
+        return true;
+    } catch (error) {
+        console.error('[Email Service] Error sending daily summary email:', error);
+        return false;
+    }
+};

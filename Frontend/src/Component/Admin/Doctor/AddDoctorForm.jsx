@@ -5,7 +5,7 @@ import {
     Droplet, Users, Image as ImageIcon, Plus, Trash2,
     Save, X, Check, ChevronRight, Upload, ShieldCheck,
     Stethoscope, Building2, CreditCard, ChevronLeft, AlertCircle,
-    UserCircle, Fingerprint, Search, Loader2, Map, CheckCircle2
+    UserCircle, Fingerprint, Search, Loader2, Map, CheckCircle2, Sparkles
 } from 'lucide-react';
 import { centralDoctorApi, commonApi, centralSpecializationApi, centralCouncilApi, centralPracticeApi } from '../../../services/api';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -40,7 +40,7 @@ const InputField = ({ label, name, type = "text", placeholder, value, onChange, 
     </div>
 );
 
-const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
+const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) => {
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [activeTab, setActiveTab] = useState('basic'); // basic, professional, registration, identity, location, availability
@@ -75,7 +75,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
         'Aadhar Card', 'PAN Card', 'Driving License', 'Voter Card', 'Other'
     ];
 
-    const tabsOrder = ['basic', 'professional', 'registration', 'identity', 'location', 'availability'];
+    const tabsOrder = ['basic', 'professional', 'registration', 'availability'];
     
     // Initialize form data
     const getInitialFormData = () => ({
@@ -116,7 +116,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
     useEffect(() => {
         if (doctor) {
             setFormData(getInitialFormData());
-            setCompletedSteps(['basic', 'professional', 'registration', 'identity', 'location']);
+            setCompletedSteps(['basic', 'professional', 'registration']);
         }
     }, [doctor]);
 
@@ -256,15 +256,6 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
             if (!formData.registrationCouncil) newErrors.registrationCouncil = "Registration council is required";
             if (!formData.registrationYear.trim()) newErrors.registrationYear = "Registration year is required";
         }
-        if (tabId === 'identity') {
-            if (!formData.idNumber.trim()) newErrors.idNumber = "Identity ID Number is required";
-            if (!formData.idDocumentUrl.trim()) newErrors.idDocumentUrl = "Identity document upload is required";
-        }
-        if (tabId === 'location') {
-            if (formData.serviceLocation.type === 'other' && !formData.serviceLocation.practiceName) {
-                newErrors.practiceName = "Please select or add a practice location";
-            }
-        }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -361,8 +352,6 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
         { id: 'basic', label: 'Basic Info', icon: User },
         { id: 'professional', label: 'Professional', icon: Stethoscope },
         { id: 'registration', label: 'Registration', icon: FileText },
-        { id: 'identity', label: 'Identity Proof', icon: Fingerprint },
-        { id: 'location', label: 'Practice Location', icon: MapPin },
         { id: 'availability', label: 'Availability', icon: Clock }
     ];
 
@@ -388,21 +377,8 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                             <div className="space-y-2">
                                 <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Registration Successful!</h2>
                                 <p className="text-slate-500 dark:text-slate-400 font-medium max-w-md mx-auto">
-                                    Your doctor has been registered successfully. The profile is currently in <span className="text-amber-500 font-bold uppercase">Pending</span> status.
+                                    Your doctor has been registered successfully and is now <span className="text-emerald-500 font-bold uppercase">Active</span>.
                                 </p>
-                            </div>
-                            <div className="bg-amber-50 dark:bg-amber-900/10 p-6 rounded-2xl border border-amber-100 dark:border-amber-800/50 max-w-lg w-full">
-                                <div className="flex items-start gap-4 text-left">
-                                    <div className="mt-1 p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg text-amber-600">
-                                        <ShieldCheck size={20} />
-                                    </div>
-                                    <div>
-                                        <h4 className="text-sm font-black text-amber-900 dark:text-amber-200 uppercase tracking-widest mb-1">Verification in Progress</h4>
-                                        <p className="text-xs font-medium text-amber-800/70 dark:text-amber-400/70 leading-relaxed">
-                                            Our <span className="font-bold">Oviaan Team</span> will verify the doctor's credentials and medical registration details within <span className="font-bold">24 hours</span>. Once approved, the doctor will be active and visible for appointments.
-                                        </p>
-                                    </div>
-                                </div>
                             </div>
                             <button 
                                 onClick={onClose} 
@@ -418,8 +394,29 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                             <h1 className="text-lg md:text-xl font-black uppercase tracking-tight leading-tight">{doctor ? 'Edit Doctor Profile' : 'Register New Doctor'}</h1>
                             <p className="text-indigo-100/70 text-[10px] md:text-xs font-medium mt-0.5">Section {currentIdx + 1} of 6: {tabs.find(t=>t.id===activeTab).label}</p>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center justify-center"><X size={20} /></button>
+                        {!isForced && (
+                            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center justify-center"><X size={20} /></button>
+                        )}
                     </div>
+
+                    {isForced && (
+                        <div className="px-5 md:px-8 py-4 bg-indigo-50/50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/50 flex items-start gap-4 animate-in slide-in-from-top-2">
+                            <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-indigo-600 dark:text-indigo-400 mt-1 shrink-0">
+                                <Sparkles size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black text-indigo-900 dark:text-indigo-100 uppercase tracking-tight mb-1">
+                                    Start Your Healing Journey ✨
+                                </h3>
+                                <p className="text-xs font-medium text-indigo-700/80 dark:text-indigo-300/80 leading-relaxed mb-2">
+                                    Welcome to your clinic! Please add your first doctor to unlock the dashboard and start taking appointments.
+                                </p>
+                                <p className="text-[10px] font-bold text-indigo-500/80 dark:text-indigo-400/80 italic">
+                                    "Wherever the art of medicine is loved, there is also a love of humanity." — Hippocrates
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="flex flex-col md:flex-row flex-1 min-h-0">
                         <div className="w-full md:w-56 bg-slate-50 dark:bg-slate-800/30 border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800 flex md:flex-col p-2 md:p-4 gap-1 md:space-y-1.5 overflow-x-auto md:overflow-y-auto no-scrollbar scroll-smooth">
@@ -542,165 +539,6 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                                     </motion.div>
                                 )}
 
-                                {activeTab === 'identity' && (
-                                    <motion.div key="id" className="space-y-6">
-                                        <SectionTitle title="Identity Verification" icon={Fingerprint} />
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-                                            <div className="flex flex-col">
-                                                <label className="text-[10px] font-bold text-gray-400 uppercase mb-1.5 ml-0.5">ID Type</label>
-                                                <select name="idType" value={formData.idType} onChange={handleInputChange} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold">
-                                                    {idTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                                                </select>
-                                            </div>
-                                            <InputField label="ID Number" name="idNumber" value={formData.idNumber} onChange={handleInputChange} icon={Fingerprint} error={errors.idNumber} />
-                                        </div>
-                                        <div className="mt-4">
-                                            <label className="text-[10px] font-bold text-gray-400 uppercase mb-2 block">Upload ID Document</label>
-                                            <div className={`relative w-full h-32 rounded-xl border-2 border-dashed ${uploadError.idDocumentUrl ? 'border-red-400 bg-red-50/10' : 'border-slate-200 bg-slate-50'} flex flex-col items-center justify-center overflow-hidden`}>
-                                                {uploading ? (
-                                                    <div className="flex flex-col items-center gap-2">
-                                                        <Loader2 className="animate-spin text-indigo-600" />
-                                                        <span className="text-xs font-black text-indigo-600 uppercase">Image is uploading please wait...</span>
-                                                    </div>
-                                                ) : formData.idDocumentUrl ? (
-                                                    <div className="text-indigo-600 font-bold flex items-center gap-2">
-                                                        <FileText /> Document Uploaded
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-slate-300 text-center">
-                                                        <Upload className="mx-auto mb-2" /> 
-                                                        <span className="text-[10px] font-black uppercase">Click to Upload</span>
-                                                    </div>
-                                                )}
-                                                <input type="file" onChange={(e)=>handleFileUpload(e, 'idDocumentUrl')} className="absolute inset-0 opacity-0 cursor-pointer" disabled={uploading} />
-                                            </div>
-                                            {uploadError.idDocumentUrl && <p className="text-[10px] text-red-500 font-bold mt-2 leading-tight">{uploadError.idDocumentUrl}</p>}
-                                        </div>
-                                    </motion.div>
-                                )}
-
-                                {activeTab === 'location' && (
-                                    <motion.div key="loc" className="space-y-6">
-                                        <SectionTitle title="Service & Practice Location" icon={MapPin} />
-                                        
-                                        <div className="space-y-4">
-                                            <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-800 space-y-4">
-                                                <h4 className="text-xs font-black text-indigo-900 dark:text-indigo-200 uppercase tracking-widest">Where do you provide your service?</h4>
-                                                <div className="flex gap-4">
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={() => setFormData(p => ({ ...p, serviceLocation: { ...p.serviceLocation, type: 'clinic', practiceName: '', practiceId: null } }))}
-                                                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${formData.serviceLocation.type === 'clinic' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-indigo-200'}`}
-                                                    >
-                                                        <Building2 size={16} /> <span className="text-[10px] font-black uppercase">Current Own Clinic</span>
-                                                    </button>
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={() => setFormData(p => ({ ...p, serviceLocation: { ...p.serviceLocation, type: 'other' } }))}
-                                                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition-all ${formData.serviceLocation.type === 'other' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-indigo-200'}`}
-                                                    >
-                                                        <MapPin size={16} /> <span className="text-[10px] font-black uppercase">Other Hospital / Clinic</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {(formData.serviceLocation.type === 'clinic' || (formData.serviceLocation.type === 'other' && (showNewPracticeForm || (!formData.serviceLocation.practiceId && formData.serviceLocation.practiceName)))) && (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95">
-                                                    <div className="col-span-1 md:col-span-2 flex items-center gap-2 mb-2">
-                                                        <div className="h-1 flex-1 bg-indigo-100 dark:bg-indigo-900 rounded-full" />
-                                                        <span className="text-[10px] font-black text-indigo-600 uppercase">
-                                                            {formData.serviceLocation.type === 'clinic' ? 'Your Clinic Address' : 'New Practice Details'}
-                                                        </span>
-                                                        <div className="h-1 flex-1 bg-indigo-100 dark:bg-indigo-900 rounded-full" />
-                                                    </div>
-                                                    
-                                                    {formData.serviceLocation.type === 'clinic' && (
-                                                        <div className="col-span-2">
-                                                            <InputField label="Clinic Display Name (Optional)" name="practiceName" value={formData.serviceLocation.practiceName} onChange={(e) => setFormData(p => ({ ...p, serviceLocation: { ...p.serviceLocation, practiceName: e.target.value } }))} icon={Building2} placeholder="e.g. Main Branch, City Center" />
-                                                        </div>
-                                                    )}
-
-                                                    <InputField label="City *" name="city" section="serviceLocation" value={formData.serviceLocation.address.city} onChange={handleInputChange} icon={MapPin} />
-                                                    <InputField label="State" name="state" section="serviceLocation" value={formData.serviceLocation.address.state} onChange={handleInputChange} />
-                                                    <InputField label="Full Address / Street" name="street" section="serviceLocation" value={formData.serviceLocation.address.street} onChange={handleInputChange} className="col-span-2" />
-                                                    
-                                                    {formData.serviceLocation.type === 'other' && !formData.serviceLocation.practiceId && (
-                                                        <div className="col-span-2 pt-2">
-                                                            <button type="button" onClick={handleAddPractice} disabled={isAddingPractice} className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
-                                                                {isAddingPractice ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                                                Save & Link Practice Location
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {formData.serviceLocation.type === 'other' && (
-                                                <div className="space-y-5 animate-in fade-in slide-in-from-top-2">
-                                                    <div className="flex flex-col relative" ref={practiceDropdownRef}>
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase mb-1.5 ml-0.5">Search Consulting Hospital/Clinic *</label>
-                                                        <div className="relative group">
-                                                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                                            <input 
-                                                                type="text" 
-                                                                placeholder="e.g. Apollo Hospital, City Care Clinic..." 
-                                                                value={showPracticeDropdown ? practiceSearch : (formData.serviceLocation.practiceName || '')} 
-                                                                onChange={(e) => { setPracticeSearch(e.target.value); setShowPracticeDropdown(true); }}
-                                                                onFocus={() => setShowPracticeDropdown(true)}
-                                                                className={`w-full pl-9 py-2.5 bg-gray-50 border ${errors.practiceName ? 'border-red-500' : 'border-gray-200'} rounded-xl text-sm font-bold outline-none focus:border-indigo-500`} 
-                                                            />
-                                                        </div>
-                                                        <AnimatePresence>
-                                                            {showPracticeDropdown && (
-                                                                <motion.div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-56 overflow-auto custom-scrollbar">
-                                                                    {filteredPractices.length > 0 ? (
-                                                                        <div className="p-1">
-                                                                            {filteredPractices.map(p => (
-                                                                                <button key={p._id} onClick={() => { setFormData(prev => ({ ...prev, serviceLocation: { ...prev.serviceLocation, practiceId: p._id, practiceName: p.name, address: { ...p } } })); setShowPracticeDropdown(false); setShowNewPracticeForm(false); }} className="w-full text-left px-4 py-3 hover:bg-indigo-50 rounded-xl flex items-center justify-between group">
-                                                                                    <div>
-                                                                                        <p className="text-sm font-bold text-slate-700">{p.name}</p>
-                                                                                        <p className="text-[10px] font-medium text-slate-400 uppercase">{p.city}, {p.state}</p>
-                                                                                    </div>
-                                                                                    <Check size={16} className="text-emerald-500 opacity-0 group-hover:opacity-100" />
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="p-5 text-center">
-                                                                            <p className="text-[11px] font-bold text-slate-400 mb-3 uppercase tracking-widest">"{practiceSearch}" not found</p>
-                                                                            <button type="button" onClick={() => { setFormData(p => ({ ...p, serviceLocation: { ...p.serviceLocation, practiceName: practiceSearch, address: { street: '', city: '', state: '', pincode: '' } } })); setShowNewPracticeForm(true); setShowPracticeDropdown(false); }} className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">+ Add New Practice Location</button>
-                                                                        </div>
-                                                                    )}
-                                                                </motion.div>
-                                                            )}
-                                                        </AnimatePresence>
-                                                    </div>
-
-                                                    {(showNewPracticeForm || (formData.serviceLocation.type === 'other' && !formData.serviceLocation.practiceId && formData.serviceLocation.practiceName)) && (
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95">
-                                                            <div className="col-span-1 md:col-span-2 flex items-center gap-2 mb-2">
-                                                                <div className="h-1 flex-1 bg-indigo-100 dark:bg-indigo-900 rounded-full" />
-                                                                <span className="text-[10px] font-black text-indigo-600 uppercase">New Location Details</span>
-                                                                <div className="h-1 flex-1 bg-indigo-100 dark:bg-indigo-900 rounded-full" />
-                                                            </div>
-                                                            <InputField label="Clinic/Hospital Name" name="practiceName" value={formData.serviceLocation.practiceName} onChange={(e) => setFormData(p => ({ ...p, serviceLocation: { ...p.serviceLocation, practiceName: e.target.value } }))} icon={Building2} />
-                                                            <InputField label="City *" name="city" section="serviceLocation" value={formData.serviceLocation.address.city} onChange={handleInputChange} icon={MapPin} />
-                                                            <InputField label="State" name="state" section="serviceLocation" value={formData.serviceLocation.address.state} onChange={handleInputChange} />
-                                                            <InputField label="Full Address / Street" name="street" section="serviceLocation" value={formData.serviceLocation.address.street} onChange={handleInputChange} className="col-span-1 md:col-span-2" />
-                                                            <div className="col-span-1 md:col-span-2 pt-2">
-                                                                <button type="button" onClick={handleAddPractice} disabled={isAddingPractice} className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
-                                                                    {isAddingPractice ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                                                    Save & Link Practice Location
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                )}
-
                                 {activeTab === 'availability' && (
                                     <motion.div key="avail" className="space-y-6">
                                         <SectionTitle title="Availability" icon={Clock} />
@@ -749,7 +587,9 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor }) => {
                         <div className="hidden md:block">{activeTab !== 'basic' && <button onClick={handleBack} className="flex items-center gap-2 px-6 py-2 text-slate-500 font-bold text-xs uppercase"><ChevronLeft size={18} /> Back</button>}</div>
                         <div className="flex w-full md:w-auto gap-3 md:gap-4">
                             {activeTab !== 'basic' && <button onClick={handleBack} className="flex-1 md:hidden flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 text-slate-500 font-black rounded-xl text-[10px] uppercase">Back</button>}
-                            <button onClick={onClose} className="flex-1 md:flex-none py-3 md:px-6 md:py-2 text-slate-400 font-bold text-[10px] md:text-xs uppercase">Cancel</button>
+                            {!isForced && (
+                                <button onClick={onClose} className="flex-1 md:flex-none py-3 md:px-6 md:py-2 text-slate-400 font-bold text-[10px] md:text-xs uppercase">Cancel</button>
+                            )}
                             {activeTab !== 'availability' ? (
                                 <button onClick={handleNext} className="flex-[2] md:flex-none px-6 md:px-8 py-3 bg-indigo-600 text-white font-black rounded-xl text-[10px] md:text-xs uppercase shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2">Next <ChevronRight size={18} /></button>
                             ) : (

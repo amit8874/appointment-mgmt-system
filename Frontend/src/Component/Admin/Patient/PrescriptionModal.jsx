@@ -517,20 +517,20 @@ const ComplaintDropdownInput = ({ index, value, onChange, masterComplaints, onAd
               {/* Group by category */}
               {Array.from(new Set(filtered.map(c => c.category || 'General'))).sort().map(cat => {
                 const catIcons = {
-                  'General': 'ðŸŸ¦', 'Respiratory': 'ðŸ«', 'ENT': 'ðŸ‘‚', 'Gastrointestinal': 'ðŸ¤¢', 
-                  'CVS': 'ðŸ«€', 'Neurology': 'ðŸ§ ', 'Musculoskeletal': 'ðŸ¦´', 'Skin': 'ðŸ§´',
-                  'Urology': 'ðŸš½', 'Gynecology': 'ðŸ‘©', 'Pediatric': 'ðŸ‘¶', 'Chronic': 'ðŸ“…',
-                  'Eye': 'ðŸ‘ï¸', 'Dental': 'ðŸ¦·', 'Psychological': 'ðŸ§˜',
-                  'Derm: Itching': 'ðŸ§´', 'Derm: Rash': 'ðŸ”´', 'Derm: Acne': 'ðŸ’†', 'Derm: Fungal': 'ðŸ„',
-                  'Derm: Allergy': 'ðŸ¤§', 'Derm: Eczema': 'ðŸ©¹', 'Derm: Psoriasis': 'ðŸ§´', 
-                  'Derm: Pigmentation': 'âœ¨', 'Derm: Hair': 'ðŸ’‡', 'Derm: Nail': 'ðŸ’…',
-                  'Derm: Sensation': 'âš¡', 'Derm: Boils': 'ðŸŒ‹', 'Derm: Warts': 'ðŸ§¬',
-                  'Derm: Ulcer': 'ðŸ©¹', 'Derm: Sweating': 'ðŸ’¦'
+                  'General': '🩺', 'Respiratory': '🫁', 'ENT': '👂', 'Gastrointestinal': '🤢', 
+                  'CVS': '❤️', 'Neurology': '🧠', 'Musculoskeletal': '🦴', 'Skin': '🩹',
+                  'Urology': '🚽', 'Gynecology': '👩', 'Pediatric': '👶', 'Chronic': '📅',
+                  'Eye': '👁️', 'Dental': '🦷', 'Psychological': '🧘',
+                  'Derm: Itching': '🦠', 'Derm: Rash': '🔴', 'Derm: Acne': '💆', 'Derm: Fungal': '🍄',
+                  'Derm: Allergy': '🤧', 'Derm: Eczema': '🩸', 'Derm: Psoriasis': '🩹', 
+                  'Derm: Pigmentation': '✨', 'Derm: Hair': '💇', 'Derm: Nail': '💅',
+                  'Derm: Sensation': '⚡', 'Derm: Boils': '🌋', 'Derm: Warts': '🦠',
+                  'Derm: Ulcer': '🩸', 'Derm: Sweating': '💦'
                 };
                 return (
                   <div key={cat} className="mb-2">
                     <div className="px-4 py-1.5 bg-slate-50 dark:bg-slate-800/50 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] border-y border-slate-300/50 dark:border-slate-700/50 flex items-center gap-2">
-                      <span>{catIcons[cat] || 'ðŸ“‹'}</span>
+                      <span>{catIcons[cat] || '📋'}</span>
                       {cat}
                     </div>
                     {filtered.filter(c => (c.category || 'General') === cat).map((c, i) => (
@@ -1200,9 +1200,6 @@ setDiagnosis(newArr);
                   <ClipboardList className="text-indigo-600" size={18} />
                   <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-300">Chief Complaints</h4>
                 </div>
-                <button onClick={addComplaint} className="flex items-center gap-1 text-xs font-black text-indigo-600 hover:text-indigo-700 transition-colors uppercase tracking-widest">
-                  <Plus size={14} /> Add New
-                </button>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-300 dark:border-slate-800 shadow-sm overflow-visible">
                 <table className="w-full text-left">
@@ -1219,15 +1216,22 @@ setDiagnosis(newArr);
                     {complaints.map((c, i) => (
                       <tr key={i} className="hover:bg-slate-50/30 transition-colors">
                         <td className="px-4 py-2 overflow-visible relative">
-                          <ComplaintDropdownInput 
-                            index={i} 
-                            value={c.name} 
-                            onChange={(val) => updateComplaint(i, 'name', val)} 
-                            masterComplaints={masterComplaints}
-                            onAddMaster={addMasterComplaint}
-                            user={user}
-                            doctorSpecialty={selectedDoctor?.specialization || selectedDoctor?.speciality}
-                          />
+                          <div className="flex items-center gap-2 w-full">
+                            <button type="button" onClick={addComplaint} className="flex-shrink-0 p-1.5 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm shadow-blue-600/30" title="Add Complaint">
+                              <Plus size={14} strokeWidth={3} />
+                            </button>
+                            <div className="flex-1 min-w-[200px]">
+                              <ComplaintDropdownInput 
+                                index={i} 
+                                value={c.name} 
+                                onChange={(val) => updateComplaint(i, 'name', val)} 
+                                masterComplaints={masterComplaints}
+                                onAddMaster={addMasterComplaint}
+                                user={user}
+                                doctorSpecialty={selectedDoctor?.specialization || selectedDoctor?.speciality}
+                              />
+                            </div>
+                          </div>
                         </td>
                         <td className="px-4 py-2">
                           <FrequencyDropdownInput 
@@ -1274,9 +1278,6 @@ setDiagnosis(newArr);
                   <FileSearch className="text-indigo-600" size={18} />
                   <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-300">Diagnosis</h4>
                 </div>
-                <button onClick={addDiagnosis} className="flex items-center gap-1 text-xs font-black text-indigo-600 hover:text-indigo-700 transition-colors uppercase tracking-widest">
-                  <Plus size={14} /> Add New
-                </button>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-300 dark:border-slate-800 shadow-sm overflow-visible">
                 <table className="w-full text-left">
@@ -1294,19 +1295,26 @@ setDiagnosis(newArr);
                       <tr key={i} className="hover:bg-slate-50/30 transition-colors">
                         <td className="px-4 py-2.5 text-sm font-normal text-slate-500 text-center">{i + 1}</td>
                         <td className="px-4 py-2 overflow-visible">
-                          <SmartDiagnosisInput 
-                            value={d.name}
-                            onChange={(val) => updateDiagnosis(i, 'name', val)}
-                            context={{
-                              complaints,
-                              specialty: selectedDoctor?.specialization,
-                              age: patient?.age,
-                              gender: patient?.gender,
-                              vitals,
-                              history: [] // Could add previous records here
-                            }}
-                            user={user}
-                          />
+                          <div className="flex items-center gap-2 w-full">
+                            <button type="button" onClick={addDiagnosis} className="flex-shrink-0 p-1.5 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm shadow-blue-600/30" title="Add Diagnosis">
+                              <Plus size={14} strokeWidth={3} />
+                            </button>
+                            <div className="flex-1 min-w-[200px]">
+                              <SmartDiagnosisInput 
+                                value={d.name}
+                                onChange={(val) => updateDiagnosis(i, 'name', val)}
+                                context={{
+                                  complaints,
+                                  specialty: selectedDoctor?.specialization,
+                                  age: patient?.age,
+                                  gender: patient?.gender,
+                                  vitals,
+                                  history: [] // Could add previous records here
+                                }}
+                                user={user}
+                              />
+                            </div>
+                          </div>
                         </td>
                         <td className="px-4 py-2">
                           <DiagnosisDurationInput 
@@ -1345,9 +1353,6 @@ setDiagnosis(newArr);
                   <Pill className="text-indigo-600" size={18} />
                   <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-300">Medications (Rx)</h4>
                 </div>
-                <button onClick={addMedication} className="flex items-center gap-1 text-xs font-black text-indigo-600 hover:text-indigo-700 transition-colors uppercase tracking-widest">
-                  <Plus size={14} /> Add Medicine
-                </button>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-300 dark:border-slate-800 shadow-sm overflow-visible">
                 <table className="w-full text-left">
@@ -1366,24 +1371,29 @@ setDiagnosis(newArr);
                       <React.Fragment key={i}>
                         <tr>
                           <td className="px-4 py-2 min-w-[300px] border border-slate-200">
-                            <div className="flex flex-col gap-0.5">
-                              <SmartMedicineInput 
-                                value={m.name}
-                                onSelect={(fullMed) => handleSelectMedication(i, fullMed)}
-                                context={{
-                                  diagnosis: diagnosis[0]?.name || '',
-                                  complaints: complaints.map(c => c.name),
-                                  specialty: user?.specialty,
-                                  age: patient?.age,
-                                  gender: patient?.gender
-                                }}
-                                user={user}
-                              />
-                              {(m.composition || m.genericName) && (
-                                <div className="text-xs font-normal text-slate-500 italic px-1">
-                                  —({m.composition || m.genericName})
-                                </div>
-                              )}
+                            <div className="flex items-start gap-2 w-full">
+                              <button type="button" onClick={addMedication} className="mt-1 flex-shrink-0 p-1.5 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm shadow-blue-600/30" title="Add Medicine">
+                                <Plus size={14} strokeWidth={3} />
+                              </button>
+                              <div className="flex flex-col gap-0.5 flex-1">
+                                <SmartMedicineInput 
+                                  value={m.name}
+                                  onSelect={(fullMed) => handleSelectMedication(i, fullMed)}
+                                  context={{
+                                    diagnosis: diagnosis[0]?.name || '',
+                                    complaints: complaints.map(c => c.name),
+                                    specialty: user?.specialty,
+                                    age: patient?.age,
+                                    gender: patient?.gender
+                                  }}
+                                  user={user}
+                                />
+                                {(m.composition || m.genericName) && (
+                                  <div className="text-xs font-normal text-slate-500 italic px-1">
+                                    —({m.composition || m.genericName})
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="px-4 py-2.5">
@@ -1430,19 +1440,7 @@ setDiagnosis(newArr);
                             )}
                           </td>
                         </tr>
-                        <tr>
-                          <td colSpan="6" className="px-6 pb-4">
-                            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/30 rounded-xl px-3 py-1.5 border border-dashed border-slate-200 dark:border-slate-700">
-                              <Info size={12} className="text-slate-400" />
-                              <input 
-                                value={m.instructions} 
-                                onChange={(e) => updateMedication(i, 'instructions', e.target.value)}
-                                placeholder="Special instructions (e.g. avoid sugar)..."
-                                className="w-full bg-transparent border-none p-0 text-sm font-normal text-slate-700 focus:ring-0"
-                              />
-                            </div>
-                          </td>
-                        </tr>
+
                       </React.Fragment>
                     ))}
                   </tbody>

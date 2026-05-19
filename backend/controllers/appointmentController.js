@@ -118,7 +118,7 @@ export const getPatientSummary = async (req, res) => {
 
 export const bookPatientAppointment = async (req, res) => {
   try {
-    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, patientDetails } = req.body;
+    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, patientDetails, sendWhatsApp = false } = req.body;
 
     if (!organizationId) return res.status(400).json({ message: 'Organization is required' });
     if (!doctorId) return res.status(400).json({ message: 'Doctor is required' });
@@ -313,11 +313,17 @@ export const bookPatientAppointment = async (req, res) => {
       console.error('Error creating linked bill for patient booking:', billingError);
     }
 
-    res.status(201).json(appointment);
+    const responseData = {
+      ...appointment.toObject(),
+      patientDbId: existingPatient._id
+    };
+
+    res.status(201).json(responseData);
 
     // 8. Send WhatsApp Confirmation Message to Patient
-    try {
-      const organization = await Organization.findById(organizationId);
+    if (sendWhatsApp) {
+      try {
+        const organization = await Organization.findById(organizationId);
       const clinicName = organization?.name || 'our clinic';
       
       // Construct full address
@@ -359,12 +365,11 @@ export const bookPatientAppointment = async (req, res) => {
 
       if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
         console.log(`[WhatsApp] Intake booking confirmation sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
-      } else {
-        console.error('[WhatsApp] Meta API success but no message ID returned:', waResponse);
       }
     } catch (waError) {
       console.error('[WhatsApp] Failed to send intake booking confirmation:', waError.message);
     }
+  }
   } catch (error) {
     console.error('Error booking appointment:', error);
     res.status(500).json({ message: error.message });

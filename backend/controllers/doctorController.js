@@ -676,7 +676,7 @@ export const createDoctor = async (req, res) => {
     // Create and save new doctor
     const newDoctor = new Doctor({
       ...doctorData,
-      status: doctorData.status || 'Pending', // Default to pending for verification
+      status: doctorData.status || 'Verified', // Default to Verified so they can start immediately without SuperAdmin approval
       organizationId: req.tenantId
     });
     const savedDoctor = await newDoctor.save();

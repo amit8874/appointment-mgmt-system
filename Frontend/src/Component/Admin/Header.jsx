@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, UserCircle, Bell, Sun, Moon, Menu, ShieldCheck } from 'lucide-react';
+import { LogOut, UserCircle, Bell, Sun, Moon, Menu, ShieldCheck, MoreVertical } from 'lucide-react';
 import { getNotifications, markAllAsRead, markAsRead } from '../../api/notificationApi';
 import { organizationApi } from '../../services/api';
 
@@ -11,6 +11,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const [planInfo, setPlanInfo] = useState({
     plan: user?.organization?.plan || 'free',
@@ -19,11 +20,21 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
   });
   const [planLoading, setPlanLoading] = useState(false);
   const notificationRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
         setShowNotifications(false);
+      }
+      if (
+        mobileMenuRef.current && 
+        !mobileMenuRef.current.contains(event.target) &&
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target)
+      ) {
+        setShowMobileMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -43,6 +54,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
 
   const toggleTheme = () => {
     setTheme(theme === 'light' ? 'dark' : 'light');
+    setShowMobileMenu(false);
   };
 
   // Fetch notifications
@@ -173,7 +185,25 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
         )}
       </div>
 
-      <div className="flex items-center space-x-2 sm:space-x-4">
+      <div className="flex md:hidden items-center ml-auto relative" ref={mobileMenuRef}>
+        <button
+          onClick={() => setShowMobileMenu(!showMobileMenu)}
+          className="p-1.5 sm:p-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm relative"
+        >
+          <MoreVertical className="w-5 h-5" />
+          {notifications.some(n => !n.isRead) && (
+            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full ring-2 ring-white dark:ring-gray-800 bg-red-500"></span>
+          )}
+        </button>
+      </div>
+
+      <div 
+        ref={dropdownRef}
+        className={`
+          ${showMobileMenu ? 'absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 shadow-2xl z-50 flex flex-col gap-3 items-stretch animate-in slide-in-from-top-2' : 'hidden'}
+          md:flex md:static md:flex-row md:items-center md:gap-3 md:p-0 md:bg-transparent md:border-none md:shadow-none
+        `}
+      >
         {user?.role === 'superadmin' && (
           <button
             onClick={() => navigate('/superadmin/dashboard')}
@@ -187,7 +217,7 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
 
         {/* Subscription Plan Badge */}
         {!planLoading && (
-          <div className={`hidden sm:flex items-center px-3 py-1 rounded-full border shadow-sm transition-all duration-300 ${
+          <div className={`flex items-center justify-center px-3 py-1.5 rounded-full border shadow-sm transition-all duration-300 ${
             planInfo.plan === 'enterprise'
               ? 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-400'
               : planInfo.plan === 'pro'
@@ -212,26 +242,28 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
 
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-xl border border-gray-300 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 Transition-all shadow-sm"
+          className="p-2 rounded-xl border border-gray-300 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 transition-all shadow-sm flex items-center justify-center"
           aria-label="Toggle Theme"
         >
-          {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+          {theme === 'light' ? <Moon className="w-5 h-5 mr-2 md:mr-0" /> : <Sun className="w-5 h-5 mr-2 md:mr-0" />}
+          <span className="md:hidden text-xs font-bold uppercase tracking-wider">{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
         </button>
 
-        <div className="relative" ref={notificationRef}>
+        <div className="relative w-full md:w-auto" ref={notificationRef}>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2 rounded-xl border border-gray-300 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 relative Transition-all shadow-sm"
+            className="w-full p-2 rounded-xl border border-gray-300 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 relative transition-all shadow-sm flex items-center justify-center"
             aria-label="Notifications"
           >
-            <Bell className="w-5 h-5" />
+            <Bell className="w-5 h-5 mr-2 md:mr-0" />
             {notifications.some(n => !n.isRead) && (
-              <span className="absolute top-1 right-1 block h-2 w-2 rounded-full ring-2 ring-white dark:ring-gray-800 bg-red-500"></span>
+              <span className="absolute top-3 right-[45%] md:top-1 md:right-1 block h-2 w-2 rounded-full ring-2 ring-white dark:ring-gray-800 bg-red-500"></span>
             )}
+            <span className="md:hidden text-xs font-bold uppercase tracking-wider">Notifications ({notifications.filter(n => !n.isRead).length})</span>
           </button>
 
           {showNotifications && (
-            <div className="fixed left-4 right-4 top-20 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 w-auto sm:w-80 bg-white dark:bg-gray-700 rounded-xl shadow-2xl ring-1 ring-black ring-opacity-5 z-50 notification-dropdown border border-gray-200">
+            <div className="fixed left-4 right-4 top-20 md:absolute md:left-auto md:right-0 md:top-auto md:mt-3 w-auto md:w-80 bg-white dark:bg-gray-700 rounded-xl shadow-2xl ring-1 ring-black ring-opacity-5 z-50 notification-dropdown border border-gray-200">
               <div className="p-4 border-b border-gray-100 dark:border-gray-600">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">Notifications ({notifications.length})</h3>
               </div>
@@ -273,11 +305,14 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
         </div>
 
         <button
-          className="flex items-center px-1.5 sm:px-3 py-1.5 rounded-xl border border-gray-300 bg-slate-50 text-xs sm:text-sm font-medium text-gray-700 hover:bg-slate-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 group Transition-all shadow-sm"
-          onClick={handleProfileClick}
+          className="flex items-center justify-center md:justify-start px-1.5 sm:px-3 py-2 rounded-xl border border-gray-300 bg-slate-50 text-xs sm:text-sm font-medium text-gray-700 hover:bg-slate-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 group transition-all shadow-sm w-full md:w-auto"
+          onClick={() => {
+            handleProfileClick();
+            setShowMobileMenu(false);
+          }}
           title="My Profile"
         >
-          <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center sm:mr-2 ring-1 ring-gray-200 dark:ring-gray-600 overflow-hidden">
+          <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center mr-2 ring-1 ring-gray-200 dark:ring-gray-600 overflow-hidden">
             {user?.profilePicture ? (
               <img
                 src={user.profilePicture}
@@ -290,14 +325,17 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
               </span>
             )}
           </div>
-          <span className="hidden sm:inline-block max-w-[100px] truncate">{user?.name || 'Profile'}</span>
+          <span className="text-xs font-bold uppercase tracking-wider truncate max-w-[100px]">{user?.name || 'Profile'}</span>
         </button>
 
         {/* Mode Switcher Buttons */}
-        <div className="flex items-center bg-gray-100 dark:bg-gray-700/50 p-1 rounded-2xl border border-gray-200 dark:border-gray-600 shadow-inner">
+        <div className="flex items-center justify-between md:justify-start bg-gray-100 dark:bg-gray-700/50 p-1 rounded-2xl border border-gray-200 dark:border-gray-600 shadow-inner w-full md:w-auto">
           <button
-            onClick={() => onModeSwitch('admin')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center ${
+            onClick={() => {
+              onModeSwitch('admin');
+              setShowMobileMenu(false);
+            }}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center ${
               dashboardMode === 'admin'
                 ? 'bg-white dark:bg-gray-800 text-indigo-600 shadow-md ring-1 ring-black/5'
                 : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
@@ -307,8 +345,11 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
             Admin
           </button>
           <button
-            onClick={() => onModeSwitch('pharmacy')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center ${
+            onClick={() => {
+              onModeSwitch('pharmacy');
+              setShowMobileMenu(false);
+            }}
+            className={`flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center ${
               dashboardMode === 'pharmacy'
                 ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20'
                 : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
@@ -320,8 +361,11 @@ const Header = ({ toggleSidebar, isSidebarOpen, onLogout, isTrialExpired, dashbo
         </div>
 
         <button
-          onClick={onLogout}
-          className="flex items-center px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 border border-gray-300 rounded-xl shadow-sm hover:bg-rose-100 transition duration-200"
+          onClick={() => {
+            onLogout();
+            setShowMobileMenu(false);
+          }}
+          className="flex items-center justify-center px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 border border-gray-300 rounded-xl shadow-sm hover:bg-rose-100 transition duration-200 w-full md:w-auto"
         >
           <LogOut className="w-3.5 h-3.5 mr-1.5" />
           Logout

@@ -158,7 +158,7 @@ const doctorSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['Active', 'Inactive', 'On Leave', 'Pending', 'Verified', 'Rejected'],
-    default: 'Pending',
+    default: 'Verified',
   },
   serviceLocation: {
     type: {

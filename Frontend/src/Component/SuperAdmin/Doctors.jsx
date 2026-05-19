@@ -246,28 +246,7 @@ const Doctors = () => {
                   </div>
                 </section>
 
-                {/* Identity proof & Documents */}
-                <section>
-                  <h4 className="text-sm font-black uppercase tracking-widest text-emerald-600 mb-4 flex items-center gap-2">
-                    <Fingerprint size={16} /> Identity & Documentation
-                  </h4>
-                  <div className="grid grid-cols-2 gap-6 bg-emerald-50/50 rounded-3xl p-6 border border-emerald-100/50">
-                    <DetailBlock label="ID Type" value={doctor.idType || 'Aadhar Card / PAN'} />
-                    <DetailBlock label="ID Number" value={doctor.idNumber || 'N/A'} />
-                    {doctor.idDocumentUrl && (
-                      <div className="col-span-2 pt-2">
-                        <a 
-                          href={doctor.idDocumentUrl} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="flex items-center gap-2 px-4 py-3 bg-white border border-emerald-200 rounded-2xl text-emerald-700 font-bold text-xs uppercase hover:bg-emerald-50 transition-colors"
-                        >
-                          <FileText size={16} /> View Identity Document (Verification Required)
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </section>
+
 
                 {/* Availability Section */}
                 <section>

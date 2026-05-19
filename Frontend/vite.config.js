@@ -23,6 +23,17 @@ export default defineConfig({
         ws: true,
         changeOrigin: true,
         secure: false,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if (err.code === 'ECONNABORTED') return;
+            console.log('proxy error', err);
+          });
+          proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
+            socket.on('error', (err) => {
+              if (err.code === 'ECONNABORTED') return;
+            });
+          });
+        },
       },
     },
   },

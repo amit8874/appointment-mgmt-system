@@ -100,4 +100,26 @@ router.post('/test-generate-invoice-s3/:billId', async (req, res) => {
   }
 });
 
+router.post('/trigger-daily-summary', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ message: 'Forbidden. Dev routes only.' });
+  }
+  try {
+    console.log('[Dev] Manually triggering Daily Admin Summary Job...');
+    const { runDailyAdminSummaryJob } = await import('../cron/dailyAdminSummaryCron.js');
+    await runDailyAdminSummaryJob();
+    res.status(200).json({
+      success: true,
+      message: 'Daily Admin Summary Job executed successfully.'
+    });
+  } catch (error) {
+    console.error('[Dev] Daily Admin Summary trigger failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Daily Admin Summary execution failed',
+      error: error.message
+    });
+  }
+});
+
 export default router;

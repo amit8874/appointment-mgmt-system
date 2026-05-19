@@ -7,6 +7,7 @@ import {
   Zap, Clock
 } from 'lucide-react';
 import { organizationApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import "./Register.css";
 import signupHero from "../assets/img/signup-hero.png";
 
@@ -28,6 +29,7 @@ const InputField = ({ icon: Icon, label, name, ...props }) => (
 
 const RegisterOrganization = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -152,9 +154,10 @@ const RegisterOrganization = () => {
       // Clear pending registration on success
       localStorage.removeItem('pendingRegistration');
       
-      localStorage.setItem('token', token);
+      // Use the login function from AuthContext to properly set the state
+      login({ ...response.user, token });
+      
       localStorage.setItem('tenantSlug', organization.slug);
-      localStorage.setItem('userData', JSON.stringify(response.user));
       navigate('/organization-dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid OTP.');

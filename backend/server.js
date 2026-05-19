@@ -353,12 +353,16 @@ async function initCron() {
       const { setupAppointmentReminderCron } = await import(
         "./cron/appointmentReminderCron.js"
       );
+      const { setupDailyAdminSummaryCron } = await import(
+        "./cron/dailyAdminSummaryCron.js"
+      );
       setupSubscriptionCron();
       setupTrialResetCron();
       setupAppointmentReminderCron();
-      console.log("Subscription and Trial Reset crons started");
-    } catch {
-      console.log("Cron not enabled");
+      setupDailyAdminSummaryCron();
+      console.log("Subscription, Trial Reset, and Daily Summary crons started");
+    } catch (err) {
+      console.log("Cron not enabled or failed to load:", err.message);
     }
   }
 }

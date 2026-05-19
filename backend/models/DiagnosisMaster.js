@@ -11,6 +11,18 @@ const DiagnosisMasterSchema = new mongoose.Schema({
   aiSynonyms: [String], // Natural language variations for AI matching (e.g. ['blood pressure high', 'hypertensive'])
   commonComplaints: [String], // Complaint names that frequently lead to this diagnosis (e.g. ['Headache', 'Palpitation'])
   
+  // Treatment Protocols
+  recommendedMedicines: [{
+    name: String,
+    generic: String,
+    form: { type: String, default: 'Tablet' },
+    strength: String,
+    dose: String,
+    when: { type: String, default: 'After Food' },
+    freq: { type: String, default: 'Daily' },
+    dur: { type: String, default: '5 Days' }
+  }],
+  
   durationType: { type: String, enum: ['Acute', 'Chronic', 'Specialty'], default: 'Acute' },
   isCommon: { type: Boolean, default: false },
   usageCount: { type: Number, default: 0 },

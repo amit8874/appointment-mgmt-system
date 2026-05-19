@@ -56,6 +56,11 @@ const OrganizationDashboard = () => {
         ]);
         setOrganization(orgData);
         setAnalytics(analyticsData);
+
+        // Force user to add a doctor if there are none
+        if (analyticsData?.overview?.totalDoctors === 0) {
+          navigate('/admin-dashboard', { replace: true });
+        }
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);

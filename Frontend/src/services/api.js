@@ -1123,6 +1123,11 @@ export const diagnosisApi = {
 
 // Global Medicine Database API — shared across all clinics
 export const medicineApi = {
+  // Get recommendations from DB or AI
+  getRecommendations: async (contextData) => {
+    const { data } = await api.post('/medicines/recommendations', contextData);
+    return data;
+  },
   // Search medicines by name (for autocomplete)
   search: async (q) => {
     const { data } = await api.get('/medicines/search', { params: { q } });

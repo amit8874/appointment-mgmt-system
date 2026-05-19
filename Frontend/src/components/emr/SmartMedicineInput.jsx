@@ -6,7 +6,7 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
   const [show, setShow] = useState(false);
   const [master, setMaster] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [aiRecs, setAiRecs] = useState({ suggestions: [], reason: '' });
+  const [aiRecs, setAiRecs] = useState({ suggestions: [], reason: '', source: 'AI' });
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(value || '');
   const containerRef = useRef(null);
@@ -70,25 +70,20 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
     const timer = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const prompt = `Act as an expert clinical pharmacologist. Recommend 5-10 appropriate medicines for this case.
-        Diagnosis: ${context.diagnosis}
-        Complaints: ${JSON.stringify(context.complaints)}
-        Specialty: ${context.specialty}
-        Patient: ${context.age}y ${context.gender}
+        const response = await medicineApi.getRecommendations({
+          diagnosis: context.diagnosis,
+          complaints: context.complaints,
+          specialty: context.specialty,
+          age: context.age,
+          gender: context.gender
+        });
         
-        CRITICAL: Return ONLY valid JSON.
-        Format: { "suggestions": [ { "name": "Medicine", "generic": "Salt", "form": "Tablet", "strength": "500mg", "dose": "1-0-1", "when": "After Food", "freq": "Daily", "dur": "5 Days" }, ... ], "reason": "..." }`;
-        
-        const response = await chatbotApi.chat(prompt, [], organizationId, { name: user?.name, role: 'doctor' }, 'doctor');
-        if (response?.text) {
-          const jsonMatch = response.text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const data = JSON.parse(jsonMatch[0]);
-            setAiRecs({
-              suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
-              reason: data.reason || ''
-            });
-          }
+        if (response && response.suggestions) {
+          setAiRecs({
+            suggestions: response.suggestions,
+            reason: response.reason || '',
+            source: response.source || 'AI'
+          });
         }
       } catch (err) { console.error(err); }
       finally { setIsLoading(false); }
@@ -137,7 +132,9 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
               <div className="mb-4">
                 <div className="px-3 py-2 flex items-center gap-2 border-b border-indigo-50 dark:border-indigo-900/30 mb-1">
                   <Sparkles size={14} className="text-indigo-500 animate-pulse" />
-                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">AI Suggested Rx (Based on Clinical Context)</span>
+                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                    {aiRecs.source === 'Database' ? 'Protocol Suggested Rx (Standard)' : 'AI Suggested Rx (Based on Context)'}
+                  </span>
                   {isLoading && <Loader2 size={10} className="animate-spin text-indigo-400 ml-auto" />}
                 </div>
 

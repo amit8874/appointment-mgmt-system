@@ -3,9 +3,11 @@ import { Plus, ChevronDown, Calendar as CalendarIcon, Loader2, Mic, MicOff, X } 
 import api, { whatsappApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function HorizontalAppointmentForm({ doctors = [], onSuccess, openDoctorForm, initialData = null, limits, totalDoctors = 0 }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [isFetchingSlots, setIsFetchingSlots] = useState(false);
@@ -41,7 +43,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     notes: '',
   });
 
-  const [bookingMode, setBookingMode] = useState('APPOINTMENT'); // 'APPOINTMENT' or 'WALK_IN'
+  const [bookingMode, setBookingMode] = useState('APPOINTMENT'); // Force APPOINTMENT mode to enable calendar and slots
   const [billingData, setBillingData] = useState({
     status: 'Pending',
     paymentMode: 'Cash'
@@ -374,6 +376,8 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           specialty: selectedDoc ? selectedDoc.specialization : 'General',
           date: formData.appointmentDate,
           time: formData.appointmentTime,
+          paymentStatus: billingData.status.toLowerCase(),
+          sendWhatsApp: sendWhatsApp,
           patientDetails: {
             designation: formData.designation,
             firstName: formData.firstName,
@@ -392,7 +396,14 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         if (response.status === 200 || response.status === 201) {
           toast.success('Appointment booked successfully!');
           resetForm();
-          if (onSuccess) onSuccess();
+          
+          const patientIdStr = response.data.patientDbId || response.data.patientId;
+          if (patientIdStr) {
+             const basePath = user?.role === 'receptionist' ? '/receptionist' : '/admin';
+             navigate(`${basePath}/patient/${patientIdStr}`);
+          } else {
+             if (onSuccess) onSuccess();
+          }
         }
       }
     } catch (error) {
@@ -491,32 +502,11 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Tabs and Action Row */}
+        {/* Action Row */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
-          <div className="flex bg-gray-100 dark:bg-gray-700/50 p-1 rounded-xl w-full md:w-auto">
-            <button
-              type="button"
-              onClick={() => setBookingMode('APPOINTMENT')}
-              className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                bookingMode === 'APPOINTMENT' 
-                  ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Book Appointment
-            </button>
-            <button
-              type="button"
-              onClick={() => setBookingMode('WALK_IN')}
-              className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-                bookingMode === 'WALK_IN' 
-                  ? 'bg-white dark:bg-gray-600 text-blue-600 shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Add Walk-in Patient
-            </button>
-          </div>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">
+            Add Patient
+          </h3>
 
           <button
             type="button"
@@ -771,9 +761,9 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
                 value={formData.appointmentDate} 
                 onChange={handleChange} 
                 required 
-                readOnly={bookingMode === 'WALK_IN'}
+                readOnly={false}
                 min={new Date().toISOString().split('T')[0]} 
-                className={`w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 pl-8 bg-white dark:bg-gray-700 ${bookingMode === 'WALK_IN' ? 'opacity-70 bg-gray-50' : ''}`} 
+                className={`w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 pl-8 bg-white dark:bg-gray-700`} 
               />
               <CalendarIcon className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5 pointer-events-none" />
             </div>
@@ -795,119 +785,115 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         </div>
 
         {/* Available Slots / Billing Section */}
-        {bookingMode === 'APPOINTMENT' ? (
-          <div className="pt-2">
-            <label className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-2 block">Available Slots</label>
-            <div className="min-h-[60px]">
-              {isFetchingSlots ? (
-                <div className="flex items-center gap-2 text-xs text-gray-500 py-3"><Loader2 className="w-4 h-4 animate-spin" /> Loading slots...</div>
-              ) : formData.doctor && formData.appointmentDate ? (
-                availableSlots.length > 0 ? (
-                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                    {availableSlots.map(slot => {
-                      const slotTime = typeof slot === 'object' ? slot.time : slot;
-                      const isBooked = typeof slot === 'object' ? slot.isBooked : false;
-                      const isPast = typeof slot === 'object' ? slot.isPast : false;
-                      
-                      return (
-                        <button 
-                          key={slotTime} 
-                          type="button" 
-                          disabled={isBooked || isPast}
-                          onClick={() => setFormData(prev => ({ ...prev, appointmentTime: slotTime }))}
-                          className={`py-1.5 px-1 rounded border text-[11px] font-medium transition-all ${
-                            formData.appointmentTime === slotTime 
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                              : isPast || isBooked
-                                ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
-                                : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-blue-400 hover:text-blue-600'
-                          }`}
-                        >
-                          {slotTime}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-sm text-orange-500 py-2 font-medium">{slotError || 'No slots available for this selection'}</div>
-                )
-              ) : (
-                <div className="text-sm text-gray-400 italic py-2">Select doctor and date to view availability</div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="pt-4 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex flex-col">
-               <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Billing Status</label>
-               <div className="flex gap-2">
-                  {['Pending', 'Paid'].map(status => (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => setBillingData(prev => ({ ...prev, status }))}
-                      className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold border transition-all ${
-                        billingData.status === status 
-                          ? 'bg-blue-50 border-blue-200 text-blue-600' 
-                          : 'bg-white border-gray-200 text-gray-500'
-                      }`}
-                    >
-                      {status}
-                    </button>
-                  ))}
-               </div>
-            </div>
-
-            {billingData.status === 'Paid' && (
-              <div className="flex flex-col">
-                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Payment Mode</label>
-                <div className="flex gap-2">
-                   {['Cash', 'UPI', 'Card'].map(mode => (
-                     <button
-                       key={mode}
-                       type="button"
-                       onClick={() => setBillingData(prev => ({ ...prev, paymentMode: mode }))}
-                       className={`flex-1 py-2 px-2 rounded-lg text-[10px] font-bold border transition-all ${
-                         billingData.paymentMode === mode 
-                           ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
-                           : 'bg-white border-gray-200 text-gray-500'
-                       }`}
-                     >
-                       {mode}
-                     </button>
-                   ))}
+        <div className="pt-2">
+          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-2 block">Available Slots</label>
+          <div className="min-h-[60px]">
+            {isFetchingSlots ? (
+              <div className="flex items-center gap-2 text-xs text-gray-500 py-3"><Loader2 className="w-4 h-4 animate-spin" /> Loading slots...</div>
+            ) : formData.doctor && formData.appointmentDate ? (
+              availableSlots.length > 0 ? (
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                  {availableSlots.map(slot => {
+                    const slotTime = typeof slot === 'object' ? slot.time : slot;
+                    const isBooked = typeof slot === 'object' ? slot.isBooked : false;
+                    const isPast = typeof slot === 'object' ? slot.isPast : false;
+                    
+                    return (
+                      <button 
+                        key={slotTime} 
+                        type="button" 
+                        disabled={isBooked || isPast}
+                        onClick={() => setFormData(prev => ({ ...prev, appointmentTime: slotTime }))}
+                        className={`py-1.5 px-1 rounded border text-[11px] font-medium transition-all ${
+                          formData.appointmentTime === slotTime 
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                            : isPast || isBooked
+                              ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                              : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-blue-400 hover:text-blue-600'
+                        }`}
+                      >
+                        {slotTime}
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
+              ) : (
+                <div className="text-sm text-orange-500 py-2 font-medium">{slotError || 'No slots available for this selection'}</div>
+              )
+            ) : (
+              <div className="text-sm text-gray-400 italic py-2">Select doctor and date to view availability</div>
             )}
-
-            <div className="flex flex-col justify-end">
-               <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={sendWhatsApp}
-                    onChange={(e) => setSendWhatsApp(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Send WhatsApp Message</span>
-                    <span className="text-[10px] text-gray-400">Confirmation will be sent to {formData.phone || 'patient'}</span>
-                  </div>
-               </label>
-            </div>
           </div>
-        )}
+        </div>
+
+        <div className="pt-4 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="flex flex-col">
+             <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Billing Status</label>
+             <div className="flex gap-2">
+                {['Pending', 'Paid'].map(status => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setBillingData(prev => ({ ...prev, status }))}
+                    className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold border transition-all ${
+                      billingData.status === status 
+                        ? 'bg-blue-50 border-blue-200 text-blue-600' 
+                        : 'bg-white border-gray-200 text-gray-500'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+             </div>
+          </div>
+
+          {billingData.status === 'Paid' && (
+            <div className="flex flex-col">
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Payment Mode</label>
+              <div className="flex gap-2">
+                 {['Cash', 'UPI', 'Card'].map(mode => (
+                   <button
+                     key={mode}
+                     type="button"
+                     onClick={() => setBillingData(prev => ({ ...prev, paymentMode: mode }))}
+                     className={`flex-1 py-2 px-2 rounded-lg text-[10px] font-bold border transition-all ${
+                       billingData.paymentMode === mode 
+                         ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
+                         : 'bg-white border-gray-200 text-gray-500'
+                     }`}
+                   >
+                     {mode}
+                   </button>
+                 ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col justify-end">
+             <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={sendWhatsApp}
+                  onChange={(e) => setSendWhatsApp(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Send WhatsApp Message</span>
+                  <span className="text-[10px] text-gray-400">Confirmation will be sent to {formData.phone || 'patient'}</span>
+                </div>
+             </label>
+          </div>
+        </div>
 
         {/* Submit */}
         <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-700">
           <button
             type="submit"
-            disabled={isLoading || (bookingMode === 'APPOINTMENT' && !formData.appointmentTime)}
-            className={`px-8 py-2.5 text-white rounded-lg font-bold shadow-lg transition-all active:scale-95 flex items-center disabled:opacity-50 disabled:shadow-none ${
-              bookingMode === 'WALK_IN' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
-            }`}
+            disabled={isLoading || !formData.appointmentTime}
+            className="px-8 py-2.5 text-white rounded-lg font-bold shadow-lg transition-all active:scale-95 flex items-center disabled:opacity-50 disabled:shadow-none bg-blue-600 hover:bg-blue-700 shadow-blue-500/30"
           >
             {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            {bookingMode === 'WALK_IN' ? 'Register Walk-in Patient' : 'Book Appointment'}
+            Register Patient
           </button>
         </div>
       </form>

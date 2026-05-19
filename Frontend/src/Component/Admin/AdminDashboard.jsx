@@ -277,6 +277,15 @@ const Admin = () => {
     return () => clearInterval(notificationInterval);
   }, [user?.id || user?._id, isAuthenticated]);
 
+  // Enforce adding a doctor if none exists
+  useEffect(() => {
+    if (!doctorsHook.doctorsCountLoading && doctorsHook.totalDoctors === 0) {
+      if (!doctorsHook.showDoctorForm) {
+        doctorsHook.openDoctorForm();
+      }
+    }
+  }, [doctorsHook.doctorsCountLoading, doctorsHook.totalDoctors, doctorsHook.showDoctorForm, doctorsHook.openDoctorForm]);
+
   const fetchTodayAppointmentsCount = async () => {
     try {
       const today = new Date();
@@ -592,6 +601,7 @@ const Admin = () => {
           onClose={doctorsHook.closeDoctorForm}
           onSave={doctorsHook.handleDoctorSuccess}
           doctor={doctorsHook.editingDoctor}
+          isForced={!doctorsHook.doctorsCountLoading && doctorsHook.totalDoctors === 0}
         />
 
         {/* Receptionist Form Modal */}

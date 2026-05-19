@@ -1,4 +1,13 @@
 import Medicine from '../models/Medicine.js';
+import DiagnosisMaster from '../models/DiagnosisMaster.js';
+import Groq from 'groq-sdk';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
 // GET /api/medicines/master
 export const getMedicineMaster = async (req, res) => {
@@ -154,3 +163,68 @@ export const saveMedicineNames = async (names) => {
     console.error('Error auto-saving medicine names:', err);
   }
 };
+
+// POST /api/medicines/recommendations
+export const getMedicineRecommendations = async (req, res) => {
+  try {
+    const { diagnosis, complaints, specialty, age, gender } = req.body;
+    
+    // 1. Check if diagnosis exists in Database and has recommended medicines
+    if (diagnosis) {
+      const dbDiagnosis = await DiagnosisMaster.findOne({ 
+        name: { $regex: new RegExp(`^${diagnosis}$`, 'i') } 
+      });
+      
+      if (dbDiagnosis && dbDiagnosis.recommendedMedicines && dbDiagnosis.recommendedMedicines.length > 0) {
+        return res.json({
+          suggestions: dbDiagnosis.recommendedMedicines,
+          reason: 'Standard treatment protocol from database',
+          source: 'Database'
+        });
+      }
+    }
+
+    // 2. Fallback to AI Generation
+    const prompt = `Act as an expert clinical pharmacologist. Recommend 5-10 appropriate medicines for this case.
+    Diagnosis: ${diagnosis || ''}
+    Complaints: ${JSON.stringify(complaints || [])}
+    Specialty: ${specialty || ''}
+    Patient: ${age || ''}y ${gender || ''}
+    
+    CRITICAL: Return ONLY valid JSON.
+    Format: { "suggestions": [ { "name": "Medicine", "generic": "Salt", "form": "Tablet", "strength": "500mg", "dose": "1-0-1", "when": "After Food", "freq": "Daily", "dur": "5 Days" }, ... ], "reason": "..." }`;
+    
+    // Using groq to fetch AI recommendations
+    const apiMessages = [
+      { role: "system", content: prompt }
+    ];
+    
+    const response = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: apiMessages,
+      max_tokens: 500,
+      temperature: 0.2,
+    });
+    
+    const responseText = response.choices[0]?.message?.content;
+    
+    if (responseText) {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const data = JSON.parse(jsonMatch[0]);
+        return res.json({
+          suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+          reason: data.reason || '',
+          source: 'AI'
+        });
+      }
+    }
+    
+    return res.json({ suggestions: [], reason: 'No recommendations found', source: 'None' });
+    
+  } catch (error) {
+    console.error('Recommendations Error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+

@@ -556,67 +556,9 @@ const DoctorPanel = ({
                         </div>
                       </div>
 
-                      {/* Identity Verification Section */}
-                      <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg border border-emerald-100 dark:border-emerald-800/50">
-                        <h3 className="text-lg font-bold text-emerald-900 dark:text-emerald-200 mb-3 flex items-center gap-2">
-                           <Fingerprint className="w-5 h-5" /> Identity Proof
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div className="flex flex-col">
-                              <span className="text-[10px] uppercase font-black text-emerald-400">ID Type</span>
-                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{selectedDoctor.idType || 'N/A'}</span>
-                           </div>
-                           <div className="flex flex-col">
-                              <span className="text-[10px] uppercase font-black text-emerald-400">ID Number</span>
-                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{selectedDoctor.idNumber || 'N/A'}</span>
-                           </div>
-                           {selectedDoctor.idDocumentUrl && (
-                             <div className="col-span-full pt-2">
-                                <a 
-                                  href={selectedDoctor.idDocumentUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 rounded-lg text-emerald-600 dark:text-emerald-400 text-xs font-black uppercase hover:bg-emerald-50 transition-colors"
-                                >
-                                   <FileText size={16} /> View Identity Document
-                                </a>
-                             </div>
-                           )}
-                        </div>
-                      </div>
 
-                      {/* Service Location Section */}
-                      <div className="bg-sky-50 dark:bg-sky-900/20 p-4 rounded-lg border border-sky-100 dark:border-sky-800/50">
-                        <h3 className="text-lg font-bold text-sky-900 dark:text-sky-200 mb-3 flex items-center gap-2">
-                           <MapPin className="w-5 h-5" /> Service Location
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div className="flex flex-col">
-                              <span className="text-[10px] uppercase font-black text-sky-400">Place of Service</span>
-                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tighter">
-                                {selectedDoctor?.serviceLocation?.type === 'other' ? 'External Clinic / Hospital' : 'Current Own Clinic'}
-                              </span>
-                           </div>
-                           <div className="flex flex-col">
-                              <span className="text-[10px] uppercase font-black text-sky-400">Clinic Name</span>
-                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tighter">
-                                {selectedDoctor?.serviceLocation?.practiceName || (selectedDoctor?.serviceLocation?.type === 'other' ? 'External Clinic' : 'Own Clinic')}
-                              </span>
-                           </div>                           {(selectedDoctor?.serviceLocation?.address?.city || selectedDoctor?.serviceLocation?.address?.street) && (
-                             <div className="col-span-full">
-                                <span className="text-[10px] uppercase font-black text-sky-400 block mb-1">Full Service Address</span>
-                                <div className="p-3 bg-white dark:bg-slate-800 border border-sky-100 dark:border-sky-800 rounded-lg">
-                                  <p className="text-sm font-medium text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed uppercase tracking-tighter">
-                                    {selectedDoctor.serviceLocation.address.street && `${selectedDoctor.serviceLocation.address.street}, `}
-                                    {selectedDoctor.serviceLocation.address.city && `${selectedDoctor.serviceLocation.address.city}`}
-                                    {selectedDoctor.serviceLocation.address.state && `, ${selectedDoctor.serviceLocation.address.state}`}
-                                    {selectedDoctor.serviceLocation.address.pincode && ` - ${selectedDoctor.serviceLocation.address.pincode}`}
-                                  </p>
-                                </div>
-                             </div>
-                           )}
-                        </div>
-                      </div>
+
+
 
                       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
                         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Availability</h3>
