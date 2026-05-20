@@ -1,10 +1,25 @@
 import MedicalRecord from '../models/MedicalRecord.js';
+import Patient from '../models/PaitentEditProfile.js';
+import mongoose from 'mongoose';
 
 // Get medical records for a specific patient
 export const getPatientRecords = async (req, res) => {
   try {
     const { patientId } = req.params;
-    const records = await MedicalRecord.find({ patientId }).sort({ date: -1 });
+
+    let mongoId = patientId;
+
+    // If it's not a valid ObjectId (e.g. clinical ID like "005045"), resolve via Patient lookup
+    if (!mongoose.Types.ObjectId.isValid(patientId)) {
+      const patient = await Patient.findOne({ patientId }).select('_id').lean();
+      if (!patient) {
+        // No patient found with that clinical ID — return empty gracefully
+        return res.status(200).json([]);
+      }
+      mongoId = patient._id;
+    }
+
+    const records = await MedicalRecord.find({ patientId: mongoId }).sort({ date: -1 });
     res.status(200).json(records);
   } catch (error) {
     console.error('Error fetching medical records:', error);

@@ -4,27 +4,70 @@ import { medicineApi, chatbotApi } from '../../services/api';
 
 const SmartMedicineInput = ({ value, onSelect, context, user }) => {
   const [show, setShow] = useState(false);
-  const [master, setMaster] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [aiRecs, setAiRecs] = useState({ suggestions: [], reason: '', source: 'AI' });
   const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState(value || '');
   const containerRef = useRef(null);
+  const searchTimerRef = useRef(null);
 
   const organizationId = user?.organizationId?._id || user?.organizationId;
 
-  // Initial Fetch
+  // Server-side debounced search — runs on every keystroke with 250ms debounce
   useEffect(() => {
-    const fetchMaster = async () => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
+    if (!searchQuery || searchQuery.trim().length < 1) {
+      // On empty, fetch top common medicines
+      searchTimerRef.current = setTimeout(async () => {
+        try {
+          setIsSearching(true);
+          const results = await medicineApi.search('');
+          setFiltered(Array.isArray(results) ? results.slice(0, 50) : []);
+        } catch (err) {
+          console.error('Medicine search error:', err);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 100);
+      return;
+    }
+
+    searchTimerRef.current = setTimeout(async () => {
       try {
-        const response = await medicineApi.getMaster();
-        const data = Array.isArray(response) ? response : (response.data || []);
-        setMaster(data);
-        setFiltered(data.slice(0, 50)); 
-      } catch (err) { console.error(err); }
-    };
-    fetchMaster();
-  }, []);
+        setIsSearching(true);
+        const results = await medicineApi.search(searchQuery.trim());
+        // Sort: exact name starts-with match first, then includes, then generic/salt
+        const q = searchQuery.trim().toLowerCase();
+        const sorted = (Array.isArray(results) ? results : []).sort((a, b) => {
+          const aName = (a.name || '').toLowerCase();
+          const bName = (b.name || '').toLowerCase();
+          const aExact = aName.startsWith(q);
+          const bExact = bName.startsWith(q);
+          if (aExact && !bExact) return -1;
+          if (!aExact && bExact) return 1;
+          return aName.localeCompare(bName);
+        });
+        setFiltered(sorted.slice(0, 100));
+      } catch (err) {
+        console.error('Medicine search error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchQuery]);
+
+  // Initial load of top medicines when dropdown opens
+  useEffect(() => {
+    if (show && filtered.length === 0 && !searchQuery) {
+      medicineApi.search('').then(results => {
+        setFiltered(Array.isArray(results) ? results.slice(0, 50) : []);
+      }).catch(console.error);
+    }
+  }, [show]);
 
   // Click Outside
   useEffect(() => {
@@ -36,31 +79,6 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // Search Logic
-  useEffect(() => {
-    if (!searchQuery) {
-      setFiltered(master.slice(0, 50));
-      return;
-    }
-
-    const q = searchQuery.toLowerCase().trim();
-    const results = master.filter(m => 
-      m.name.toLowerCase().includes(q) || 
-      m.genericName?.toLowerCase().includes(q) ||
-      m.salt?.toLowerCase().includes(q) ||
-      m.category?.toLowerCase().includes(q) ||
-      m.keywords?.some(k => k.toLowerCase().includes(q))
-    ).sort((a, b) => {
-      const aName = a.name.toLowerCase();
-      const bName = b.name.toLowerCase();
-      if (aName.startsWith(q) && !bName.startsWith(q)) return -1;
-      if (!aName.startsWith(q) && bName.startsWith(q)) return 1;
-      return 0;
-    });
-
-    setFiltered(results.slice(0, 100));
-  }, [searchQuery, master]);
 
   // AI Recommendation Logic (Based on Diagnosis & Complaints)
   useEffect(() => {
@@ -168,6 +186,7 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
               <div className="px-3 py-2 flex items-center gap-2 border-b border-slate-50 dark:border-slate-700 mb-2">
                 <Pill size={14} className="text-slate-400" />
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Medicine Master ({filtered.length})</span>
+                {isSearching && <Loader2 size={10} className="animate-spin text-indigo-400 ml-auto" />}
               </div>
               
               <div className="space-y-0.5">

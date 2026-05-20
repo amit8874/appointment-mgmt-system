@@ -337,20 +337,6 @@ export const verifyRegistrationOTP = async (req, res) => {
       console.error('Failed to send welcome message via WhatsApp:', welcomeError);
     }
 
-    // Send Verification Success Message (Optional, could be a different template)
-    try {
-      const sanitizedMobile = sanitizePhone(user.mobile);
-      const verificationSuccessTemplate = process.env.WHATSAPP_VERIFICATION_SUCCESS_TEMPLATE || 'registration_success';
-      const welcomeLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
-      
-      // Notify them that their account is now active
-      await sendWhatsAppTemplate(sanitizedMobile, verificationSuccessTemplate, welcomeLang, [user.name]);
-      console.log(`[Registration] Verification success message sent to ${sanitizedMobile}`);
-    } catch (verifySuccessError) {
-      // Silently fail if success template doesn't exist
-      console.warn('[Registration] Could not send verification success message:', verifySuccessError.message);
-    }
-
     // Generate final JWT token
     const token = jwt.sign(
       { id: user._id, role: user.role, organizationId: user.organizationId },

@@ -3557,6 +3557,7 @@ const PatientProfile = () => {
   const [downloadFileName, setDownloadFileName] = useState("");
   const [printingStatement, setPrintingStatement] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(new URLSearchParams(location.search).get('tab') || 'personal');
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
@@ -3575,6 +3576,28 @@ const PatientProfile = () => {
   const [pdfProgress, setPdfProgress] = useState({ isGenerating: false, percent: 0, prescriptionId: null });
   const [printingClinicalReport, setPrintingClinicalReport] = useState(null);
   const [editingPrescription, setEditingPrescription] = useState(null);
+
+  // Today's appointments states for the far-left navigation sidebar
+  const [todayAppointments, setTodayAppointments] = useState([]);
+  const [loadingTodayAppts, setLoadingTodayAppts] = useState(false);
+  const [isTodayApptsCollapsed, setIsTodayApptsCollapsed] = useState(false);
+  const [todaySearch, setTodaySearch] = useState(() => {
+    return sessionStorage.getItem('patientSidebarTodaySearch') || '';
+  });
+
+  // Patient Directory States for the far-left sidebar
+  const [sidebarMode, setSidebarMode] = useState(() => {
+    return sessionStorage.getItem('patientSidebarMode') || 'today';
+  }); // 'today' or 'all'
+  const [allPatients, setAllPatients] = useState([]);
+  const [allPatientsPage, setAllPatientsPage] = useState(() => {
+    return parseInt(sessionStorage.getItem('patientSidebarPage'), 10) || 1;
+  });
+  const [allPatientsTotalPages, setAllPatientsTotalPages] = useState(1);
+  const [loadingAllPatients, setLoadingAllPatients] = useState(false);
+  const [allSearch, setAllSearch] = useState(() => {
+    return sessionStorage.getItem('patientSidebarSearch') || '';
+  });
 
   const fetchTemplates = async () => {
     if (user) {
@@ -3634,6 +3657,92 @@ const PatientProfile = () => {
     }
   }, []);
 
+  const fetchTodayAppointments = async () => {
+    try {
+      setLoadingTodayAppts(true);
+      const data = await appointmentApi.getTodayAppointments();
+      setTodayAppointments(data || []);
+    } catch (error) {
+      console.error("Failed to fetch today's appointments", error);
+    } finally {
+      setLoadingTodayAppts(false);
+    }
+  };
+
+  const handleTodayApptClick = (apptPatientId) => {
+    const isAdmin = location.pathname.startsWith('/admin');
+    const pathPrefix = isAdmin ? '/admin/patient/' : '/receptionist/patient/';
+    navigate(`${pathPrefix}${apptPatientId}?tab=${activeTab}`);
+  };
+
+  const fetchAllPatients = async (page = 1, searchQuery = '') => {
+    try {
+      setLoadingAllPatients(true);
+      const res = await patientApi.getAll({
+        page,
+        limit: 20,
+        search: searchQuery
+      });
+      if (res) {
+        setAllPatients(res.patients || []);
+        setAllPatientsTotalPages(res.totalPages || 1);
+        setAllPatientsPage(res.currentPage || 1);
+      }
+    } catch (error) {
+      console.error("Failed to fetch all patients", error);
+    } finally {
+      setLoadingAllPatients(false);
+    }
+  };
+
+  const handleAllSearchChange = (e) => {
+    setAllSearch(e.target.value);
+    setAllPatientsPage(1);
+  };
+
+  useEffect(() => {
+    if (sidebarMode === 'all') {
+      fetchAllPatients(allPatientsPage, allSearch);
+    }
+  }, [sidebarMode, allPatientsPage, allSearch]);
+
+  // --- Sidebar State & Scroll Syncing to sessionStorage ---
+  const sidebarScrollRef = React.useRef(null);
+
+  useEffect(() => {
+    sessionStorage.setItem('patientSidebarMode', sidebarMode);
+  }, [sidebarMode]);
+
+  useEffect(() => {
+    sessionStorage.setItem('patientSidebarPage', allPatientsPage.toString());
+  }, [allPatientsPage]);
+
+  useEffect(() => {
+    sessionStorage.setItem('patientSidebarSearch', allSearch);
+  }, [allSearch]);
+
+  useEffect(() => {
+    sessionStorage.setItem('patientSidebarTodaySearch', todaySearch);
+  }, [todaySearch]);
+
+  const handleSidebarScroll = (e) => {
+    sessionStorage.setItem('patientSidebarScrollTop', e.currentTarget.scrollTop.toString());
+  };
+
+  useEffect(() => {
+    if (sidebarScrollRef.current) {
+      const savedScroll = sessionStorage.getItem('patientSidebarScrollTop');
+      if (savedScroll) {
+        const container = sidebarScrollRef.current;
+        setTimeout(() => {
+          if (container) {
+            container.scrollTop = parseInt(savedScroll, 10);
+          }
+        }, 100);
+      }
+    }
+  }, [sidebarMode, loadingAllPatients, loadingTodayAppts]);
+
   const fetchOrgDetails = async () => {
     const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null);
     if (!orgId) return;
@@ -3650,6 +3759,7 @@ const PatientProfile = () => {
       fetchTemplates();
       fetchInvoiceTemplates();
       fetchOrgDetails();
+      fetchTodayAppointments();
     }
   }, [user?.organizationId, user?.organization?._id]);
 
@@ -3919,7 +4029,13 @@ const PatientProfile = () => {
 
   const fetchData = async (showLoading = true) => {
     try {
-      if (showLoading) setLoading(true);
+      if (showLoading) {
+        if (!data) {
+          setLoading(true);
+        } else {
+          setProfileLoading(true);
+        }
+      }
       const patientData = await patientApi.getById(id);
       setData(patientData);
       const summaryResponse = await appointmentApi.getSummary(id);
@@ -3930,11 +4046,13 @@ const PatientProfile = () => {
       console.error('Error fetching patient profile data:', error);
     } finally {
       setLoading(false);
+      setProfileLoading(false);
     }
   };
 
   useEffect(() => {
     fetchData();
+    fetchTodayAppointments();
   }, [id]);
 
   const handleGoBack = () => {
@@ -3989,8 +4107,327 @@ const PatientProfile = () => {
   return (
     <>
       <div className="min-h-screen bg-[#f8fafc] font-sans print:hidden flex flex-col lg:flex-row overflow-hidden">
+        {/* Today's Appointments Collapsible Left Navigation Sidebar */}
+        <aside 
+          className={`h-screen bg-white border-r border-slate-200 flex flex-col sticky top-0 z-40 transition-all duration-300 shrink-0 ${
+            isTodayApptsCollapsed 
+              ? 'w-14 hidden lg:flex' 
+              : 'w-full lg:w-72 flex'
+          }`}
+        >
+          {isTodayApptsCollapsed ? (
+            /* Collapsed Sidebar View (Slim ribbon) */
+            <div className="flex flex-col items-center h-full py-4 justify-between">
+              <button 
+                onClick={() => setIsTodayApptsCollapsed(false)}
+                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-transparent hover:border-indigo-100"
+                title="Expand Appointments Queue"
+              >
+                <ChevronRight size={18} />
+              </button>
+              
+              <div className="flex-1 flex flex-col items-center justify-center gap-6 py-6 overflow-hidden">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <CalendarIcon size={16} />
+                </div>
+                <span 
+                  className="uppercase tracking-[0.25em] text-[9px] font-bold text-slate-400/80 whitespace-nowrap"
+                  style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}
+                >
+                  {sidebarMode === 'today' ? "Today's Queue" : "Directory"}
+                </span>
+              </div>
+              
+              <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100 shadow-sm">
+                <span className="text-[10px] font-bold">
+                  {sidebarMode === 'today' ? todayAppointments.length : allPatients.length}
+                </span>
+              </div>
+            </div>
+          ) : (
+            /* Expanded Sidebar View (Interactive Queue) */
+            <div className="flex flex-col h-full overflow-hidden">
+              {/* Sidebar Header */}
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-slate-800 tracking-tight uppercase">
+                    {sidebarMode === 'today' ? "Today's Queue" : "Patient Directory"}
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setIsTodayApptsCollapsed(true)}
+                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-transparent hover:border-indigo-100"
+                  title="Collapse Sidebar"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              </div>
+
+              {/* Segmented Switch Tabs */}
+              <div className="p-2 border-b border-slate-100 bg-slate-50/20 flex gap-1 shrink-0">
+                <button
+                  onClick={() => setSidebarMode('today')}
+                  className={`flex-1 py-1.5 text-[9px] font-extrabold uppercase tracking-wider rounded-lg transition-all border ${
+                    sidebarMode === 'today'
+                      ? 'bg-white text-indigo-600 border-slate-200/60 shadow-sm'
+                      : 'text-slate-500 border-transparent hover:text-slate-800 hover:bg-slate-50'
+                  }`}
+                >
+                  Today's Queue ({todayAppointments.length})
+                </button>
+                <button
+                  onClick={() => setSidebarMode('all')}
+                  className={`flex-1 py-1.5 text-[9px] font-extrabold uppercase tracking-wider rounded-lg transition-all border ${
+                    sidebarMode === 'all'
+                      ? 'bg-white text-indigo-600 border-slate-200/60 shadow-sm'
+                      : 'text-slate-500 border-transparent hover:text-slate-800 hover:bg-slate-50'
+                  }`}
+                >
+                  All Patients
+                </button>
+              </div>
+
+              {/* Real-time Search Input */}
+              <div className="p-3 border-b border-slate-100 shrink-0">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input 
+                    type="text"
+                    placeholder={sidebarMode === 'today' ? "Search name, ID, doc..." : "Search all patients..."}
+                    value={sidebarMode === 'today' ? todaySearch : allSearch}
+                    onChange={sidebarMode === 'today' ? (e) => setTodaySearch(e.target.value) : handleAllSearchChange}
+                    className="w-full pl-9 pr-8 py-1.5 bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-xs border border-slate-200 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all text-slate-800 placeholder-slate-400"
+                  />
+                  {(sidebarMode === 'today' ? todaySearch : allSearch) && (
+                    <button 
+                      onClick={() => sidebarMode === 'today' ? setTodaySearch('') : setAllSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Appointments / Directory List Container */}
+              <div 
+                ref={sidebarScrollRef}
+                onScroll={handleSidebarScroll}
+                className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2"
+              >
+                {sidebarMode === 'today' ? (
+                  /* Today's Queue List */
+                  loadingTodayAppts ? (
+                    <div className="flex flex-col items-center justify-center py-16 px-4">
+                      <Loader2 size={22} className="text-indigo-600 animate-spin" />
+                      <p className="text-[10px] text-slate-400 mt-2 font-medium">Fetching today's queue...</p>
+                    </div>
+                  ) : (() => {
+                    const filteredAppts = todayAppointments.filter(appt => {
+                      const searchLower = todaySearch.toLowerCase();
+                      const fullName = `${appt.designation || ''} ${appt.firstName || ''} ${appt.lastName || ''} ${appt.patientName || ''}`.toLowerCase();
+                      const phone = (appt.patientPhone || '').toLowerCase();
+                      const doc = (appt.doctorName || '').toLowerCase();
+                      const reason = (appt.reason || '').toLowerCase();
+                      const patId = (appt.patientId || '').toLowerCase();
+                      return fullName.includes(searchLower) || phone.includes(searchLower) || doc.includes(searchLower) || reason.includes(searchLower) || patId.includes(searchLower);
+                    });
+
+                    if (filteredAppts.length === 0) {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                          <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mb-3 border border-slate-100">
+                            <CalendarIcon size={18} />
+                          </div>
+                          <p className="text-xs font-semibold text-slate-600">No appointments found</p>
+                          <p className="text-[9px] text-slate-400 mt-0.5">Try a different search query</p>
+                        </div>
+                      );
+                    }
+
+                    return filteredAppts.map(appt => {
+                      const isActive = data && (
+                        appt.patientId === data.patientId ||
+                        appt.patientId === data._id ||
+                        appt.patientId === id
+                      );
+                      
+                      const getStatusStyles = (status) => {
+                        const s = (status || '').toLowerCase();
+                        switch (s) {
+                          case 'confirmed':
+                            return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+                          case 'in-progress':
+                            return 'bg-blue-50 text-blue-700 border-blue-100';
+                          case 'pending':
+                            return 'bg-amber-50 text-amber-700 border-amber-100';
+                          case 'completed':
+                            return 'bg-indigo-50 text-indigo-700 border-indigo-100';
+                          case 'cancelled':
+                            return 'bg-rose-50 text-rose-700 border-rose-100';
+                          default:
+                            return 'bg-slate-50 text-slate-700 border-slate-100';
+                        }
+                      };
+
+                      return (
+                        <button
+                          key={appt._id}
+                          onClick={() => handleTodayApptClick(appt.patientId)}
+                          className={`w-full text-left p-3 rounded-xl border transition-all duration-200 flex flex-col gap-1.5 shadow-sm group relative ${
+                            isActive 
+                              ? 'bg-indigo-50/30 border-indigo-200 border-l-4 border-l-indigo-600' 
+                              : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-md'
+                          }`}
+                        >
+                          {/* Name and Designation */}
+                          <div className="flex items-start justify-between gap-1.5 w-full">
+                            <span className={`text-xs font-bold truncate ${isActive ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-600'}`}>
+                              {appt.designation ? `${appt.designation} ` : ''}{appt.firstName || appt.patientName}
+                            </span>
+                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold rounded uppercase tracking-wider shrink-0">
+                              {appt.patientId}
+                            </span>
+                          </div>
+
+                          {/* Age and Doctor Details */}
+                          <div className="flex items-center justify-between text-[10px] text-slate-400">
+                            <span>
+                              {appt.patientAge ? `${appt.patientAge} ${appt.ageType || 'Year'}` : 'N/A'}
+                            </span>
+                            <span className="truncate max-w-[120px] font-medium text-slate-500 flex items-center gap-1">
+                              <Stethoscope size={10} className="text-indigo-500/70 shrink-0" />
+                              Dr. {appt.doctorName}
+                            </span>
+                          </div>
+
+                          {/* Time & Status Badges */}
+                          <div className="flex items-center justify-between pt-1.5 border-t border-slate-50 gap-2 mt-0.5">
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                              <Clock size={10} className="text-slate-400" />
+                              <span>{appt.time}</span>
+                            </div>
+                            
+                            <span className={`px-2 py-0.5 border text-[8px] font-extrabold uppercase rounded tracking-wider ${getStatusStyles(appt.status)}`}>
+                              {appt.status}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    });
+                  })()
+                ) : (
+                  /* All Patients Directory List */
+                  loadingAllPatients ? (
+                    <div className="flex flex-col items-center justify-center py-16 px-4">
+                      <Loader2 size={22} className="text-indigo-600 animate-spin" />
+                      <p className="text-[10px] text-slate-400 mt-2 font-medium">Loading patient directory...</p>
+                    </div>
+                  ) : (() => {
+                    if (allPatients.length === 0) {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                          <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mb-3 border border-slate-100">
+                            <User size={18} />
+                          </div>
+                          <p className="text-xs font-semibold text-slate-600">No patients found</p>
+                          <p className="text-[9px] text-slate-400 mt-0.5">Try searching another name or ID</p>
+                        </div>
+                      );
+                    }
+
+                    return allPatients.map(pat => {
+                      const isActive = data && (
+                        pat.patientId === data.patientId ||
+                        pat._id === data._id ||
+                        pat._id === id ||
+                        pat.patientId === id
+                      );
+
+                      return (
+                        <button
+                          key={pat._id || pat.id}
+                          onClick={() => handleTodayApptClick(pat.patientId || pat.id)}
+                          className={`w-full text-left p-3 rounded-xl border transition-all duration-200 flex flex-col gap-1.5 shadow-sm group relative ${
+                            isActive 
+                              ? 'bg-indigo-50/30 border-indigo-200 border-l-4 border-l-indigo-600' 
+                              : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-md'
+                          }`}
+                        >
+                          {/* Name and Sequential ID */}
+                          <div className="flex items-start justify-between gap-1.5 w-full">
+                            <span className={`text-xs font-bold truncate ${isActive ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-600'}`}>
+                              {pat.name || pat.fullName}
+                            </span>
+                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold rounded uppercase tracking-wider shrink-0">
+                              {pat.patientId || pat.id}
+                            </span>
+                          </div>
+
+                          {/* Age, Gender & Blood Group details */}
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                            <span>
+                              {pat.age ? `${pat.age} ${pat.ageType || 'Year'}` : 'Age N/A'}
+                            </span>
+                            <span className="w-1 h-1 rounded-full bg-slate-200 shrink-0"></span>
+                            <span className="capitalize">{pat.gender || 'Gender N/A'}</span>
+                          </div>
+
+                          {/* Contact & Doctor details */}
+                          <div className="flex items-center justify-between pt-1.5 border-t border-slate-50 gap-2 mt-0.5 text-[10px] text-slate-500">
+                            {pat.phone || pat.contact ? (
+                              <span className="flex items-center gap-1">
+                                <Phone size={10} className="text-slate-400 shrink-0" />
+                                {pat.phone || pat.contact}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300 italic">No contact</span>
+                            )}
+                            
+                            <span className="truncate max-w-[110px] font-medium text-slate-500 flex items-center gap-1">
+                              <Stethoscope size={10} className="text-indigo-500/70 shrink-0" />
+                              Dr. {pat.assignedDoctor || pat.doc || 'Unassigned'}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    });
+                  })()
+                )}
+              </div>
+
+              {/* Sidebar Pagination Footer for directory view */}
+              {sidebarMode === 'all' && allPatientsTotalPages > 1 && (
+                <div className="p-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0 text-slate-600">
+                  <button
+                    onClick={() => setAllPatientsPage(prev => Math.max(1, prev - 1))}
+                    disabled={allPatientsPage === 1}
+                    className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-slate-500 transition-all shadow-sm"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  
+                  <span className="text-[10px] font-bold text-slate-500">
+                    Page {allPatientsPage} of {allPatientsTotalPages}
+                  </span>
+                  
+                  <button
+                    onClick={() => setAllPatientsPage(prev => Math.min(allPatientsTotalPages, prev + 1))}
+                    disabled={allPatientsPage === allPatientsTotalPages}
+                    className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-slate-500 transition-all shadow-sm"
+                    title="Next Page"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </aside>
+
         {/* Sidebar */}
-        <aside className="w-full lg:w-40 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 z-40">
+        <aside className={`w-full lg:w-40 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 z-40 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
           {/* Sidebar Header: Patient Info */}
           <div className="p-3 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-2 mb-4">
@@ -4067,7 +4504,7 @@ const PatientProfile = () => {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-h-screen max-h-screen overflow-hidden bg-[#f8fafc]">
           {/* Top Header */}
-          <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between shrink-0 z-30">
+          <header className={`h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between shrink-0 z-30 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
             <div className="flex flex-col">
               <h2 className="text-xl font-bold text-slate-900 tracking-tight capitalize">
                 {activeTab === 'progress' ? 'Treatment Gallery' : tabs.find(t => t.key === activeTab)?.name}
@@ -4110,73 +4547,80 @@ const PatientProfile = () => {
 
           {/* Tab Content Area */}
           <main className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -20, opacity: 0 }}
-                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                className="max-w-[1400px] mx-auto pb-20"
-              >
-                {activeTab === 'personal' && <TabPersonalInfo data={data} appointments={appointments} onEdit={() => setShowEditModal(true)} onRebook={() => handleRebook({ doctorId: data.assignedDoctorId, doctorName: data.assignedDoctor, specialty: 'General' })} user={user} />}
+            {profileLoading ? (
+              <div className="flex flex-col items-center justify-center py-32">
+                <Loader2 size={36} className="text-indigo-600 animate-spin" />
+                <p className="mt-4 text-slate-500 font-semibold animate-pulse text-sm">Updating patient profile...</p>
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -20, opacity: 0 }}
+                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                  className="max-w-[1400px] mx-auto pb-20"
+                >
+                  {activeTab === 'personal' && <TabPersonalInfo data={data} appointments={appointments} onEdit={() => setShowEditModal(true)} onRebook={() => handleRebook({ doctorId: data.assignedDoctorId, doctorName: data.assignedDoctor, specialty: 'General' })} user={user} />}
 
-                {activeTab === 'prescriptions' && (
-                  <TabPrescriptions
-                    appointments={appointments}
-                    medicalRecords={medicalRecords}
-                    onEmail={handleEmail}
-                    onWhatsApp={handlePrescriptionWhatsApp}
-                    onPrint={handlePrint}
-                    onDownload={handleDownloadPDF}
-                    onEdit={handleEditPrescription}
-                    onNewPrescription={() => { setEditingPrescription(null); setShowPrescriptionModal(true); }}
-                    onOpenTemplateModal={() => setShowTemplateModal(true)}
-                    templates={templates}
-                    selectedTemplate={selectedTemplate}
-                    setSelectedTemplate={setSelectedTemplate}
-                    pdfProgress={pdfProgress}
-                  />
-                )}
-                {activeTab === 'appointments' && <TabAppointments appointments={appointments} onRebook={handleRebook} />}
-                {activeTab === 'billing' && (
-                  <TabBilling
-                    patient={data}
-                    onPrint={handleBillingPrint}
-                    onDownload={handleBillingDownload}
-                    clinicInfo={clinicInfo}
-                    setIsDownloading={setIsDownloading}
-                    setDownloadProgress={setDownloadProgress}
-                    setDownloadFileName={setDownloadFileName}
-                    invoiceTemplates={invoiceTemplates}
-                    selectedInvoiceTemplate={selectedInvoiceTemplate}
-                    setSelectedInvoiceTemplate={setSelectedInvoiceTemplate}
-                    onOpenTemplateModal={() => setShowInvoiceTemplateModal(true)}
-                  />
-                )}
-                {activeTab === 'progress' && (
-                  <TabProgressGallery
-                    patientId={id}
-                    user={user}
-                    patientName={data.fullName || `${data.firstName} ${data.lastName}`}
-                    appointments={appointments}
-                    onPrintReport={(comp) => setPrintingClinicalReport(comp)}
-                  />
-                )}
-                {activeTab === 'follow-ups' && (
-                  <TabFollowUps 
-                    patient={data}
-                    user={user}
-                  />
-                )}
-                {activeTab === 'clinical-notes' && (
-                  <TabClinicalNotes
-                    patientId={id}
-                    user={user}
-                  />
-                )}
-              </motion.div>
-            </AnimatePresence>
+                  {activeTab === 'prescriptions' && (
+                    <TabPrescriptions
+                      appointments={appointments}
+                      medicalRecords={medicalRecords}
+                      onEmail={handleEmail}
+                      onWhatsApp={handlePrescriptionWhatsApp}
+                      onPrint={handlePrint}
+                      onDownload={handleDownloadPDF}
+                      onEdit={handleEditPrescription}
+                      onNewPrescription={() => { setEditingPrescription(null); setShowPrescriptionModal(true); }}
+                      onOpenTemplateModal={() => setShowTemplateModal(true)}
+                      templates={templates}
+                      selectedTemplate={selectedTemplate}
+                      setSelectedTemplate={setSelectedTemplate}
+                      pdfProgress={pdfProgress}
+                    />
+                  )}
+                  {activeTab === 'appointments' && <TabAppointments appointments={appointments} onRebook={handleRebook} />}
+                  {activeTab === 'billing' && (
+                    <TabBilling
+                      patient={data}
+                      onPrint={handleBillingPrint}
+                      onDownload={handleBillingDownload}
+                      clinicInfo={clinicInfo}
+                      setIsDownloading={setIsDownloading}
+                      setDownloadProgress={setDownloadProgress}
+                      setDownloadFileName={setDownloadFileName}
+                      invoiceTemplates={invoiceTemplates}
+                      selectedInvoiceTemplate={selectedInvoiceTemplate}
+                      setSelectedInvoiceTemplate={setSelectedInvoiceTemplate}
+                      onOpenTemplateModal={() => setShowInvoiceTemplateModal(true)}
+                    />
+                  )}
+                  {activeTab === 'progress' && (
+                    <TabProgressGallery
+                      patientId={id}
+                      user={user}
+                      patientName={data.fullName || `${data.firstName} ${data.lastName}`}
+                      appointments={appointments}
+                      onPrintReport={(comp) => setPrintingClinicalReport(comp)}
+                    />
+                  )}
+                  {activeTab === 'follow-ups' && (
+                    <TabFollowUps 
+                       patient={data}
+                       user={user}
+                    />
+                  )}
+                  {activeTab === 'clinical-notes' && (
+                    <TabClinicalNotes
+                      patientId={id}
+                      user={user}
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            )}
           </main>
         </div>
       </div>

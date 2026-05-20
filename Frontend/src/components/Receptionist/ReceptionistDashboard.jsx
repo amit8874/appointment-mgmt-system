@@ -198,10 +198,11 @@ const ReceptionistLayout = () => {
 // Page transition component
 const PageTransition = ({ children }) => {
   const location = useLocation();
+  const transitionKey = location.pathname.split('/').slice(0, 3).join('/');
 
   return (
     <motion.div
-      key={location.pathname}
+      key={transitionKey}
       initial={{ x: 300, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ y: 60, opacity: 0 }}
