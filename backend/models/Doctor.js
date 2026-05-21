@@ -99,6 +99,10 @@ const doctorSchema = new mongoose.Schema({
     saturday: { type: Boolean, default: false },
     sunday: { type: Boolean, default: false },
   },
+  slotDuration: {
+    type: Number,
+    default: 15,
+  },
   dob: {
     type: Date,
   },

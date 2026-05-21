@@ -226,7 +226,12 @@ export const bookPatientAppointment = async (req, res) => {
     }
     const finalAmount = Number(amount) || docObj?.fee || 500;
 
-    const appointment = new PendingAppointment({
+    const normalizedPaymentStatus = (paymentStatus || '').toLowerCase();
+    const isPaid = normalizedPaymentStatus === 'paid';
+    
+    const AppointmentModel = isPaid ? ConfirmedAppointment : PendingAppointment;
+
+    const appointment = new AppointmentModel({
       shortId,
       organizationId,
       patientId: patientIdToUse,
@@ -249,7 +254,8 @@ export const bookPatientAppointment = async (req, res) => {
       rateListType: patientDetails.rateListType || 'Main',
       dispatchMethods: patientDetails.dispatchMethods || [],
       amount: finalAmount,
-      paymentStatus: paymentStatus || 'pending'
+      paymentStatus: paymentStatus || 'pending',
+      ...(isPaid ? { status: 'confirmed' } : {})
     });
 
     await appointment.save();
@@ -2045,14 +2051,18 @@ export const bookWalkInAppointment = async (req, res) => {
     );
     const shortId = (23440000 + counter.value).toString();
 
-    // 4. Create Confirmed Appointment (as Walk-in)
+    // 4. Create Confirmed/Pending Appointment (as Walk-in)
     let docObj = await Doctor.findOne({ doctorId });
     if (!docObj && mongoose.Types.ObjectId.isValid(doctorId)) {
       docObj = await Doctor.findById(doctorId);
     }
     const amount = docObj?.fee || 500;
 
-    const appointment = new ConfirmedAppointment({
+    const normalizedBillingStatus = (billingStatus || '').toLowerCase();
+    const isPaid = normalizedBillingStatus === 'paid';
+    const AppointmentModel = isPaid ? ConfirmedAppointment : PendingAppointment;
+
+    const appointment = new AppointmentModel({
       shortId,
       organizationId,
       patientId: existingPatient.patientId || existingPatient._id.toString(),
@@ -2071,9 +2081,9 @@ export const bookWalkInAppointment = async (req, res) => {
       symptoms: symptoms || '',
       notes: administrativeNotes || '',
       visitType: 'WALK_IN',
-      status: 'confirmed', // Correct enum for walk-in immediate arrival
+      status: isPaid ? 'confirmed' : 'pending',
       amount: amount,
-      paymentStatus: billingStatus === 'Paid' ? 'paid' : 'pending'
+      paymentStatus: isPaid ? 'paid' : 'pending'
     });
 
     await appointment.save();

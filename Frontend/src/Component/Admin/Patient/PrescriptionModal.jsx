@@ -1202,8 +1202,8 @@ setDiagnosis(newArr);
                 </div>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-300 dark:border-slate-800 shadow-sm overflow-visible">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 dark:bg-slate-800/50">
+                <table className="w-full text-left block sm:table">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 hidden sm:table-header-group">
                     <tr>
                       <th className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400">Complaint</th>
                       <th className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400">Frequency</th>
@@ -1212,11 +1212,11 @@ setDiagnosis(newArr);
                       <th className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 w-16"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 block sm:table-row-group">
                     {complaints.map((c, i) => (
-                      <tr key={i} className="hover:bg-slate-50/30 transition-colors">
-                        <td className="px-4 py-2 overflow-visible relative">
-                          <div className="flex items-center gap-2 w-full">
+                      <tr key={i} className="hover:bg-slate-50/30 transition-colors flex flex-col sm:table-row p-3 sm:p-0 relative gap-1 sm:gap-0">
+                        <td className="px-1 sm:px-4 py-2 overflow-visible relative">
+                          <div className="flex items-center gap-2 w-full pr-8 sm:pr-0">
                             <button type="button" onClick={addComplaint} className="flex-shrink-0 p-1.5 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm shadow-blue-600/30" title="Add Complaint">
                               <Plus size={14} strokeWidth={3} />
                             </button>
@@ -1233,7 +1233,8 @@ setDiagnosis(newArr);
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-1 sm:px-4 py-1 sm:py-2 flex items-center justify-between sm:table-cell">
+                          <span className="text-xs font-semibold text-slate-500 sm:hidden">Frequency:</span>
                           <FrequencyDropdownInput 
                             value={c.frequency}
                             onChange={(val) => updateComplaint(i, 'frequency', val)}
@@ -1242,7 +1243,8 @@ setDiagnosis(newArr);
                             user={user}
                           />
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-1 sm:px-4 py-1 sm:py-2 flex items-center justify-between sm:table-cell">
+                          <span className="text-xs font-semibold text-slate-500 sm:hidden">Severity:</span>
                           <SeverityDropdownInput 
                             value={c.severity}
                             onChange={(val) => updateComplaint(i, 'severity', val)}
@@ -1250,14 +1252,15 @@ setDiagnosis(newArr);
                             user={user}
                           />
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-1 sm:px-4 py-1 sm:py-2 flex items-center justify-between sm:table-cell">
+                          <span className="text-xs font-semibold text-slate-500 sm:hidden">Duration:</span>
                           <DurationDropdownInput 
                             value={c.duration}
                             onChange={(val) => updateComplaint(i, 'duration', val)}
                             user={user}
                           />
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-1 sm:px-4 py-1 sm:py-2 absolute right-2 top-2 sm:relative sm:right-auto sm:top-auto sm:table-cell">
                           {complaints.length > 1 && (
                             <button onClick={() => removeComplaint(i)} className="p-1.5 text-slate-500 hover:text-red-600 transition-colors">
                               <Trash2 size={16} />
@@ -1280,8 +1283,8 @@ setDiagnosis(newArr);
                 </div>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-300 dark:border-slate-800 shadow-sm overflow-visible">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 dark:bg-slate-800/50">
+                <table className="w-full text-left block sm:table">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 hidden sm:table-header-group">
                     <tr>
                       <th className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 w-12 text-center">#</th>
                       <th className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400">Diagnosis Name</th>
@@ -1290,12 +1293,13 @@ setDiagnosis(newArr);
                       <th className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 w-16"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 block sm:table-row-group">
                     {diagnosis.map((d, i) => (
-                      <tr key={i} className="hover:bg-slate-50/30 transition-colors">
-                        <td className="px-4 py-2.5 text-sm font-normal text-slate-500 text-center">{i + 1}</td>
-                        <td className="px-4 py-2 overflow-visible">
-                          <div className="flex items-center gap-2 w-full">
+                      <tr key={i} className="hover:bg-slate-50/30 transition-colors flex flex-col sm:table-row p-3 sm:p-0 relative gap-1 sm:gap-0">
+                        <td className="px-4 py-2.5 text-sm font-normal text-slate-500 text-center hidden sm:table-cell">{i + 1}</td>
+                        <td className="px-1 sm:px-4 py-2 overflow-visible">
+                          <div className="flex items-center gap-2 w-full pr-8 sm:pr-0">
+                            <span className="sm:hidden text-xs font-bold text-slate-400">#{i + 1}</span>
                             <button type="button" onClick={addDiagnosis} className="flex-shrink-0 p-1.5 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm shadow-blue-600/30" title="Add Diagnosis">
                               <Plus size={14} strokeWidth={3} />
                             </button>
@@ -1309,14 +1313,15 @@ setDiagnosis(newArr);
                                   age: patient?.age,
                                   gender: patient?.gender,
                                   vitals,
-                                  history: [] // Could add previous records here
+                                  history: [] 
                                 }}
                                 user={user}
                               />
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-1 sm:px-4 py-1 sm:py-2 flex items-center justify-between sm:table-cell">
+                          <span className="text-xs font-semibold text-slate-500 sm:hidden">Duration:</span>
                           <DiagnosisDurationInput 
                             value={d.duration}
                             onChange={(val) => updateDiagnosis(i, 'duration', val)}
@@ -1324,15 +1329,16 @@ setDiagnosis(newArr);
                             user={user}
                           />
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-1 sm:px-4 py-1 sm:py-2 flex items-center justify-between sm:table-cell">
+                          <span className="text-xs font-semibold text-slate-500 sm:hidden">Date:</span>
                           <input 
                             type="date"
                             value={d.date}
                             onChange={(e) => updateDiagnosis(i, 'date', e.target.value)}
-                            className="w-full bg-transparent border-none p-0 text-sm font-normal text-slate-700 dark:text-slate-300 focus:ring-0 cursor-pointer"
+                            className="w-full sm:w-auto bg-transparent border-none p-0 text-sm font-normal text-slate-700 dark:text-slate-300 focus:ring-0 cursor-pointer text-right sm:text-left"
                           />
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-1 sm:px-4 py-1 sm:py-2 absolute right-2 top-2 sm:relative sm:right-auto sm:top-auto sm:table-cell">
                           {diagnosis.length > 1 && (
                             <button onClick={() => removeDiagnosis(i)} className="p-1.5 text-slate-500 hover:text-red-600 transition-colors">
                               <Trash2 size={16} />
@@ -1355,8 +1361,8 @@ setDiagnosis(newArr);
                 </div>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-none border border-slate-300 dark:border-slate-800 shadow-sm overflow-visible">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 dark:bg-slate-800/50">
+                <table className="w-full text-left block sm:table">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 hidden sm:table-header-group">
                     <tr>
                       <th className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400">Medicine</th>
                       <th className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400">Dose</th>
@@ -1366,16 +1372,16 @@ setDiagnosis(newArr);
                       <th className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 w-16"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 block sm:table-row-group">
                     {medications.map((m, i) => (
                       <React.Fragment key={i}>
-                        <tr>
-                          <td className="px-4 py-2 min-w-[300px] border border-slate-200">
-                            <div className="flex items-start gap-2 w-full">
+                        <tr className="hover:bg-slate-50/30 transition-colors flex flex-col sm:table-row p-3 sm:p-0 relative gap-1 sm:gap-0 border-b border-slate-100 dark:border-slate-800 sm:border-0">
+                          <td className="px-1 sm:px-4 py-2 sm:min-w-[300px] sm:border border-slate-200 dark:border-slate-800 pb-3 sm:pb-2">
+                            <div className="flex items-start gap-2 w-full pr-8 sm:pr-0">
                               <button type="button" onClick={addMedication} className="mt-1 flex-shrink-0 p-1.5 text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm shadow-blue-600/30" title="Add Medicine">
                                 <Plus size={14} strokeWidth={3} />
                               </button>
-                              <div className="flex flex-col gap-0.5 flex-1">
+                              <div className="flex flex-col gap-0.5 flex-1 w-full relative">
                                 <SmartMedicineInput 
                                   value={m.name}
                                   onSelect={(fullMed) => handleSelectMedication(i, fullMed)}
@@ -1389,50 +1395,54 @@ setDiagnosis(newArr);
                                   user={user}
                                 />
                                 {(m.composition || m.genericName) && (
-                                  <div className="text-xs font-normal text-slate-500 italic px-1">
+                                  <div className="text-xs font-normal text-slate-500 italic px-1 line-clamp-1">
                                     —({m.composition || m.genericName})
                                   </div>
                                 )}
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-1 sm:px-4 py-1.5 flex items-center justify-between sm:table-cell">
+                            <span className="text-xs font-semibold text-slate-500 sm:hidden">Dose:</span>
                             <GenericDropdownInput 
                               value={m.dose} 
                               onChange={(v) => updateMedication(i, 'dose', v)}
                               options={DOSE_OPTIONS}
                               placeholder="Dose"
-                              className="w-20 bg-slate-50 dark:bg-slate-800 rounded-none p-1.5"
+                              className="w-24 sm:w-20 bg-slate-50 dark:bg-slate-800 rounded sm:rounded-none p-1.5 text-right sm:text-left"
                             />
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-1 sm:px-4 py-1.5 flex items-center justify-between sm:table-cell">
+                            <span className="text-xs font-semibold text-slate-500 sm:hidden">When:</span>
                             <GenericDropdownInput 
                               value={m.when} 
                               onChange={(v) => updateMedication(i, 'when', v)}
                               options={WHEN_OPTIONS}
                               placeholder="When"
-                              className="text-slate-500 uppercase"
+                              className="text-slate-500 uppercase text-right sm:text-left w-32 sm:w-auto"
                             />
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-1 sm:px-4 py-1.5 flex items-center justify-between sm:table-cell">
+                            <span className="text-xs font-semibold text-slate-500 sm:hidden">Frequency:</span>
                             <GenericDropdownInput 
                               value={m.frequency} 
                               onChange={(v) => updateMedication(i, 'frequency', v)}
                               options={FREQ_OPTIONS}
                               placeholder="Freq"
-                              className="text-slate-500 uppercase"
+                              className="text-slate-500 uppercase text-right sm:text-left w-32 sm:w-auto"
                             />
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-1 sm:px-4 py-1.5 flex items-center justify-between sm:table-cell">
+                            <span className="text-xs font-semibold text-slate-500 sm:hidden">Duration:</span>
                             <GenericDropdownInput 
                               value={m.duration} 
                               onChange={(v) => updateMedication(i, 'duration', v)}
                               options={DURATION_OPTIONS}
                               placeholder="Dur"
-                              className="text-slate-400"
+                              className="text-slate-400 text-right sm:text-left w-24 sm:w-auto"
                             />
                           </td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-1 sm:px-4 py-1.5 absolute right-2 top-2 sm:relative sm:right-auto sm:top-auto sm:table-cell">
                             {medications.length > 1 && (
                               <button onClick={() => removeMedication(i)} className="p-1.5 text-slate-500 hover:text-red-600 transition-colors">
                                 <Trash2 size={16} />
@@ -1581,19 +1591,19 @@ setDiagnosis(newArr);
           </div>
 
           {/* Footer */}
-          <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-3 text-slate-400">
+          <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
+            <div className="flex items-center gap-3 text-slate-400 w-full sm:w-auto justify-center sm:justify-start">
                <History size={16} />
                <span className="text-xs font-medium text-slate-500">Draft automatically saved</span>
             </div>
-            <div className="flex gap-4 relative">
+            <div className="flex gap-2 sm:gap-4 relative w-full sm:w-auto justify-between sm:justify-end">
               <div ref={translateMenuRef} className="relative">
                 <button
                   onClick={() => setShowTranslateMenu(!showTranslateMenu)}
-                  className="px-8 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-sm font-black rounded-2xl hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all active:scale-95 flex items-center gap-2"
+                  className="px-4 sm:px-8 py-2.5 sm:py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-sm font-black rounded-2xl hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all active:scale-95 flex items-center gap-2"
                 >
                   <Languages size={18} />
-                  {targetLanguage}
+                  <span className="hidden sm:inline">{targetLanguage}</span>
                 </button>
 
                 <AnimatePresence>
@@ -1630,21 +1640,22 @@ setDiagnosis(newArr);
 
               <button
                 onClick={onClose}
-                className="px-8 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-black rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-95"
+                className="px-4 sm:px-8 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-black rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-95"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-10 py-3 bg-indigo-600 text-white text-sm font-black rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-900/20 active:scale-95 flex items-center gap-2 disabled:bg-indigo-400"
+                className="px-4 sm:px-10 py-2.5 sm:py-3 bg-indigo-600 text-white text-sm font-black rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-900/20 active:scale-95 flex items-center gap-2 disabled:bg-indigo-400"
               >
                 {isSaving ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Save size={18} />
                 )}
-                {isSaving ? "Saving..." : "Save Prescription"}
+                <span className="hidden sm:inline">{isSaving ? "Saving..." : "Save Prescription"}</span>
+                <span className="sm:hidden">{isSaving ? "Saving..." : "Save"}</span>
               </button>
             </div>
           </div>

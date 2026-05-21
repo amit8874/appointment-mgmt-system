@@ -107,6 +107,7 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
         availability: doctor?.availability || {
             monday: true, tuesday: true, wednesday: true, thursday: true, friday: true, saturday: false, sunday: false
         },
+        slotDuration: doctor?.slotDuration || 15,
         qualification: doctor?.qualification || '',
         fee: doctor?.fee || doctor?.consultationFee || ''
     });
@@ -362,12 +363,12 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
 
     return (
         <AnimatePresence>
-            <div key="add-doctor-modal-overlay" className="fixed inset-0 backdrop-blur-md bg-slate-900/40 z-50 flex items-center justify-center p-0 md:p-4">
+            <div key="add-doctor-modal-overlay" className="fixed inset-0 backdrop-blur-sm bg-slate-900/60 z-50 flex items-center justify-center p-0 md:p-4">
                 <motion.div 
-                    initial={{ opacity: 0, y: 20, scale: 0.98 }} 
+                    initial={{ opacity: 0, y: 10, scale: 0.98 }} 
                     animate={{ opacity: 1, y: 0, scale: 1 }} 
-                    exit={{ opacity: 0, y: 20, scale: 0.98 }} 
-                    className="bg-white dark:bg-slate-900 rounded-none md:rounded-3xl shadow-2xl w-full max-w-4xl h-full md:h-auto md:max-h-[85vh] flex flex-col overflow-hidden border-0 md:border md:border-slate-200 dark:md:border-slate-800"
+                    exit={{ opacity: 0, y: 10, scale: 0.98 }} 
+                    className="bg-white dark:bg-slate-900 rounded-none md:rounded shadow-2xl w-full max-w-4xl h-full md:h-auto md:max-h-[85vh] flex flex-col overflow-hidden border-0 md:border md:border-slate-200 dark:md:border-slate-800"
                 >
                     {showSuccessView ? (
                         <div className="p-8 md:p-12 flex flex-col items-center text-center space-y-6">
@@ -389,13 +390,13 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                         </div>
                     ) : (
                         <>
-                            <div className="px-5 md:px-8 py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 dark:from-indigo-900 dark:to-slate-900 flex justify-between items-center text-white">
+                            <div className="px-5 md:px-8 py-5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center text-slate-800 dark:text-slate-100">
                         <div>
-                            <h1 className="text-lg md:text-xl font-black uppercase tracking-tight leading-tight">{doctor ? 'Edit Doctor Profile' : 'Register New Doctor'}</h1>
-                            <p className="text-indigo-100/70 text-[10px] md:text-xs font-medium mt-0.5">Section {currentIdx + 1} of 6: {tabs.find(t=>t.id===activeTab).label}</p>
+                            <h1 className="text-lg md:text-xl font-bold uppercase tracking-tight leading-tight">{doctor ? 'Edit Doctor Profile' : 'Register New Doctor'}</h1>
+                            <p className="text-slate-500 text-[10px] md:text-xs font-medium mt-0.5">Section {currentIdx + 1} of 6: {tabs.find(t=>t.id===activeTab).label}</p>
                         </div>
                         {!isForced && (
-                            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center justify-center"><X size={20} /></button>
+                            <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors flex items-center justify-center text-slate-500"><X size={20} /></button>
                         )}
                     </div>
 
@@ -426,18 +427,18 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                                     <button 
                                         key={tab.id} 
                                         onClick={() => handleTabClick(tab.id)} 
-                                        className={`flex-shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2.5 md:py-3 rounded-xl text-[11px] md:text-sm font-bold transition-all relative ${
+                                        className={`flex-shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2.5 md:py-3 rounded-sm text-[11px] md:text-sm font-semibold transition-all relative ${
                                             activeTab === tab.id 
-                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 md:translate-x-1' 
+                                                ? 'bg-indigo-50 border-l-4 border-indigo-600 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' 
                                                 : !isUnlocked 
                                                     ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed' 
-                                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600'
+                                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-indigo-600'
                                         }`}
                                     >
                                         <tab.icon size={16} className="md:w-[18px] md:h-[18px]" /> 
                                         <span className="whitespace-nowrap">{tab.label}</span>
-                                        {completedSteps.includes(tab.id) && activeTab !== tab.id && <div className="hidden md:flex ml-auto bg-emerald-500 text-white p-0.5 rounded-full"><Check size={10} /></div>}
-                                        {activeTab === tab.id && <ChevronRight size={14} className="hidden md:block ml-auto" />}
+                                        {completedSteps.includes(tab.id) && activeTab !== tab.id && <div className="hidden md:flex ml-auto bg-emerald-500 text-white p-0.5 rounded"><Check size={10} /></div>}
+                                        {activeTab === tab.id && <ChevronRight size={14} className="hidden md:block ml-auto text-indigo-500" />}
                                     </button>
                                 );
                             })}
@@ -544,15 +545,33 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                                         <SectionTitle title="Availability" icon={Clock} />
                                         <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 md:gap-2">
                                             {Object.keys(formData.availability).map(day => (
-                                                <label key={day} className={`flex flex-col items-center p-2 rounded-xl border-2 transition-all cursor-pointer ${formData.availability[day] ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-100 text-slate-400'}`}>
+                                                <label key={day} className={`flex flex-col items-center p-2 rounded border transition-all cursor-pointer ${formData.availability[day] ? 'bg-indigo-50 border-indigo-600 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-400 dark:text-indigo-300' : 'bg-white border-slate-200 text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'}`}>
                                                     <input type="checkbox" name={day} checked={formData.availability[day]} onChange={(e)=>handleInputChange(e, 'availability')} className="hidden" />
                                                     <span className="text-[10px] font-bold uppercase">{day.slice(0,3)}</span>
-                                                    <div className={`mt-1 h-1 w-4 rounded-full ${formData.availability[day] ? 'bg-white' : 'bg-slate-200'}`} />
+                                                    <div className={`mt-1 h-1 w-4 rounded-sm ${formData.availability[day] ? 'bg-indigo-600 dark:bg-indigo-400' : 'bg-slate-200 dark:bg-slate-700'}`} />
                                                 </label>
                                             ))}
                                         </div>
 
                                         <div className="mt-8 space-y-4">
+                                            <div className="flex flex-col gap-2">
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Consultation Slot Duration</h4>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {[5, 10, 15, 20, 30, 40, 60].map(duration => (
+                                                        <button 
+                                                            key={duration} 
+                                                            type="button" 
+                                                            onClick={() => setFormData(p => ({ ...p, slotDuration: duration }))} 
+                                                            className={`px-4 py-2 text-xs font-bold border rounded transition-colors ${formData.slotDuration === duration ? 'bg-indigo-50 border-indigo-600 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-400 dark:text-indigo-300' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}
+                                                        >
+                                                            {duration} min
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-8 space-y-4 pt-6 border-t border-slate-100 dark:border-slate-800">
                                             <div className="flex items-center justify-between">
                                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Consultation Timings</h4>
                                                 <button type="button" onClick={() => setFormData(p => ({ ...p, workingHours: [...p.workingHours, { start: '09:00', end: '13:00' }] }))} className="flex items-center gap-1 text-[10px] font-black text-indigo-600 uppercase hover:text-indigo-700 transition-colors">
@@ -586,14 +605,14 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                      <div className="px-5 md:px-8 py-4 md:py-5 bg-slate-50 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="hidden md:block">{activeTab !== 'basic' && <button onClick={handleBack} className="flex items-center gap-2 px-6 py-2 text-slate-500 font-bold text-xs uppercase"><ChevronLeft size={18} /> Back</button>}</div>
                         <div className="flex w-full md:w-auto gap-3 md:gap-4">
-                            {activeTab !== 'basic' && <button onClick={handleBack} className="flex-1 md:hidden flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 text-slate-500 font-black rounded-xl text-[10px] uppercase">Back</button>}
+                            {activeTab !== 'basic' && <button onClick={handleBack} className="flex-1 md:hidden flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 text-slate-500 font-black rounded text-[10px] uppercase">Back</button>}
                             {!isForced && (
                                 <button onClick={onClose} className="flex-1 md:flex-none py-3 md:px-6 md:py-2 text-slate-400 font-bold text-[10px] md:text-xs uppercase">Cancel</button>
                             )}
                             {activeTab !== 'availability' ? (
-                                <button onClick={handleNext} className="flex-[2] md:flex-none px-6 md:px-8 py-3 bg-indigo-600 text-white font-black rounded-xl text-[10px] md:text-xs uppercase shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2">Next <ChevronRight size={18} /></button>
+                                <button onClick={handleNext} className="flex-[2] md:flex-none px-6 md:px-8 py-3 bg-indigo-600 text-white font-black rounded text-[10px] md:text-xs uppercase shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2">Next <ChevronRight size={18} /></button>
                             ) : (
-                                <button onClick={handleSubmit} disabled={loading} className="flex-[2] md:flex-none px-6 md:px-8 py-3 bg-emerald-600 text-white font-black rounded-xl text-[10px] md:text-xs uppercase shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2">
+                                <button onClick={handleSubmit} disabled={loading} className="flex-[2] md:flex-none px-6 md:px-8 py-3 bg-emerald-600 text-white font-black rounded text-[10px] md:text-xs uppercase shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2">
                                     {loading ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={18} />} Finish
                                 </button>
                             )}

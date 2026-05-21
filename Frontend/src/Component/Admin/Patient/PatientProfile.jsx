@@ -718,7 +718,7 @@ const PrescriptionContent = ({ notes }) => {
 
       {/* 4. MEDICATIONS (Rx) */}
       {data.medications?.length > 0 && (
-        <div className="bg-white">
+        <div className="bg-white overflow-x-auto">
           <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 border-b border-slate-100">
             <Pill size={12} className="text-slate-500 shrink-0" />
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Rx • Medications</span>
@@ -827,12 +827,12 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-3">
           <h3 className="text-lg font-bold text-slate-800 tracking-tight">Prescription History</h3>
           <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold uppercase tracking-wider">{allPrescriptions.length} Records</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex flex-col items-end mr-4">
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter leading-none mb-1">Prescription Layout</span>
             <select 
@@ -876,7 +876,7 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
             <div key={p.id || idx} className="bg-white border-2 border-slate-100 rounded-[2rem] p-8 relative overflow-hidden group hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300">
               <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-600 rounded-r-full"></div>
               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-all"></div>
-              <div className="flex justify-between items-start mb-4 relative z-10">
+              <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4 mb-4 relative z-10">
                 <div className="flex items-center gap-3">
                   <div className={`p-2.5 rounded-xl shadow-lg shadow-indigo-100 ${p.type === 'Record' ? 'bg-emerald-600' : 'bg-indigo-600'} text-white`}>
                     <Pill size={18} />
@@ -888,7 +888,7 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3 lg:gap-4 mt-2 lg:mt-0">
                   <button onClick={() => onEmail(p)} className="flex items-center gap-1.5 text-blue-500 hover:text-blue-600 transition-colors">
                     <Mail size={16} />
                     <span className="text-sm font-semibold">Email</span>
@@ -3580,7 +3580,7 @@ const PatientProfile = () => {
   // Today's appointments states for the far-left navigation sidebar
   const [todayAppointments, setTodayAppointments] = useState([]);
   const [loadingTodayAppts, setLoadingTodayAppts] = useState(false);
-  const [isTodayApptsCollapsed, setIsTodayApptsCollapsed] = useState(false);
+  const [isTodayApptsCollapsed, setIsTodayApptsCollapsed] = useState(() => window.innerWidth < 1024);
   const [todaySearch, setTodaySearch] = useState(() => {
     return sessionStorage.getItem('patientSidebarTodaySearch') || '';
   });
@@ -3960,18 +3960,9 @@ const PatientProfile = () => {
     { key: 'progress', name: 'Progress Gallery', icon: Camera },
     { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
     { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote }
-  ].filter(tab => {
-    if (user?.role === 'receptionist') {
-      return ['personal', 'appointments', 'follow-ups'].includes(tab.key);
-    }
-    return true;
-  });
+  ];
 
-  useEffect(() => {
-    if (user?.role === 'receptionist' && activeTab && !['personal', 'appointments'].includes(activeTab)) {
-      setActiveTab('personal');
-    }
-  }, [user?.role, activeTab]);
+
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -4427,38 +4418,40 @@ const PatientProfile = () => {
         </aside>
 
         {/* Sidebar */}
-        <aside className={`w-full lg:w-40 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 z-40 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
+        <aside className={`w-full lg:w-40 bg-white border-r border-slate-200 flex flex-col lg:h-screen sticky top-0 z-40 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
           {/* Sidebar Header: Patient Info */}
-          <div className="p-3 border-b border-slate-100 shrink-0">
-            <div className="flex items-center gap-2 mb-4">
+          <div className="p-3 border-b border-slate-100 shrink-0 flex lg:flex-col justify-between lg:justify-start items-center lg:items-stretch">
+            <div className="flex items-center gap-2 lg:mb-4">
               <button onClick={handleGoBack} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-transparent hover:border-indigo-100">
                 <ArrowLeft size={14} />
               </button>
-              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Patient Profile</div>
+              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider hidden lg:block">Patient Profile</div>
             </div>
 
-            <div className="flex flex-col items-center text-center">
-              <div className="relative mb-2.5">
-                <div className="w-14 h-14 rounded-xl bg-slate-50 flex items-center justify-center border-2 border-white shadow-md shadow-slate-200/50">
-                  <User size={24} className="text-slate-400" />
+            <div className="flex flex-row lg:flex-col items-center text-left lg:text-center gap-3 lg:gap-0">
+              <div className="relative lg:mb-2.5">
+                <div className="w-10 h-10 lg:w-14 lg:h-14 rounded-xl bg-slate-50 flex items-center justify-center border-2 border-white shadow-md shadow-slate-200/50">
+                  <User size={20} className="text-slate-400 lg:w-6 lg:h-6" />
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full"></div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 lg:w-3.5 lg:h-3.5 bg-emerald-500 border-2 border-white rounded-full"></div>
               </div>
 
-              <h1 className="text-[14px] font-bold text-slate-900 leading-tight px-1">
-                {(() => {
-                  const fullName = (data.fullName || `${data.firstName || ''} ${data.lastName || ''}`).trim();
-                  return fullName.replace(/\b(MR|MS|MRS|DR|SHRI|SMT)\.?\s+\1\.?\b/gi, '$1.');
-                })()}
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold rounded uppercase tracking-wider">
-                  ID: {data.patientId}
-                </span>
+              <div>
+                <h1 className="text-xs lg:text-[14px] font-bold text-slate-900 leading-tight px-1">
+                  {(() => {
+                    const fullName = (data.fullName || `${data.firstName || ''} ${data.lastName || ''}`).trim();
+                    return fullName.replace(/\b(MR|MS|MRS|DR|SHRI|SMT)\.?\s+\1\.?\b/gi, '$1.');
+                  })()}
+                </h1>
+                <div className="flex items-center gap-2 mt-0.5 lg:mt-1 justify-start lg:justify-center">
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold rounded uppercase tracking-wider">
+                    ID: {data.patientId}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="hidden lg:grid mt-4 grid-cols-2 gap-2">
               <div className="bg-slate-50/50 p-2 rounded-lg border border-slate-100/50">
                 <div className="text-[7px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Age / Y</div>
                 <div className="text-[11px] font-bold text-slate-700">
@@ -4473,18 +4466,18 @@ const PatientProfile = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="flex-1 overflow-y-auto custom-scrollbar">
+          <nav className="flex-row overflow-x-auto lg:overflow-y-auto lg:flex-col flex lg:flex-1 custom-scrollbar w-full">
             {tabs.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-[10px] font-medium transition-all duration-200 border-b border-slate-50 group relative ${activeTab === tab.key
-                  ? 'bg-indigo-50/50 text-indigo-700 border-l-4 border-l-indigo-600'
-                  : 'text-slate-500 hover:bg-slate-50 border-l-4 border-l-transparent'
+                className={`flex-none lg:w-full flex items-center gap-2 lg:gap-3 px-4 py-3 text-[10px] font-medium transition-all duration-200 border-b-2 lg:border-b lg:border-r-0 border-slate-50 group relative ${activeTab === tab.key
+                  ? 'bg-indigo-50/50 text-indigo-700 lg:border-l-4 lg:border-l-indigo-600 border-b-indigo-600 lg:border-b-transparent'
+                  : 'text-slate-500 hover:bg-slate-50 lg:border-l-4 lg:border-l-transparent border-b-transparent'
                   }`}
               >
                 <tab.icon size={14} className={`${activeTab === tab.key ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-400'} transition-colors`} />
-                <span className="flex-1 text-left uppercase tracking-wider">{tab.name}</span>
+                <span className="text-left uppercase tracking-wider whitespace-nowrap">{tab.name}</span>
               </button>
             ))}
           </nav>
@@ -4515,7 +4508,7 @@ const PatientProfile = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 lg:gap-6">
               <div className="hidden xl:flex flex-col items-end">
                 <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Primary Contact</div>
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
@@ -4526,20 +4519,20 @@ const PatientProfile = () => {
               
               <div className="h-10 w-[1px] bg-slate-200 hidden xl:block"></div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 lg:gap-3">
                 <button
                   onClick={() => setShowFollowUpModal(true)}
-                  className="flex items-center gap-2 px-6 py-3.5 bg-white border-2 border-slate-100 text-slate-700 rounded-[1.25rem] text-sm font-bold hover:bg-slate-50 hover:border-indigo-200 transition-all shadow-sm active:scale-95"
+                  className="flex items-center gap-2 px-3 py-2.5 lg:px-6 lg:py-3.5 bg-white border-2 border-slate-100 text-slate-700 rounded-[1.25rem] text-xs lg:text-sm font-bold hover:bg-slate-50 hover:border-indigo-200 transition-all shadow-sm active:scale-95"
                 >
                   <Bell size={16} className="text-indigo-600" />
-                  Add Follow-up
+                  <span className="hidden sm:inline">Add Follow-up</span>
                 </button>
                 <button
                   onClick={() => handleRebook({ doctorId: data.assignedDoctorId, doctorName: data.assignedDoctor, specialty: 'General' })}
-                  className="flex items-center gap-2 px-6 py-3.5 bg-slate-900 text-white rounded-[1.25rem] text-sm font-bold hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200 hover:shadow-indigo-100 group"
+                  className="flex items-center gap-2 px-3 py-2.5 lg:px-6 lg:py-3.5 bg-slate-900 text-white rounded-[1.25rem] text-xs lg:text-sm font-bold hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200 hover:shadow-indigo-100 group"
                 >
                   <CalendarIcon size={16} className="group-hover:rotate-12 transition-transform" />
-                  New Appointment
+                  <span className="hidden sm:inline">New Appointment</span>
                 </button>
               </div>
             </div>

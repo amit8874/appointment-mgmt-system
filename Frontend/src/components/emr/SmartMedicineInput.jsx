@@ -145,44 +145,8 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
           
           <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
             
-            {/* AI SUGGESTED Rx */}
-            {(aiRecs.suggestions.length > 0 || isLoading) && (
-              <div className="mb-4">
-                <div className="px-3 py-2 flex items-center gap-2 border-b border-indigo-50 dark:border-indigo-900/30 mb-1">
-                  <Sparkles size={14} className="text-indigo-500 animate-pulse" />
-                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
-                    {aiRecs.source === 'Database' ? 'Protocol Suggested Rx (Standard)' : 'AI Suggested Rx (Based on Context)'}
-                  </span>
-                  {isLoading && <Loader2 size={10} className="animate-spin text-indigo-400 ml-auto" />}
-                </div>
-
-                <div className="space-y-1 bg-indigo-50/20 dark:bg-indigo-900/5 rounded-none p-1">
-                  {aiRecs.suggestions.map((s, i) => (
-                    <div 
-                      key={i} 
-                      onMouseDown={() => handleSelect(s)}
-                      className="px-4 py-3 hover:bg-white dark:hover:bg-slate-700 cursor-pointer flex items-center justify-between group border-b border-indigo-50/50 last:border-0"
-                    >
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                          <BadgeCheck size={14} className="text-emerald-500" />
-                          <span className="text-sm font-black text-slate-700 dark:text-slate-100">{s.name} {s.strength}</span>
-                          <span className="text-[9px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full font-black uppercase">{s.form}</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-bold mt-0.5">{s.generic}</span>
-                      </div>
-                      <div className="flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-[8px] font-black text-indigo-500 uppercase">{s.dose} | {s.when}</span>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase">{s.freq}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* MASTER MEDICINE LIST */}
-            <div>
+            <div className="mb-4">
               <div className="px-3 py-2 flex items-center gap-2 border-b border-slate-50 dark:border-slate-700 mb-2">
                 <Pill size={14} className="text-slate-400" />
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Medicine Master ({filtered.length})</span>
@@ -226,6 +190,42 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
                 )}
               </div>
             </div>
+
+            {/* AI SUGGESTED Rx */}
+            {(aiRecs.suggestions.length > 0 || isLoading) && (
+              <div>
+                <div className="px-3 py-2 flex items-center gap-2 border-b border-indigo-50 dark:border-indigo-900/30 mb-1">
+                  <Sparkles size={14} className="text-indigo-500 animate-pulse" />
+                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                    {aiRecs.source === 'Database' ? 'Protocol Suggested Rx (Standard)' : 'AI Suggested Rx (Based on Context)'}
+                  </span>
+                  {isLoading && <Loader2 size={10} className="animate-spin text-indigo-400 ml-auto" />}
+                </div>
+
+                <div className="space-y-1 bg-indigo-50/20 dark:bg-indigo-900/5 rounded-none p-1">
+                  {aiRecs.suggestions.map((s, i) => (
+                    <div 
+                      key={i} 
+                      onMouseDown={() => handleSelect(s)}
+                      className="px-4 py-3 hover:bg-white dark:hover:bg-slate-700 cursor-pointer flex items-center justify-between group border-b border-indigo-50/50 last:border-0"
+                    >
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <BadgeCheck size={14} className="text-emerald-500" />
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-100">{s.name} {s.strength}</span>
+                          <span className="text-[9px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full font-black uppercase">{s.form}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-bold mt-0.5">{s.generic}</span>
+                      </div>
+                      <div className="flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-[8px] font-black text-indigo-500 uppercase">{s.dose} | {s.when}</span>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase">{s.freq}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 text-[9px] text-slate-400 font-black uppercase tracking-widest flex items-center justify-between">

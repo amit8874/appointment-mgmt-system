@@ -289,7 +289,7 @@ export const getDoctorSlots = async (req, res) => {
     }
 
     // Generate possible time slots
-    const possibleSlotsStr = generateTimeSlots(workingHours);
+    const possibleSlotsStr = generateTimeSlots(workingHours, doctor.slotDuration || 15);
     
     if (possibleSlotsStr.length === 0) {
       return res.json({ 
@@ -470,7 +470,7 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
       let slotCount = 0;
 
       if (isAvailable) {
-        const possibleSlots = generateTimeSlots(workingHours);
+        const possibleSlots = generateTimeSlots(workingHours, doctor.slotDuration || 15);
         
         const doctorIdSearch = [];
         if (doctor.doctorId) doctorIdSearch.push(doctor.doctorId);

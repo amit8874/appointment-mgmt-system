@@ -129,41 +129,8 @@ const SmartDiagnosisInput = ({ value, onChange, context, user }) => {
         <div className="absolute top-[calc(100%+8px)] left-0 w-[500px] bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-2xl z-[9999] max-h-[500px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
           
           <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-            {/* AI RECOMMENDATIONS SECTION */}
-            {(aiRecs.high.length > 0 || isLoading) && (
-              <div className="mb-4">
-                <div className="px-3 py-2 flex items-center justify-between">
-                   <div className="flex items-center gap-2">
-                    <Sparkles size={14} className="text-indigo-500 animate-pulse" />
-                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Maya AI Recommendations</span>
-                   </div>
-                </div>
-
-                <div className="space-y-1 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-xl p-1 border border-indigo-100/50 dark:border-indigo-800/30">
-                  {/* HIGH CONFIDENCE */}
-                  {aiRecs.high.map(d => (
-                    <div key={d} onMouseDown={() => handleSelect(d)} className="px-3 py-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg cursor-pointer flex items-center justify-between group">
-                      <div className="flex items-center gap-2">
-                        <BadgeCheck size={14} className="text-emerald-500" />
-                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{d}</span>
-                      </div>
-                      <span className="text-[8px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-black uppercase opacity-0 group-hover:opacity-100">High Confidence</span>
-                    </div>
-                  ))}
-                  {/* MEDIUM CONFIDENCE */}
-                  {aiRecs.medium.map(d => (
-                    <div key={d} onMouseDown={() => handleSelect(d)} className="px-3 py-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg cursor-pointer flex items-center gap-2">
-                      <div className="w-1 h-1 rounded-full bg-amber-400" />
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{d}</span>
-                    </div>
-                  ))}
-                </div>
-
-              </div>
-            )}
-
             {/* MASTER LIST SECTION */}
-            <div>
+            <div className="mb-4">
               <div className="px-3 py-2 flex items-center justify-between border-b border-slate-50 dark:border-slate-700 mb-2">
                 <div className="flex items-center gap-2">
                   <Activity size={14} className="text-slate-400" />
@@ -198,6 +165,39 @@ const SmartDiagnosisInput = ({ value, onChange, context, user }) => {
                 )}
               </div>
             </div>
+
+            {/* AI RECOMMENDATIONS SECTION */}
+            {(aiRecs.high.length > 0 || isLoading) && (
+              <div>
+                <div className="px-3 py-2 flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                    <Sparkles size={14} className="text-indigo-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Maya AI Recommendations</span>
+                   </div>
+                </div>
+
+                <div className="space-y-1 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-xl p-1 border border-indigo-100/50 dark:border-indigo-800/30">
+                  {/* HIGH CONFIDENCE */}
+                  {aiRecs.high.map(d => (
+                    <div key={d} onMouseDown={() => handleSelect(d)} className="px-3 py-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg cursor-pointer flex items-center justify-between group">
+                      <div className="flex items-center gap-2">
+                        <BadgeCheck size={14} className="text-emerald-500" />
+                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{d}</span>
+                      </div>
+                      <span className="text-[8px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded-full font-black uppercase opacity-0 group-hover:opacity-100">High Confidence</span>
+                    </div>
+                  ))}
+                  {/* MEDIUM CONFIDENCE */}
+                  {aiRecs.medium.map(d => (
+                    <div key={d} onMouseDown={() => handleSelect(d)} className="px-3 py-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg cursor-pointer flex items-center gap-2">
+                      <div className="w-1 h-1 rounded-full bg-amber-400" />
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{d}</span>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            )}
           </div>
 
           <div className="p-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 text-[8px] text-slate-400 font-bold uppercase tracking-widest flex items-center justify-between">
