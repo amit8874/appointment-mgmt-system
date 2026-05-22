@@ -848,9 +848,9 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
               className="bg-white border-2 border-indigo-100 rounded-xl px-4 py-1.5 text-[11px] font-bold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer hover:border-indigo-300 transition-all min-w-[180px]"
             >
               <option value="default">Oviaan System Default</option>
-              {templates.filter(t => t._id && t.templateName).map(t => (
+              {templates.filter(t => t._id && (t.templateName || t.name)).map(t => (
                 <option key={t._id} value={t._id}>
-                  {t.templateName} {t.isDefault ? '(Default)' : ''}
+                  {t.templateName || t.name} {t.isDefault ? '(Default)' : ''}
                 </option>
               ))}
             </select>
@@ -3603,10 +3603,45 @@ const PatientProfile = () => {
     if (user) {
       try {
         const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null) || user?._id;
+        
+        let hasA4 = false;
+        let templateData = null;
+        try {
+          const settings = await organizationApi.getPrescriptionTemplateSettings();
+          if (settings?.data?.templateUrl) {
+            hasA4 = true;
+            templateData = settings.data;
+          }
+        } catch (e) {
+          console.error("Failed to fetch A4 settings", e);
+        }
+
+        if (templateData) {
+          setOrgDetails(prev => {
+            if (prev) {
+              return {
+                ...prev,
+                prescriptionTemplate: templateData
+              };
+            }
+            return {
+              prescriptionTemplate: templateData
+            };
+          });
+        }
+
         const response = await prescriptionTemplateApi.list(orgId);
         if (response && response.templates) {
-          setTemplates(response.templates);
-          const def = response.templates.find(t => t.isDefault) || response.templates[0];
+          let loadedTemplates = response.templates;
+          if (hasA4) {
+            loadedTemplates = [{
+              _id: 'global_a4',
+              templateName: 'A4 Full Template (Admin Settings)',
+              isDefault: false
+            }, ...loadedTemplates];
+          }
+          setTemplates(loadedTemplates);
+          const def = loadedTemplates.find(t => t.isDefault) || loadedTemplates[0];
           setDefaultTemplate(def);
           setSelectedTemplate(def);
         }
@@ -3744,11 +3779,21 @@ const PatientProfile = () => {
   }, [sidebarMode, loadingAllPatients, loadingTodayAppts]);
 
   const fetchOrgDetails = async () => {
-    const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null);
+    const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null) || user?._id;
     if (!orgId) return;
     try {
       const org = await organizationApi.getById(orgId);
-      if (org) setOrgDetails(org);
+      if (org) {
+        try {
+          const settingsData = await organizationApi.getPrescriptionTemplateSettings();
+          if (settingsData && settingsData.data) {
+            org.prescriptionTemplate = settingsData.data;
+          }
+        } catch (settingsError) {
+          console.error("Failed to fetch prescription template settings in fetchOrgDetails", settingsError);
+        }
+        setOrgDetails(org);
+      }
     } catch (error) {
       console.error("Failed to fetch organization details", error);
     }
@@ -3767,7 +3812,7 @@ const PatientProfile = () => {
     if (printingPrescription) {
       setTimeout(() => {
         window.print();
-      }, 300);
+      }, 600);
     }
   }, [printingPrescription]);
 
@@ -3944,6 +3989,63 @@ const PatientProfile = () => {
     } catch (error) {
       console.error("Failed to fetch doctor details for print", error);
     }
+
+    // Preload all print images to ensure they show up in print preview without racing
+    try {
+      const getImageUrl = (path) => {
+        if (!path) return null;
+        if (path.startsWith('data:') || path.startsWith('http')) return path; 
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const serverUrl = baseUrl.replace(/\/api$/, '') || 'http://localhost:5000';
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        return `${serverUrl}${cleanPath}`;
+      };
+
+      const urlsToPreload = [];
+
+      // A4 background template image
+      const isA4 = selectedTemplate?._id === 'global_a4' || selectedTemplate?.headerType === 'a4' || selectedTemplate?.layoutType === 'a4';
+      if (isA4 && orgDetails?.prescriptionTemplate?.templateUrl) {
+        urlsToPreload.push(getImageUrl(orgDetails.prescriptionTemplate.templateUrl));
+      }
+
+      // Clinic Logo (when not A4)
+      if (!isA4) {
+        const logoPath = orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo;
+        if (logoPath) {
+          urlsToPreload.push(getImageUrl(logoPath));
+        }
+      }
+
+      // Custom header/body/footer if applicable
+      if (!isA4 && selectedTemplate?.headerType === 'custom' && selectedTemplate?.headerImage) {
+        urlsToPreload.push(getImageUrl(selectedTemplate.headerImage));
+      }
+      if (selectedTemplate?.bodyType === 'custom' && selectedTemplate?.bodyImage) {
+        urlsToPreload.push(getImageUrl(selectedTemplate.bodyImage));
+      }
+      if (!isA4 && selectedTemplate?.footerType === 'custom' && selectedTemplate?.footerImage) {
+        urlsToPreload.push(getImageUrl(selectedTemplate.footerImage));
+      }
+
+      if (urlsToPreload.length > 0) {
+        await Promise.all(
+          urlsToPreload.map(url => {
+            return new Promise((resolve) => {
+              const img = new Image();
+              img.src = url;
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+              // 1.5 second fallback timeout per image
+              setTimeout(resolve, 1500);
+            });
+          })
+        );
+      }
+    } catch (e) {
+      console.error("Failed to preload template images for printing:", e);
+    }
+
     setPrintingPrescription(p);
   };
 
@@ -4060,19 +4162,25 @@ const PatientProfile = () => {
       patientName: data.fullName || `${data.firstName} ${data.lastName}`,
       firstName: data.firstName || data.fullName?.split(' ')[0] || '',
       lastName: data.lastName || data.fullName?.split(' ').slice(1).join(' ') || '',
+      phone: data.mobile || data.phone || data.contactNumber || data.contact || '',
       patientPhone: data.mobile || data.phone || data.contactNumber || data.contact || '',
       patientEmail: data.email || '',
       gender: data.gender,
+      age: data.age,
       patientAge: data.age,
       ageType: data.ageType || 'Year',
+      designation: data.designation || '',
+      doctor: appt.doctorId || '',
       doctorId: appt.doctorId,
       doctorName: appt.doctorName,
+      department: appt.specialty || '',
       specialty: appt.specialty,
+      symptoms: appt.reason || '',
       reason: appt.reason,
       patient: data
     };
     if (location.pathname.startsWith('/admin')) {
-      navigate('/admin-dashboard', { state: { activeTab: 'Calendar View', rebookData } });
+      navigate('/admin-dashboard', { state: { rebookData } });
     } else {
       navigate('/receptionist/new-appointment', { state: { rebookData } });
     }
@@ -4661,6 +4769,8 @@ const PatientProfile = () => {
         <div id="prescription-print-area" className="hidden-print">
           <PrintablePrescription
             template={selectedTemplate}
+            orgTemplateUrl={orgDetails?.prescriptionTemplate?.templateUrl}
+            printableArea={orgDetails?.prescriptionTemplate?.printableArea}
             prescription={printingPrescription}
             patient={data}
             clinicName={orgDetails?.name || user?.organization?.name || user?.clinicName}

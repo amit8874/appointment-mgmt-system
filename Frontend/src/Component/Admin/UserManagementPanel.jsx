@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Plus, Trash2, Edit, Eye, EyeOff, X, User, Search, Activity, Loader2, Lock } from 'lucide-react';
+import { Plus, Trash2, Edit, Eye, EyeOff, X, User, Search, Activity, Loader2, Lock, CheckCircle, Copy, ClipboardCheck, Shield } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
 import Pagination from '../../components/common/Pagination';
@@ -33,6 +33,9 @@ const UserManagementPanel = ({ limits }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [createdUser, setCreatedUser] = useState(null); // holds credentials after successful creation
+  const [showCreatedPassword, setShowCreatedPassword] = useState(false);
+  const [copiedField, setCopiedField] = useState(null);
 
   // Fetch users
   const fetchUsers = async () => {
@@ -118,7 +121,14 @@ const UserManagementPanel = ({ limits }) => {
       setLoading(true);
       const response = await api.post('/auth/create-user', formData);
       toast.success(response.data.message || 'User registered successfully');
-      setIsModalOpen(false);
+      // Store credentials to display in the success panel before hashing makes them unretrievable
+      setCreatedUser({
+        name: formData.name,
+        mobile: formData.mobile,
+        password: formData.password,
+        role: formData.role,
+      });
+      setShowCreatedPassword(false);
       resetForm();
       fetchUsers();
     } catch (error) {
@@ -132,6 +142,20 @@ const UserManagementPanel = ({ limits }) => {
     setFormData({ name: '', mobile: '', password: '', role: 'receptionist' });
     setSearchQuery('');
     setSelectedPatient(null);
+    setShowPassword(false);
+  };
+
+  const handleCopyField = (value, field) => {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    });
+  };
+
+  const handleDoneCreated = () => {
+    setCreatedUser(null);
+    setShowCreatedPassword(false);
+    setIsModalOpen(false);
   };
 
   // Handle deleting user
@@ -273,158 +297,269 @@ const UserManagementPanel = ({ limits }) => {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-gray-700">
             <div className="p-8">
-              <div className="flex justify-between items-center mb-8">
-                <div>
-                  <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">Add New User</h2>
-                  <p className="text-xs font-medium text-slate-400 mt-1 uppercase tracking-widest font-black italic">Organization Staff</p>
-                </div>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-xl transition-all">
-                  <X size={20} />
-                </button>
-              </div>
 
-              <form onSubmit={handleRegister} className="space-y-5">
-                {/* 1. SELECT ROLE AT TOP */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Role</label>
-                  <select
-                    className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold text-slate-800 dark:text-white appearance-none cursor-pointer"
-                    value={formData.role}
-                    onChange={(e) => {
-                      resetForm();
-                      setFormData({ ...formData, role: e.target.value });
-                    }}
-                  >
-                    <option value="receptionist">Receptionist</option>
-                    <option value="doctor">Doctor</option>
-                    <option value="patient">Patient</option>
-                  </select>
-                </div>
-
-                {/* 2. SEARCH FOR PATIENT OR FULL NAME */}
-                <div className="space-y-2 relative">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                    {formData.role === 'patient' ? 'Search & Select Patient' : 'Full Name'}
-                  </label>
-
-                  {formData.role === 'patient' ? (
-                    <div className="space-y-3">
-                      <div className="relative">
-                        <input
-                          type="text"
-                          className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white pl-12"
-                          placeholder="Search Name, Mobile or ID..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                        {isSearching && (
-                          <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-500 animate-spin" size={18} />
-                        )}
-                      </div>
-
-                      {/* Search Results Dropdown */}
-                      {searchResults.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-600 rounded-2xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar">
-                          {searchResults.map((p) => (
-                            <button
-                              key={p._id}
-                              type="button"
-                              onClick={() => handleSelectPatient(p)}
-                              className="w-full p-4 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-slate-50 dark:border-gray-700/50 last:border-0 transition-colors group"
-                            >
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <p className="font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">{p.fullName}</p>
-                                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{p.patientId} • {p.mobile}</p>
-                                </div>
-                                <Plus size={16} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-all" />
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Selected Patient Preview */}
-                      {selectedPatient && (
-                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold shadow-lg shadow-blue-200">
-                              {selectedPatient.fullName.charAt(0)}
-                            </div>
-                            <div>
-                              <p className="text-sm font-black text-blue-900 dark:text-blue-200">{selectedPatient.fullName}</p>
-                              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Selected Clinical Record</p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => { setSelectedPatient(null); setFormData(p => ({ ...p, name: '', mobile: '' })); }}
-                            className="p-1 text-blue-400 hover:text-blue-600 transition-colors"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      )}
+              {/* ✅ SUCCESS: Show Created Credentials */}
+              {createdUser ? (
+                <div className="space-y-6">
+                  {/* Header */}
+                  <div className="flex flex-col items-center text-center gap-2">
+                    <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-1">
+                      <CheckCircle className="text-emerald-500" size={36} />
                     </div>
-                  ) : (
-                    <input
-                      type="text"
-                      required
-                      className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white"
-                      placeholder="Enter full name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    />
-                  )}
-                </div>
+                    <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">Account Created!</h2>
+                    <p className="text-xs font-medium text-slateald-400 uppercase tracking-widest text-slate-400">
+                      Share these credentials securely with the user
+                    </p>
+                  </div>
 
-                {/* 3. MOBILE NUMBER (READ-ONLY IF LINKED) */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mobile Number</label>
-                  <input
-                    type="tel"
-                    required
-                    pattern="[0-9]{10}"
-                    readOnly={!!selectedPatient}
-                    className={`w-full px-4 py-4 ${selectedPatient ? 'bg-slate-100 dark:bg-gray-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-gray-700/50'} border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white`}
-                    placeholder="10-digit number"
-                    value={formData.mobile}
-                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                  />
-                  {selectedPatient && <p className="text-[9px] text-blue-500 font-bold uppercase tracking-widest mt-1 ml-1">Locked to Patient's Clinical ID</p>}
-                </div>
+                  {/* Role badge */}
+                  <div className="flex justify-center">
+                    <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest
+                      ${createdUser.role === 'doctor' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
+                        createdUser.role === 'receptionist' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' :
+                        'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                      <Shield size={12} />
+                      {createdUser.role}
+                    </span>
+                  </div>
 
-                <div className="space-y-2 pb-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Set Account Password</label>
-                  <div className="relative group">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      minLength={6}
-                      className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white pr-12"
-                      placeholder="Minimum 6 characters"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {/* Credentials card */}
+                  <div className="bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-gray-600">
+                    {/* Name */}
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Full Name</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-white">{createdUser.name}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyField(createdUser.name, 'name')}
+                        className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                        title="Copy name"
+                      >
+                        {copiedField === 'name' ? <ClipboardCheck size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                      </button>
+                    </div>
+
+                    {/* Mobile */}
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Mobile / Username</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-white">{createdUser.mobile}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyField(createdUser.mobile, 'mobile')}
+                        className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                        title="Copy mobile"
+                      >
+                        {copiedField === 'mobile' ? <ClipboardCheck size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                      </button>
+                    </div>
+
+                    {/* Password */}
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Password</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-white font-mono tracking-wide">
+                          {showCreatedPassword ? createdUser.password : '●'.repeat(Math.min(createdUser.password.length, 12))}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowCreatedPassword(v => !v)}
+                          className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                          title={showCreatedPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showCreatedPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyField(createdUser.password, 'password')}
+                          className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                          title="Copy password"
+                        >
+                          {copiedField === 'password' ? <ClipboardCheck size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Warning note */}
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl">
+                    <span className="text-amber-500 text-base shrink-0 mt-0.5">⚠️</span>
+                    <p className="text-[10px] font-bold text-amber-700 dark:text-amber-300 leading-relaxed">
+                      Save this password now — it cannot be retrieved later as it will be encrypted in the system.
+                    </p>
+                  </div>
+
+                  {/* Done button */}
+                  <button
+                    type="button"
+                    onClick={handleDoneCreated}
+                    className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                  >
+                    Done — Close
+                  </button>
+                </div>
+              ) : (
+                // === FORM ===
+                <>
+                  <div className="flex justify-between items-center mb-8">
+                    <div>
+                      <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">Add New User</h2>
+                      <p className="text-xs font-medium text-slate-400 mt-1 uppercase tracking-widest font-black italic">Organization Staff</p>
+                    </div>
+                    <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-xl transition-all">
+                      <X size={20} />
                     </button>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-blue-500/25 active:scale-95 disabled:opacity-50"
-                >
-                  {loading ? 'Authorizing...' : 'Create Account'}
-                </button>
-              </form>
+                  <form onSubmit={handleRegister} className="space-y-5">
+                    {/* 1. SELECT ROLE AT TOP */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Role</label>
+                      <select
+                        className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold text-slate-800 dark:text-white appearance-none cursor-pointer"
+                        value={formData.role}
+                        onChange={(e) => {
+                          resetForm();
+                          setFormData({ ...formData, role: e.target.value });
+                        }}
+                      >
+                        <option value="receptionist">Receptionist</option>
+                        <option value="doctor">Doctor</option>
+                        <option value="patient">Patient</option>
+                      </select>
+                    </div>
+
+                    {/* 2. SEARCH FOR PATIENT OR FULL NAME */}
+                    <div className="space-y-2 relative">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                        {formData.role === 'patient' ? 'Search & Select Patient' : 'Full Name'}
+                      </label>
+
+                      {formData.role === 'patient' ? (
+                        <div className="space-y-3">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white pl-12"
+                              placeholder="Search Name, Mobile or ID..."
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                            {isSearching && (
+                              <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-500 animate-spin" size={18} />
+                            )}
+                          </div>
+
+                          {/* Search Results Dropdown */}
+                          {searchResults.length > 0 && (
+                            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-600 rounded-2xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar">
+                              {searchResults.map((p) => (
+                                <button
+                                  key={p._id}
+                                  type="button"
+                                  onClick={() => handleSelectPatient(p)}
+                                  className="w-full p-4 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-slate-50 dark:border-gray-700/50 last:border-0 transition-colors group"
+                                >
+                                  <div className="flex justify-between items-center">
+                                    <div>
+                                      <p className="font-bold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">{p.fullName}</p>
+                                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{p.patientId} • {p.mobile}</p>
+                                    </div>
+                                    <Plus size={16} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-all" />
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Selected Patient Preview */}
+                          {selectedPatient && (
+                            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold shadow-lg shadow-blue-200">
+                                  {selectedPatient.fullName.charAt(0)}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-black text-blue-900 dark:text-blue-200">{selectedPatient.fullName}</p>
+                                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Selected Clinical Record</p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => { setSelectedPatient(null); setFormData(p => ({ ...p, name: '', mobile: '' })); }}
+                                className="p-1 text-blue-400 hover:text-blue-600 transition-colors"
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          required
+                          className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white"
+                          placeholder="Enter full name"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        />
+                      )}
+                    </div>
+
+                    {/* 3. MOBILE NUMBER (READ-ONLY IF LINKED) */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mobile Number</label>
+                      <input
+                        type="tel"
+                        required
+                        pattern="[0-9]{10}"
+                        readOnly={!!selectedPatient}
+                        className={`w-full px-4 py-4 ${selectedPatient ? 'bg-slate-100 dark:bg-gray-800 text-slate-400 cursor-not-allowed' : 'bg-slate-50 dark:bg-gray-700/50'} border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white`}
+                        placeholder="10-digit number"
+                        value={formData.mobile}
+                        onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                      />
+                      {selectedPatient && <p className="text-[9px] text-blue-500 font-bold uppercase tracking-widest mt-1 ml-1">Locked to Patient's Clinical ID</p>}
+                    </div>
+
+                    <div className="space-y-2 pb-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Set Account Password</label>
+                      <div className="relative group">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          className="w-full px-4 py-4 bg-slate-50 dark:bg-gray-700/50 border border-slate-200 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-slate-800 dark:text-white pr-12"
+                          placeholder="Minimum 6 characters"
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors"
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-blue-500/25 active:scale-95 disabled:opacity-50"
+                    >
+                      {loading ? 'Authorizing...' : 'Create Account'}
+                    </button>
+                  </form>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building2, Mail, Phone, Lock, User, TrendingUp, Monitor, 
   ChevronRight, Eye, EyeOff, X, Check, Users, ShieldCheck, 
-  Zap, Clock
+  Zap, Clock, MapPin
 } from 'lucide-react';
 import { organizationApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -29,7 +29,7 @@ const InputField = ({ icon: Icon, label, name, ...props }) => (
 
 const RegisterOrganization = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -50,6 +50,10 @@ const RegisterOrganization = () => {
     confirmPassword: '',
     patientCount: '',
     previousSoftware: '',
+    street: '',
+    city: '',
+    state: '',
+    zipCode: '',
   });
 
   const handleChange = (e) => {
@@ -80,6 +84,14 @@ const RegisterOrganization = () => {
   const isPasswordMatch = formData.ownerPassword && formData.confirmPassword 
     ? formData.ownerPassword === formData.confirmPassword 
     : null;
+
+  useEffect(() => {
+    // If there is an active/stale token, clean it up but preserve pendingRegistration
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (token) {
+      logout();
+    }
+  }, [logout]);
 
   useEffect(() => {
     // Check for pending registration on load
@@ -119,6 +131,13 @@ const RegisterOrganization = () => {
     try {
       const registrationData = {
         ...formData,
+        address: {
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode,
+          country: 'India',
+        },
         ownerEmail: formData.ownerEmail || formData.email,
         subdomain: formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
       };
@@ -330,6 +349,54 @@ const RegisterOrganization = () => {
                       className="signup-input"
                     />
                   </div>
+                </div>
+
+                <div className="full-width mt-2 mb-2 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1 flex items-center gap-1.5">
+                  <MapPin size={12} className="text-[#004aad]" /> Clinic Location / Address
+                </div>
+
+                <div className="full-width">
+                  <InputField
+                    icon={MapPin}
+                    label="Street Address"
+                    placeholder="e.g. 123 Main St, Sector 4"
+                    name="street"
+                    value={formData.street}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <InputField
+                  icon={Building2}
+                  label="City"
+                  placeholder="e.g. Lucknow"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleChange}
+                  required
+                />
+
+                <InputField
+                  icon={Building2}
+                  label="State"
+                  placeholder="e.g. Uttar Pradesh"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleChange}
+                  required
+                />
+
+                <div className="full-width">
+                  <InputField
+                    icon={Building2}
+                    label="Pincode / Zip Code"
+                    placeholder="e.g. 226010"
+                    name="zipCode"
+                    value={formData.zipCode}
+                    onChange={handleChange}
+                    required
+                  />
                 </div>
               </div>
 

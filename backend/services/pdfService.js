@@ -1010,6 +1010,84 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     contentHtml = `<div style="font-size: 14px; line-height: 1.8; white-space: pre-wrap;">${prescriptionData?.notes || prescriptionData?.description || ''}</div>`;
   }
 
+  const customTemplate = org?.prescriptionTemplate;
+  const isGlobalA4Enabled = customTemplate?.enabled && customTemplate?.templateUrl;
+
+  const isA4Type = template?.headerType === 'a4' || template?.layoutType === 'a4';
+  const hasOtherCustomTemplate = template && !isA4Type;
+
+  // Use A4 if: explicitly selected via template manager, OR global A4 is enabled and no other template overrides it.
+  const isCustomTemplateEnabled = customTemplate?.templateUrl && (isA4Type || (isGlobalA4Enabled && !hasOtherCustomTemplate));
+
+  if (isCustomTemplateEnabled) {
+    const templateBase64 = await getBase64Image(customTemplate.templateUrl);
+    const { top = 55, left = 12, right = 12, bottom = 30 } = customTemplate.printableArea || {};
+    const fontSize = customTemplate.fontSize || 12;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          @page {
+            size: A4;
+            margin: 0;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            color: #1e293b;
+            font-size: ${fontSize}px;
+          }
+          .template-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+          }
+          .content-wrapper {
+            position: relative;
+            z-index: 1;
+            padding-top: ${top}mm;
+            padding-left: ${left}mm;
+            padding-right: ${right}mm;
+            padding-bottom: ${bottom}mm;
+            box-sizing: border-box;
+            min-height: 100vh;
+          }
+          .patient-info {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #1e293b;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+            font-weight: bold;
+          }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th { padding: 8px; text-align: left; border-bottom: 2px solid #ccc; }
+          td { padding: 8px; border-bottom: 1px solid #eee; }
+        </style>
+      </head>
+      <body>
+        <img class="template-bg" src="${templateBase64}" alt="Template Background" />
+        
+        <div class="content-wrapper">
+          <div class="patient-info">
+            <span>Patient: ${patientData?.fullName || patientData?.name || 'Unknown'} (${patientData?.age || '--'} / ${patientData?.gender || '--'})</span>
+            <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
+          </div>
+          
+          ${contentHtml}
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
   return `
     <!DOCTYPE html>
     <html>

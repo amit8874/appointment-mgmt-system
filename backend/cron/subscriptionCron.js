@@ -29,7 +29,7 @@ export const setupSubscriptionCron = () => {
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       // Find organizations on PAID plans whose WhatsApp credits haven't been reset in 30 days
-      // Note: Free trial is handled by trialResetCron (24h)
+      // Free trial no longer uses 24h auto-reset, so this only handles PAID plans.
       const orgsToReset = await Organization.find({
         planType: 'PAID',
         status: 'active',

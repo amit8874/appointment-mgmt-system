@@ -2,11 +2,16 @@ import React, { useState, useEffect } from 'react';
 import Joyride, { STATUS } from 'react-joyride';
 import { useAuth } from '../../context/AuthContext';
 
-const OnboardingTour = ({ role }) => {
+const OnboardingTour = ({ role, disabled = false }) => {
   const { user } = useAuth();
   const [run, setRun] = useState(false);
 
   useEffect(() => {
+    if (disabled) {
+      setRun(false);
+      return;
+    }
+
     // Check if user has already seen the tour
     const tourKey = `Oviaan_tour_seen_${role}_${user?._id || user?.id || 'guest'}`;
     const hasSeenTour = localStorage.getItem(tourKey);
@@ -18,7 +23,7 @@ const OnboardingTour = ({ role }) => {
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [role, user]);
+  }, [role, user, disabled]);
 
   const handleJoyrideCallback = (data) => {
     const { status } = data;

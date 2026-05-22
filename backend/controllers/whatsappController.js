@@ -223,7 +223,9 @@ export const sendPrescriptionPdfWhatsApp = async (req, res) => {
 
     // 2. Determine Template
     let template = null;
-    if (templateId && templateId !== 'default' && mongoose.Types.ObjectId.isValid(templateId)) {
+    if (templateId === 'global_a4') {
+      template = { headerType: 'a4', layoutType: 'a4' };
+    } else if (templateId && templateId !== 'default' && mongoose.Types.ObjectId.isValid(templateId)) {
       template = await PrescriptionTemplate.findById(templateId);
     } else {
       template = await PrescriptionTemplate.findOne({ organizationId: orgId, isDefault: true });

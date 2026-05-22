@@ -191,6 +191,9 @@ export const generatePdf = async (req, res) => {
     if (templateId === 'system_default') {
       console.log("[generatePdf] Explicitly requested system default. Skipping custom templates.");
       // template remains null, so it falls back to system layout
+    } else if (templateId === 'global_a4') {
+      console.log("[generatePdf] Explicitly requested global A4 template.");
+      template = { headerType: 'a4', layoutType: 'a4' };
     } else if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
       template = await PrescriptionTemplate.findById(templateId);
       console.log("[generatePdf] Found template by ID:", template ? template._id : "Not Found");

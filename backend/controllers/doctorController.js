@@ -1,4 +1,5 @@
 import Doctor from '../models/Doctor.js';
+import Organization from '../models/Organization.js';
 import Counter from '../models/Counter.js';
 import Appointment from '../models/Appointment.js';
 import PendingAppointment from '../models/PendingAppointment.js';
@@ -9,13 +10,13 @@ import Subscription from '../models/Subscription.js';
 // Helper function to generate time slots with range format
 const generateTimeSlots = (workingHours, intervalMinutes = 30) => {
   const slots = [];
-  
+
   // If workingHours is not an array, convert to array for backward compatibility
   const hoursArray = Array.isArray(workingHours) ? workingHours : [workingHours];
 
   hoursArray.forEach(hours => {
     if (!hours || !hours.start || !hours.end) return;
-    
+
     const start = new Date(`1970-01-01T${hours.start}:00`);
     const end = new Date(`1970-01-01T${hours.end}:00`);
     const current = new Date(start);
@@ -23,7 +24,7 @@ const generateTimeSlots = (workingHours, intervalMinutes = 30) => {
     while (current < end) {
       const slotStart = new Date(current);
       const slotEnd = new Date(current.getTime() + intervalMinutes * 60000);
-      
+
       if (slotEnd > end) break;
 
       // Format start time
@@ -32,22 +33,22 @@ const generateTimeSlots = (workingHours, intervalMinutes = 30) => {
       const startAmpm = startHours >= 12 ? 'PM' : 'AM';
       const startDisplayHours = startHours % 12 || 12;
       const startStr = `${startDisplayHours}:${startMinutes.toString().padStart(2, '0')}`;
-      
+
       // Format end time
       const endHours = slotEnd.getHours();
       const endMinutes = slotEnd.getMinutes();
       const endAmpm = endHours >= 12 ? 'PM' : 'AM';
       const endDisplayHours = endHours % 12 || 12;
       const endStr = `${endDisplayHours}:${endMinutes.toString().padStart(2, '0')}`;
-      
+
       // Create range format like "10:00 AM - 10:30 AM" or "11:30 AM - 12:00 PM"
       const displayTime = `${startStr} ${startAmpm} - ${endStr} ${endAmpm}`;
       slots.push(displayTime);
-      
+
       current.setMinutes(current.getMinutes() + intervalMinutes);
     }
   });
-  
+
   return slots;
 };
 
@@ -56,25 +57,52 @@ export const getGlobalPublicDoctors = async (req, res) => {
   try {
     const { speciality, city, query } = req.query;
     const dbQuery = { status: { $in: ['Active', 'Verified'] } };
-    
-    // If 'query' is provided, search in name, specialization, and department
+
+    // If 'query' is provided, search in name, specialization, department, and location fields
     if (query && query.trim() !== '') {
       const regex = { $regex: query.trim(), $options: 'i' };
-      dbQuery.$or = [
+
+      // Fetch organizations matching the search query by location fields (city, state, country, street)
+      const matchingOrgs = await Organization.find({
+        $or: [
+          { 'address.city': regex },
+          { 'address.street': regex },
+          { 'address.state': regex },
+          { 'address.country': regex }
+        ]
+      }).select('_id');
+      const matchingOrgIds = matchingOrgs.map(org => org._id);
+
+      const queryFields = [
         { name: regex },
         { specialization: regex },
-        { department: regex }
+        { department: regex },
+        { 'addressInfo.city': regex },
+        { 'addressInfo.state': regex },
+        { 'addressInfo.country': regex },
+        { 'addressInfo.address1': regex },
+        { 'addressInfo.address2': regex },
+        { 'address': regex },
+        { 'serviceLocation.address.city': regex },
+        { 'serviceLocation.address.street': regex },
+        { 'serviceLocation.address.state': regex }
       ];
+
+      if (matchingOrgIds.length > 0) {
+        queryFields.push({ 'organizationId': { $in: matchingOrgIds } });
+      }
+
+      dbQuery.$or = queryFields;
     } else if (speciality && speciality !== 'Any' && speciality.trim() !== '') {
       // Search in both specialization and department
       const spec = speciality.trim();
       const regex = { $regex: spec, $options: 'i' };
-      
+
       // Handle common variations like Cardiologist -> Cardiology
       const variations = [spec];
       if (spec.toLowerCase().endsWith('ist')) variations.push(spec.slice(0, -3) + 'y');
       if (spec.toLowerCase().endsWith('ian')) variations.push(spec.slice(0, -3) + 's');
-      
+
       const variationRegex = variations.join('|');
       const fuzzyRegex = { $regex: variationRegex, $options: 'i' };
 
@@ -83,15 +111,36 @@ export const getGlobalPublicDoctors = async (req, res) => {
         { department: fuzzyRegex }
       ];
     }
-    
+
     if (city && city !== 'Any' && city !== 'Select Location' && city.trim() !== '') {
       const cityRegex = { $regex: city.trim(), $options: 'i' };
+
+      // Fetch organizations matching the city/location search criteria
+      const matchingOrgs = await Organization.find({
+        $or: [
+          { 'address.city': cityRegex },
+          { 'address.street': cityRegex },
+          { 'address.state': cityRegex },
+          { 'address.country': cityRegex }
+        ]
+      }).select('_id');
+      const matchingOrgIds = matchingOrgs.map(org => org._id);
+
       const locationQuery = [
         { 'addressInfo.city': cityRegex },
+        { 'addressInfo.state': cityRegex },
+        { 'addressInfo.country': cityRegex },
+        { 'addressInfo.address1': cityRegex },
+        { 'addressInfo.address2': cityRegex },
         { 'address': cityRegex },
         { 'serviceLocation.address.city': cityRegex },
-        { 'serviceLocation.address.street': cityRegex }
+        { 'serviceLocation.address.street': cityRegex },
+        { 'serviceLocation.address.state': cityRegex }
       ];
+
+      if (matchingOrgIds.length > 0) {
+        locationQuery.push({ 'organizationId': { $in: matchingOrgIds } });
+      }
 
       if (dbQuery.$or) {
         dbQuery.$and = [
@@ -104,7 +153,9 @@ export const getGlobalPublicDoctors = async (req, res) => {
       }
     }
 
-    const doctors = await Doctor.find(dbQuery).sort({ name: 1 });
+    const doctors = await Doctor.find(dbQuery)
+      .populate('organizationId', 'name address phone')
+      .sort({ name: 1 });
 
     // Remove duplicates based on doctorId to ensure unique doctors
     const uniqueDoctorsMap = new Map();
@@ -116,7 +167,7 @@ export const getGlobalPublicDoctors = async (req, res) => {
     const uniqueDoctors = Array.from(uniqueDoctorsMap.values());
 
     const formattedDoctors = uniqueDoctors.map(doctor => {
-      let displayAddress = doctor.address;
+      let displayAddress = doctor.address || '';
       let displayClinic = doctor.serviceLocation?.type === 'other' ? "External Clinic" : "Own Clinic";
 
       // If a specific service location address is provided (Own or Other), use it
@@ -126,6 +177,13 @@ export const getGlobalPublicDoctors = async (req, res) => {
         if (doctor.serviceLocation.practiceName) {
           displayClinic = doctor.serviceLocation.practiceName;
         }
+      } else if (doctor.organizationId && doctor.organizationId.address && doctor.organizationId.address.city) {
+        // Fallback to the clinic's own registration address!
+        const addr = doctor.organizationId.address;
+        displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
+        displayClinic = doctor.organizationId.name || displayClinic;
+      } else if (doctor.organizationId && doctor.organizationId.name) {
+        displayClinic = doctor.organizationId.name;
       }
 
       return {
@@ -148,7 +206,7 @@ export const getGlobalPublicDoctors = async (req, res) => {
         totalStories: doctor.totalStories || 0
       };
     });
-    
+
     res.json(formattedDoctors);
   } catch (error) {
     console.error('Error fetching global public doctors:', error);
@@ -171,7 +229,7 @@ export const getSearchSuggestions = async (req, res) => {
       .or([{ name: regex }, { specialization: regex }, { department: regex }])
       .select('name specialization department')
       .limit(10);
- 
+
     // Extract unique specializations, departments and names
     const suggestionsSet = new Set();
     results.forEach(doc => {
@@ -203,29 +261,51 @@ export const getSearchSuggestions = async (req, res) => {
 export const getPublicDoctors = async (req, res) => {
   try {
     const { organizationId } = req.params;
-    const doctors = await Doctor.find({ 
+    const doctors = await Doctor.find({
       organizationId,
-      status: { $in: ['Active', 'Verified'] } 
-    }).sort({ name: 1 });
+      status: { $in: ['Active', 'Verified'] }
+    }).populate('organizationId', 'name address phone').sort({ name: 1 });
 
-    const formattedDoctors = doctors.map(doctor => ({
-      id: doctor.doctorId,
-      _id: doctor._id,
-      name: doctor.name,
-      specialization: doctor.specialization,
-      experience: doctor.experience,
-      gender: doctor.gender,
-      languages: doctor.languages,
-      fee: doctor.fee,
-      qualification: doctor.qualification,
-      workingHours: doctor.workingHours,
-      availability: doctor.availability,
-      photo: doctor.photo,
-      address: doctor.address,
-      phone: doctor.phone,
-      status: doctor.status,
-    }));
-    
+    const formattedDoctors = doctors.map(doctor => {
+      let displayAddress = doctor.address || '';
+      let displayClinic = doctor.serviceLocation?.type === 'other' ? "External Clinic" : "Own Clinic";
+
+      // If a specific service location address is provided (Own or Other), use it
+      if (doctor.serviceLocation?.address?.city) {
+        const addr = doctor.serviceLocation.address;
+        displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
+        if (doctor.serviceLocation.practiceName) {
+          displayClinic = doctor.serviceLocation.practiceName;
+        }
+      } else if (doctor.organizationId && doctor.organizationId.address && doctor.organizationId.address.city) {
+        // Fallback to the clinic's own registration address!
+        const addr = doctor.organizationId.address;
+        displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
+        displayClinic = doctor.organizationId.name || displayClinic;
+      } else if (doctor.organizationId && doctor.organizationId.name) {
+        displayClinic = doctor.organizationId.name;
+      }
+
+      return {
+        id: doctor.doctorId,
+        _id: doctor._id,
+        name: doctor.name,
+        specialization: doctor.specialization,
+        experience: doctor.experience,
+        gender: doctor.gender,
+        languages: doctor.languages,
+        fee: doctor.fee,
+        qualification: doctor.qualification,
+        workingHours: doctor.workingHours,
+        availability: doctor.availability,
+        photo: doctor.photo,
+        address: displayAddress,
+        clinicName: displayClinic,
+        phone: doctor.phone,
+        status: doctor.status,
+      };
+    });
+
     res.json(formattedDoctors);
   } catch (error) {
     console.error('Error fetching public doctors:', error);
@@ -259,7 +339,7 @@ export const getDoctorSlots = async (req, res) => {
 
     // Check for availability overrides for this specific date
     const override = doctor.availabilityOverrides?.find(o => o.date === date);
-    
+
     let isAvailable = false;
     let workingHours = [];
 
@@ -271,18 +351,18 @@ export const getDoctorSlots = async (req, res) => {
       const appointmentDate = new Date(date);
       const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       const dayOfWeek = days[appointmentDate.getUTCDay()];
-      
+
       isAvailable = doctor.availability?.[dayOfWeek] || false;
-      workingHours = doctor.workingHours && doctor.workingHours.length > 0 
-        ? doctor.workingHours 
+      workingHours = doctor.workingHours && doctor.workingHours.length > 0
+        ? doctor.workingHours
         : [{ start: '09:00', end: '17:00' }];
     }
 
     // Check availability
     if (!isAvailable) {
-      return res.json({ 
-        available: false, 
-        slots: [], 
+      return res.json({
+        available: false,
+        slots: [],
         message: override ? 'Doctor is marked as unavailable for this date' : 'Doctor is not available on this day of the week',
         isOverride: !!override
       });
@@ -290,11 +370,11 @@ export const getDoctorSlots = async (req, res) => {
 
     // Generate possible time slots
     const possibleSlotsStr = generateTimeSlots(workingHours, doctor.slotDuration || 15);
-    
+
     if (possibleSlotsStr.length === 0) {
-      return res.json({ 
-        available: false, 
-        slots: [], 
+      return res.json({
+        available: false,
+        slots: [],
         message: 'Doctor has no working hours configured',
         workingHours: { start: startTime, end: endTime }
       });
@@ -306,10 +386,10 @@ export const getDoctorSlots = async (req, res) => {
     if (doctor.doctorId) doctorIdSearch.push(doctor.doctorId);
     doctorIdSearch.push(doctor._id.toString());
 
-    const bookedQuery = { 
+    const bookedQuery = {
       organizationId: doctor.organizationId,
-      doctorId: { $in: doctorIdSearch }, 
-      date: date 
+      doctorId: { $in: doctorIdSearch },
+      date: date
     };
 
 
@@ -367,7 +447,7 @@ export const getDoctorSlots = async (req, res) => {
     // Use IST (India Standard Time) for current time comparison to avoid server timezone issues (UTC)
     const istOffset = 5.5 * 60 * 60 * 1000;
     const nowIst = new Date(new Date().getTime() + istOffset);
-    
+
     // Use ISO string for today comparison since 'date' is YYYY-MM-DD
     const todayIstStr = nowIst.toISOString().split('T')[0];
     const isToday = date === todayIstStr;
@@ -377,7 +457,7 @@ export const getDoctorSlots = async (req, res) => {
     const allSlots = possibleSlotsStr.map(slot => {
       const [range, ampm] = slot.split(' ');
       const startTimeStr = range.split('-')[0];
-      
+
       // Parse slot start time for comparison
       const [sHours, sMinutes] = startTimeStr.split(':').map(Number);
       let slot24hHours = sHours;
@@ -386,7 +466,7 @@ export const getDoctorSlots = async (req, res) => {
 
       const isBooked = bookedSlots12h.includes(`${startTimeStr} ${ampm}`);
       const isPast = isToday && (slot24hHours < currentHours || (slot24hHours === currentHours && sMinutes < currentMinutes));
-      
+
       return {
         time: slot, // "10:00-10:30 AM"
         isBooked: isBooked || isPast, // Disable if booked OR past
@@ -405,7 +485,7 @@ export const getDoctorSlots = async (req, res) => {
       const [time, ampm] = slotObj.time.split(' ');
       const [hours] = time.split(':');
       const h = parseInt(hours) + (ampm === 'PM' && hours !== '12' ? 12 : (ampm === 'AM' && hours === '12' ? -12 : 0));
-      
+
       if (h < 12) {
         categorizedSlots.morning.push(slotObj);
       } else if (h < 17) {
@@ -433,7 +513,7 @@ export const getDoctorSlots = async (req, res) => {
 export const getDoctorAvailabilitySummary = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     let doctor = await Doctor.findOne({ doctorId: id });
     if (!doctor) {
       doctor = await Doctor.findById(id);
@@ -445,15 +525,15 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
     const summary = [];
     const istOffset = 5.5 * 60 * 60 * 1000;
     const today = new Date(new Date().getTime() + istOffset);
-    
+
     for (let i = 0; i < 31; i++) {
       const date = new Date(today);
       date.setUTCDate(today.getUTCDate() + i);
       const dateStr = date.toISOString().split('T')[0];
       const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-      
+
       const override = doctor.availabilityOverrides?.find(o => o.date === dateStr);
-      
+
       let isAvailable = false;
       let workingHours = [];
 
@@ -462,8 +542,8 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
         workingHours = override.workingHours;
       } else {
         isAvailable = doctor.availability?.[dayOfWeek] || false;
-        workingHours = doctor.workingHours && doctor.workingHours.length > 0 
-          ? doctor.workingHours 
+        workingHours = doctor.workingHours && doctor.workingHours.length > 0
+          ? doctor.workingHours
           : [{ start: '09:00', end: '17:00' }];
       }
 
@@ -471,14 +551,14 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
 
       if (isAvailable) {
         const possibleSlots = generateTimeSlots(workingHours, doctor.slotDuration || 15);
-        
+
         const doctorIdSearch = [];
         if (doctor.doctorId) doctorIdSearch.push(doctor.doctorId);
         doctorIdSearch.push(doctor._id.toString());
 
-        const bookedQuery = { 
-          doctorId: { $in: doctorIdSearch }, 
-          date: dateStr 
+        const bookedQuery = {
+          doctorId: { $in: doctorIdSearch },
+          date: dateStr
         };
 
         const [bookedPending, bookedConfirmed, bookedOld] = await Promise.all([
@@ -488,12 +568,12 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
         ]);
 
         const totalBooked = bookedPending + bookedConfirmed + bookedOld;
-        
+
         // If it's today, we also need to exclude slots that are in the past
         if (i === 0) {
           const currentHours = today.getUTCHours();
           const currentMinutes = today.getUTCMinutes();
-          
+
           const futureSlots = possibleSlots.filter(slot => {
             const [range, ampm] = slot.split(' ');
             const startTimeStr = range.split('-')[0];
@@ -501,10 +581,10 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
             let slot24hHours = sHours;
             if (ampm === 'PM' && sHours !== 12) slot24hHours += 12;
             if (ampm === 'AM' && sHours === 12) slot24hHours = 0;
-            
+
             return (slot24hHours > currentHours || (slot24hHours === currentHours && sMinutes > currentMinutes));
           });
-          
+
           slotCount = Math.max(0, futureSlots.length - totalBooked);
         } else {
           slotCount = Math.max(0, possibleSlots.length - totalBooked);
@@ -655,7 +735,7 @@ export const createDoctor = async (req, res) => {
     if (subscription && subscription.limits && subscription.limits.doctors !== -1) {
       const currentDoctorCount = await Doctor.countDocuments({ organizationId: req.tenantId });
       if (currentDoctorCount >= subscription.limits.doctors) {
-        return res.status(403).json({ 
+        return res.status(403).json({
           message: 'Want more doctors to add? Upgrade your plan!',
           limitReached: true,
           limit: subscription.limits.doctors
@@ -697,7 +777,7 @@ export const updateDoctor = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     if (updateData.experience !== undefined) updateData.experience = parseInt(updateData.experience) || 0;
     if (updateData.fee !== undefined) updateData.fee = parseFloat(updateData.fee) || 0;
     updateData.updatedAt = new Date();
@@ -785,7 +865,7 @@ export const rejectDoctor = async (req, res) => {
 export const getPublicDoctorCheckoutDetails = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Find doctor and populate organization details
     // Check both doctorId (custom string) and _id (mongo object id)
     let doctor = await Doctor.findOne({ doctorId: id }).populate('organizationId', 'name address');
@@ -807,7 +887,7 @@ export const getPublicDoctorCheckoutDetails = async (req, res) => {
         clinicAddress.zipCode
       ].filter(Boolean).join(', ');
     } else {
-      formattedAddress = clinicAddress || doctor.address || "Lucknow, India";
+      formattedAddress = clinicAddress || doctor.address || "";
     }
 
     const checkoutDetails = {
@@ -865,7 +945,7 @@ export const updateAvailabilityOverride = async (req, res) => {
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
-    
+
     doctor.availabilityOverrides = doctor.availabilityOverrides.filter(o => o.date >= threeMonthsAgoStr);
 
     await doctor.save();
@@ -904,7 +984,7 @@ export const removeAvailabilityOverride = async (req, res) => {
 export const getDoctorReviews = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Find reviews for this doctorId
     const reviews = await Review.find({ doctorId: id }).sort({ createdAt: -1 });
 
@@ -920,7 +1000,7 @@ export const addDoctorReview = async (req, res) => {
   try {
     const { id } = req.params;
     const { rating, comment } = req.body;
-    
+
     // req.user has been populated by the authenticateToken middleware
     const patientName = req.user.name;
 

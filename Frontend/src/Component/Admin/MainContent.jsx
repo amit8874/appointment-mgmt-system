@@ -120,22 +120,6 @@ const MainContent = ({
         );
       case 'Analysis':
         return <ClinicAnalytics />;
-      case 'New Appointment':
-        return (
-          <div className="p-6">
-            <HorizontalAppointmentForm
-              doctors={doctors}
-              onSuccess={() => {
-                setActiveTab('Appointment Mgmt');
-                if (onPatientsRefresh) onPatientsRefresh();
-              }}
-              openDoctorForm={openDoctorForm}
-              initialData={rebookData}
-              limits={limits}
-              totalDoctors={doctorsTotalItems}
-            />
-          </div>
-        );
       case 'Patients':
         return (
           <PatientPanel
@@ -205,6 +189,22 @@ const MainContent = ({
           <AppointmentTable
             rebookData={rebookData}
           />
+        );
+      case 'New Appointment':
+        return (
+          <div className="p-6">
+            <HorizontalAppointmentForm
+              doctors={doctors}
+              onSuccess={() => {
+                setActiveTab('Appointment Mgmt');
+                if (onPatientsRefresh) onPatientsRefresh();
+              }}
+              openDoctorForm={openDoctorForm}
+              initialData={rebookData}
+              limits={limits}
+              totalDoctors={doctorsTotalItems}
+            />
+          </div>
         );
       case 'Today Appointment':
         return <TrackAppointmentView />;
@@ -290,6 +290,8 @@ const MainContent = ({
     revenueByDoctorData,
     monthlyIncomeExpenseData,
     recentAppointments,
+    rebookData,
+    preSelectedMedicine,
   ]);
 
   return (

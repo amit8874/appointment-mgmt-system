@@ -13,8 +13,8 @@ const groq = new Groq({
 export const getMedicineMaster = async (req, res) => {
   try {
     const list = await Medicine.find({ 
-      isActive: true,
-      $or: [{ organizationId: null }, { organizationId: req.tenantId }]
+      status: 'Active',
+      $or: [{ organizationId: null }, { organizationId: req.tenantId }, { isGlobal: true }]
     }).sort({ isCommon: -1, usageCount: -1, name: 1 });
     res.json(list);
   } catch (error) {
@@ -27,10 +27,10 @@ export const searchMedicines = async (req, res) => {
   try {
     const { q } = req.query;
 
-    // Build base tenant filter
+    // Build base tenant filter — show global medicines + org-specific medicines
     const tenantFilter = {
-      isActive: true,
-      $or: [{ organizationId: null }, { organizationId: req.tenantId }]
+      status: 'Active',
+      $or: [{ organizationId: null }, { organizationId: req.tenantId }, { isGlobal: true }]
     };
 
     let query;

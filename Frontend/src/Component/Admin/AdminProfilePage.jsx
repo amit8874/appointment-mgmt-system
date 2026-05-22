@@ -18,10 +18,10 @@ import StatsCard from './Profile/StatsCard';
 import PersonalInfoTab from './Profile/PersonalInfoTab';
 import ClinicInfoTab from './Profile/ClinicInfoTab';
 import SecurityPrivacyTab from './Profile/SecurityPrivacyTab';
-import PreferencesTab from './Profile/PreferencesTab';
 import BillingSubscriptionTab from './Profile/BillingSubscriptionTab';
 import ActivityLogsTab from './Profile/ActivityLogsTab';
 import WhatsAppCreditsTab from './Profile/WhatsAppCreditsTab';
+import PrescriptionTemplateTab from './Profile/PrescriptionTemplateTab';
 
 const ProfilePage = () => {
     const { user, logout, updateUser } = useAuth();
@@ -41,6 +41,14 @@ const ProfilePage = () => {
     const showNotification = (message, type = 'success') => {
         setNotification({ message, type, visible: true });
         setTimeout(() => setNotification({ message: '', type: '', visible: false }), 4000);
+    };
+
+    const getDashboardPath = () => {
+        const role = user?.role;
+        if (role === 'receptionist') return '/receptionist/appointments';
+        if (role === 'pharmacy') return '/pharmacy/dashboard';
+        if (role === 'patient') return '/patient-dashboard';
+        return '/admin-dashboard';
     };
 
     // Helper to get full image URL
@@ -263,8 +271,8 @@ const ProfilePage = () => {
     const tabs = [
         { id: 'personal', label: 'Personal Info', icon: UserIcon },
         { id: 'clinic', label: 'Clinic Info', icon: Building2 },
+        { id: 'prescription', label: 'Prescription Template', icon: Activity },
         { id: 'security', label: 'Security & Privacy', icon: ShieldCheck },
-        { id: 'preferences', label: 'Preferences', icon: Settings },
         { id: 'billing', label: 'Billing & Subscription', icon: CreditCard },
         { id: 'whatsapp', label: 'WhatsApp Credits', icon: MessageSquare },
         { id: 'activity', label: 'Activity Logs', icon: Activity },
@@ -287,6 +295,17 @@ const ProfilePage = () => {
             <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
                 <div className="max-w-7xl mx-auto px-6 h-24 flex items-center justify-between">
                     <div className="flex items-center gap-6">
+                        {/* Back Navigation Button */}
+                        <button
+                            onClick={() => navigate(getDashboardPath())}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 transition-all text-xs font-black uppercase tracking-wider active:scale-95 shadow-sm"
+                        >
+                            <LayoutDashboard size={14} className="text-indigo-600" />
+                            Back
+                        </button>
+                        
+                        <div className="h-8 w-[1px] bg-slate-200 hidden sm:block" />
+
                         <div className="relative group">
                             <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
                                 {organization.branding?.logo ? (
@@ -385,6 +404,9 @@ const ProfilePage = () => {
                                         loading={actionLoading} 
                                     />
                                 )}
+                                {activeTab === 'prescription' && (
+                                    <PrescriptionTemplateTab />
+                                )}
                                 {activeTab === 'security' && (
                                     <SecurityPrivacyTab 
                                         sessions={activeSessions}
@@ -393,14 +415,6 @@ const ProfilePage = () => {
                                         onToggle2FA={() => showNotification("2FA settings updated", "info")}
                                         is2FAEnabled={true}
                                         loading={actionLoading}
-                                    />
-                                )}
-                                {activeTab === 'preferences' && (
-                                    <PreferencesTab 
-                                        notifications={{ securityAlerts: true, systemUpdates: true, weeklyReports: false }}
-                                        onToggleNotification={(type) => showNotification(`${type} changed`, "info")}
-                                        whatsapp={{ connected: true }}
-                                        onToggleWhatsapp={() => showNotification("WhatsApp toggled", "info")}
                                     />
                                 )}
                                 { activeTab === 'billing' && (

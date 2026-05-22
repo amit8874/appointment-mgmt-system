@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Check, ArrowRight, Building2, User, Phone, Mail, 
-  Lock, ArrowLeft, ShieldCheck, Zap, Star, Globe, Layout, Users, Eye, EyeOff 
+  Lock, ArrowLeft, ShieldCheck, Zap, Star, Globe, Layout, Users, Eye, EyeOff, MapPin 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -11,13 +11,14 @@ import { toast } from 'react-toastify';
 
 const STEPS = {
   CONTACT: 1,
-  SECURITY: 2,
-  OTP: 3,
+  ADDRESS: 2,
+  SECURITY: 3,
+  OTP: 4,
 };
 
 const TrialModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const [currentStep, setCurrentStep] = useState(STEPS.CONTACT);
   const [showPlans, setShowPlans] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,10 +33,23 @@ const TrialModal = ({ isOpen, onClose }) => {
     confirmPassword: '',
     patientCount: '',
     currentSoftware: '',
+    street: '',
+    city: '',
+    state: '',
+    zipCode: '',
     plan: 'free'
   });
 
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (token) {
+        logout();
+      }
+    }
+  }, [isOpen, logout]);
 
   const isPasswordMatch = formData.password && formData.confirmPassword 
     ? formData.password === formData.confirmPassword 
@@ -49,6 +63,11 @@ const TrialModal = ({ isOpen, onClose }) => {
   const prevStep = () => setCurrentStep(prev => prev - 1);
 
   const handleSubmitContact = (e) => {
+    e.preventDefault();
+    nextStep();
+  };
+
+  const handleSubmitAddress = (e) => {
     e.preventDefault();
     nextStep();
   };
@@ -81,6 +100,13 @@ const TrialModal = ({ isOpen, onClose }) => {
         patientCount: formData.patientCount,
         currentSoftware: formData.currentSoftware,
         plan: selectedPlan,
+        address: {
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode,
+          country: 'India'
+        },
         subdomain: formData.clinicName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
       };
 
@@ -152,7 +178,7 @@ const TrialModal = ({ isOpen, onClose }) => {
     if (showPlans) return null;
     return (
       <div className="flex items-center justify-center gap-2 mb-8">
-        {[1, 2].map((step) => (
+        {[1, 2, 3].map((step) => (
           <React.Fragment key={step}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
               currentStep === step ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 
@@ -160,7 +186,7 @@ const TrialModal = ({ isOpen, onClose }) => {
             }`}>
               {currentStep > step ? <Check size={14} /> : step}
             </div>
-            {step < 2 && <div className={`w-12 h-0.5 ${currentStep > step ? 'bg-emerald-500' : 'bg-slate-100'}`} />}
+            {step < 3 && <div className={`w-12 h-0.5 ${currentStep > step ? 'bg-emerald-500' : 'bg-slate-100'}`} />}
           </React.Fragment>
         ))}
       </div>
@@ -309,6 +335,79 @@ const TrialModal = ({ isOpen, onClose }) => {
                           />
                         </div>
                         <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-blue-500/20 transition-all flex items-center justify-center gap-2 group mt-4">
+                          Continue to Clinic Location
+                          <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      </form>
+                    </motion.div>
+                  ) : currentStep === STEPS.ADDRESS ? (
+                    <motion.div
+                      key="step-address"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="flex-1"
+                    >
+                      <button onClick={prevStep} className="flex items-center gap-2 text-slate-400 hover:text-slate-600 font-bold text-sm mb-6 transition-colors">
+                        <ArrowLeft size={16} /> Back
+                      </button>
+                      <div className="mb-10 text-center md:text-left">
+                        <h3 className="text-3xl font-black text-slate-900 mb-3">Clinic Location</h3>
+                        <p className="text-slate-500 font-medium">Please enter your clinic's physical address.</p>
+                      </div>
+
+                      <form onSubmit={handleSubmitAddress} className="space-y-4">
+                        <div className="relative group">
+                          <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-all" />
+                          <input
+                            type="text"
+                            name="street"
+                            required
+                            value={formData.street}
+                            onChange={handleChange}
+                            placeholder="Street Address"
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium placeholder:text-slate-400"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="relative group">
+                            <Building2 size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-all" />
+                            <input
+                              type="text"
+                              name="city"
+                              required
+                              value={formData.city}
+                              onChange={handleChange}
+                              placeholder="City"
+                              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium placeholder:text-slate-400"
+                            />
+                          </div>
+                          <div className="relative group">
+                            <Building2 size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-all" />
+                            <input
+                              type="text"
+                              name="state"
+                              required
+                              value={formData.state}
+                              onChange={handleChange}
+                              placeholder="State"
+                              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium placeholder:text-slate-400"
+                            />
+                          </div>
+                        </div>
+                        <div className="relative group">
+                          <Building2 size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-all" />
+                          <input
+                            type="text"
+                            name="zipCode"
+                            required
+                            value={formData.zipCode}
+                            onChange={handleChange}
+                            placeholder="Pincode / Zip Code"
+                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium placeholder:text-slate-400"
+                          />
+                        </div>
+                        <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-blue-500/20 transition-all flex items-center justify-center gap-2 group mt-4">
                           Continue to Account Details
                           <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                         </button>
@@ -316,7 +415,7 @@ const TrialModal = ({ isOpen, onClose }) => {
                     </motion.div>
                   ) : currentStep === STEPS.SECURITY ? (
                     <motion.div
-                      key="step2"
+                      key="step3"
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}

@@ -33,6 +33,7 @@ const ChoosePlan = () => {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [trialInfo, setTrialInfo] = useState(null);
+  const [showBackModal, setShowBackModal] = useState(false);
 
   useEffect(() => {
     fetchPlans();
@@ -233,6 +234,17 @@ const ChoosePlan = () => {
       <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="max-w-6xl mx-auto relative z-10">
+        {/* Back to Dashboard Navigation Button */}
+        <div className="flex justify-start mb-6">
+          <button
+            onClick={() => setShowBackModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gray-900/40 backdrop-blur-xl border border-white/5 rounded-xl hover:border-white/10 hover:bg-gray-800/60 text-gray-400 hover:text-white transition-all text-xs font-bold uppercase tracking-wider active:scale-95 shadow-2xl"
+          >
+            <LayoutDashboard className="w-4 h-4 text-violet-500" />
+            Back to Dashboard
+          </button>
+        </div>
+
         <div className="text-center mb-12">
           {trialInfo && trialInfo.isTrial && (
             <motion.div
@@ -412,6 +424,70 @@ const ChoosePlan = () => {
         </AnimatePresence>
 
       </div>
+
+      {/* Back to Dashboard Confirmation Modal */}
+      <AnimatePresence>
+        {showBackModal && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            {/* Backdrop Blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBackModal(false)}
+              className="absolute inset-0 bg-[#060810]/80 backdrop-blur-md"
+            />
+            
+            {/* Modal Body */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-gradient-to-b from-gray-900 to-[#0e1322] border border-white/10 rounded-3xl p-8 max-w-md w-full relative z-10 shadow-2xl text-center overflow-hidden"
+            >
+              {/* Top Accent Gradient Circle */}
+              <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-48 h-48 bg-violet-600/20 rounded-full blur-[40px] pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col items-center">
+                {/* Icon */}
+                <div className="p-4 bg-violet-500/10 border border-violet-500/20 text-violet-400 rounded-2xl mb-6">
+                  <Crown className="w-10 h-10 animate-bounce text-violet-400" />
+                </div>
+
+                {/* Title */}
+                <h3 className="text-2xl font-black mb-3 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                  Are you sure you want to leave?
+                </h3>
+
+                {/* Copy / Message */}
+                <p className="text-gray-400 text-sm leading-relaxed mb-8">
+                  Your clinic is capable of extraordinary care. By upgrading today, you unlock unlimited operational capacity, advanced patient analytics, and custom branding tailored specifically to your practice. 
+                  <span className="block mt-3 font-semibold text-violet-400">Stay now, and step into the future of healthcare management!</span>
+                </p>
+
+                {/* Actions */}
+                <div className="flex flex-col sm:flex-row w-full gap-3 justify-center">
+                  <button
+                    onClick={() => {
+                      setShowBackModal(false);
+                      navigate('/organization-dashboard');
+                    }}
+                    className="flex-1 px-6 py-3.5 border border-gray-700 hover:border-gray-500 rounded-2xl text-gray-400 hover:text-white transition-all text-sm font-semibold active:scale-95 bg-white/5"
+                  >
+                    Yes, Exit to Dashboard
+                  </button>
+                  <button
+                    onClick={() => setShowBackModal(false)}
+                    className="flex-1 px-6 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:shadow-[0_0_20px_rgba(124,58,237,0.4)] rounded-2xl text-white transition-all text-sm font-bold active:scale-95 shadow-lg"
+                  >
+                    Stay & Upgrade ✨
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

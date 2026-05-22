@@ -8,8 +8,6 @@ const TrialNotification = ({ organizationId }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [timeLeft, setTimeLeft] = useState('');
-
   const fetchTrialStatus = useCallback(async (targetId, skipLoading = false) => {
     try {
       if (!targetId) return;
@@ -34,39 +32,7 @@ const TrialNotification = ({ organizationId }) => {
     }
   }, [organizationId, fetchTrialStatus]);
 
-  // Handle countdown for Free Trial auto-reset
-  useEffect(() => {
-    if (trialStatus?.planType === 'FREE_TRIAL' && trialStatus?.trialStartDate) {
-      let isRefreshing = false;
-      
-      const updateTimer = () => {
-        const now = new Date();
-        const start = new Date(trialStatus.trialStartDate);
-        const resetTime = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-        const diff = resetTime - now;
 
-        if (diff <= 0) {
-          setTimeLeft('Resetting...');
-          // Refresh status after reset might have happened, but only once
-          if (!isRefreshing) {
-            isRefreshing = true;
-            setTimeout(() => fetchTrialStatus(organizationId, true), 5000);
-          }
-          return;
-        }
-
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        
-        setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
-      };
-
-      const timer = setInterval(updateTimer, 1000);
-      updateTimer();
-      return () => clearInterval(timer);
-    }
-  }, [trialStatus?.planType, trialStatus?.trialStartDate, organizationId, fetchTrialStatus]);
   // Auto-hide after 10 seconds unless it's a persistent notification
   useEffect(() => {
     if (isVisible && !isLoading && trialStatus) {
@@ -151,17 +117,7 @@ const TrialNotification = ({ organizationId }) => {
       };
     }
 
-    // 4. FREE AUTO-RESET TIMER
-    if (trialStatus.planType === 'FREE_TRIAL') {
-      return {
-        type: 'timer',
-        title: '⚡ 24h Auto-Reset Active',
-        message: `Free trial data resets daily. Next reset in: ${timeLeft}. Upgrade to save your data forever.`,
-        buttonText: 'Upgrade Now',
-        buttonAction: () => window.location.href = '/organization/subscription',
-        persistent: false
-      };
-    }
+
 
     // 5. 14-DAY TRIAL COUNTDOWN
     const { daysRemaining, trialEndDate } = trialStatus;

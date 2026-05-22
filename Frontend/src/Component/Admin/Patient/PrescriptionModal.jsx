@@ -260,10 +260,10 @@ const SeverityDropdownInput = ({ value, onChange, complaintName, user }) => {
       {show && (
         <div className="absolute top-[calc(100%+8px)] left-0 w-48 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl shadow-2xl z-[9999] py-2 custom-scrollbar overflow-hidden">
           {options.map(opt => (
-            <div key={opt} onMouseDown={() => onChange(opt)} className="px-4 py-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 cursor-pointer">{opt}</div>
+            <div key={opt} onMouseDown={() => { onChange(opt); setShow(false); }} className="px-4 py-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 cursor-pointer">{opt}</div>
           ))}
           {aiSuggestions.map(s => (
-            <div key={s} onMouseDown={() => onChange(s)} className="px-4 py-1.5 text-[10px] font-black text-indigo-600 bg-indigo-50/30 cursor-pointer flex items-center gap-2">
+            <div key={s} onMouseDown={() => { onChange(s); setShow(false); }} className="px-4 py-1.5 text-[10px] font-black text-indigo-600 bg-indigo-50/30 cursor-pointer flex items-center gap-2">
                <Sparkles size={10} /> {s}
             </div>
           ))}
@@ -313,10 +313,10 @@ const DurationDropdownInput = ({ value, onChange, user }) => {
       {show && (
         <div className="absolute top-[calc(100%+8px)] left-0 w-48 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl shadow-2xl z-[9999] py-2 custom-scrollbar overflow-hidden">
           {options.map(opt => (
-            <div key={opt} onMouseDown={() => onChange(opt)} className="px-4 py-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 cursor-pointer">{opt}</div>
+            <div key={opt} onMouseDown={() => { onChange(opt); setShow(false); }} className="px-4 py-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 cursor-pointer">{opt}</div>
           ))}
           {aiSuggestions.map(s => (
-            <div key={s} onMouseDown={() => onChange(s)} className="px-4 py-1.5 text-[10px] font-black text-indigo-600 bg-indigo-50/30 cursor-pointer flex items-center gap-2">
+            <div key={s} onMouseDown={() => { onChange(s); setShow(false); }} className="px-4 py-1.5 text-[10px] font-black text-indigo-600 bg-indigo-50/30 cursor-pointer flex items-center gap-2">
                <Sparkles size={10} /> {s}
             </div>
           ))}
@@ -355,7 +355,7 @@ const DiagnosisDurationInput = ({ value, onChange, diagnosisType, user }) => {
       {show && (
         <div className="absolute top-[calc(100%+8px)] left-0 w-48 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl shadow-2xl z-[9999] py-2 max-h-48 overflow-y-auto custom-scrollbar">
           {options.map(opt => (
-            <div key={opt} onMouseDown={() => onChange(opt)} className="px-4 py-2 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">{opt}</div>
+            <div key={opt} onMouseDown={() => { onChange(opt); setShow(false); }} className="px-4 py-2 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">{opt}</div>
           ))}
         </div>
       )}

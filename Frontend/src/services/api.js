@@ -179,8 +179,11 @@ api.interceptors.response.use(
           localStorage.removeItem('patientUser');
           sessionStorage.removeItem('patientUser');
           
-          // Redirect to login page if we're not already there
-          if (!window.location.pathname.includes('/login')) {
+          // Redirect to login page if we're not already there and we're not on a public page
+          const publicPaths = ['/register-organization', '/register-pharmacy', '/choose-plan', '/find-doctors'];
+          const isPublicPath = publicPaths.some(p => window.location.pathname.includes(p)) || window.location.pathname === '/';
+
+          if (!window.location.pathname.includes('/login') && !isPublicPath) {
             window.location.href = '/login';
           }
         }
@@ -617,6 +620,24 @@ export const organizationApi = {
   },
   update: async (id, orgData) => {
     const { data } = await api.put(`/organizations/${id}`, orgData);
+    return data;
+  },
+  getPrescriptionTemplateSettings: async () => {
+    const { data } = await api.get('/clinic/prescription-template');
+    return data;
+  },
+  updatePrescriptionTemplateSettings: async (settings) => {
+    const { data } = await api.put('/clinic/prescription-template/settings', settings);
+    return data;
+  },
+  uploadPrescriptionTemplate: async (formData) => {
+    const { data } = await api.post('/clinic/prescription-template/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return data;
+  },
+  deletePrescriptionTemplate: async () => {
+    const { data } = await api.delete('/clinic/prescription-template');
     return data;
   },
   getStats: async (id) => {

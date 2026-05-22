@@ -45,6 +45,7 @@ import diagnosisRoutes from "./routes/diagnosisRoutes.js";
 import investigationRoutes from "./routes/investigationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import prescriptionTemplateRoutes from "./routes/prescriptionTemplateRoutes.js";
+import clinicPrescriptionRoutes from "./routes/clinicPrescriptionRoutes.js";
 import devRoutes from "./routes/devRoutes.js";
 import patientProgressImageRoutes from "./routes/patientProgressImageRoutes.js";
 import patientProgressComparisonRoutes from "./routes/patientProgressComparisonRoutes.js";
@@ -244,6 +245,7 @@ app.use("/api/diagnosis", diagnosisRoutes);
 app.use("/api/investigations", investigationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/prescription-template", prescriptionTemplateRoutes);
+app.use("/api/clinic/prescription-template", clinicPrescriptionRoutes);
 app.use("/api/follow-up-reminders", followUpReminderRoutes);
 app.use("/api/progress-notes", progressNoteRoutes);
 app.use("/api/dev", devRoutes);
@@ -347,9 +349,6 @@ async function initCron() {
       const { setupSubscriptionCron } = await import(
         "./cron/subscriptionCron.js"
       );
-      const { setupTrialResetCron } = await import(
-        "./cron/trialResetCron.js"
-      );
       const { setupAppointmentReminderCron } = await import(
         "./cron/appointmentReminderCron.js"
       );
@@ -357,10 +356,9 @@ async function initCron() {
         "./cron/dailyAdminSummaryCron.js"
       );
       setupSubscriptionCron();
-      setupTrialResetCron();
       setupAppointmentReminderCron();
       setupDailyAdminSummaryCron();
-      console.log("Subscription, Trial Reset, and Daily Summary crons started");
+      console.log("Subscription, Appointment Reminder, and Daily Summary crons started");
     } catch (err) {
       console.log("Cron not enabled or failed to load:", err.message);
     }

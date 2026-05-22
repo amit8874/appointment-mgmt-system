@@ -254,11 +254,10 @@ const Admin = () => {
       fetchTrialStatus();
       notificationsHook.fetchNotifications();
 
-      // Check for rebookData in navigation state directly from history
-      const currentHistoryState = window.history.state?.usr;
-      if (currentHistoryState?.rebookData) {
+      // Check for rebookData in navigation state (React Router location.state)
+      if (location.state?.rebookData) {
         setActiveTab('New Appointment');
-        setRebookData(currentHistoryState.rebookData);
+        setRebookData(location.state.rebookData);
         // Clear state to avoid re-triggering on refresh
         window.history.replaceState({}, document.title);
       }
@@ -382,7 +381,10 @@ const Admin = () => {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 font-sans antialiased transition-colors duration-500 overflow-x-hidden">
-        <OnboardingTour role="admin" />
+        <OnboardingTour 
+          role="admin" 
+          disabled={doctorsHook.doctorsCountLoading || doctorsHook.totalDoctors === 0 || doctorsHook.showDoctorForm} 
+        />
         {(user?.organizationId || user?.organization?._id) && (
           <TrialNotification organizationId={user?.organizationId?._id || user?.organizationId || user?.organization?._id} />
         )}

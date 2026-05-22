@@ -191,13 +191,20 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         designation: initialData.designation || 'MR.',
         firstName: initialData.firstName || '',
         lastName: initialData.lastName || '',
-        age: initialData.age || '',
+        age: initialData.age || initialData.patientAge || '',
         ageType: initialData.ageType || 'Year',
-        gender: initialData.gender || 'Male',
-        phone: initialData.patientPhone || initialData.phone || '',
-        department: initialData.department || '',
-        doctor: initialData.doctor || '',
+        gender: initialData.gender
+          ? (initialData.gender.charAt(0).toUpperCase() + initialData.gender.slice(1).toLowerCase())
+          : 'Male',
+        phone: initialData.phone || initialData.patientPhone || '',
+        department: initialData.department || initialData.specialty || '',
+        doctor: initialData.doctor || initialData.doctorId || '',
+        symptoms: initialData.symptoms || initialData.reason || '',
       }));
+      // Use the existing patient record (don't generate a new patient ID)
+      if (initialData.patientId) {
+        setSelectedExistingId(initialData.patientId);
+      }
     }
   }, [initialData]);
 

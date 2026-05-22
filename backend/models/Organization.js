@@ -187,6 +187,56 @@ const organizationSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Custom Prescription Template
+  prescriptionTemplate: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    templateUrl: {
+      type: String,
+      default: ""
+    },
+    templatePublicId: {
+      type: String,
+      default: ""
+    },
+    templateType: {
+      type: String,
+      enum: ["image", "pdf"],
+      default: "image"
+    },
+    pageSize: {
+      type: String,
+      enum: ["A4"],
+      default: "A4"
+    },
+    printableArea: {
+      top: {
+        type: Number,
+        default: 55
+      },
+      left: {
+        type: Number,
+        default: 12
+      },
+      right: {
+        type: Number,
+        default: 12
+      },
+      bottom: {
+        type: Number,
+        default: 30
+      }
+    },
+    fontSize: {
+      type: Number,
+      default: 12
+    },
+    updatedAt: {
+      type: Date
+    }
+  },
 });
 
 // Generate slug from name

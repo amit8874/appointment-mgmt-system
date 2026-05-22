@@ -931,7 +931,7 @@ const FindDoctors = () => {
                     
                     <div className="mt-2 text-sm font-bold text-slate-800">
                       <div className="flex items-center gap-1 text-xs">
-                        {doctor.address || "Gomtinagar Vistar, Lucknow"} <span className="text-slate-300 font-normal">•</span> {doctor.clinicName || "Vistaar Ortho Clinic"} + 5 more
+                        {doctor.address} {doctor.address && doctor.clinicName && <span className="text-slate-300 font-normal">•</span>} {doctor.clinicName}
                       </div>
                       <div className="text-slate-500 font-medium mt-0.5 text-xs">₹{doctor.fee || 500} Consultation fee at clinic</div>
                     </div>

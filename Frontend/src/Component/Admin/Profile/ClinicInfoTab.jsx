@@ -240,6 +240,17 @@ const ClinicInfoTab = ({ organization, onUpdate, loading }) => {
                         placeholder="State"
                     />
                 </div>
+                <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pincode / Zip Code</label>
+                    <input 
+                        type="text" 
+                        name="address.zipCode"
+                        value={formData.address.zipCode}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium text-slate-700"
+                        placeholder="Pincode / Zip Code"
+                    />
+                </div>
             </div>
         </div>
       </div>
