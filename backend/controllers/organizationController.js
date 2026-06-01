@@ -27,6 +27,8 @@ export const registerOrganization = async (req, res) => {
       ownerPassword,
       subdomain,
       plan,
+      clinicType,
+      specialist,
     } = req.body;
 
 
@@ -172,6 +174,8 @@ export const registerOrganization = async (req, res) => {
       trialDays: 14,
       isTrialActive: true,
       planType: 'FREE_TRIAL', // Explicitly mark as Free Trial for auto-reset
+      clinicType: clinicType || 'General',
+      specialist: specialist || '',
     });
 
     try {
@@ -521,6 +525,8 @@ export const updateOrganization = async (req, res) => {
       branding,
       settings,
       clinicType,
+      specialist,
+      enabledModules,
       registrationNumber,
       gstNumber,
       consultationFee,
@@ -533,6 +539,8 @@ export const updateOrganization = async (req, res) => {
     if (branding) organization.branding = { ...organization.branding, ...branding };
     if (settings) organization.settings = { ...organization.settings, ...settings };
     if (clinicType) organization.clinicType = clinicType;
+    if (specialist) organization.specialist = specialist;
+    if (enabledModules) organization.enabledModules = { ...organization.enabledModules, ...enabledModules };
     if (registrationNumber) organization.registrationNumber = registrationNumber;
     if (gstNumber) organization.gstNumber = gstNumber;
     if (consultationFee !== undefined) organization.consultationFee = consultationFee;

@@ -13,7 +13,7 @@ const billingSchema = new mongoose.Schema({
   },
   billType: {
     type: String,
-    enum: ['General', 'Pharmacy', 'Lab'],
+    enum: ['General', 'Pharmacy', 'Lab', 'Dental'],
     default: 'General'
   },
   billId: {
@@ -144,7 +144,13 @@ const billingSchema = new mongoose.Schema({
     expiryDate: String,
     mrp: Number,
     discountPercentage: Number,
-    gstPercentage: Number
+    gstPercentage: Number,
+    // Dental procedure-specific fields
+    procedureName: String,
+    toothNumber: String,
+    price: Number,
+    discount: { type: Number, default: 0 },
+    total: Number
   }],
   notes: String,
   storageProvider: { type: String, default: 'local' }, // 'local', 'cloudinary', 'aws_s3'

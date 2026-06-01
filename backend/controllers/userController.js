@@ -125,7 +125,10 @@ export const checkSession = async (req, res) => {
         isSubscriptionExpired,
         trialDaysRemaining,
         plan: sub?.plan || (org.planType === 'PAID' ? 'basic' : 'free'),
-        planName: sub?.planName || (org.planType === 'PAID' ? 'Active Plan' : 'Free Trial')
+        planName: sub?.planName || (org.planType === 'PAID' ? 'Active Plan' : 'Free Trial'),
+        clinicType: org.clinicType,
+        specialist: org.specialist,
+        enabledModules: org.enabledModules
       };
     }
 
@@ -445,7 +448,10 @@ export const login = async (req, res) => {
         branding: user.organizationId.branding,
         address: user.organizationId.address,
         phone: user.organizationId.phone,
-        email: user.organizationId.email
+        email: user.organizationId.email,
+        clinicType: user.organizationId.clinicType,
+        specialist: user.organizationId.specialist,
+        enabledModules: user.organizationId.enabledModules
       } : null
     };
 
@@ -559,7 +565,10 @@ export const adminLogin = async (req, res) => {
           phone: user.organizationId.phone,
           email: user.organizationId.email,
           plan: user.organizationId.subscriptionId?.plan || (user.organizationId.planType === 'PAID' ? 'basic' : 'free'),
-          planName: user.organizationId.subscriptionId?.planName || (user.organizationId.planType === 'PAID' ? 'Active Plan' : 'Free Trial')
+          planName: user.organizationId.subscriptionId?.planName || (user.organizationId.planType === 'PAID' ? 'Active Plan' : 'Free Trial'),
+          clinicType: user.organizationId.clinicType,
+          specialist: user.organizationId.specialist,
+          enabledModules: user.organizationId.enabledModules
         } : null
       }
     });

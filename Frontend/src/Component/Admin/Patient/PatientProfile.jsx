@@ -56,7 +56,8 @@ import {
   Layout,
   Bell,
   Tag,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Smile
 } from 'lucide-react';
 import { patientApi, appointmentApi, medicalRecordApi, emailApi, whatsappApi, prescriptionTemplateApi, invoiceTemplateApi, organizationApi, centralDoctorApi, billingApi, authApi, patientProgressImageApi, patientProgressComparisonApi, translationApi, clinicalNoteApi, progressNoteApi, followUpReminderApi } from '../../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -73,6 +74,10 @@ import OviaanDefaultPharmacyInvoiceTemplate from '../../../components/billing/te
 import { useAuth } from '../../../context/AuthContext';
 import Pagination from '../../../components/common/Pagination';
 import AddFollowUpReminderModal from '../../../components/reminders/AddFollowUpReminderModal';
+import DentalChart from './DentalChart';
+import DentalTreatmentTab from './DentalTreatmentTab';
+import DentalImagesTab from './DentalImagesTab';
+import ToothHistoryTab from './ToothHistoryTab';
 
 // --- Utility Components ---
 
@@ -3547,7 +3552,7 @@ const PatientProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, isDentistClinic } = useAuth();
   const clinicInfo = user?.organization || user?.organizationId || {};
   const [data, setData] = useState(null);
   const [appointments, setAppointments] = useState([]);
@@ -4054,7 +4059,19 @@ const PatientProfile = () => {
     setShowPrescriptionModal(true);
   };
 
-  const tabs = [
+  const tabs = isDentistClinic ? [
+    { key: 'personal', name: 'Personal Info', icon: User },
+    { key: 'prescriptions', name: 'Prescriptions', icon: Pill },
+    { key: 'appointments', name: 'Appointments', icon: CalendarIcon },
+    { key: 'billing', name: 'Billing', icon: IndianRupee },
+    { key: 'dental-chart', name: 'Dental Chart', icon: Smile },
+    { key: 'treatment-plan', name: 'Treatment Plan', icon: ClipboardList },
+    { key: 'dental-images', name: 'Dental Images', icon: Image },
+    { key: 'tooth-history', name: 'Tooth History', icon: History },
+    { key: 'progress', name: 'Progress Gallery', icon: Camera },
+    { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
+    { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote }
+  ] : [
     { key: 'personal', name: 'Personal Info', icon: User },
     { key: 'prescriptions', name: 'Prescriptions', icon: Pill },
     { key: 'appointments', name: 'Appointments', icon: CalendarIcon },
@@ -4707,6 +4724,10 @@ const PatientProfile = () => {
                       onPrintReport={(comp) => setPrintingClinicalReport(comp)}
                     />
                   )}
+                  {activeTab === 'dental-chart' && <DentalChart patientId={id} />}
+                  {activeTab === 'treatment-plan' && <DentalTreatmentTab patientId={id} patientData={data} appointments={appointments} />}
+                  {activeTab === 'dental-images' && <DentalImagesTab patientId={id} />}
+                  {activeTab === 'tooth-history' && <ToothHistoryTab patientId={id} />}
                   {activeTab === 'follow-ups' && (
                     <TabFollowUps 
                        patient={data}

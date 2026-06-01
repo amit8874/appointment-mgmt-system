@@ -63,6 +63,13 @@ function BookAppointmentModal({
     setSlotsError('');
   }, [slotInfo, existingEvent, isOpen]);
 
+  // Auto-select doctor if there is only a single doctor in the clinic
+  React.useEffect(() => {
+    if (doctors && doctors.length === 1) {
+      setDoctorId(doctors[0].id);
+    }
+  }, [doctors]);
+
   // Fetch real available slots from API when doctor + date are selected
   React.useEffect(() => {
     if (!doctorId || !date) {
@@ -177,23 +184,29 @@ function BookAppointmentModal({
 
               {/* Select Doctor — populated from live API */}
               <FormInput label="Doctor" icon={<UserPlus size={18} />}>
-                <select
-                  id="doctor"
-                  value={doctorId}
-                  onChange={(e) => {
-                    setDoctorId(e.target.value);
-                    setTime(''); // reset time when doctor changes
-                  }}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                  required
-                >
-                  <option value="" disabled>Select a doctor</option>
-                  {doctors.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.name}{doc.specialization ? ` — ${doc.specialization}` : ''}
-                    </option>
-                  ))}
-                </select>
+                {doctors && doctors.length === 1 ? (
+                  <div className="w-full pl-10 pr-4 py-2 border border-gray-200 bg-gray-50 rounded-2xl text-sm text-gray-800 font-medium">
+                    {doctors[0].name}{doctors[0].specialization ? ` — ${doctors[0].specialization}` : ''}
+                  </div>
+                ) : (
+                  <select
+                    id="doctor"
+                    value={doctorId}
+                    onChange={(e) => {
+                      setDoctorId(e.target.value);
+                      setTime(''); // reset time when doctor changes
+                    }}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white"
+                    required
+                  >
+                    <option value="" disabled>Select a doctor</option>
+                    {doctors.map((doc) => (
+                      <option key={doc.id} value={doc.id}>
+                        {doc.name}{doc.specialization ? ` — ${doc.specialization}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </FormInput>
 
               {/* Date & Time */}
@@ -713,6 +726,13 @@ function AddToWaitlistModal({
     }
   }, [isOpen]);
 
+  // Auto-select doctor if there is only a single doctor in the clinic
+  React.useEffect(() => {
+    if (doctors && doctors.length === 1) {
+      setDoctorId(doctors[0].id);
+    }
+  }, [doctors]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!patientName || !doctorId || !reason || !date || !time) {
@@ -779,20 +799,26 @@ function AddToWaitlistModal({
 
               {/* Select Doctor */}
               <FormInput label="Doctor" icon={<UserPlus size={18} />}>
-                <select
-                  id="wl-doctor"
-                  value={doctorId}
-                  onChange={(e) => setDoctorId(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none"
-                  required
-                >
-                  <option value="" disabled>Select a doctor</option>
-                  {doctors.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.name}{doc.specialization ? ` — ${doc.specialization}` : ''}
-                    </option>
-                  ))}
-                </select>
+                {doctors && doctors.length === 1 ? (
+                  <div className="w-full pl-10 pr-4 py-2 border border-gray-200 bg-gray-50 rounded-2xl text-sm text-gray-800 font-medium">
+                    {doctors[0].name}{doctors[0].specialization ? ` — ${doctors[0].specialization}` : ''}
+                  </div>
+                ) : (
+                  <select
+                    id="wl-doctor"
+                    value={doctorId}
+                    onChange={(e) => setDoctorId(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none bg-white"
+                    required
+                  >
+                    <option value="" disabled>Select a doctor</option>
+                    {doctors.map((doc) => (
+                      <option key={doc.id} value={doc.id}>
+                        {doc.name}{doc.specialization ? ` — ${doc.specialization}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </FormInput>
 
               {/* Date & Time */}

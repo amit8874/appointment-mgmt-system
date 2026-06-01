@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Check, ArrowRight, Building2, User, Phone, Mail, 
-  Lock, ArrowLeft, ShieldCheck, Zap, Star, Globe, Layout, Users, Eye, EyeOff, MapPin 
+  Lock, ArrowLeft, ShieldCheck, Zap, Star, Globe, Layout, Users, Eye, EyeOff, MapPin, Stethoscope 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -37,7 +37,8 @@ const TrialModal = ({ isOpen, onClose }) => {
     city: '',
     state: '',
     zipCode: '',
-    plan: 'free'
+    plan: 'free',
+    clinicType: 'General'
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -99,6 +100,7 @@ const TrialModal = ({ isOpen, onClose }) => {
         ownerPassword: formData.password,
         patientCount: formData.patientCount,
         currentSoftware: formData.currentSoftware,
+        clinicType: formData.clinicType,
         plan: selectedPlan,
         address: {
           street: formData.street,
@@ -321,6 +323,24 @@ const TrialModal = ({ isOpen, onClose }) => {
                             <option value="10-50">10-50 Patients</option>
                             <option value="50-100">50-100 Patients</option>
                             <option value="100+">100+ Patients</option>
+                          </select>
+                        </div>
+                        <div className="relative group">
+                          <Stethoscope className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-all" size={18} />
+                          <select
+                            name="clinicType"
+                            required
+                            value={formData.clinicType}
+                            onChange={handleChange}
+                            className="w-full pl-12 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all appearance-none text-slate-600 font-medium text-left"
+                          >
+                            <option value="General">General Physician / Internal Medicine</option>
+                            <option value="Dental">Dental / Dentist</option>
+                            <option value="Eye">Eye Clinic / Ophthalmologist</option>
+                            <option value="Skin">Skin Clinic / Dermatologist</option>
+                            <option value="Pediatric">Pediatric / Child Specialist</option>
+                            <option value="Pet">Pet Clinic / Veterinary</option>
+                            <option value="Other">Other Specialty</option>
                           </select>
                         </div>
                         <div className="relative group">

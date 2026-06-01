@@ -275,8 +275,8 @@ const PatientPanel = () => {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3 md:pl-10 transition-all">
-            <User className="w-8 h-8 text-blue-600 bg-blue-50 p-1.5 rounded-lg" />
+          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2 md:pl-10 transition-all">
+            <User className="w-5 h-5 text-blue-600" />
             Patient Directory
           </h1>
           <p className="text-gray-500 mt-1 md:pl-10 transition-all">Manage and track all patients in one place</p>

@@ -899,7 +899,11 @@ export const getPublicDoctorCheckoutDetails = async (req, res) => {
         photo: doctor.photo,
         qualification: doctor.qualification,
         experience: doctor.experience,
-        fee: doctor.fee
+        fee: doctor.fee,
+        designation: doctor.designation,
+        department: doctor.department,
+        bio: doctor.bio,
+        about: doctor.about
       },
       clinic: {
         name: doctor.organizationId?.name || doctor.clinicName || "Clicnic Center",

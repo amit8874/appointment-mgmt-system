@@ -6,6 +6,16 @@ import mongoose from 'mongoose';
 import puppeteer from 'puppeteer';
 import axios from 'axios';
 
+// Helper to resolve patient ID (supporting both MongoDB ObjectId and custom sequential display patientId)
+const resolvePatientId = async (patientId, organizationId) => {
+  if (mongoose.Types.ObjectId.isValid(patientId)) {
+    return patientId;
+  }
+  const Patient = mongoose.model('Patient');
+  const patient = await Patient.findOne({ patientId, organizationId });
+  return patient ? patient._id : null;
+};
+
 /**
  * Create a new progress comparison case
  */
@@ -30,6 +40,11 @@ export const createComparison = async (req, res) => {
     const uploadedBy = req.user.id;
     const uploadedByRole = req.user.role;
 
+    const resolvedPatientId = await resolvePatientId(patientId, organizationId);
+    if (!resolvedPatientId) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+
     if (!req.files || !req.files.beforeImage || !req.files.afterImage) {
       return res.status(400).json({ message: 'Both before and after images are required' });
     }
@@ -40,10 +55,10 @@ export const createComparison = async (req, res) => {
     // Upload Before Image to S3
     const beforeUploadResult = await uploadToS3({
       file: beforeFile,
-      folderType: `patients/${patientId}/progress-comparisons`,
+      folderType: `patients/${resolvedPatientId}/progress-comparisons`,
       organizationId: organizationId,
       metadata: {
-        patientId: String(patientId),
+        patientId: String(resolvedPatientId),
         type: 'before',
         uploadedBy: String(uploadedBy)
       }
@@ -52,10 +67,10 @@ export const createComparison = async (req, res) => {
     // Upload After Image to S3
     const afterUploadResult = await uploadToS3({
       file: afterFile,
-      folderType: `patients/${patientId}/progress-comparisons`,
+      folderType: `patients/${resolvedPatientId}/progress-comparisons`,
       organizationId: organizationId,
       metadata: {
-        patientId: String(patientId),
+        patientId: String(resolvedPatientId),
         type: 'after',
         uploadedBy: String(uploadedBy)
       }
@@ -79,7 +94,7 @@ export const createComparison = async (req, res) => {
     if (!finalDoctorName) {
       try {
         const Patient = mongoose.model('Patient');
-        const patient = await Patient.findById(patientId);
+        const patient = await Patient.findById(resolvedPatientId);
         if (patient && patient.assignedDoctor) {
           finalDoctorName = patient.assignedDoctor;
         }
@@ -93,7 +108,7 @@ export const createComparison = async (req, res) => {
     // Create DB record
     const comparison = await PatientProgressComparison.create({
       organizationId,
-      patientId,
+      patientId: resolvedPatientId,
       doctorId: req.user.role === 'doctor' || req.user.role === 'Doctor' ? req.user.id : null,
       appointmentId: appointmentId || null,
       title,
@@ -146,15 +161,20 @@ export const getPatientComparisons = async (req, res) => {
     const { patientId } = req.params;
     const organizationId = req.user.organizationId?._id || req.user.organizationId;
 
+    const resolvedPatientId = await resolvePatientId(patientId, organizationId);
+    if (!resolvedPatientId) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+
     const comparisons = await PatientProgressComparison.find({
       organizationId,
-      patientId,
+      patientId: resolvedPatientId,
       isDeleted: false
     }).sort({ createdAt: -1 });
 
     // Fetch patient details once to get assigned doctor fallback
     const Patient = mongoose.model('Patient');
-    const patient = await Patient.findById(patientId);
+    const patient = await Patient.findById(resolvedPatientId);
     const patientAssignedDoctor = patient?.assignedDoctor || 'Attending Physician';
 
     const comparisonsWithUrls = await Promise.all(comparisons.map(async (comp) => {

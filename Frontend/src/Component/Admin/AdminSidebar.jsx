@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, ChevronLeft, User, Calendar, ShieldCheck, Grid, Activity, MessageSquare, Crown, PlusSquare, Upload, Package, ShoppingCart, AlertTriangle, Truck, FileText, Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NavItem from './NavItem.jsx';
+import { useAuth } from '../../context/AuthContext';
 
 const AdminSidebar = ({
   isSidebarOpen,
@@ -20,6 +21,7 @@ const AdminSidebar = ({
 }) => {
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
+  const { isDentistClinic } = useAuth();
 
   const toggleExpand = (name) => {
     if (isSidebarCollapsed) {
@@ -127,6 +129,9 @@ const AdminSidebar = ({
           <>
             <NavItem id="tour-admin-followup-reminder" name="Followup and Reminder" icon={Bell} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             {!isSidebarCollapsed && <h2 className="text-xs font-semibold uppercase text-gray-400 mb-2 ml-3 tracking-wider mt-2">MAIN</h2>}
+            {isDentistClinic && (
+              <NavItem id="tour-admin-dentist-dashboard" name="Dentist Dashboard" icon={LayoutDashboard} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
+            )}
             <NavItem id="tour-admin-new-appointment" name="New Appointment" icon={CalendarCheck} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             <NavItem id="tour-admin-patients" name="Patients" icon={Users} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             <NavItem id="tour-admin-analysis" name="Analysis" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />

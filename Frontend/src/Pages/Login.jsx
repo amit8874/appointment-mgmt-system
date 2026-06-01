@@ -28,7 +28,17 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [agreed, setAgreed] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    const savedIdentifier = localStorage.getItem("rememberedIdentifier");
+    const savedPassword = localStorage.getItem("rememberedPassword");
+    if (savedIdentifier && savedPassword) {
+      setIdentifier(savedIdentifier);
+      setPassword(savedPassword);
+      setRememberMe(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -43,10 +53,6 @@ const Login = () => {
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!agreed) {
-      setErrorMessage("Please agree to the Terms & Conditions.");
-      return;
-    }
     if (!identifier) {
       setErrorMessage("Please enter your mobile number.");
       return;
@@ -78,10 +84,6 @@ const Login = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!agreed) {
-      setErrorMessage("Please agree to the Terms & Conditions.");
-      return;
-    }
     setErrorMessage("");
     setIsLoading(true);
 
@@ -103,6 +105,17 @@ const Login = () => {
 
       if (response.status === 200 || response.data.success) {
         const { user: userData, token } = response.data;
+        
+        if (rememberMe) {
+          localStorage.setItem("rememberedIdentifier", identifier.trim());
+          if (!isOtpMode) {
+            localStorage.setItem("rememberedPassword", password);
+          }
+        } else {
+          localStorage.removeItem("rememberedIdentifier");
+          localStorage.removeItem("rememberedPassword");
+        }
+
         login({ ...userData, token });
         
         const finalRole = userData.role.toLowerCase();
@@ -336,11 +349,11 @@ const Login = () => {
               <label className="remember-me">
                 <input 
                   type="checkbox" 
-                  checked={agreed}
-                  onChange={(e) => setAgreed(e.target.checked)}
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
                 />
-                <span>I agree to <Link to="/terms-conditions" className="text-blue-600">Terms</Link></span>
+                <span>Remember me</span>
               </label>
               {!isOtpMode && (
                 <Link to="/forgot-password" title="Coming soon" className="forgot-password cursor-not-allowed opacity-50">Forgot Password?</Link>

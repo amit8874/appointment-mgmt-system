@@ -67,6 +67,17 @@ const organizationSchema = new mongoose.Schema({
     enum: ['General', 'Dental', 'Eye', 'Skin', 'Pediatric', 'Pet', 'Other'],
     default: 'General',
   },
+  specialist: {
+    type: String,
+  },
+  enabledModules: {
+    dentist: { type: Boolean, default: false },
+    dermatologist: { type: Boolean, default: false },
+    pediatric: { type: Boolean, default: false },
+    gynecology: { type: Boolean, default: false },
+    ophthalmology: { type: Boolean, default: false },
+    physiotherapy: { type: Boolean, default: false }
+  },
   registrationNumber: String,
   gstNumber: String,
   consultationFee: {
@@ -264,6 +275,14 @@ organizationSchema.pre('save', async function (next) {
   // Ensure slug is set (required for validation)
   if (!this.slug) {
     return next(new Error('Slug is required. It will be generated from name if not provided.'));
+  }
+  
+  // Automatically enable dentist module if clinicType is Dental or specialist is Dentist
+  if (this.clinicType === 'Dental' || this.specialist === 'Dentist') {
+    if (!this.enabledModules) {
+      this.enabledModules = {};
+    }
+    this.enabledModules.dentist = true;
   }
   
   this.updatedAt = Date.now();

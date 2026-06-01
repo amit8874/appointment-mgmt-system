@@ -413,8 +413,8 @@ const PatientPanel = ({
     >
       {/*Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-gray-50 tracking-tight flex items-center transition-all">
-          <User className="w-8 h-8 mr-3 text-blue-600" /> Patient Directory
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-50 flex items-center transition-all">
+          <User className="w-5 h-5 mr-2 text-blue-600" /> Patient Directory
         </h2>
 
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -513,7 +513,7 @@ const PatientPanel = ({
           <div className="text-center py-8">
             <p className="text-gray-500 text-lg mb-4">No patients found in the database.</p>
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => setActiveTab('New Appointment')}
               className="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
               <PlusCircle className="w-5 h-5 mr-2" />

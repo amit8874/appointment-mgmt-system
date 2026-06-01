@@ -1391,3 +1391,51 @@ export const progressNoteApi = {
   }
 };
 
+export const dentistApi = {
+  getDashboard: async () => {
+    const { data } = await api.get('/dentist/dashboard');
+    return data;
+  },
+  getPatientTreatments: async (patientId) => {
+    const { data } = await api.get(`/dentist/patient/${patientId}/treatments`);
+    return data;
+  },
+  createTreatment: async (patientId, treatmentData) => {
+    const { data } = await api.post(`/dentist/patient/${patientId}/treatments`, treatmentData);
+    return data;
+  },
+  updateTreatment: async (treatmentId, treatmentData) => {
+    const { data } = await api.put(`/dentist/treatments/${treatmentId}`, treatmentData);
+    return data;
+  },
+  deleteTreatment: async (treatmentId) => {
+    const { data } = await api.delete(`/dentist/treatments/${treatmentId}`);
+    return data;
+  },
+  getToothChart: async (patientId) => {
+    const { data } = await api.get(`/dentist/patient/${patientId}/chart`);
+    return data;
+  },
+  getPatientImages: async (patientId) => {
+    const { data } = await api.get(`/dentist/patient/${patientId}/images`);
+    return data;
+  },
+  uploadDentalImage: async (patientId, imageData) => {
+    const { data } = await api.post(`/dentist/patient/${patientId}/images`, imageData);
+    return data;
+  },
+  deleteDentalImage: async (imageId) => {
+    const { data } = await api.delete(`/dentist/images/${imageId}`);
+    return data;
+  },
+  getCustomProcedures: async () => {
+    const { data } = await api.get('/dentist/procedures');
+    return data;
+  },
+  createCustomProcedure: async (procedureData) => {
+    const { data } = await api.post('/dentist/procedures', procedureData);
+    return data;
+  }
+};
+
+

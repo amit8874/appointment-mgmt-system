@@ -267,6 +267,18 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     }
   }, [formData.doctor, formData.appointmentDate]);
 
+  // Auto-select doctor and department if there is only a single doctor in the clinic
+  useEffect(() => {
+    if (doctors && doctors.length === 1) {
+      const singleDoc = doctors[0];
+      setFormData(prev => ({
+        ...prev,
+        doctor: singleDoc._id,
+        department: singleDoc.specialization || ''
+      }));
+    }
+  }, [doctors]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -705,57 +717,77 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
             </div>
           </div>
 
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-semibold">Department</label>
-            <div className="relative">
-              <select
-                name="department"
-                value={formData.department}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2 rounded text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8 bg-white dark:bg-gray-700"
-              >
-                <option value="">All Departments</option>
-                {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-              </select>
-              <ChevronDown className="w-4 h-4 absolute right-2 top-2.5 text-gray-400 pointer-events-none" />
+          {doctors && doctors.length === 1 ? (
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-semibold">Department</label>
+              <div className="w-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 p-2 rounded text-sm text-gray-800 dark:text-gray-200 font-medium">
+                {formData.department || 'General'}
+              </div>
             </div>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
-              <span className="text-red-500 mr-1">*</span> Doctor
-            </label>
-            <div className="flex space-x-2">
-              <div className="relative flex-1">
+          ) : (
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-semibold">Department</label>
+              <div className="relative">
                 <select
-                  name="doctor"
-                  value={formData.doctor}
+                  name="department"
+                  value={formData.department}
                   onChange={handleChange}
-                  required
                   className="w-full border border-gray-300 p-2 rounded text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8 bg-white dark:bg-gray-700"
                 >
-                  <option value="">Select Doctor</option>
-                  {doctors.filter(d => !formData.department || d.specialization === formData.department).map(doc => (
-                    <option key={doc._id} value={doc._id}>Dr. {doc.name}</option>
-                  ))}
+                  <option value="">All Departments</option>
+                  {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
                 </select>
                 <ChevronDown className="w-4 h-4 absolute right-2 top-2.5 text-gray-400 pointer-events-none" />
               </div>
-              <button 
-                type="button" 
-                onClick={isLimitReached ? null : openDoctorForm}
-                disabled={isLimitReached}
-                className={`p-2 border rounded transition-colors ${
-                  isLimitReached 
-                  ? "bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed border-gray-200" 
-                  : "border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                }`}
-                title={isLimitReached ? "Doctor limit reached. Upgrade your plan to add more." : "Add New Doctor"}
-              >
-                <Plus className={`w-4 h-4 ${isLimitReached ? 'text-gray-300' : 'text-gray-600 dark:text-gray-300'}`} />
-              </button>
             </div>
-          </div>
+          )}
+
+          {doctors && doctors.length === 1 ? (
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
+                Doctor
+              </label>
+              <div className="w-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 p-2 rounded text-sm text-gray-800 dark:text-gray-200 font-medium">
+                Dr. {doctors[0].name}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
+                <span className="text-red-500 mr-1">*</span> Doctor
+              </label>
+              <div className="flex space-x-2">
+                <div className="relative flex-1">
+                  <select
+                    name="doctor"
+                    value={formData.doctor}
+                    onChange={handleChange}
+                    required
+                    className="w-full border border-gray-300 p-2 rounded text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8 bg-white dark:bg-gray-700"
+                  >
+                    <option value="">Select Doctor</option>
+                    {doctors.filter(d => !formData.department || d.specialization === formData.department).map(doc => (
+                      <option key={doc._id} value={doc._id}>Dr. {doc.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 absolute right-2 top-2.5 text-gray-400 pointer-events-none" />
+                </div>
+                <button 
+                  type="button" 
+                  onClick={isLimitReached ? null : openDoctorForm}
+                  disabled={isLimitReached}
+                  className={`p-2 border rounded transition-colors ${
+                    isLimitReached 
+                    ? "bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed border-gray-200" 
+                    : "border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  }`}
+                  title={isLimitReached ? "Doctor limit reached. Upgrade your plan to add more." : "Add New Doctor"}
+                >
+                  <Plus className={`w-4 h-4 ${isLimitReached ? 'text-gray-300' : 'text-gray-600 dark:text-gray-300'}`} />
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">

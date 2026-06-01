@@ -58,9 +58,10 @@ import { seedMedicineMaster } from "./controllers/medicineController.js";
 import { seedInvestigationMaster } from "./controllers/investigationController.js";
 import internalPharmacyRoutes from "./routes/internalPharmacyRoutes.js";
 import followUpReminderRoutes from "./routes/followUpReminderRoutes.js";
+import dentistRoutes from "./routes/dentistRoutes.js";
 import { detectTenant } from "./middleware/tenant.js";
 
-// Load environment variables based on NODE_ENV
+// Load environment variables based on NODE_ENV (restarted)
 const nodeEnv = (process.env.NODE_ENV || 'development').toLowerCase();
 if (nodeEnv === 'production') {
   dotenv.config({ path: '.env.production' });
@@ -248,6 +249,7 @@ app.use("/api/prescription-template", prescriptionTemplateRoutes);
 app.use("/api/clinic/prescription-template", clinicPrescriptionRoutes);
 app.use("/api/follow-up-reminders", followUpReminderRoutes);
 app.use("/api/progress-notes", progressNoteRoutes);
+app.use("/api/dentist", dentistRoutes);
 app.use("/api/dev", devRoutes);
 
 // Seed Data

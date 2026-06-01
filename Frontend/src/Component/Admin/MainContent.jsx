@@ -28,6 +28,7 @@ import ExpiryLowStock from './Pharmacy/ExpiryLowStock.jsx';
 import Suppliers from './Pharmacy/Suppliers.jsx';
 import Reports from './Pharmacy/Reports.jsx';
 import FollowUpReminderPanel from './FollowUpReminderPanel.jsx';
+import DentistDashboard from './DentistDashboard.jsx';
 
 const MainContent = ({
   activeTab,
@@ -255,6 +256,8 @@ const MainContent = ({
         );
       case 'WhatsApp Credits':
         return <WhatsAppCredits />;
+      case 'Dentist Dashboard':
+        return <DentistDashboard setActiveTab={setActiveTab} />;
       default:
         return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
     }

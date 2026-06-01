@@ -3,6 +3,16 @@ import { uploadToS3 } from '../utils/uploadToS3.js';
 import { getSignedDownloadUrl } from '../services/s3Service.js';
 import mongoose from 'mongoose';
 
+// Helper to resolve patient ID (supporting both MongoDB ObjectId and custom sequential display patientId)
+const resolvePatientId = async (patientId, organizationId) => {
+  if (mongoose.Types.ObjectId.isValid(patientId)) {
+    return patientId;
+  }
+  const Patient = mongoose.model('Patient');
+  const patient = await Patient.findOne({ patientId, organizationId });
+  return patient ? patient._id : null;
+};
+
 /**
  * Upload a progress image for a patient
  */
@@ -24,6 +34,11 @@ export const uploadProgressImage = async (req, res) => {
     const uploadedBy = req.user.id;
     const uploadedByRole = req.user.role;
 
+    const resolvedPatientId = await resolvePatientId(patientId, organizationId);
+    if (!resolvedPatientId) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+
     if (!req.file) {
       return res.status(400).json({ message: 'No image file provided' });
     }
@@ -32,10 +47,10 @@ export const uploadProgressImage = async (req, res) => {
     // S3 path: organizations/{organizationId}/patients/{patientId}/progress/{timestamp-fileName}
     const uploadResult = await uploadToS3({
       file: req.file,
-      folderType: `patients/${patientId}/progress`,
+      folderType: `patients/${resolvedPatientId}/progress`,
       organizationId: organizationId,
       metadata: {
-        patientId: String(patientId),
+        patientId: String(resolvedPatientId),
         category: String(category || 'other'),
         uploadedBy: String(uploadedBy)
       }
@@ -44,7 +59,7 @@ export const uploadProgressImage = async (req, res) => {
     // Create DB record
     const progressImage = await PatientProgressImage.create({
       organizationId,
-      patientId,
+      patientId: resolvedPatientId,
       doctorId: req.user.role === 'Doctor' ? req.user.id : null,
       appointmentId: appointmentId || null,
       title,
@@ -86,9 +101,14 @@ export const getPatientProgressImages = async (req, res) => {
     const { patientId } = req.params;
     const organizationId = req.user.organizationId;
 
+    const resolvedPatientId = await resolvePatientId(patientId, organizationId);
+    if (!resolvedPatientId) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+
     const images = await PatientProgressImage.find({
       organizationId,
-      patientId,
+      patientId: resolvedPatientId,
       isDeleted: false
     }).sort({ uploadedAt: -1 });
 

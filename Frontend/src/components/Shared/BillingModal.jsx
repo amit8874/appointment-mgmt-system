@@ -1,4 +1,6 @@
-import { X, Printer, CreditCard, Banknote, Smartphone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Printer, CreditCard, Banknote, Smartphone, Phone, Download } from 'lucide-react';
+import { toast } from 'react-toastify';
 import InvoiceTemplate from './InvoiceTemplate';
 import { useAuth } from '../../context/AuthContext';
 
@@ -23,7 +25,9 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
     transactionId: '',
     appointmentDate: '',
     appointmentTime: '',
-    notes: ''
+    notes: '',
+    billType: 'General',
+    items: []
   });
 
   const [bill, setBill] = useState(null);
@@ -91,18 +95,14 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
       status = 'Pending';
     }
 
-    // Validate transaction ID for UPI/Netbanking
-    if ((data.paymentMode === 'upi' || data.paymentMode === 'netbanking') && !data.transactionId.trim()) {
-      setError('Transaction ID is required for UPI/Netbanking payments');
-      setSubmitting(false);
-      return;
-    }
 
     try {
       const { billingApi } = await import('../../services/api');
       const newBill = await billingApi.create({
         patientId: data.patientId,
         patientName: data.patientName,
+        patientPhone: data.contactNumber || '',
+        patientAddress: data.patientAddress || '',
         doctorId: data.doctorId || 'System',
         doctorName: data.doctorName || 'General Clinic',
         amount: payable,
@@ -111,27 +111,51 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
         appointmentId: data.appointmentId || null,
         appointmentDate: data.appointmentDate || null,
         appointmentTime: data.appointmentTime || null,
-        items: [
+        items: data.items && data.items.length > 0 ? data.items.map(item => ({
+          ...item,
+          quantity: item.qty || item.quantity || 1,
+          qty: item.qty || item.quantity || 1,
+          price: item.price || item.cost || item.unitPrice || 0,
+          cost: item.cost || item.price || item.unitPrice || 0,
+          unitPrice: item.unitPrice || item.price || item.cost || 0
+        })) : [
           {
             description: 'Consultation Fee',
-            cost: payable
+            cost: payable,
+            price: payable,
+            unitPrice: payable,
+            qty: 1,
+            quantity: 1
           }
         ],
         status,
         notes: data.notes,
         paymentMode: data.paymentMode,
-        transactionId: data.transactionId || null
+        transactionId: data.transactionId || null,
+        billType: data.billType || 'General'
       });
 
       setBill(newBill);
 
-      // auto-print when paid immediately
-      if (status === 'Paid') {
-        // allow modal to render bill first
-        setTimeout(() => {
-          window.print();
-        }, 200);
-      }
+      // auto-download PDF when generated
+      setTimeout(async () => {
+        try {
+          const { billingApi } = await import('../../services/api');
+          const response = await billingApi.downloadPDF(newBill._id || newBill.id, true);
+          if (response && response.url) {
+            const link = document.createElement('a');
+            link.href = response.url;
+            link.target = "_blank";
+            link.download = `Invoice-${newBill.invoiceNumber || newBill.billId || 'invoice'}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success("Invoice PDF download started!");
+          }
+        } catch (pdfErr) {
+          console.error("PDF auto-download error:", pdfErr);
+        }
+      }, 500);
 
       if (onComplete) {
         onComplete(newBill);
@@ -141,6 +165,43 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
       setError(err.message || 'Failed to create bill');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!bill) return;
+    try {
+      const { billingApi } = await import('../../services/api');
+      toast.info('Sending invoice via WhatsApp...');
+      await billingApi.sendWhatsApp(bill._id);
+      toast.success('Invoice sent via WhatsApp successfully!');
+    } catch (err) {
+      console.error('Error sending WhatsApp invoice:', err);
+      toast.error(err.response?.data?.message || 'Failed to send WhatsApp invoice.');
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!bill) return;
+    try {
+      const { billingApi } = await import('../../services/api');
+      toast.info('Preparing invoice download...');
+      const response = await billingApi.downloadPDF(bill._id || bill.id, true);
+      if (response && response.url) {
+        const link = document.createElement('a');
+        link.href = response.url;
+        link.target = "_blank";
+        link.download = `Invoice-${bill.invoiceNumber || bill.billId || 'invoice'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('Download started!');
+      } else {
+        toast.error('Could not retrieve download link.');
+      }
+    } catch (err) {
+      console.error('Error downloading invoice:', err);
+      toast.error('Failed to download invoice PDF.');
     }
   };
 
@@ -352,7 +413,7 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
                     {(data.paymentMode === 'upi' || data.paymentMode === 'netbanking') && (
                       <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Transaction ID <span className="text-red-500">*</span>
+                          Transaction ID (Optional)
                         </label>
                         <input
                           type="text"
@@ -452,10 +513,16 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
               <button
-                onClick={() => window.print()}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+                onClick={handleSendWhatsApp}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 transition"
               >
-                <Printer className="h-4 w-4 mr-2" /> Print Invoice
+                <Phone className="h-4 w-4 mr-2" /> Send WhatsApp
+              </button>
+              <button
+                onClick={handleDownload}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition"
+              >
+                <Download className="h-4 w-4 mr-2" /> Download Invoice
               </button>
               <button
                 onClick={() => onClose && onClose()}
@@ -479,10 +546,10 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
               patientName: bill.patientName,
               patientId: bill.patientId || 'N/A',
               doctorName: bill.doctorName || bill.doctor || 'N/A',
-              items: bill.items.map(item => ({
+              items: (bill.items || []).map(item => ({
                 description: item.description,
-                quantity: 1,
-                price: item.cost
+                quantity: item.quantity || item.qty || 1,
+                price: item.price || item.cost || 0
               })),
               subtotal: bill.amount,
               discount: 0,

@@ -1,4 +1,15 @@
+import mongoose from 'mongoose';
 import PatientClinicalNote from '../models/PatientClinicalNote.js';
+
+// Helper to resolve patient ID (supporting both MongoDB ObjectId and custom sequential display patientId)
+const resolvePatientId = async (patientId, organizationId) => {
+  if (mongoose.Types.ObjectId.isValid(patientId)) {
+    return patientId;
+  }
+  const Patient = mongoose.model('Patient');
+  const patient = await Patient.findOne({ patientId, organizationId });
+  return patient ? patient._id : null;
+};
 
 /**
  * Create a new clinical note
@@ -7,6 +18,12 @@ export const createNote = async (req, res) => {
   try {
     const { patientId } = req.params;
     const organizationId = req.tenantId;
+    
+    const resolvedPatientId = await resolvePatientId(patientId, organizationId);
+    if (!resolvedPatientId) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
     const { 
       noteType, title, note, privateNote, visibility, 
       followUpRequired, followUpDate, priority, tags, appointmentId 
@@ -14,7 +31,7 @@ export const createNote = async (req, res) => {
 
     const newNote = new PatientClinicalNote({
       organizationId,
-      patientId,
+      patientId: resolvedPatientId,
       doctorId: req.user.role === 'doctor' ? req.user._id : undefined,
       appointmentId,
       noteType,
@@ -45,11 +62,17 @@ export const listNotes = async (req, res) => {
   try {
     const { patientId } = req.params;
     const organizationId = req.tenantId;
+    
+    const resolvedPatientId = await resolvePatientId(patientId, organizationId);
+    if (!resolvedPatientId) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
     const { type, priority, followUp } = req.query;
 
     let query = { 
       organizationId, 
-      patientId, 
+      patientId: resolvedPatientId, 
       isDeleted: false 
     };
 

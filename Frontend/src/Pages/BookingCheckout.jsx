@@ -273,10 +273,10 @@ const BookingCheckout = () => {
               <div className="flex-1">
                 <h3 className="font-bold text-slate-800 text-base leading-tight">Dr. {bookingData.doctor.name}</h3>
                 <p className="text-xs text-slate-500 font-bold mt-1 uppercase tracking-tight">
-                  {bookingData.doctor.qualification || "BDS, MDS"} - {bookingData.doctor.specialization}
+                  {bookingData.doctor.qualification ? `${bookingData.doctor.qualification} - ` : ""}{bookingData.doctor.specialization}
                 </p>
                 <p className="text-xs text-slate-400 font-medium mt-1 leading-relaxed line-clamp-2">
-                  {bookingData.doctor.specialization}, Cosmetic/Aesthetic Dentist, Implantologist, Dental Surgeon
+                  {bookingData.doctor.bio || bookingData.doctor.about || `${bookingData.doctor.specialization}${bookingData.doctor.experience ? ` • ${bookingData.doctor.experience} Years Experience` : ''}`}
                 </p>
               </div>
             </div>

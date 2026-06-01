@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building2, Mail, Phone, Lock, User, TrendingUp, Monitor, 
   ChevronRight, Eye, EyeOff, X, Check, Users, ShieldCheck, 
-  Zap, Clock, MapPin
+  Zap, Clock, MapPin, Stethoscope
 } from 'lucide-react';
 import { organizationApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -54,6 +54,7 @@ const RegisterOrganization = () => {
     city: '',
     state: '',
     zipCode: '',
+    clinicType: 'General',
   });
 
   const handleChange = (e) => {
@@ -333,6 +334,28 @@ const RegisterOrganization = () => {
                       <option value="11-30">11 - 30 / day</option>
                       <option value="31-50">31 - 50 / day</option>
                       <option value="51+">51+ / day</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="signup-input-group">
+                  <label className="signup-label">Specialty / Department</label>
+                  <div className="signup-input-wrapper">
+                    <div className="signup-icon"><Stethoscope size={16} /></div>
+                    <select 
+                      name="clinicType" 
+                      value={formData.clinicType} 
+                      onChange={handleChange}
+                      className="signup-select"
+                      required
+                    >
+                      <option value="General">General Physician / Internal Medicine</option>
+                      <option value="Dental">Dental / Dentist</option>
+                      <option value="Eye">Eye Clinic / Ophthalmologist</option>
+                      <option value="Skin">Skin Clinic / Dermatologist</option>
+                      <option value="Pediatric">Pediatric / Child Specialist</option>
+                      <option value="Pet">Pet Clinic / Veterinary</option>
+                      <option value="Other">Other Specialty</option>
                     </select>
                   </div>
                 </div>

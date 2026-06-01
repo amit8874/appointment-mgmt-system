@@ -277,6 +277,18 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     }
   }, [formData.doctor, formData.appointmentDate]);
 
+  // Auto-select doctor and department if there is only a single doctor in the clinic
+  useEffect(() => {
+    if (doctors && doctors.length === 1) {
+      const singleDoc = doctors[0];
+      setFormData(prev => ({
+        ...prev,
+        doctor: singleDoc._id,
+        department: singleDoc.specialization || ''
+      }));
+    }
+  }, [doctors]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -677,42 +689,62 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
             </div>
           </div>
 
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 font-bold">Department</label>
-            <div className="relative">
-              <select
-                name="department"
-                value={formData.department}
-                onChange={handleChange}
-                className="w-full border border-gray-300 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
-              >
-                <option value="">All Departments</option>
-                {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-              </select>
-              <ChevronDown className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+          {doctors && doctors.length === 1 ? (
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 font-bold">Department</label>
+              <div className="w-full border border-gray-300 p-2.5 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium">
+                {formData.department || 'General'}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 font-bold">Department</label>
+              <div className="relative">
+                <select
+                  name="department"
+                  value={formData.department}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                >
+                  <option value="">All Departments</option>
+                  {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+                </select>
+                <ChevronDown className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+          )}
 
-          <div className="flex flex-col">
-            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
-              <span className="text-red-500 mr-1">*</span> Doctor
-            </label>
-            <div className="relative">
-              <select
-                name="doctor"
-                value={formData.doctor}
-                onChange={handleChange}
-                required
-                className="w-full border border-gray-300 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
-              >
-                <option value="">Select Doctor</option>
-                {doctors.filter(d => !formData.department || d.specialization === formData.department).map(doc => (
-                  <option key={doc._id} value={doc._id}>Dr. {doc.name}</option>
-                ))}
-              </select>
-              <ChevronDown className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+          {doctors && doctors.length === 1 ? (
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
+                Doctor
+              </label>
+              <div className="w-full border border-gray-300 p-2.5 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium">
+                Dr. {doctors[0].name}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
+                <span className="text-red-500 mr-1">*</span> Doctor
+              </label>
+              <div className="relative">
+                <select
+                  name="doctor"
+                  value={formData.doctor}
+                  onChange={handleChange}
+                  required
+                  className="w-full border border-gray-300 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                >
+                  <option value="">Select Doctor</option>
+                  {doctors.filter(d => !formData.department || d.specialization === formData.department).map(doc => (
+                    <option key={doc._id} value={doc._id}>Dr. {doc.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">

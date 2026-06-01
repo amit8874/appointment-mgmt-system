@@ -56,6 +56,18 @@ const PatientAppointmentForm = ({ onSuccess }) => {
     fetchDoctors();
   }, []);
 
+  // Auto-select doctor if there is only a single doctor in the clinic
+  useEffect(() => {
+    if (doctors && doctors.length === 1) {
+      const singleDoc = doctors[0];
+      setFormData(prev => ({
+        ...prev,
+        assignedDoctorId: singleDoc.id,
+        assignedDoctor: singleDoc.name
+      }));
+    }
+  }, [doctors]);
+
   // Handle re-book data pre-fill
   useEffect(() => {
     if (rebookData) {
@@ -389,13 +401,19 @@ const PatientAppointmentForm = ({ onSuccess }) => {
 
           <div className="w-64">
             <label className="block text-xs font-medium text-gray-700">Assign Doctor (Optional)</label>
-            <select name="assignedDoctor" value={formData.assignedDoctorId} onChange={handleChange}
-              className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500">
-              <option value="">Select doctor</option>
-              {doctors.map(doctor => (
-                <option key={doctor.id} value={doctor.id}>{doctor.name} - {doctor.specialty}</option>
-              ))}
-            </select>
+            {doctors && doctors.length === 1 ? (
+              <div className="w-full px-2 py-1 text-xs border rounded bg-gray-50 text-gray-800 font-medium">
+                Dr. {doctors[0].name} - {doctors[0].specialty}
+              </div>
+            ) : (
+              <select name="assignedDoctor" value={formData.assignedDoctorId} onChange={handleChange}
+                className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500">
+                <option value="">Select doctor</option>
+                {doctors.map(doctor => (
+                  <option key={doctor.id} value={doctor.id}>{doctor.name} - {doctor.specialty}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Error/Success Messages */}

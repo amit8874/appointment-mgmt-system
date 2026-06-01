@@ -162,6 +162,18 @@ export const AuthProvider = ({ children }) => {
     });
   }, []);
 
+  const isDentistClinic = useMemo(() => {
+    const org = user?.organization || user?.organizationId;
+    if (!org) return false;
+    return (
+      org.enabledModules?.dentist === true ||
+      org.clinicType === "Dental" ||
+      org.clinicType === "Dentist" ||
+      org.specialist === "Dentist" ||
+      org.specializations?.includes("Dentist")
+    );
+  }, [user]);
+
   const value = useMemo(() => ({
     isAuthenticated,
     user,
@@ -169,7 +181,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateUser,
     loading,
-  }), [isAuthenticated, user, loading]);
+    isDentistClinic,
+  }), [isAuthenticated, user, loading, isDentistClinic]);
 
 
   return (
