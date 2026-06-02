@@ -31,6 +31,7 @@ export const translateText = async (req, res) => {
       5. Keep medicine names exactly as they are unless they are common descriptive terms.
       6. If the target language is "Hindi", use the Devanagari script (e.g., नमस्ते).
       7. If the target language is "Hinglish", provide a phonetic Hindi translation written in Roman script (e.g., Namaste).
+      8. Use natural, patient-friendly terms where possible rather than overly formal or literary terms (e.g., translate "Daily" as "रोज़" / "Roj" instead of "दैनिक" / "Dainik").
       
       Return ONLY the translated text without any explanations or headers.
 
@@ -100,6 +101,12 @@ export const translatePrescription = async (req, res) => {
          - Before Food -> खाने से पहले (Hindi) / Khaane se pehle (Hinglish)
          - After Food -> खाने के बाद (Hindi) / Khaane ke baad (Hinglish)
          - Empty Stomach -> खाली पेट (Hindi) / Khaali pet (Hinglish)
+      
+      8. For Frequency and general translations in Hindi/Hinglish:
+         - Daily / Once Daily -> रोज़ (Hindi) / Roj (Hinglish)
+         - Twice Daily (BD) -> दिन में दो बार (Hindi) / Din mein do baar (Hinglish)
+         - Thrice Daily (TDS) -> दिन में तीन बार (Hindi) / Din mein teen baar (Hinglish)
+         - Use simple, colloquial, patient-friendly terms instead of formal or literary words like "दैनिक" (dainik).
 
       INPUT DATA:
       Medications: ${JSON.stringify(medications)}

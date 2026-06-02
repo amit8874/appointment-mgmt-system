@@ -3,6 +3,7 @@ import { X, Printer, CreditCard, Banknote, Smartphone, Phone, Download } from 'l
 import { toast } from 'react-toastify';
 import InvoiceTemplate from './InvoiceTemplate';
 import { useAuth } from '../../context/AuthContext';
+import { createPortal } from 'react-dom';
 
 const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
   const { user } = useAuth();
@@ -75,7 +76,7 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
     return Math.max(0, payable - paid);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (action) => {
     setError('');
     setSubmitting(true);
 
@@ -95,6 +96,9 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
       status = 'Pending';
     }
 
+    const discountAmount = data.discountType === 'percentage'
+      ? (data.total * (data.discount || 0)) / 100
+      : (data.discount || 0);
 
     try {
       const { billingApi } = await import('../../services/api');
@@ -105,7 +109,8 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
         patientAddress: data.patientAddress || '',
         doctorId: data.doctorId || 'System',
         doctorName: data.doctorName || 'General Clinic',
-        amount: payable,
+        amount: data.total,
+        discount: discountAmount,
         paidAmount: paid,
         dueAmount: calculateDue(),
         appointmentId: data.appointmentId || null,
@@ -121,9 +126,9 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
         })) : [
           {
             description: 'Consultation Fee',
-            cost: payable,
-            price: payable,
-            unitPrice: payable,
+            cost: data.total,
+            price: data.total,
+            unitPrice: data.total,
             qty: 1,
             quantity: 1
           }
@@ -135,12 +140,9 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
         billType: data.billType || 'General'
       });
 
-      setBill(newBill);
-
-      // auto-download PDF when generated
-      setTimeout(async () => {
+      if (action === 'download') {
+        toast.info('Preparing invoice download...');
         try {
-          const { billingApi } = await import('../../services/api');
           const response = await billingApi.downloadPDF(newBill._id || newBill.id, true);
           if (response && response.url) {
             const link = document.createElement('a');
@@ -150,16 +152,31 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            toast.success("Invoice PDF download started!");
+            toast.success("Download started!");
           }
         } catch (pdfErr) {
-          console.error("PDF auto-download error:", pdfErr);
+          console.error("PDF download error:", pdfErr);
+          toast.error("Failed to download PDF");
         }
-      }, 500);
-
-      if (onComplete) {
-        onComplete(newBill);
+        if (onComplete) onComplete(newBill);
+      } else if (action === 'whatsapp') {
+        toast.info('Sending invoice via WhatsApp...');
+        try {
+          await billingApi.sendWhatsApp(newBill._id || newBill.id);
+          toast.success('Invoice sent via WhatsApp successfully!');
+        } catch (waErr) {
+          console.error("WhatsApp error:", waErr);
+          toast.error(waErr.response?.data?.message || 'Failed to send WhatsApp invoice.');
+        }
+        if (onComplete) onComplete(newBill);
+      } else if (action === 'print') {
+        setBill(newBill);
+        setTimeout(() => {
+          window.print();
+          if (onComplete) onComplete(newBill);
+        }, 400);
       }
+
     } catch (err) {
       console.error('Billing error', err);
       setError(err.message || 'Failed to create bill');
@@ -205,6 +222,19 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
     }
   };
 
+  const handlePrint = () => {
+    if (!bill) return;
+    window.print();
+  };
+
+  const handleClose = () => {
+    if (bill && onComplete) {
+      onComplete(bill);
+    } else if (onClose) {
+      onClose();
+    }
+  };
+
   // Format date for display
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
@@ -222,8 +252,8 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
     <div className="fixed inset-0 bg-black/40 bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden relative">
         <button
-          onClick={() => onClose && onClose()}
-          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 z-10"
+          onClick={handleClose}
+          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 z-10 no-print"
           title="Close"
         >
           <X className="w-6 h-6" />
@@ -465,79 +495,46 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
               <button
-                onClick={() => onClose && onClose()}
+                onClick={handleClose}
                 className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-medium transition"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSubmit}
+                onClick={() => handleSubmit('print')}
                 disabled={submitting || data.total <= 0}
-                className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition shadow-md"
+                className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-medium transition shadow-md flex items-center gap-1.5 cursor-pointer"
               >
-                {submitting ? 'Processing...' : data.paid >= calculatePayable() ? 'Generate Bill & Register' : 'Register'}
+                <Printer size={16} /> Print
+              </button>
+              <button
+                onClick={() => handleSubmit('download')}
+                disabled={submitting || data.total <= 0}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-medium transition shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download size={16} /> Download
+              </button>
+              <button
+                onClick={() => handleSubmit('whatsapp')}
+                disabled={submitting || data.total <= 0}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-medium transition shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <Phone size={16} /> WhatsApp
               </button>
             </div>
           </>
         ) : (
-          <>
-            <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
-              <h2 className="text-2xl font-bold text-white">Invoice Preview</h2>
-              <p className="text-green-100 text-sm">Bill generated successfully</p>
-            </div>
-
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)] bg-gray-100">
-              {/* Invoice Template Preview - Scaled down for display */}
-              <div className="transform scale-75 origin-top">
-                <InvoiceTemplate
-                  clinicInfo={clinicInfo}
-                  invoiceData={{
-                    billId: bill.billId || bill.id,
-                    date: bill.date || new Date().toISOString(),
-                    patientName: bill.patientName,
-                    patientId: bill.patientId || 'N/A',
-                    doctorName: bill.doctorName || bill.doctor || 'N/A',
-                    patientContact: bill.patientContact || '',
-                    patientAddress: bill.patientAddress || '',
-                    items: bill.items || [{ description: 'Registration Charge', quantity: 1, cost: bill.amount }],
-                    subtotal: bill.amount,
-                    discount: bill.discount || 0,
-                    total: bill.amount,
-                    notes: bill.notes,
-                    paymentMethod: bill.paymentMode || bill.status,
-                    status: bill.status || 'Paid'
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={handleSendWhatsApp}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 transition"
-              >
-                <Phone className="h-4 w-4 mr-2" /> Send WhatsApp
-              </button>
-              <button
-                onClick={handleDownload}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 transition"
-              >
-                <Download className="h-4 w-4 mr-2" /> Download Invoice
-              </button>
-              <button
-                onClick={() => onClose && onClose()}
-                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-medium"
-              >
-                Close
-              </button>
-            </div>
-          </>
+          <div className="p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+            <p className="text-slate-600 font-bold text-lg">Generating Invoice & Opening Print Dialog...</p>
+            <p className="text-slate-400 text-sm">Please print or save the document when the system dialog appears.</p>
+          </div>
         )}
       </div>
 
       {/* Hidden Professional Invoice for Printing */}
-      <div className="hidden print:block invoice-print-container">
-        {bill && (
+      {bill && createPortal(
+        <div className="print-only">
           <InvoiceTemplate
             clinicInfo={clinicInfo}
             invoiceData={{
@@ -549,18 +546,19 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
               items: (bill.items || []).map(item => ({
                 description: item.description,
                 quantity: item.quantity || item.qty || 1,
-                price: item.price || item.cost || 0
+                price: item.unitPrice || item.price || item.cost || 0
               })),
-              subtotal: bill.amount,
-              discount: 0,
+              subtotal: bill.grossAmount || bill.subtotal || bill.amount,
+              discount: bill.discount || bill.discountAmount || 0,
               total: bill.amount,
               notes: bill.notes,
               paymentMethod: bill.paymentMode || bill.status,
               status: bill.status || 'Paid'
             }}
           />
-        )}
-      </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

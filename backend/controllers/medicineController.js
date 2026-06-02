@@ -94,7 +94,8 @@ export const addMedicineMaster = async (req, res) => {
 export const seedMedicineMaster = async () => {
   try {
     const count = await Medicine.countDocuments({ isGlobal: true });
-    if (count > 280) return;
+    const hasDental = await Medicine.findOne({ name: 'Ketorol-DT' });
+    if (count > 280 && hasDental) return;
 
     const data = [
       // ─── ANALGESICS / ANTIPYRETICS ───────────────────────────────────────
@@ -333,6 +334,16 @@ export const seedMedicineMaster = async () => {
       { name: 'Pred Forte Eye Drops', genericName: 'Prednisolone Acetate', salt: 'Prednisolone 1%', form: 'Eye Drops', strength: '1%', category: 'Steroid Eye', keywords: ['Eye inflammation', 'Uveitis'], defaultWhen: '1 drop 4 times daily' },
       { name: 'Artificial Tears', genericName: 'Carboxymethylcellulose', salt: 'CMC 0.5%', form: 'Eye Drops', category: 'Lubricant Eye', keywords: ['Dry eyes', 'Eye dryness'], defaultWhen: 'As needed' },
       { name: 'Timolol Eye Drops', genericName: 'Timolol', salt: 'Timolol 0.5%', form: 'Eye Drops', strength: '0.5%', category: 'Glaucoma', keywords: ['Glaucoma', 'High eye pressure'], defaultWhen: '1 drop twice daily' },
+
+      // ─── DENTAL / DENTISTRY ───────────────────────────────────────────
+      { name: 'Ketorol-DT', genericName: 'Ketorolac Tromethamine', salt: 'Ketorolac Tromethamine 10 MG', form: 'Tablet', strength: '10 MG', category: 'Dental Analgesic', isCommon: true, keywords: ['tooth pain', 'severe tooth pain', 'dental pain'], defaultDose: '1-0-1', defaultWhen: 'After Food (Dissolve in water)', defaultFrequency: 'Daily', defaultDuration: '3 Days' },
+      { name: 'Sensodyne Rapid Relief', genericName: 'Toothpaste for Sensitive Teeth', salt: 'Strontium Acetate + Fluoride', form: 'Gel', strength: '80 GM', category: 'Dental Care', isCommon: true, keywords: ['sensitivity', 'tooth sensitivity', 'sensodyne'], defaultDose: 'Apply twice daily', defaultWhen: 'External Use', defaultFrequency: 'Twice Daily (BD)', defaultDuration: 'Ongoing' },
+      { name: 'Hexidine Mouthwash', genericName: 'Chlorhexidine Gluconate Mouthwash', salt: 'Chlorhexidine Gluconate 0.2%', form: 'Liquid', strength: '150 ML', category: 'Dental Antiseptic', isCommon: true, keywords: ['mouthwash', 'gum infection', 'bad breath'], defaultDose: '10 ml rinse for 1 min', defaultWhen: 'After Food', defaultFrequency: 'Twice Daily (BD)', defaultDuration: '5 Days' },
+      { name: 'Ora-fast Gel', genericName: 'Choline Salicylate + Lignocaine Oral Gel', salt: 'Choline Salicylate 8.7% + Lignocaine HCl 2%', form: 'Gel', strength: '15 GM', category: 'Dental Analgesic Gel', isCommon: true, keywords: ['mouth ulcer', 'ulcer gel', 'chale'], defaultDose: 'Apply locally on ulcer', defaultWhen: 'Before Food', defaultFrequency: 'Thrice Daily (TDS)', defaultDuration: '5 Days' },
+      { name: 'Metrogyl DG Gel', genericName: 'Metronidazole + Chlorhexidine Oral Gel', salt: 'Metronidazole 1% + Chlorhexidine Gluconate 0.25%', form: 'Gel', strength: '20 GM', category: 'Dental Antibacterial Gel', isCommon: true, keywords: ['gum swelling', 'gum pain', 'swollen gums'], defaultDose: 'Apply locally on gums', defaultWhen: 'After Food', defaultFrequency: 'Twice Daily (BD)', defaultDuration: '7 Days' },
+      { name: 'Zytee L Gel', genericName: 'Choline Salicylate + Lidocaine Gel', salt: 'Choline Salicylate 9% + Lidocaine 2%', form: 'Gel', strength: '10 GM', category: 'Dental Analgesic Gel', isCommon: true, keywords: ['mouth ulcer', 'ulcer gel', 'pain gel'], defaultDose: 'Apply on affected areas', defaultWhen: 'Before Food', defaultFrequency: 'Thrice Daily (TDS)', defaultDuration: '5 Days' },
+      { name: 'Senquel-AD', genericName: 'Mouthwash for Sensitive Teeth', salt: 'Potassium Nitrate + Sodium Monofluorophosphate', form: 'Liquid', strength: '100 ML', category: 'Dental Care', isCommon: true, keywords: ['sensitivity', 'sensitive teeth', 'senquel'], defaultDose: '10 ml rinse', defaultWhen: 'Before Brush', defaultFrequency: 'Twice Daily (BD)', defaultDuration: '1 Month' },
+      { name: 'Dentogel', genericName: 'Choline Salicylate + Lidocaine Oral Gel', salt: 'Choline Salicylate 8.7% + Lidocaine HCl 2%', form: 'Gel', strength: '15 GM', category: 'Dental Analgesic Gel', isCommon: true, keywords: ['ulcer gel', 'gum pain', 'ulcer'], defaultDose: 'Apply locally on pain area', defaultWhen: 'Before Food', defaultFrequency: 'Thrice Daily (TDS)', defaultDuration: '5 Days' }
     ];
 
     const bulkOps = data.map(med => ({

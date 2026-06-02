@@ -6,7 +6,7 @@ import {
   ChevronDown, History, BookOpen, User, Loader2, Sparkles,
   Mic, MicOff, Languages, Wand2, Copy, RotateCcw, Check, Calendar, Phone
 } from 'lucide-react';
-import { medicalRecordApi, appointmentApi, centralDoctorApi, complaintApi, chatbotApi, diagnosisApi, aiApi, patientApi, translationApi } from '../../../services/api';
+import { medicalRecordApi, appointmentApi, centralDoctorApi, complaintApi, chatbotApi, diagnosisApi, aiApi, patientApi, translationApi, prescriptionContentTemplateApi } from '../../../services/api';
 import { COMPLAINT_FREQUENCY_MAP, COMMON_FREQUENCIES } from '../../../data/complaintFrequencyMap';
 import { DIAGNOSIS_DURATION_OPTIONS } from '../../../data/diagnosisDurationMap';
 import SmartDiagnosisInput from '../../../components/emr/SmartDiagnosisInput';
@@ -662,6 +662,12 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
   const recognitionRef = useRef(null);
   const translateMenuRef = useRef(null);
 
+  // Prescription Templates State
+  const [templates, setTemplates] = useState([]);
+  const [showTemplateDeleteList, setShowTemplateDeleteList] = useState(false);
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+
   // Click outside handling for Translate Menu
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -674,6 +680,20 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showTranslateMenu]);
+
+  // Click outside handling for Templates Delete menu
+  const deleteMenuRef = useRef(null);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (deleteMenuRef.current && !deleteMenuRef.current.contains(event.target)) {
+        setShowTemplateDeleteList(false);
+      }
+    };
+    if (showTemplateDeleteList) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showTemplateDeleteList]);
 
   // 1. Fetch initial data (Doctors, Master Complaints)
   useEffect(() => {
@@ -703,6 +723,7 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
         }
       };
       fetchData();
+      fetchContentTemplates();
     }
   }, [isOpen]);
 
@@ -991,6 +1012,143 @@ setDiagnosis(newArr);
     setMedications(updated);
   };
 
+  const fetchContentTemplates = async () => {
+    try {
+      const res = await prescriptionContentTemplateApi.list();
+      if (res && res.success) {
+        setTemplates(res.templates || []);
+      }
+    } catch (err) {
+      console.error('Error fetching prescription templates:', err);
+    }
+  };
+
+  const handleLoadTemplate = (template) => {
+    if (!template) return;
+    
+    if (template.medications && template.medications.length > 0) {
+      setMedications(template.medications.map(m => ({
+        name: m.name || '',
+        composition: m.composition || '',
+        genericName: m.genericName || '',
+        form: m.form || '',
+        strength: m.strength || '',
+        dose: m.dose || '',
+        when: m.when || 'After Food',
+        frequency: m.frequency || 'Daily',
+        duration: m.duration || '',
+        instructions: m.instructions || ''
+      })));
+    }
+    
+    if (template.complaints && template.complaints.length > 0) {
+      setComplaints(template.complaints.map(c => ({
+        name: c.name || '',
+        frequency: c.frequency || 'daily',
+        severity: c.severity || 'mild',
+        duration: c.duration || '',
+        durationUnit: c.durationUnit || 'days'
+      })));
+    } else {
+      setComplaints([{ name: '', frequency: 'daily', severity: 'mild', duration: '', durationUnit: 'days' }]);
+    }
+
+    if (template.diagnosis && template.diagnosis.length > 0) {
+      setDiagnosis(template.diagnosis.map(d => ({
+        name: d.name || '',
+        duration: d.duration || '',
+        durationUnit: d.durationUnit || 'days',
+        date: d.date || new Date().toISOString().split('T')[0]
+      })));
+    } else {
+      setDiagnosis([{ name: '', duration: '', date: new Date().toISOString().split('T')[0] }]);
+    }
+
+    if (template.advice) {
+      setAdvice(template.advice);
+    }
+    
+    if (template.testsRequested && template.testsRequested.length > 0) {
+      setTestsRequested(template.testsRequested);
+    }
+
+    toast.success(`Template "${template.templateName}" loaded!`);
+  };
+
+  const handleSavePrescriptionTemplate = async () => {
+    if (!newTemplateName.trim()) {
+      toast.error('Please specify a template name');
+      return;
+    }
+
+    const activeMeds = medications.filter(m => m.name && m.name.trim() !== '');
+    if (activeMeds.length === 0) {
+      toast.error('Please specify at least one medication to save a template');
+      return;
+    }
+
+    const activeComplaints = complaints.filter(c => c.name && c.name.trim() !== '');
+    const activeDiagnosis = diagnosis.filter(d => d.name && d.name.trim() !== '');
+
+    try {
+      const payload = {
+        templateName: newTemplateName.trim(),
+        medications: activeMeds.map(m => ({
+          name: m.name,
+          composition: m.composition || '',
+          genericName: m.genericName || '',
+          form: m.form || '',
+          strength: m.strength || '',
+          dose: m.dose || '',
+          when: m.when || 'After Food',
+          frequency: m.frequency || 'Daily',
+          duration: m.duration || '',
+          instructions: m.instructions || ''
+        })),
+        complaints: activeComplaints.map(c => ({
+          name: c.name,
+          frequency: c.frequency || 'daily',
+          severity: c.severity || 'mild',
+          duration: c.duration || '',
+          durationUnit: c.durationUnit || 'days'
+        })),
+        diagnosis: activeDiagnosis.map(d => ({
+          name: d.name,
+          duration: d.duration || '',
+          durationUnit: d.durationUnit || 'days',
+          date: d.date || new Date().toISOString().split('T')[0]
+        })),
+        advice: advice || '',
+        testsRequested: testsRequested.filter(t => t && t.trim() !== '')
+      };
+
+      const res = await prescriptionContentTemplateApi.create(payload);
+      if (res && res.success) {
+        toast.success(`Template "${newTemplateName}" saved!`);
+        setNewTemplateName('');
+        setShowSaveTemplateModal(false);
+        fetchContentTemplates();
+      }
+    } catch (err) {
+      console.error('Error saving template:', err);
+      toast.error(err.response?.data?.message || 'Failed to save template');
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId) => {
+    if (!window.confirm('Are you sure you want to delete this template?')) return;
+    try {
+      const res = await prescriptionContentTemplateApi.delete(templateId);
+      if (res && res.success) {
+        toast.success('Template deleted successfully');
+        fetchContentTemplates();
+      }
+    } catch (err) {
+      console.error('Error deleting template:', err);
+      toast.error('Failed to delete template');
+    }
+  };
+
   const handleSave = async () => {
     if (!patient?._id) return;
     
@@ -1158,6 +1316,72 @@ setDiagnosis(newArr);
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-[#f8fafc] dark:bg-slate-950/50">
+            
+            {/* Prescription Templates Load Bar */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <BookOpen className="text-indigo-600 w-4 h-4" />
+                <span className="text-xs font-black text-indigo-950 dark:text-white uppercase tracking-wider">
+                  Prescription Templates
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-1 max-w-md w-full relative" ref={deleteMenuRef}>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const selected = templates.find(t => t._id === e.target.value);
+                    if (selected) handleLoadTemplate(selected);
+                  }}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl p-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                >
+                  <option value="">-- Load a Saved Template --</option>
+                  {templates.map(t => (
+                    <option key={t._id} value={t._id}>{t.templateName}</option>
+                  ))}
+                </select>
+                
+                {templates.length > 0 && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplateDeleteList(!showTemplateDeleteList)}
+                      className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 cursor-pointer border-none flex items-center justify-center"
+                      title="Delete Templates"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    
+                    <AnimatePresence>
+                      {showTemplateDeleteList && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute right-0 top-[calc(100%+8px)] w-64 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xl z-[9999] py-2 max-h-48 overflow-y-auto custom-scrollbar"
+                        >
+                          <div className="px-3.5 py-1.5 text-[8px] text-slate-400 font-black uppercase tracking-widest border-b border-slate-100 dark:border-slate-800/80 mb-1">
+                            Delete Templates
+                          </div>
+                          {templates.map(t => (
+                            <div key={t._id} className="px-3.5 py-2 text-xs flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-700/50 border-b border-slate-50 dark:border-slate-800/30 last:border-0">
+                              <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[170px]">{t.templateName}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTemplate(t._id)}
+                                className="p-1 hover:bg-rose-50 text-rose-500 rounded cursor-pointer border-none"
+                                title="Delete template"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+            </div>
             
             {/* 1. VITALS */}
             <section className="space-y-4">
@@ -1639,6 +1863,21 @@ setDiagnosis(newArr);
               </div>
 
               <button
+                type="button"
+                onClick={() => {
+                  const activeMeds = medications.filter(m => m.name && m.name.trim() !== '');
+                  if (activeMeds.length === 0) {
+                    toast.error('Please specify at least one medication to save a template');
+                    return;
+                  }
+                  setShowSaveTemplateModal(true);
+                }}
+                className="px-4 sm:px-6 py-2.5 sm:py-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-sm font-black rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+              >
+                <Sparkles size={18} />
+                <span className="hidden sm:inline">Save as Template</span>
+              </button>
+              <button
                 onClick={onClose}
                 className="px-4 sm:px-8 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-black rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-95"
               >
@@ -1659,6 +1898,70 @@ setDiagnosis(newArr);
               </button>
             </div>
           </div>
+
+          {/* Save Template Prompt Modal */}
+          <AnimatePresence>
+            {showSaveTemplateModal && (
+              <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowSaveTemplateModal(false)}
+                  className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="relative bg-white dark:bg-slate-900 w-full max-w-md p-6 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4"
+                >
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                      <Sparkles className="text-indigo-500" size={16} /> Save Prescription Template
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowSaveTemplateModal(false)}
+                      className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-slate-600 border-none cursor-pointer flex items-center justify-center"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                      Template Name / Procedure
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Root Canal Treatment (RCT)"
+                      value={newTemplateName}
+                      onChange={(e) => setNewTemplateName(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl p-3 text-sm font-semibold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowSaveTemplateModal(false)}
+                      className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSavePrescriptionTemplate}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                    >
+                      Save Template
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
     </AnimatePresence>

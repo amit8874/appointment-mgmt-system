@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dentistApi } from '../../../services/api';
-import { Smile, AlertCircle, Plus, Info, Trash2, Award } from 'lucide-react';
+import { Smile, AlertCircle, Plus, Info, Trash2, Award, Pencil, Check, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -31,6 +31,11 @@ const DentalChart = ({ patientId }) => {
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [saving, setSaving] = useState(false);
+
+  // Editing state for queued procedures
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingName, setEditingName] = useState('');
+  const [editingCost, setEditingCost] = useState('');
 
   // Compute merged presets dynamically
   const mergedPresets = [...STANDARD_DENTAL_PROCEDURES];
@@ -85,6 +90,9 @@ const DentalChart = ({ patientId }) => {
     setNotes('');
     setPriority('Medium');
     setSelectedProceduresList([]);
+    setEditingIndex(null);
+    setEditingName('');
+    setEditingCost('');
   };
 
   const handleAddProcedureToList = () => {
@@ -114,6 +122,54 @@ const DentalChart = ({ patientId }) => {
 
   const handleRemoveProcedureFromList = (index) => {
     setSelectedProceduresList(prev => prev.filter((_, i) => i !== index));
+    if (editingIndex === index) {
+      setEditingIndex(null);
+      setEditingName('');
+      setEditingCost('');
+    } else if (editingIndex > index) {
+      // Adjust editingIndex if it shifted
+      setEditingIndex(prev => prev - 1);
+    }
+  };
+
+  const handleStartEdit = (index, item) => {
+    setEditingIndex(index);
+    setEditingName(item.name);
+    setEditingCost(item.cost.toString());
+  };
+
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditingName('');
+    setEditingCost('');
+  };
+
+  const handleSaveEdit = (index) => {
+    if (!editingName.trim()) {
+      toast.error('Procedure name cannot be empty');
+      return;
+    }
+    const costNum = Number(editingCost) || 0;
+    if (costNum < 0) {
+      toast.error('Cost cannot be negative');
+      return;
+    }
+
+    const nameTrimmed = editingName.trim();
+    const isDuplicate = selectedProceduresList.some(
+      (p, i) => i !== index && p.name.toLowerCase() === nameTrimmed.toLowerCase()
+    );
+    if (isDuplicate) {
+      toast.error('Another procedure with this name is already in the list');
+      return;
+    }
+
+    setSelectedProceduresList(prev =>
+      prev.map((item, i) => (i === index ? { name: nameTrimmed, cost: costNum } : item))
+    );
+    setEditingIndex(null);
+    setEditingName('');
+    setEditingCost('');
   };
 
   const handleQuickProcedureSelect = (proc) => {
@@ -428,21 +484,84 @@ const DentalChart = ({ patientId }) => {
                           </div>
                         ) : (
                           <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                            {selectedProceduresList.map((item, idx) => (
-                              <div key={idx} className="flex justify-between items-center bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
-                                <div>
-                                  <p className="font-black text-slate-800 text-xs">{item.name}</p>
-                                  <p className="text-[10px] text-indigo-600 font-bold">Estimated Cost: ₹{item.cost}</p>
+                            {selectedProceduresList.map((item, idx) => {
+                              const isEditing = editingIndex === idx;
+                              return (
+                                <div key={idx} className="bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
+                                  {isEditing ? (
+                                    <div className="space-y-2.5">
+                                      <div className="flex flex-col gap-1">
+                                        <label className="text-[9px] font-bold text-indigo-900/60 uppercase tracking-widest">
+                                          Edit Procedure Name
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={editingName}
+                                          onChange={(e) => setEditingName(e.target.value)}
+                                          className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 w-full font-sans"
+                                        />
+                                      </div>
+                                      <div className="flex items-end gap-2.5">
+                                        <div className="flex flex-col gap-1 flex-1">
+                                          <label className="text-[9px] font-bold text-indigo-900/60 uppercase tracking-widest">
+                                            Edit Cost (₹)
+                                          </label>
+                                          <input
+                                            type="number"
+                                            value={editingCost}
+                                            onChange={(e) => setEditingCost(e.target.value)}
+                                            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 w-full font-sans"
+                                          />
+                                        </div>
+                                        <div className="flex gap-1.5 pb-0.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveEdit(idx)}
+                                            className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors cursor-pointer border border-emerald-100 flex items-center justify-center"
+                                            title="Save changes"
+                                          >
+                                            <Check className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={handleCancelEdit}
+                                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg transition-colors cursor-pointer border border-slate-200 flex items-center justify-center"
+                                            title="Cancel edit"
+                                          >
+                                            <X className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex justify-between items-center gap-2">
+                                      <div className="min-w-0 flex-1">
+                                        <p className="font-black text-slate-800 text-xs truncate" title={item.name}>{item.name}</p>
+                                        <p className="text-[10px] text-indigo-600 font-bold">Estimated Cost: ₹{item.cost}</p>
+                                      </div>
+                                      <div className="flex gap-1 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStartEdit(idx, item)}
+                                          className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer"
+                                          title="Edit procedure"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveProcedureFromList(idx)}
+                                          className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                                          title="Remove procedure"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveProcedureFromList(idx)}
-                                  className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>

@@ -583,7 +583,7 @@ export const getAllAppointments = async (req, res) => {
 
 export const bookAppointment = async (req, res) => {
   try {
-    const { patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, patientDetails } = req.body;
+    const { patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, patientDetails, amount } = req.body;
 
     if (!doctorId) return res.status(400).json({ message: 'Doctor is required' });
     if (!date) return res.status(400).json({ message: 'Appointment date is required' });

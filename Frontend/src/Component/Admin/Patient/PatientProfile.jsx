@@ -1180,7 +1180,7 @@ const TabAppointments = ({ appointments, onRebook }) => {
   );
 };
 
-const BillViewModal = ({ bill, onClose, clinicInfo, patient }) => {
+const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint }) => {
   if (!bill) return null;
   
   const totals = bill.billType === 'Pharmacy' ? normalizePharmacyInvoice(bill) : calculateInvoiceTotals(bill);
@@ -2067,6 +2067,13 @@ const TabBilling = ({
                         colorClass="text-slate-500" 
                         hoverBg="bg-white text-blue-600 shadow-sm" 
                       />
+                      <ActionButton 
+                        icon={Printer} 
+                        label="Print" 
+                        onClick={() => onPrint(bill)} 
+                        colorClass="text-slate-500" 
+                        hoverBg="bg-white text-emerald-600 shadow-sm" 
+                      />
                     </div>
 
                     <ActionButton 
@@ -2116,6 +2123,7 @@ const TabBilling = ({
             clinicInfo={clinicInfo} 
             patient={patient} 
             onDownload={onDownload}
+            onPrint={onPrint}
           />
         )}
         {editingBill && (

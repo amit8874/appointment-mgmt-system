@@ -70,10 +70,11 @@ export const addDiagnosisMaster = async (req, res) => {
 export const seedDiagnosisMaster = async () => {
   try {
     const count = await DiagnosisMaster.countDocuments({ isGlobal: true });
-    // We want to force refresh this time since we added intelligence fields
-    if (count > 0 && count < 200) {
+    const hasDental = await DiagnosisMaster.findOne({ name: 'Dental Caries', isGlobal: true });
+    // We want to force refresh if the count is low or we lack dental diagnoses
+    if (count > 0 && (!hasDental || count < 20)) {
        await DiagnosisMaster.deleteMany({ isGlobal: true });
-    } else if (count >= 200) {
+    } else if (count >= 20 && hasDental) {
        return;
     }
 
@@ -217,6 +218,95 @@ export const seedDiagnosisMaster = async () => {
         commonComplaints: ['Low Back Pain', 'Leg Pain', 'Numbness', 'Muscle Spasm'],
         isCommon: true, 
         durationType: 'Chronic' 
+      },
+      // === DENTAL (Intelligent) ===
+      {
+        name: 'Dental Caries',
+        specialty: 'Dental',
+        category: 'Restorative',
+        icdCode: 'K02.9',
+        keywords: ['cavity', 'tooth decay', 'daant me kida', 'caries'],
+        aiSynonyms: ['dental decay', 'caries dentium', 'tooth cavity'],
+        commonComplaints: ['Tooth Pain', 'Tooth Sensitivity', 'Cavity / Tooth Decay'],
+        isCommon: true,
+        durationType: 'Specialty'
+      },
+      {
+        name: 'Acute Pulpitis',
+        specialty: 'Dental',
+        category: 'Endodontic',
+        icdCode: 'K04.01',
+        keywords: ['severe tooth pain', 'pulp pain', 'toothache'],
+        aiSynonyms: ['pulpal inflammation', 'acute pulpitis'],
+        commonComplaints: ['Tooth Pain', 'Tooth Sensitivity', 'Gum Pain'],
+        isCommon: true,
+        durationType: 'Specialty'
+      },
+      {
+        name: 'Gingivitis',
+        specialty: 'Dental',
+        category: 'Periodontics',
+        icdCode: 'K05.10',
+        keywords: ['bleeding gums', 'gum swelling', 'swollen gums'],
+        aiSynonyms: ['gingival inflammation', 'acute gingivitis'],
+        commonComplaints: ['Bleeding Gums', 'Swollen Gums', 'Bad Breath', 'Gum Pain'],
+        isCommon: true,
+        durationType: 'Specialty'
+      },
+      {
+        name: 'Chronic Periodontitis',
+        specialty: 'Dental',
+        category: 'Periodontics',
+        icdCode: 'K05.30',
+        keywords: ['pyorrhea', 'loose teeth', 'gum recession'],
+        aiSynonyms: ['periodontal disease', 'chronic periodontitis'],
+        commonComplaints: ['Loose Tooth', 'Bleeding Gums', 'Bad Breath', 'Gum Pain'],
+        isCommon: true,
+        durationType: 'Specialty'
+      },
+      {
+        name: 'Periapical Abscess',
+        specialty: 'Dental',
+        category: 'Endodontic',
+        icdCode: 'K04.7',
+        keywords: ['pus in tooth', 'tooth swelling', 'pus discharge'],
+        aiSynonyms: ['dental abscess', 'periapical infection'],
+        commonComplaints: ['Tooth Pain', 'Swollen Gums', 'Gum Pain'],
+        isCommon: true,
+        durationType: 'Specialty'
+      },
+      {
+        name: 'Impacted Wisdom Tooth',
+        specialty: 'Dental',
+        category: 'Surgery',
+        icdCode: 'K01.1',
+        keywords: ['wisdom tooth pain', 'akal dad', 'third molar pain'],
+        aiSynonyms: ['impacted third molar', 'wisdom tooth impaction'],
+        commonComplaints: ['Wisdom Tooth Pain', 'Gum Pain', 'Swollen Gums'],
+        isCommon: true,
+        durationType: 'Specialty'
+      },
+      {
+        name: 'Aphthous Ulcer',
+        specialty: 'Dental',
+        category: 'Oral Medicine',
+        icdCode: 'K12.0',
+        keywords: ['mouth ulcer', 'chale', 'mouth sore'],
+        aiSynonyms: ['canker sore', 'recurrent aphthous stomatitis'],
+        commonComplaints: ['Mouth Ulcer', 'Gum Pain'],
+        isCommon: true,
+        durationType: 'Specialty'
+      },
+      {
+        name: 'Dentine Hypersensitivity',
+        specialty: 'Dental',
+        category: 'Restorative',
+        icdCode: 'K03.81',
+        keywords: ['tooth sensitivity', 'thanda garam', 'sensitivity'],
+        aiSynonyms: ['dentin sensitivity', 'cervical sensitivity'],
+        commonComplaints: ['Tooth Sensitivity', 'Tooth Pain'],
+        isCommon: true,
+        durationType: 'Specialty'
       }
     ];
 

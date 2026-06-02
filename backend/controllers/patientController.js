@@ -87,20 +87,23 @@ export const getAllPatients = async (req, res) => {
 
     // Fetch billing data to calculate totals and status for this page of patients
     const patientIds = patients.map(p => p.patientId).filter(Boolean);
+    const patientObjectIds = patients.map(p => p._id.toString()).filter(Boolean);
+    const allQueryIds = [...patientIds, ...patientObjectIds];
+
     const bills = await Billing.find({ 
       organizationId: req.tenantId, 
-      patientId: { $in: patientIds } 
+      patientId: { $in: allQueryIds } 
     }).lean();
 
     // Fetch latest appointment for each patient to get lastVisit date and doctor
     const appointments = await Appointment.find({
       organizationId: req.tenantId,
-      patientId: { $in: patientIds }
+      patientId: { $in: allQueryIds }
     }).sort({ date: -1 }).lean();
 
     // Map billing and appointment data to patients
     const patientsWithData = patients.map(p => {
-      const patientBills = bills.filter(b => b.patientId === p.patientId);
+      const patientBills = bills.filter(b => b.patientId === p.patientId || b.patientId === p._id.toString());
       
       const paidAmount = patientBills
         .filter(b => b.status === 'Paid')
@@ -115,7 +118,7 @@ export const getAllPatients = async (req, res) => {
       const isDead = p.status === 'dead' || p.isDead || patientBills.some(b => b.status === 'Dead');
       
       // Get latest appointment
-      const patientAppointments = appointments.filter(a => a.patientId === p.patientId);
+      const patientAppointments = appointments.filter(a => a.patientId === p.patientId || a.patientId === p._id.toString());
       const latestAppt = patientAppointments[0];
       
       return {

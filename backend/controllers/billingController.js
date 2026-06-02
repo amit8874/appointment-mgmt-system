@@ -202,13 +202,6 @@ export const createBill = async (req, res) => {
     if (!doctorName) return res.status(400).json({ message: 'Doctor name is required' });
     if (!amount || isNaN(amount)) return res.status(400).json({ message: 'Valid amount is required' });
 
-    const counter = await Counter.findOneAndUpdate(
-      { name: `billId_${req.tenantId}` },
-      { $inc: { value: 1 } },
-      { new: true, upsert: true }
-    );
-    const billId = `BIL${String(counter.value).padStart(6, '0')}`;
-
     const totals = calculateInvoiceTotals({
       amount,
       discountValue: discount,
@@ -218,33 +211,81 @@ export const createBill = async (req, res) => {
       paidAmount: paidAmount || 0
     });
 
-    const newBill = new Billing({
-      billId,
-      organizationId: req.tenantId,
-      patientId,
-      patientName,
-      patientPhone: patientPhone || '',
-      doctorId,
-      doctorName,
-      amount: totals.grandTotal,
-      grossAmount: totals.grossAmount,
-      discountAmount: totals.discountAmount,
-      taxAmount: totals.taxAmount,
-      taxableAmount: totals.taxableAmount,
-      paidAmount: totals.paidAmount,
-      dueAmount: totals.dueAmount,
-      appointmentId: appointmentId || null,
-      appointmentDate: appointmentDate || null,
-      appointmentTime: appointmentTime || null,
-      items: items || [],
-      status: status || 'Pending',
-      notes: notes || '',
-      paymentMethod: paymentMethod || 'N/A',
-      billType: billType || 'General',
-      discount: totals.discountAmount
-    });
+    let bill;
+    let isNew = false;
 
-    await newBill.save();
+    // Check if there is an existing pending bill for this appointment
+    if (appointmentId) {
+      bill = await Billing.findOne({
+        organizationId: req.tenantId,
+        appointmentId,
+        status: 'Pending'
+      });
+    }
+
+    if (bill) {
+      // Reuse and update the existing pending bill
+      bill.patientId = patientId;
+      bill.patientName = patientName;
+      bill.patientPhone = patientPhone || '';
+      bill.doctorId = doctorId;
+      bill.doctorName = doctorName;
+      bill.amount = totals.grandTotal;
+      bill.grossAmount = totals.grossAmount;
+      bill.discountAmount = totals.discountAmount;
+      bill.taxAmount = totals.taxAmount;
+      bill.taxableAmount = totals.taxableAmount;
+      bill.paidAmount = totals.paidAmount;
+      bill.dueAmount = totals.dueAmount;
+      bill.appointmentDate = appointmentDate || bill.appointmentDate;
+      bill.appointmentTime = appointmentTime || bill.appointmentTime;
+      bill.items = items || [];
+      bill.status = status || 'Pending';
+      bill.notes = notes || bill.notes;
+      bill.paymentMethod = paymentMethod || 'N/A';
+      bill.transactionId = transactionId || null;
+      bill.billType = billType || 'General';
+      bill.discount = totals.discountAmount;
+
+      await bill.save();
+    } else {
+      isNew = true;
+      const counter = await Counter.findOneAndUpdate(
+        { name: `billId_${req.tenantId}` },
+        { $inc: { value: 1 } },
+        { new: true, upsert: true }
+      );
+      const billId = `BIL${String(counter.value).padStart(6, '0')}`;
+
+      bill = new Billing({
+        billId,
+        organizationId: req.tenantId,
+        patientId,
+        patientName,
+        patientPhone: patientPhone || '',
+        doctorId,
+        doctorName,
+        amount: totals.grandTotal,
+        grossAmount: totals.grossAmount,
+        discountAmount: totals.discountAmount,
+        taxAmount: totals.taxAmount,
+        taxableAmount: totals.taxableAmount,
+        paidAmount: totals.paidAmount,
+        dueAmount: totals.dueAmount,
+        appointmentId: appointmentId || null,
+        appointmentDate: appointmentDate || null,
+        appointmentTime: appointmentTime || null,
+        items: items || [],
+        status: status || 'Pending',
+        notes: notes || '',
+        paymentMethod: paymentMethod || 'N/A',
+        transactionId: transactionId || null,
+        billType: billType || 'General',
+        discount: totals.discountAmount
+      });
+
+      await bill.save();
+    }
 
     // Auto-save medicine names to global DB for Pharmacy bills
     if ((billType || 'General') === 'Pharmacy' && Array.isArray(items) && items.length > 0) {
@@ -258,7 +299,7 @@ export const createBill = async (req, res) => {
     // Sync with Appointment paymentStatus
     await syncAppointmentStatus(appointmentId, status);
 
-    res.status(201).json(newBill);
+    res.status(isNew ? 201 : 200).json(bill);
   } catch (error) {
     console.error('Billing error:', error);
     res.status(400).json({ message: error.message });

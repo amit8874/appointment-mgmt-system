@@ -1438,4 +1438,19 @@ export const dentistApi = {
   }
 };
 
+export const prescriptionContentTemplateApi = {
+  create: async (templateData) => {
+    const { data } = await api.post('/prescription-content-templates', templateData);
+    return data;
+  },
+  list: async () => {
+    const { data } = await api.get('/prescription-content-templates');
+    return data;
+  },
+  delete: async (id) => {
+    const { data } = await api.delete(`/prescription-content-templates/${id}`);
+    return data;
+  }
+};
+
 

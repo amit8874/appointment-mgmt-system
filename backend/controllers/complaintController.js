@@ -65,9 +65,10 @@ export const addMasterComplaint = async (req, res) => {
 export const seedGlobalComplaints = async () => {
   try {
     const count = await ComplaintMaster.countDocuments({ organizationId: null });
-    if (count > 20) return; // Already seeded with 50+ list
+    const hasDental = await ComplaintMaster.findOne({ name: 'Bleeding Gums', organizationId: null });
+    if (count > 20 && hasDental) return; // Already seeded with dental list
 
-    // Clear old sparse list if exists
+    // Clear old list if exists or missing dental seed
     if (count > 0) await ComplaintMaster.deleteMany({ organizationId: null });
 
     const globals = [
@@ -169,7 +170,17 @@ export const seedGlobalComplaints = async () => {
 
       // EYE/DENTAL/PSYCH
       { name: 'Eye Redness', category: 'Eye', keywords: ['aankh lal'] },
-      { name: 'Tooth Pain', category: 'Dental', keywords: ['daant dard'] },
+      { name: 'Tooth Pain', category: 'Dental', keywords: ['daant dard', 'tooth pain'] },
+      { name: 'Bleeding Gums', category: 'Dental', keywords: ['khoon aana', 'bleeding gums', 'gums bleeding'] },
+      { name: 'Tooth Sensitivity', category: 'Dental', keywords: ['sensitivity', 'thanda garam', 'tooth sensitivity'] },
+      { name: 'Swollen Gums', category: 'Dental', keywords: ['sujan gums', 'swollen gums', 'masudo me sujan'] },
+      { name: 'Bad Breath', category: 'Dental', keywords: ['bad breath', 'muh se badbu', 'halitosis'] },
+      { name: 'Loose Tooth', category: 'Dental', keywords: ['loose tooth', 'daant hilna'] },
+      { name: 'Broken / Chipped Tooth', category: 'Dental', keywords: ['broken tooth', 'chipped tooth', 'daant tutna'] },
+      { name: 'Cavity / Tooth Decay', category: 'Dental', keywords: ['cavity', 'tooth decay', 'daant me kida'] },
+      { name: 'Mouth Ulcer', category: 'Dental', keywords: ['ulcer', 'chale', 'mouth ulcer'] },
+      { name: 'Gum Pain', category: 'Dental', keywords: ['gum pain', 'masudo me dard'] },
+      { name: 'Wisdom Tooth Pain', category: 'Dental', keywords: ['wisdom tooth', 'akal dad me dard'] },
       { name: 'Anxiety', category: 'Psychological', keywords: ['ghabrahat'] },
       { name: 'Sleep Disturbance', category: 'Psychological', keywords: ['neend na aana'] },
       { name: 'No Specific Complaint', category: 'Other', keywords: ['routine checkup'] },

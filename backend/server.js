@@ -52,6 +52,7 @@ import patientProgressComparisonRoutes from "./routes/patientProgressComparisonR
 import translationRoutes from "./routes/translationRoutes.js";
 import clinicalNoteRoutes from "./routes/clinicalNoteRoutes.js";
 import progressNoteRoutes from "./routes/progressNoteRoutes.js";
+import prescriptionContentTemplateRoutes from "./routes/prescriptionContentTemplateRoutes.js";
 import { seedGlobalComplaints } from "./controllers/complaintController.js";
 import { seedDiagnosisMaster } from "./controllers/diagnosisController.js";
 import { seedMedicineMaster } from "./controllers/medicineController.js";
@@ -249,13 +250,14 @@ app.use("/api/prescription-template", prescriptionTemplateRoutes);
 app.use("/api/clinic/prescription-template", clinicPrescriptionRoutes);
 app.use("/api/follow-up-reminders", followUpReminderRoutes);
 app.use("/api/progress-notes", progressNoteRoutes);
+app.use("/api/prescription-content-templates", prescriptionContentTemplateRoutes);
 app.use("/api/dentist", dentistRoutes);
 app.use("/api/dev", devRoutes);
 
 // Seed Data
 seedGlobalComplaints();
 seedDiagnosisMaster();
-// seedMedicineMaster();
+seedMedicineMaster();
 seedInvestigationMaster();
 
 /* --------------------------------------------------
