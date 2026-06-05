@@ -47,6 +47,7 @@ export const getDoctorAppointments = async (req, res) => {
 export const getPatientSummary = async (req, res) => {
   try {
     const { patientId } = req.params;
+    const organizationId = req.tenantId;
     
     let patientFilter = {};
     
@@ -55,7 +56,8 @@ export const getPatientSummary = async (req, res) => {
         $or: [
           { _id: patientId },
           { patientId: patientId }
-        ]
+        ],
+        ...(organizationId ? { organizationId } : {})
       });
       
       // If no patient record found by that ID, it might be a User ID
@@ -63,12 +65,16 @@ export const getPatientSummary = async (req, res) => {
         const user = await User.findById(patientId);
         if (user && user.role === 'patient') {
           // Find clinical patient by user's mobile + name (standard link)
-          patient = await Patient.findOne({ mobile: user.mobile });
+          patient = await Patient.findOne({ 
+            mobile: user.mobile,
+            ...(organizationId ? { organizationId } : { organizationId: user.organizationId })
+          });
         }
       }
 
       if (patient) {
         patientFilter = {
+          organizationId: patient.organizationId,
           $or: [
             { patientId: patient.patientId },
             { patientPhone: patient.mobile }
@@ -81,9 +87,15 @@ export const getPatientSummary = async (req, res) => {
             { _id: patientId }
           ]
         };
+        if (organizationId) {
+          patientFilter.organizationId = organizationId;
+        }
       }
     } else {
       patientFilter = { patientId: patientId };
+      if (organizationId) {
+        patientFilter.organizationId = organizationId;
+      }
     }
 
     const [pending, confirmed, cancelled, oldAppointments] = await Promise.all([
@@ -121,21 +133,20 @@ export const bookPatientAppointment = async (req, res) => {
     const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, patientDetails, sendWhatsApp = false } = req.body;
 
     if (!organizationId) return res.status(400).json({ message: 'Organization is required' });
-    if (!doctorId) return res.status(400).json({ message: 'Doctor is required' });
-    if (!date) return res.status(400).json({ message: 'Appointment date is required' });
-    if (!time) return res.status(400).json({ message: 'Appointment time is required' });
     if (!patientDetails || !patientDetails.firstName) {
       return res.status(400).json({ message: 'Patient first name is required' });
     }
 
-    const tenantFilter = { organizationId, doctorId, date, time };
-    const [pending, confirmed] = await Promise.all([
-      PendingAppointment.findOne(tenantFilter),
-      ConfirmedAppointment.findOne(tenantFilter)
-    ]);
+    if (doctorId && date && time) {
+      const tenantFilter = { organizationId, doctorId, date, time };
+      const [pending, confirmed] = await Promise.all([
+        PendingAppointment.findOne(tenantFilter),
+        ConfirmedAppointment.findOne(tenantFilter)
+      ]);
 
-    if (pending || confirmed) {
-      return res.status(400).json({ message: 'This time slot is already booked' });
+      if (pending || confirmed) {
+        return res.status(400).json({ message: 'This time slot is already booked' });
+      }
     }
 
     let existingPatient = null;
@@ -220,9 +231,12 @@ export const bookPatientAppointment = async (req, res) => {
     const patientName = `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient';
 
     // Look up doctor fee
-    let docObj = await Doctor.findOne({ doctorId });
-    if (!docObj && mongoose.Types.ObjectId.isValid(doctorId)) {
-      docObj = await Doctor.findById(doctorId);
+    let docObj = null;
+    if (doctorId) {
+      docObj = await Doctor.findOne({ doctorId });
+      if (!docObj && mongoose.Types.ObjectId.isValid(doctorId)) {
+        docObj = await Doctor.findById(doctorId);
+      }
     }
     const finalAmount = Number(amount) || docObj?.fee || 500;
 
@@ -238,11 +252,11 @@ export const bookPatientAppointment = async (req, res) => {
       designation: patientDetails.designation,
       firstName: patientDetails.firstName,
       lastName: patientDetails.lastName,
-      doctorId: docObj ? docObj.doctorId : doctorId,
+      doctorId: docObj ? docObj.doctorId : doctorId || '',
       doctorName: doctorName || '',
       specialty: specialty || 'General',
-      date,
-      time,
+      date: date || '',
+      time: time || '',
       reason: reason || '',
       symptoms: symptoms || '',
       notes: notes || '',
@@ -263,9 +277,9 @@ export const bookPatientAppointment = async (req, res) => {
     try {
       const staffUsers = await User.find({ organizationId, role: { $in: ['superadmin', 'orgadmin', 'admin', 'receptionist'] } });
       const notifications = staffUsers.map(user => {
-        let message = `New appointment booked by ${patientName} with Dr. ${doctorName} on ${date} at ${time} - Fee: ₹${finalAmount}`;
+        let message = `New appointment booked by ${patientName} with Dr. ${doctorName || 'Unassigned'} on ${date || 'unscheduled date'} at ${time || 'unscheduled time'} - Fee: ₹${finalAmount}`;
         if (user.role === 'doctor') {
-          message = `New appointment: ${patientName} booked with Dr. ${doctorName} on ${date} at ${time} - Fee: ₹${finalAmount}`;
+          message = `New appointment: ${patientName} booked with Dr. ${doctorName || 'Unassigned'} on ${date || 'unscheduled date'} at ${time || 'unscheduled time'} - Fee: ₹${finalAmount}`;
         }
         return {
           organizationId,
@@ -301,17 +315,17 @@ export const bookPatientAppointment = async (req, res) => {
         patientId: patientIdToUse,
         patientName,
         patientPhone: patientDetails.phone || '',
-        doctorId: docObj ? docObj.doctorId : doctorId,
+        doctorId: docObj ? docObj.doctorId : doctorId || '',
         doctorName: doctorName || '',
         amount: fee,
         paidAmount: 0,
         dueAmount: fee,
         appointmentId: appointment._id.toString(),
-        appointmentDate: date,
-        appointmentTime: time,
+        appointmentDate: date || '',
+        appointmentTime: time || '',
         items: [{ description: 'Consultation Fee', cost: fee, unitPrice: fee, subtotal: fee, qty: 1 }],
         status: paymentStatus === 'paid' ? 'Paid' : 'Pending',
-        notes: `Patient Web Booking on ${date} at ${time}`,
+        notes: `Patient Web Booking on ${date || ''} at ${time || ''}`,
         paymentMethod: 'N/A'
       });
       await newBill.save();
@@ -448,11 +462,49 @@ export const verifyWhatsAppOTP = async (req, res) => {
 export const getPatientAppointments = async (req, res) => {
   try {
     const { patientId } = req.params;
+    const organizationId = req.tenantId;
     
-    let patientFilter = { $or: [{ patientId }] };
+    let patientFilter = {};
     
-    if (/^[a-fA-F0-9]{24}$/.test(patientId)) {
-      patientFilter.$or.push({ _id: patientId });
+    if (mongoose.Types.ObjectId.isValid(patientId)) {
+      // 1. Try to find by Patient _id
+      let patient = await Patient.findOne({ _id: patientId, ...(organizationId ? { organizationId } : {}) });
+      
+      // 2. If not found, try to find a User, then the Patient by that User's mobile
+      if (!patient) {
+        const user = await User.findById(patientId);
+        if (user && user.role === 'patient') {
+          patient = await Patient.findOne({ 
+            mobile: user.mobile,
+            ...(organizationId ? { organizationId } : { organizationId: user.organizationId })
+          });
+        }
+      }
+
+      if (patient) {
+        patientFilter = {
+          organizationId: patient.organizationId,
+          $or: [
+            { patientId: patient.patientId },
+            { patientPhone: patient.mobile }
+          ]
+        };
+      } else {
+        patientFilter = {
+          $or: [
+            { patientId: patientId },
+            { _id: patientId }
+          ]
+        };
+        if (organizationId) {
+          patientFilter.organizationId = organizationId;
+        }
+      }
+    } else {
+      patientFilter = { patientId: patientId };
+      if (organizationId) {
+        patientFilter.organizationId = organizationId;
+      }
     }
     
     const [pending, confirmed, cancelled, oldAppointments] = await Promise.all([
@@ -585,19 +637,18 @@ export const bookAppointment = async (req, res) => {
   try {
     const { patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, patientDetails, amount } = req.body;
 
-    if (!doctorId) return res.status(400).json({ message: 'Doctor is required' });
-    if (!date) return res.status(400).json({ message: 'Appointment date is required' });
-    if (!time) return res.status(400).json({ message: 'Appointment time is required' });
-    if (!patientDetails || !patientDetails.phone) return res.status(400).json({ message: 'Patient phone is required' });
+    if (!patientDetails || !patientDetails.firstName) return res.status(400).json({ message: 'Patient first name is required' });
 
-    const tenantFilter = { organizationId: req.tenantId, doctorId, date, time };
-    const [pending, confirmed] = await Promise.all([
-      PendingAppointment.findOne(tenantFilter),
-      ConfirmedAppointment.findOne(tenantFilter)
-    ]);
+    if (doctorId && date && time) {
+      const tenantFilter = { organizationId: req.tenantId, doctorId, date, time };
+      const [pending, confirmed] = await Promise.all([
+        PendingAppointment.findOne(tenantFilter),
+        ConfirmedAppointment.findOne(tenantFilter)
+      ]);
 
-    if (pending || confirmed) {
-      return res.status(400).json({ message: 'This time slot is already booked' });
+      if (pending || confirmed) {
+        return res.status(400).json({ message: 'This time slot is already booked' });
+      }
     }
 
     // Generate numeric shortId for appointment (standardizing with public bookings)
@@ -631,9 +682,9 @@ export const bookAppointment = async (req, res) => {
         firstName: patientDetails.firstName || '',
         lastName: patientDetails.lastName || '',
         fullName: `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName || ''} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient',
-        mobile: patientDetails.phone,
-        email: patientDetails.email,
-        address: patientDetails.address,
+        mobile: patientDetails.phone || '',
+        email: patientDetails.email || '',
+        address: patientDetails.address || '',
         age: patientDetails.age,
         gender: patientDetails.gender ? (patientDetails.gender.charAt(0).toUpperCase() + patientDetails.gender.slice(1).toLowerCase()) : undefined,
         dateOfBirth: patientDetails.dateOfBirth,
@@ -678,9 +729,12 @@ export const bookAppointment = async (req, res) => {
     const patientEmail = patientDetails?.email || '';
 
     // Look up doctor fee for appointment recording
-    let docObj = await Doctor.findOne({ doctorId });
-    if (!docObj) {
-      docObj = await Doctor.findById(doctorId);
+    let docObj = null;
+    if (doctorId) {
+      docObj = await Doctor.findOne({ doctorId });
+      if (!docObj) {
+        docObj = await Doctor.findById(doctorId);
+      }
     }
     const fee = docObj?.fee || 500;
 
@@ -688,11 +742,11 @@ export const bookAppointment = async (req, res) => {
       shortId,
       organizationId: req.tenantId,
       patientId: patientIdToUse,
-      doctorId: docObj ? docObj.doctorId : doctorId,
+      doctorId: docObj ? docObj.doctorId : doctorId || '',
       doctorName: doctorName || '',
       specialty: specialty || 'General',
-      date,
-      time,
+      date: date || '',
+      time: time || '',
       reason: reason || '',
       symptoms: symptoms || '',
       patientName,
@@ -707,7 +761,7 @@ export const bookAppointment = async (req, res) => {
 
     // Update patient's lastVisit date and reference the latest appointment ID
     if (existingPatient) {
-      existingPatient.lastVisit = date;
+      existingPatient.lastVisit = date || '';
       existingPatient.lastShortId = shortId;
       await existingPatient.save();
     }
@@ -2006,12 +2060,15 @@ export const bookWalkInAppointment = async (req, res) => {
 
     const organizationId = req.tenantId;
 
-    if (!doctorId || !firstName || !mobileNumber) {
-      return res.status(400).json({ message: 'Missing required details' });
+    if (!firstName) {
+      return res.status(400).json({ message: 'Patient first name is required' });
     }
 
     // 1. Find or Create Patient
-    let existingPatient = await Patient.findOne({ organizationId, mobile: mobileNumber });
+    let existingPatient = null;
+    if (mobileNumber) {
+      existingPatient = await Patient.findOne({ organizationId, mobile: mobileNumber });
+    }
 
     if (!existingPatient) {
       const newPatientId = await generatePatientId(organizationId);
@@ -2022,7 +2079,7 @@ export const bookWalkInAppointment = async (req, res) => {
         firstName: firstName || '',
         lastName: lastName || '',
         fullName: `${designation ? designation + ' ' : ''}${firstName || ''} ${lastName || ''}`.trim(),
-        mobile: mobileNumber,
+        mobile: mobileNumber || '',
         age: age,
         ageType: ageType || 'Year',
         gender: gender ? (gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase()) : undefined,
@@ -2052,9 +2109,12 @@ export const bookWalkInAppointment = async (req, res) => {
     const shortId = (23440000 + counter.value).toString();
 
     // 4. Create Confirmed/Pending Appointment (as Walk-in)
-    let docObj = await Doctor.findOne({ doctorId });
-    if (!docObj && mongoose.Types.ObjectId.isValid(doctorId)) {
-      docObj = await Doctor.findById(doctorId);
+    let docObj = null;
+    if (doctorId) {
+      docObj = await Doctor.findOne({ doctorId });
+      if (!docObj && mongoose.Types.ObjectId.isValid(doctorId)) {
+        docObj = await Doctor.findById(doctorId);
+      }
     }
     const amount = docObj?.fee || 500;
 
@@ -2070,10 +2130,10 @@ export const bookWalkInAppointment = async (req, res) => {
       firstName: firstName || existingPatient.firstName,
       lastName: lastName || existingPatient.lastName,
       patientName: existingPatient.fullName,
-      patientPhone: mobileNumber,
+      patientPhone: mobileNumber || '',
       patientAge: age || existingPatient.age,
       ageType: ageType || existingPatient.ageType,
-      doctorId: docObj ? docObj.doctorId : doctorId,
+      doctorId: docObj ? docObj.doctorId : doctorId || '',
       doctorName: doctorName || docObj?.name || '',
       specialty: department || docObj?.specialization || 'General',
       date,
@@ -2103,9 +2163,9 @@ export const bookWalkInAppointment = async (req, res) => {
         organizationId,
         patientId: appointment.patientId,
         patientName: appointment.patientName,
-        patientPhone: mobileNumber,
-        doctorId: appointment.doctorId,
-        doctorName: appointment.doctorName,
+        patientPhone: mobileNumber || '',
+        doctorId: appointment.doctorId || '',
+        doctorName: appointment.doctorName || '',
         amount: amount,
         paidAmount: billingStatus === 'Paid' ? amount : 0,
         dueAmount: billingStatus === 'Paid' ? 0 : amount,
@@ -2125,7 +2185,7 @@ export const bookWalkInAppointment = async (req, res) => {
     // 6. Handle WhatsApp (Optional)
     let waWarning = null;
 
-    if (sendWhatsApp) {
+    if (sendWhatsApp && mobileNumber) {
       try {
         const organization = await Organization.findById(organizationId);
         const clinicName = organization?.name || 'our clinic';

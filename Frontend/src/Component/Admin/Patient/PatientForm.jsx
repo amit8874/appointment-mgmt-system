@@ -5,8 +5,7 @@ import api from '../../../services/api';
 
 const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete }) => {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    fullName: '',
     age: '',
     gender: '',
     bloodGroup: '',
@@ -37,8 +36,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
   useEffect(() => {
     if (patient) {
       setFormData({
-        firstName: patient.firstName || patient.name?.split(' ')[0] || '',
-        lastName: patient.lastName || patient.name?.split(' ').slice(1).join(' ') || '',
+        fullName: patient.fullName || `${patient.firstName || patient.name?.split(' ')[0] || ''} ${patient.lastName || patient.name?.split(' ').slice(1).join(' ') || ''}`.trim(),
         age: patient.age || '',
         gender: patient.gender || '',
         bloodGroup: patient.bloodGroup || '',
@@ -57,8 +55,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
       });
     } else {
       setFormData({
-        firstName: '',
-        lastName: '',
+        fullName: '',
         age: '',
         gender: '',
         bloodGroup: '',
@@ -145,25 +142,24 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
     setError('');
 
     // Validate required fields
-    if (!formData.firstName || !formData.firstName.trim()) {
-      setError('First name is required');
+    if (!formData.fullName || !formData.fullName.trim()) {
+      setError('Full name is required');
       setIsSubmitting(false);
       return;
     }
 
-    if (!formData.lastName || !formData.lastName.trim()) {
-      setError('Last name is required');
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (!formData.contactNumber || formData.contactNumber.length !== 10) {
-      setError('Valid 10-digit contact number is required');
+    if (formData.contactNumber && formData.contactNumber.length !== 10) {
+      setError('Valid 10-digit contact number is required if entered');
       setIsSubmitting(false);
       return;
     }
 
     try {
+      const nameParts = (formData.fullName || '').trim().split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      const submitData = { ...formData, firstName, lastName };
+
       const isEdit = !!patient?._id;
       const url = isEdit
         ? `/api/patients/${patient._id}`
@@ -171,8 +167,8 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
       const method = isEdit ? 'PUT' : 'POST';
 
       const requestData = isEdit
-        ? { ...formData, currentPatientId: patient._id }
-        : formData;
+        ? { ...submitData, currentPatientId: patient._id }
+        : submitData;
 
       const token = sessionStorage.getItem('token') || localStorage.getItem('token');
 
@@ -199,8 +195,8 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 reason: 'Initial Consultation',
                 status: 'pending',
                 patientDetails: {
-                  firstName: formData.firstName,
-                  lastName: formData.lastName,
+                  firstName: firstName,
+                  lastName: lastName,
                   phone: formData.contactNumber,
                   email: formData.email
                 }
@@ -221,7 +217,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
           setSuccessMessage('Patient registered. Complete billing to finish.');
           setBillingInitData({
             patientId: data.patientId || data._id,
-            patientName: `${formData.firstName} ${formData.lastName}`.trim(),
+            patientName: formData.fullName.trim(),
             age: formData.age,
             gender: formData.gender,
             contactNumber: formData.contactNumber,
@@ -314,25 +310,20 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 <span className="text-xs font-bold text-blue-600 self-center">PERSONAL</span>
               </div>
 
-              <div className="w-32">
-                <label className="block text-xs font-medium text-gray-700">First *</label>
-                <input type="text" name="firstName" value={formData.firstName} onChange={handleChange}
-                  className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" required />
-              </div>
-              <div className="w-28">
-                <label className="block text-xs font-medium text-gray-700">Last *</label>
-                <input type="text" name="lastName" value={formData.lastName} onChange={handleChange}
+              <div className="w-48">
+                <label className="block text-xs font-medium text-gray-700">Full Name *</label>
+                <input type="text" name="fullName" value={formData.fullName} onChange={handleChange}
                   className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" required />
               </div>
               <div className="w-20">
-                <label className="block text-xs font-medium text-gray-700">Age *</label>
+                <label className="block text-xs font-medium text-gray-700">Age</label>
                 <input type="number" name="age" value={formData.age} onChange={handleChange}
-                  className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" required />
+                  className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" />
               </div>
               <div className="w-20">
-                <label className="block text-xs font-medium text-gray-700">Gender *</label>
+                <label className="block text-xs font-medium text-gray-700">Gender</label>
                 <select name="gender" value={formData.gender} onChange={handleChange}
-                  className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" required>
+                  className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500">
                   <option value="">-</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
@@ -361,10 +352,10 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
               </div>
 
               <div className="w-28">
-                <label className="block text-xs font-medium text-gray-700">Phone *</label>
+                <label className="block text-xs font-medium text-gray-700">Phone</label>
                 <input type="tel" name="contactNumber" value={formData.contactNumber} onChange={handleChange}
                   className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="10 digits" maxLength="10" required />
+                  placeholder="10 digits" maxLength="10" />
               </div>
               <div className="w-40">
                 <label className="block text-xs font-medium text-gray-700">Email</label>
@@ -466,7 +457,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 </button>
                 <button type="button" onClick={() => {
                   setFormData({
-                    firstName: '', lastName: '', dateOfBirth: '', age: '', gender: '', bloodGroup: '',
+                    fullName: '', dateOfBirth: '', age: '', gender: '', bloodGroup: '',
                     contactNumber: '', email: '', address: '', city: '', state: '', zip: '',
                     emergencyContact: '', emergencyPhone: '', pastMedicalHistory: '', allergies: '',
                     assignedDoctor: '', assignedDoctorId: ''

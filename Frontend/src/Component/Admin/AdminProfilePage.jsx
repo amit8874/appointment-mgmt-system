@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  User as UserIcon, Building2, ShieldCheck, Settings, Activity, 
+  User as UserIcon, Building2, Settings, Activity, 
   CreditCard, LayoutDashboard, ChevronRight, Upload, LogOut,
   CheckCircle, AlertCircle, Info, MapPin, MessageSquare
 } from 'lucide-react';
@@ -17,7 +17,6 @@ import { analyticsApi, commonApi } from '../../services/api';
 import StatsCard from './Profile/StatsCard';
 import PersonalInfoTab from './Profile/PersonalInfoTab';
 import ClinicInfoTab from './Profile/ClinicInfoTab';
-import SecurityPrivacyTab from './Profile/SecurityPrivacyTab';
 import BillingSubscriptionTab from './Profile/BillingSubscriptionTab';
 import ActivityLogsTab from './Profile/ActivityLogsTab';
 import WhatsAppCreditsTab from './Profile/WhatsAppCreditsTab';
@@ -272,7 +271,6 @@ const ProfilePage = () => {
         { id: 'personal', label: 'Personal Info', icon: UserIcon },
         { id: 'clinic', label: 'Clinic Info', icon: Building2 },
         { id: 'prescription', label: 'Prescription Template', icon: Activity },
-        { id: 'security', label: 'Security & Privacy', icon: ShieldCheck },
         { id: 'billing', label: 'Billing & Subscription', icon: CreditCard },
         { id: 'whatsapp', label: 'WhatsApp Credits', icon: MessageSquare },
         { id: 'activity', label: 'Activity Logs', icon: Activity },
@@ -406,16 +404,6 @@ const ProfilePage = () => {
                                 )}
                                 {activeTab === 'prescription' && (
                                     <PrescriptionTemplateTab />
-                                )}
-                                {activeTab === 'security' && (
-                                    <SecurityPrivacyTab 
-                                        sessions={activeSessions}
-                                        onRevokeSession={handleRevokeSession}
-                                        onPasswordUpdate={handleUpdatePassword}
-                                        onToggle2FA={() => showNotification("2FA settings updated", "info")}
-                                        is2FAEnabled={true}
-                                        loading={actionLoading}
-                                    />
                                 )}
                                 { activeTab === 'billing' && (
                                     <BillingSubscriptionTab 

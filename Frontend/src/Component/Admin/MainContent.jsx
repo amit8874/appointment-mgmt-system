@@ -189,6 +189,7 @@ const MainContent = ({
         return (
           <AppointmentTable
             rebookData={rebookData}
+            activeTab={activeTab}
           />
         );
       case 'New Appointment':

@@ -19,10 +19,7 @@ const resolvePatientObjectId = async (patientId, organizationId) => {
   // Otherwise treat it as a display patientId (e.g. "000020") and look up the real _id
   const patient = await Patient.findOne({ patientId, organizationId }).select('_id').lean();
   if (!patient) {
-    // Also try without organizationId filter in case org is not set
-    const patientFallback = await Patient.findOne({ patientId }).select('_id').lean();
-    if (!patientFallback) return null;
-    return patientFallback._id;
+    return null;
   }
   return patient._id;
 };
@@ -178,7 +175,7 @@ export const createTreatment = async (req, res) => {
       notes,
       estimatedCost: estimatedCost || 0,
       discount: discount || 0,
-      paidAmount: paidAmount || 0,
+      paidAmount: paidAmount !== undefined ? paidAmount : (estimatedCost || 0),
       status: status || 'Planned',
       priority: priority || 'Medium',
       nextVisitDate

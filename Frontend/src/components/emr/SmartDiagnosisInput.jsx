@@ -8,9 +8,14 @@ const SmartDiagnosisInput = ({ value, onChange, context, user }) => {
   const [filtered, setFiltered] = useState([]);
   const [aiRecs, setAiRecs] = useState({ high: [], medium: [], low: [], reason: '', warning: '' });
   const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(value);
+  const [searchQuery, setSearchQuery] = useState(value || '');
   const [cursor, setCursor] = useState(-1);
   const containerRef = useRef(null);
+
+  // Sync prop value to local search query
+  useEffect(() => {
+    setSearchQuery(value || '');
+  }, [value]);
 
   const organizationId = user?.organizationId?._id || user?.organizationId;
   const specialty = context?.specialty || '';
@@ -103,7 +108,7 @@ const SmartDiagnosisInput = ({ value, onChange, context, user }) => {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [show, context.complaints, searchQuery, specialty]);
+  }, [show, JSON.stringify(context.complaints), searchQuery, specialty]);
 
   const handleSelect = (name) => {
     onChange(name);
@@ -117,8 +122,19 @@ const SmartDiagnosisInput = ({ value, onChange, context, user }) => {
         <Search size={14} className="text-slate-400" />
         <input 
           value={searchQuery}
-          onChange={(e) => { setSearchQuery(e.target.value); setShow(true); }}
+          onChange={(e) => { 
+            const val = e.target.value;
+            setSearchQuery(val); 
+            if (onChange) onChange(val);
+            setShow(true); 
+          }}
           onFocus={() => setShow(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.target.blur();
+              setShow(false);
+            }
+          }}
           placeholder="Search Diagnosis (ICD-10, Name, Keyword)..."
           className="w-full bg-transparent border-none p-0 text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-0 placeholder:text-slate-300"
         />

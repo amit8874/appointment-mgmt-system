@@ -41,7 +41,9 @@ export const getConversations = async (req, res) => {
         
         // CASE: String ID (e.g. PAT001)
         if (!actualPatient && typeof potentialId === 'string' && potentialId.length > 0) {
-          actualPatient = await Patient.findOne({ patientId: potentialId }) || 
+          actualPatient = await Patient.findOne({ patientId: potentialId, organizationId }) || 
+                          await Patient.findOne({ mobile: potentialId, organizationId }) ||
+                          await Patient.findOne({ patientId: potentialId }) || 
                           await Patient.findOne({ mobile: potentialId });
         }
       }

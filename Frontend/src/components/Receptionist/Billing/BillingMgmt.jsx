@@ -55,23 +55,7 @@ const InvoiceList = React.memo(({
     {/* Summary Cards removed for Receptionist as per request */}
 
     {/* Filtering & Search Bar */}
-    <div className="flex flex-col sm:flex-row justify-between items-center mb-3 gap-3">
-      <div className="flex space-x-2 text-black bg-gray-200 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
-        {['All', 'Cash', 'UPI', 'Card'].map(filter => (
-          <button
-            key={filter}
-            onClick={() => setActiveFilter(filter)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap
-                      ${activeFilter === filter
-                ? `bg-${PRIMARY_COLOR}-600 text-black shadow-md`
-                : 'text-gray-600 hover:bg-gray-200'
-              }`}
-          >
-            {filter}
-          </button>
-        ))}
-      </div>
-
+    <div className="flex flex-col sm:flex-row justify-end items-center mb-3 gap-3">
       <div className="relative w-full sm:max-w-xs">
         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
           <SearchIcon />

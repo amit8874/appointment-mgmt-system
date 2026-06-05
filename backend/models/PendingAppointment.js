@@ -57,26 +57,26 @@ const pendingAppointmentSchema = new mongoose.Schema({
   },
   doctorId: {
     type: String,
-    required: true,
+    required: false,
   },
   doctorName: {
     type: String,
-    required: true,
+    required: false,
   },
   specialty: {
     type: String,
-    required: true,
+    required: false,
   },
   date: {
     type: String,
-    required: true,
+    required: false,
   },
   appointmentDate: {
     type: String,
   },
   time: {
     type: String,
-    required: true,
+    required: false,
   },
   appointmentTime: {
     type: String,

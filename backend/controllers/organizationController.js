@@ -8,6 +8,7 @@ import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
 import { applyPlanWhatsappCredits } from '../services/whatsappCreditService.js';
 import { sendClinicRegistrationNotification } from '../services/emailService.js';
+import { resolveS3UrlIfNeeded } from '../services/s3Service.js';
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -489,6 +490,33 @@ export const getOrganization = async (req, res) => {
       if (!organization) {
         return res.status(404).json({ message: 'Organization not found' });
       }
+
+      if (organization.prescriptionTemplate && organization.prescriptionTemplate.templateUrl) {
+        const freshUrl = await resolveS3UrlIfNeeded(organization.prescriptionTemplate.templateUrl);
+        if (freshUrl && freshUrl !== organization.prescriptionTemplate.templateUrl) {
+          organization.prescriptionTemplate.templateUrl = freshUrl;
+
+          // For backwards compatibility
+          if (!organization.prescriptionTemplate.templatePublicId) {
+            try {
+              const urlObj = new URL(freshUrl);
+              let pathname = urlObj.pathname;
+              if (pathname.startsWith('/')) {
+                pathname = pathname.substring(1);
+              }
+              if (pathname) {
+                organization.prescriptionTemplate.templatePublicId = pathname.split('?')[0];
+              }
+            } catch (e) {}
+          }
+
+          await Organization.updateOne(
+            { _id: organization._id },
+            { $set: { prescriptionTemplate: organization.prescriptionTemplate } }
+          );
+        }
+      }
+
       return res.json(organization);
     }
 
@@ -559,6 +587,10 @@ export const updateOrganization = async (req, res) => {
       details: { updatedFields: Object.keys(req.body) },
       ipAddress: req.ip
     });
+
+    if (organization.prescriptionTemplate && organization.prescriptionTemplate.templateUrl) {
+      organization.prescriptionTemplate.templateUrl = await resolveS3UrlIfNeeded(organization.prescriptionTemplate.templateUrl);
+    }
 
     res.json({ message: 'Organization updated successfully', organization });
   } catch (error) {

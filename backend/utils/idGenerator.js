@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Counter from '../models/Counter.js';
 
 /**
@@ -12,13 +13,36 @@ export const generatePatientId = async (organizationId) => {
     throw new Error('Organization ID is required to generate a patient ID');
   }
 
-  const counter = await Counter.findOneAndUpdate(
-    { name: `patientId_${organizationId}` },
-    { $inc: { value: 1 } },
-    { new: true, upsert: true }
-  );
+  const Patient = mongoose.models.Patient || mongoose.model('Patient');
+  let isUnique = false;
+  let patientId = '';
+  let attempts = 0;
+  const maxAttempts = 10;
 
-  return String(counter.value).padStart(6, '0');
+  while (!isUnique && attempts < maxAttempts) {
+    attempts++;
+    const counter = await Counter.findOneAndUpdate(
+      { name: `patientId_${organizationId}` },
+      { $inc: { value: 1 } },
+      { new: true, upsert: true }
+    );
+
+    patientId = String(counter.value).padStart(6, '0');
+
+    // Secondary uniqueness check to prevent collisions (e.g. from manual/legacy inserts)
+    const existingPatient = await Patient.findOne({ organizationId, patientId }).select('_id').lean();
+    if (!existingPatient) {
+      isUnique = true;
+    } else {
+      console.warn(`[ID Generator] Patient ID ${patientId} already exists in organization ${organizationId}. Incrementing counter again...`);
+    }
+  }
+
+  if (!isUnique) {
+    throw new Error('Failed to generate a unique patient ID after multiple attempts');
+  }
+
+  return patientId;
 };
 
 /**

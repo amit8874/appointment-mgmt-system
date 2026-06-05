@@ -708,7 +708,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
   };
 
   return (
-    <div className={`p-0 md:p-6 min-h-screen transition-all duration-500 ${isEmbedded ? 'bg-transparent' : 'bg-slate-50'}`}>
+    <div className={`p-0 ${isEmbedded ? '' : 'md:p-6 min-h-screen'} transition-all duration-500 ${isEmbedded ? 'bg-transparent' : 'bg-slate-50'}`}>
       <ToastContainer position="bottom-right" theme="colored" />
 
       {!isEmbedded && (

@@ -205,6 +205,7 @@ const DentalChart = ({ patientId }) => {
           toothNumber: selectedTooth,
           procedure: item.name,
           estimatedCost: item.cost,
+          paidAmount: item.cost,
           notes: notes.trim(),
           priority,
           status: 'Planned'

@@ -845,6 +845,8 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
               onChange={(e) => {
                 if (e.target.value === 'default') {
                   setSelectedTemplate(null);
+                } else if (e.target.value === 'default_v2') {
+                  setSelectedTemplate({ _id: 'default_v2', templateName: 'Oviaan Default Template 2' });
                 } else {
                   const t = templates.find(temp => temp._id === e.target.value);
                   setSelectedTemplate(t);
@@ -853,6 +855,7 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
               className="bg-white border-2 border-indigo-100 rounded-xl px-4 py-1.5 text-[11px] font-bold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer hover:border-indigo-300 transition-all min-w-[180px]"
             >
               <option value="default">Oviaan System Default</option>
+              <option value="default_v2">Oviaan Default Template 2</option>
               {templates.filter(t => t._id && (t.templateName || t.name)).map(t => (
                 <option key={t._id} value={t._id}>
                   {t.templateName || t.name} {t.isDefault ? '(Default)' : ''}

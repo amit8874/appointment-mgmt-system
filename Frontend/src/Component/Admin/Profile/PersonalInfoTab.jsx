@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Mail, Phone, MapPin, Globe, ShieldCheck } from 'lucide-react';
+import { User, Mail, Phone, ShieldCheck } from 'lucide-react';
 
 const PersonalInfoTab = ({ profile, onUpdate, loading }) => {
   const [formData, setFormData] = React.useState({
@@ -100,48 +100,6 @@ const PersonalInfoTab = ({ profile, onUpdate, loading }) => {
                 onChange={handleChange}
                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium text-slate-700"
               />
-            </div>
-          </div>
-        </div>
-
-        <div className="p-8 border-t border-slate-100">
-          <h4 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <MapPin size={16} className="text-blue-600" />
-            Mailing Address
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Street Address</label>
-              <input 
-                type="text" 
-                name="street"
-                value={formData.street}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium text-slate-700"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">City</label>
-              <input 
-                type="text" 
-                name="city"
-                value={formData.city}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium text-slate-700"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Country</label>
-              <div className="relative">
-                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                    type="text" 
-                    name="country"
-                    value={formData.country}
-                    onChange={handleChange}
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium text-slate-700"
-                />
-              </div>
             </div>
           </div>
         </div>

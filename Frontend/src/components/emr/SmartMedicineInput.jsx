@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Sparkles, Activity, Pill, BadgeCheck, AlertCircle, Loader2, Plus, FlaskConical } from 'lucide-react';
 import { medicineApi, chatbotApi } from '../../services/api';
 
-const SmartMedicineInput = ({ value, onSelect, context, user }) => {
+const SmartMedicineInput = ({ value, onChange, onSelect, context, user }) => {
   const [show, setShow] = useState(false);
   const [filtered, setFiltered] = useState([]);
   const [aiRecs, setAiRecs] = useState({ suggestions: [], reason: '', source: 'AI' });
@@ -11,6 +11,11 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
   const [searchQuery, setSearchQuery] = useState(value || '');
   const containerRef = useRef(null);
   const searchTimerRef = useRef(null);
+
+  // Sync prop value to local search query
+  useEffect(() => {
+    setSearchQuery(value || '');
+  }, [value]);
 
   const organizationId = user?.organizationId?._id || user?.organizationId;
 
@@ -108,7 +113,7 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [show, context.diagnosis, context.complaints]);
+  }, [show, context.diagnosis, JSON.stringify(context.complaints)]);
 
   const handleSelect = (med) => {
     // med can be from master (object) or AI (object) or custom (string)
@@ -134,8 +139,19 @@ const SmartMedicineInput = ({ value, onSelect, context, user }) => {
     <div className="relative w-full" ref={containerRef}>
       <input 
         value={searchQuery}
-        onChange={(e) => { setSearchQuery(e.target.value); setShow(true); }}
+        onChange={(e) => { 
+          const val = e.target.value;
+          setSearchQuery(val); 
+          if (onChange) onChange(val);
+          setShow(true); 
+        }}
         onFocus={() => setShow(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.target.blur();
+            setShow(false);
+          }
+        }}
         placeholder="Search Medicine (Brand, Salt, Generic)..."
         className="w-full bg-transparent border-none p-0 text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-0 placeholder:text-slate-300"
       />

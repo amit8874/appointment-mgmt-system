@@ -31,8 +31,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
   const [formData, setFormData] = useState({
     patientId: 'Loading...',
     designation: 'MR.',
-    firstName: '',
-    lastName: '',
+    fullName: '',
     age: '',
     ageType: 'Year',
     gender: 'Male',
@@ -58,7 +57,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     
     // Hard reset
     const initialState = {
-       firstName: '', lastName: '', age: '', ageType: 'Year', gender: '', phone: '', doctor: '', symptoms: ''
+       fullName: '', age: '', ageType: 'Year', gender: '', phone: '', doctor: '', symptoms: ''
     };
 
     setVoiceAgent({
@@ -152,8 +151,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
              return {
                ...prev,
                designation: newDesignation,
-               firstName: updatedState.firstName || prev.firstName,
-               lastName: updatedState.lastName || prev.lastName,
+               fullName: updatedState.fullName || (updatedState.firstName ? `${updatedState.firstName} ${updatedState.lastName || ''}`.trim() : prev.fullName),
                age: updatedState.age || prev.age,
                ageType: updatedState.ageType || prev.ageType,
                gender: updatedState.gender || prev.gender,
@@ -185,8 +183,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       const patient = stateData.patient || stateData;
       setFormData(prev => ({
         ...prev,
-        firstName: patient.firstName || patient.name?.split(' ')[0] || '',
-        lastName: patient.lastName || patient.name?.split(' ').slice(1).join(' ') || '',
+        fullName: patient.fullName || `${patient.firstName || patient.name?.split(' ')[0] || ''} ${patient.lastName || patient.name?.split(' ').slice(1).join(' ') || ''}`.trim(),
         phone: patient.phone || patient.mobile || patient.contactNumber || patient.contact || '',
         age: patient.age || patient.patientAge || '',
         gender: patient.gender ? (patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase()) : 'Male',
@@ -324,10 +321,10 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
 
   const handleUseExistingPatient = (p) => {
     setSelectedExistingId(p.patientId || p._id);
+    const displayName = p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
     setFormData(prev => ({
       ...prev,
-      firstName: p.firstName || p.fullName?.split(' ')[0] || '',
-      lastName: p.lastName || p.fullName?.split(' ').slice(1).join(' ') || '',
+      fullName: displayName,
       age: p.age || '',
       ageType: p.ageType || 'Year',
       gender: p.gender || 'Male',
@@ -335,17 +332,15 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       designation: p.designation || 'MR.',
     }));
     setExistingPatients([]);
-    toast.info(`Using existing record for ${p.fullName || p.firstName}`);
+    toast.info(`Using existing record for ${displayName}`);
   };
 
   const handleRegisterNewPatient = () => {
     setSelectedExistingId(null);
     setExistingPatients([]);
-    // Optionally clear names if user wants to start fresh for a different person
     setFormData(prev => ({
       ...prev,
-      firstName: '',
-      lastName: '',
+      fullName: '',
       age: '',
       // phone remains the same
     }));
@@ -354,10 +349,6 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.appointmentTime) {
-      toast.error('Please select an available time slot');
-      return;
-    }
 
     setIsLoading(true);
     try {
@@ -369,6 +360,9 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       }
 
       const selectedDoctor = doctors.find(d => d._id === formData.doctor);
+      const nameParts = (formData.fullName || '').trim().split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
       const appointmentData = {
         organizationId: orgId,
         patientId: selectedExistingId || formData.patientId,
@@ -379,14 +373,15 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
         time: formData.appointmentTime,
         patientDetails: {
           designation: formData.designation,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
+          firstName: firstName,
+          lastName: lastName,
+          fullName: formData.fullName,
           age: formData.age,
           ageType: formData.ageType,
           gender: formData.gender,
           phone: formData.phone,
         },
-        reason: formData.symptoms, // Map symptoms field to backend reason
+        reason: formData.symptoms,
         symptoms: formData.symptoms,
       };
 
@@ -467,8 +462,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
 
           <div className="mt-8 grid grid-cols-2 md:grid-cols-3 gap-3 w-full max-w-2xl text-sm">
              {[
-               { key: 'firstName', label: 'First Name' },
-               { key: 'lastName', label: 'Last Name' },
+               { key: 'fullName', label: 'Full Name' },
                { key: 'age', label: 'Age / Dob' },
                { key: 'phone', label: 'Mobile' },
                { key: 'gender', label: 'Gender' },
@@ -516,7 +510,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
-              <span className="text-red-500 mr-1">*</span> Designation
+              Designation
             </label>
             <div className="relative">
               <select
@@ -524,7 +518,6 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
                 value={formData.designation}
                 onChange={handleChange}
                 className="w-full border border-blue-400 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 pr-8 bg-white dark:bg-gray-800"
-                required
               >
                 <option value="MR.">MR.</option>
                 <option value="MS.">MS.</option>
@@ -537,36 +530,24 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
             </div>
           </div>
 
-          <div className="flex flex-col md:col-span-1">
+          <div className="flex flex-col md:col-span-2">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
-              <span className="text-red-500 mr-1">*</span> First Name
+              <span className="text-red-500 mr-1">*</span> Full Name
             </label>
             <input
               type="text"
-              name="firstName"
-              value={formData.firstName}
+              name="fullName"
+              value={formData.fullName}
               onChange={handleChange}
-              placeholder="First name"
+              placeholder="Enter full name"
               className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
               required
             />
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 font-bold">Last Name</label>
-            <input
-              type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              placeholder="Last name"
-              className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
-            />
-          </div>
-
-          <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
-              <span className="text-red-500 mr-1">*</span> Age
+              Age
             </label>
             <input
               type="number"
@@ -575,13 +556,12 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
               onChange={handleChange}
               placeholder="Age"
               className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
-              required
             />
           </div>
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
-              <span className="text-red-500 mr-1">*</span> Type
+              Type
             </label>
             <div className="relative">
               <select
@@ -589,7 +569,6 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
                 value={formData.ageType}
                 onChange={handleChange}
                 className="w-full border border-gray-300 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
-                required
               >
                 <option value="Year">Year</option>
                 <option value="Month">Month</option>
@@ -601,7 +580,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
-              <span className="text-red-500 mr-1">*</span> Mobile Number
+              Mobile Number
             </label>
             <input
               type="tel"
@@ -613,7 +592,6 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
               }}
               placeholder="10 digit mobile number"
               className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
-              required
             />
             {isCheckingPhone && <div className="text-[10px] text-blue-500 mt-1 animate-pulse font-bold">Checking availability...</div>}
           </div>
@@ -663,7 +641,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
           <div>
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-2.5 flex items-center font-bold italic">
-              <span className="text-red-500 mr-1">*</span> Gender
+              Gender
             </label>
             <div className="flex items-center space-x-5">
               {['Male', 'Female', 'Other'].map(option => (
@@ -726,14 +704,13 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
           ) : (
             <div className="flex flex-col">
               <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
-                <span className="text-red-500 mr-1">*</span> Doctor
+                Doctor
               </label>
               <div className="relative">
                 <select
                   name="doctor"
                   value={formData.doctor}
                   onChange={handleChange}
-                  required
                   className="w-full border border-gray-300 p-2.5 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
                 >
                   <option value="">Select Doctor</option>
@@ -748,7 +725,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1.5 flex items-center font-bold">
-              <span className="text-red-500 mr-1">*</span> Date
+              Date
             </label>
             <div className="relative">
               <input 
@@ -756,7 +733,6 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
                 name="appointmentDate" 
                 value={formData.appointmentDate} 
                 onChange={handleChange} 
-                required 
                 min={new Date().toISOString().split('T')[0]} 
                 className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 pl-9 bg-white dark:bg-gray-800" 
               />
@@ -835,7 +811,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
           )}
           <button
             type="submit"
-            disabled={isLoading || !formData.appointmentTime}
+            disabled={isLoading}
             className={`${isDashboardIntegrated ? 'px-12 w-auto' : 'flex-[2]'} py-3 bg-blue-600 text-white rounded-xl font-extrabold hover:bg-blue-700 shadow-xl shadow-blue-600/30 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50 disabled:shadow-none`}
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}

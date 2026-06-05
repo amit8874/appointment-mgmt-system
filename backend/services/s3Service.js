@@ -165,6 +165,47 @@ export const getSignedDownloadUrl = async ({
 };
 
 /**
+ * Resolves an S3 template URL to a fresh signed URL.
+ * If the URL points to S3, we generate a new signed URL.
+ */
+export const resolveS3UrlIfNeeded = async (urlStr, expiresInSeconds = 86400) => {
+  if (!urlStr || typeof urlStr !== 'string') return urlStr;
+
+  try {
+    if (urlStr.startsWith('http')) {
+      const url = new URL(urlStr);
+      let key = null;
+
+      const baseUrl = process.env.AWS_S3_PUBLIC_BASE_URL;
+      if (baseUrl && urlStr.startsWith(baseUrl)) {
+        key = urlStr.replace(baseUrl, '').replace(/^\//, '');
+      } else if (url.hostname.endsWith('.amazonaws.com')) {
+        let pathname = url.pathname;
+        if (pathname.startsWith('/')) {
+          pathname = pathname.substring(1);
+        }
+        key = pathname;
+      }
+
+      if (key) {
+        // Strip query params
+        key = key.split('?')[0];
+
+        // Generate a new signed URL
+        const freshUrl = await getSignedDownloadUrl({
+          key,
+          expiresInSeconds
+        });
+        return freshUrl;
+      }
+    }
+  } catch (err) {
+    console.warn("[resolveS3UrlIfNeeded] Failed to parse/resolve S3 URL:", err.message);
+  }
+  return urlStr;
+};
+
+/**
  * Generates the public URL (if the bucket/object has public read access or a CDN is used).
  */
 export const getPublicUrl = (key) => {

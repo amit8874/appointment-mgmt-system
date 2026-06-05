@@ -2,6 +2,7 @@ import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveS3UrlIfNeeded } from './s3Service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,13 +21,14 @@ const getBase64Image = async (filePath) => {
   if (!filePath) return null;
   try {
     if (filePath.startsWith('http')) {
+      const resolvedPath = await resolveS3UrlIfNeeded(filePath);
       const axios = (await import('axios')).default;
-      const response = await axios.get(filePath, { 
+      const response = await axios.get(resolvedPath, { 
         responseType: 'arraybuffer',
         timeout: 5000 // 5 second timeout for image fetching
       });
       const buffer = Buffer.from(response.data, 'binary');
-      const ext = filePath.split('?')[0].split('.').pop() || 'png';
+      const ext = resolvedPath.split('?')[0].split('.').pop() || 'png';
       return `data:image/${ext};base64,${buffer.toString('base64')}`;
     }
 
@@ -904,8 +906,21 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   const doctorQualification = doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || 'MBBS, MD';
   const doctorSpecialization = doctorDetails.doctorSpecialization || prescriptionData?.doctorSpecialization || parsedData?.doctorSpecialization || 'Specialist';
 
+  const isDefaultV2 = template?._id === 'default_v2';
+
   let headerHtml = '';
-  if (template?.headerType === 'custom' && template?.headerImage && logoBase64) {
+  if (isDefaultV2) {
+    headerHtml = `
+      <div style="display: flex; flex-direction: column; align-items: center; text-align: center; padding-bottom: 10px; border-bottom: 2px solid #eee; width: 100%;">
+        ${logoBase64 ? `<img src="${logoBase64}" style="height: 80px; width: 80px; object-fit: contain; margin-bottom: 10px;" />` : ''}
+        <h1 style="margin: 0; color: #0f172a; font-size: 24px; font-weight: 900; text-transform: uppercase;">${org?.name || org?.clinicName || 'Clinic Name'}</h1>
+        <div style="margin: 5px 0 0 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase;">
+          ${formatAddress(org?.address || org?.location)}<br/>
+          Contact: ${org?.phone || ''}
+        </div>
+      </div>
+    `;
+  } else if (template?.headerType === 'custom' && template?.headerImage && logoBase64) {
     headerHtml = `<img src="${logoBase64}" style="width: 100%; max-height: 150px; object-fit: contain;" />`;
   } else {
     headerHtml = `
@@ -930,7 +945,15 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   }
 
   let footerHtml = '';
-  if (template?.footerType === 'custom' && template?.footerImage && signatureBase64) {
+  if (isDefaultV2) {
+    footerHtml = `
+      <div style="padding: 10px 40px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box;">
+        <div style="font-size: 9px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Dr. ${doctorName}</div>
+        <div style="font-size: 10px; color: #999; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Powered by Oviaan</div>
+        <div style="width: 80px;"></div>
+      </div>
+    `;
+  } else if (template?.footerType === 'custom' && template?.footerImage && signatureBase64) {
     footerHtml = `<img src="${signatureBase64}" style="width: 100%; max-height: 80px; object-fit: contain;" />`;
   } else {
     footerHtml = `<div style="padding: 10px; text-align: center; border-top: 1px solid #eee; font-size: 10px; color: #999; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Powered by Oviaan</div>`;
@@ -1077,8 +1100,13 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
         
         <div class="content-wrapper">
           <div class="patient-info">
-            <span>Patient: ${patientData?.fullName || patientData?.name || 'Unknown'} (${patientData?.age || '--'} / ${patientData?.gender || '--'})</span>
-            <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
+            ${isDefaultV2 ? `
+              <span>Name: ${patientData?.fullName || patientData?.name || 'Unknown'} (${patientData?.age || '--'} Years)</span>
+              <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
+            ` : `
+              <span>Patient: ${patientData?.fullName || patientData?.name || 'Unknown'} (${patientData?.age || '--'} / ${patientData?.gender || '--'})</span>
+              <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
+            `}
           </div>
           
           ${contentHtml}
@@ -1110,9 +1138,15 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
       <div class="container">
         <div class="header-wrapper">${headerHtml}</div>
         <div class="patient-info">
-          <span>Name: ${patientData?.fullName || patientData?.name || 'Unknown'}</span>
-          <span>Age/Sex: ${patientData?.age || '--'} / ${patientData?.gender || '--'}</span>
-          <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()} ${prescriptionData?.time ? `| ${prescriptionData.time}` : ''}</span>
+          ${isDefaultV2 ? `
+            <span>Name: ${patientData?.fullName || patientData?.name || 'Unknown'}</span>
+            <span>Age: ${patientData?.age || '--'} Years</span>
+            <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
+          ` : `
+            <span>Name: ${patientData?.fullName || patientData?.name || 'Unknown'}</span>
+            <span>Age/Sex: ${patientData?.age || '--'} / ${patientData?.gender || '--'}</span>
+            <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()} ${prescriptionData?.time ? `| ${prescriptionData.time}` : ''}</span>
+          `}
         </div>
         <div class="content">
           <div class="watermark"></div>

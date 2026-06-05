@@ -9,9 +9,6 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [availableSlots, setAvailableSlots] = useState([]);
-  const [isFetchingSlots, setIsFetchingSlots] = useState(false);
-  const [slotError, setSlotError] = useState('');
   
   // Interactive Conversational AI Voice Agent states
   const [voiceAgent, setVoiceAgent] = useState({
@@ -29,8 +26,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const [formData, setFormData] = useState({
     patientId: 'Loading...',
     designation: 'MR.',
-    firstName: '',
-    lastName: '',
+    fullName: '',
     age: '',
     ageType: 'Year',
     gender: 'Male',
@@ -64,7 +60,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     
     // Hard reset
     const initialState = {
-       firstName: '', lastName: '', age: '', ageType: 'Year', gender: '', phone: '', doctor: '', symptoms: ''
+       fullName: '', age: '', ageType: 'Year', gender: '', phone: '', doctor: '', symptoms: ''
     };
 
     setVoiceAgent({
@@ -158,8 +154,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
              return {
                ...prev,
                designation: newDesignation,
-               firstName: updatedState.firstName || prev.firstName,
-               lastName: updatedState.lastName || prev.lastName,
+               fullName: updatedState.fullName || (updatedState.firstName ? `${updatedState.firstName} ${updatedState.lastName || ''}`.trim() : prev.fullName),
                age: updatedState.age || prev.age,
                ageType: updatedState.ageType || prev.ageType,
                gender: updatedState.gender || prev.gender,
@@ -189,8 +184,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         ...prev,
         patientId: initialData.patientId || prev.patientId,
         designation: initialData.designation || 'MR.',
-        firstName: initialData.firstName || '',
-        lastName: initialData.lastName || '',
+        fullName: initialData.fullName || `${initialData.firstName || ''} ${initialData.lastName || ''}`.trim(),
         age: initialData.age || initialData.patientAge || '',
         ageType: initialData.ageType || 'Year',
         gender: initialData.gender
@@ -237,36 +231,6 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     }
   }, [formData.designation]);
 
-  // Fetch Slots
-  const fetchAvailableSlots = async () => {
-    if (!formData.doctor || !formData.appointmentDate) return;
-    setIsFetchingSlots(true);
-    setAvailableSlots([]);
-    setSlotError('');
-    try {
-      const response = await api.get(`/doctors/${formData.doctor}/slots?date=${formData.appointmentDate}`);
-      const data = response.data;
-      if (response.status === 200 && data.available && data.slots && data.slots.length > 0) {
-        setAvailableSlots(data.slots);
-      } else if (data.message) {
-        setSlotError(data.message);
-      } else {
-        setSlotError('No slots available');
-      }
-    } catch (error) {
-      console.error('Error fetching slots:', error);
-      setSlotError('Failed to load slots');
-    } finally {
-      setIsFetchingSlots(false);
-    }
-  };
-
-  useEffect(() => {
-    if (formData.doctor && formData.appointmentDate) {
-      fetchAvailableSlots();
-    }
-  }, [formData.doctor, formData.appointmentDate]);
-
   // Auto-select doctor and department if there is only a single doctor in the clinic
   useEffect(() => {
     if (doctors && doctors.length === 1) {
@@ -282,9 +246,6 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    if (name === 'doctor' || name === 'appointmentDate') {
-      setFormData(prev => ({ ...prev, appointmentTime: '' }));
-    }
   };
 
   // Real-time Patient Lookup by Phone
@@ -314,10 +275,10 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
   const handleUseExistingPatient = (p) => {
     setSelectedExistingId(p.patientId || p._id);
+    const displayName = p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
     setFormData(prev => ({
       ...prev,
-      firstName: p.firstName || p.fullName?.split(' ')[0] || '',
-      lastName: p.lastName || p.fullName?.split(' ').slice(1).join(' ') || '',
+      fullName: displayName,
       age: p.age || '',
       ageType: p.ageType || 'Year',
       gender: p.gender || 'Male',
@@ -325,7 +286,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       designation: p.designation || 'MR.',
     }));
     setExistingPatients([]);
-    toast.info(`Using existing record for ${p.fullName || p.firstName}`);
+    toast.info(`Using existing record for ${displayName}`);
   };
 
   const handleRegisterNewPatient = () => {
@@ -333,8 +294,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     setExistingPatients([]);
     setFormData(prev => ({
       ...prev,
-      firstName: '',
-      lastName: '',
+      fullName: '',
       age: '',
     }));
     toast.success("Proceeding with new patient registration.");
@@ -342,11 +302,6 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (bookingMode === 'APPOINTMENT' && !formData.appointmentTime) {
-      toast.error('Please select an available time slot');
-      return;
-    }
 
     setIsLoading(true);
     try {
@@ -360,20 +315,21 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       
       if (bookingMode === 'WALK_IN') {
         const walkInData = {
-          designation: formData.designation,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
+          designation: formData.designation || 'MR.',
+          firstName: (formData.fullName || '').trim().split(/\s+/)[0] || '',
+          lastName: (formData.fullName || '').trim().split(/\s+/).slice(1).join(' ') || '',
+          fullName: formData.fullName,
           age: formData.age,
           ageType: formData.ageType,
           mobileNumber: formData.phone,
-          gender: formData.gender,
+          gender: formData.gender || 'Male',
           department: formData.department || (selectedDoc ? selectedDoc.specialization : ''),
           doctorId: formData.doctor,
           doctorName: selectedDoc ? selectedDoc.name : '',
-          symptoms: formData.symptoms,
-          administrativeNotes: formData.notes,
-          billingStatus: billingData.status,
-          paymentMode: billingData.status === 'Paid' ? billingData.paymentMode : null,
+          symptoms: '',
+          administrativeNotes: '',
+          billingStatus: 'Paid',
+          paymentMode: 'Cash',
           sendWhatsApp: sendWhatsApp
         };
 
@@ -386,6 +342,9 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           if (onSuccess) onSuccess();
         }
       } else {
+        const nameParts = (formData.fullName || '').trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
         // Standard Appointment
         const appointmentData = {
           organizationId: orgId,
@@ -394,21 +353,22 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           doctorName: selectedDoc ? selectedDoc.name : '',
           specialty: selectedDoc ? selectedDoc.specialization : 'General',
           date: formData.appointmentDate,
-          time: formData.appointmentTime,
-          paymentStatus: billingData.status.toLowerCase(),
+          time: '',
+          paymentStatus: 'paid',
           sendWhatsApp: sendWhatsApp,
           patientDetails: {
-            designation: formData.designation,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
+            designation: formData.designation || 'MR.',
+            firstName: firstName,
+            lastName: lastName,
+            fullName: formData.fullName,
             age: formData.age,
             ageType: formData.ageType,
-            gender: formData.gender,
+            gender: formData.gender || 'Male',
             phone: formData.phone,
           },
-          reason: formData.symptoms,
-          symptoms: formData.symptoms,
-          notes: formData.notes,
+          reason: '',
+          symptoms: '',
+          notes: '',
         };
 
         const response = await api.post('/appointments/book-patient', appointmentData);
@@ -436,8 +396,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const resetForm = () => {
     setFormData(prev => ({
       ...prev,
-      firstName: '',
-      lastName: '',
+      fullName: '',
       age: '',
       phone: '',
       symptoms: '',
@@ -492,8 +451,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
           <div className="mt-8 grid grid-cols-2 md:grid-cols-3 gap-3 w-full max-w-2xl text-sm">
              {[
-               { key: 'firstName', label: 'First Name' },
-               { key: 'lastName', label: 'Last Name' },
+               { key: 'fullName', label: 'Full Name' },
                { key: 'age', label: 'Age / Dob' },
                { key: 'phone', label: 'Mobile' },
                { key: 'gender', label: 'Gender' },
@@ -537,16 +495,16 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           </button>
         </div>
 
-        {/* Row 1: Patient ID, Designation, Name, Age, Mobile */}
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
+        {/* Fields Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 md:grid-cols-9 gap-4">
           <div className="flex flex-col">
             <label className="text-xs text-gray-400 mb-1">Patient ID</label>
-            <span className="text-xl font-bold text-gray-800 dark:text-gray-100">{formData.patientId}</span>
+            <span className="text-xl font-bold text-gray-800 dark:text-gray-100 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-200 dark:border-gray-600 block text-center">{formData.patientId}</span>
           </div>
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
-              <span className="text-red-500 mr-1">*</span> Designation
+              Designation
             </label>
             <div className="relative">
               <select
@@ -554,7 +512,6 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
                 value={formData.designation}
                 onChange={handleChange}
                 className="w-full border border-blue-400 p-2 rounded text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-                required
               >
                 <option value="MR.">MR.</option>
                 <option value="MS.">MS.</option>
@@ -567,36 +524,52 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
             </div>
           </div>
 
-          <div className="flex flex-col md:col-span-1">
+          <div className="flex flex-col sm:col-span-2 md:col-span-2">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
-              <span className="text-red-500 mr-1">*</span> First Name
+              <span className="text-red-500 mr-1">*</span> Gender
+            </label>
+            <div className="flex items-center space-x-4 h-[38px]">
+              {['Male', 'Female', 'Other'].map(option => (
+                <label key={option} className="flex items-center cursor-pointer">
+                  <div className="relative flex items-center">
+                    <input
+                      type="radio"
+                      name="gender"
+                      value={option}
+                      checked={formData.gender === option}
+                      onChange={handleChange}
+                      className="sr-only"
+                    />
+                    <div className={`w-5 h-5 rounded-full border ${formData.gender === option ? 'border-blue-500 bg-blue-50' : 'border-gray-300'} flex items-center justify-center transition-all`}>
+                      {formData.gender === option && <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />}
+                    </div>
+                  </div>
+                  <span className={`ml-2 text-sm ${formData.gender === option ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-500'}`}>
+                    {option}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:col-span-2 md:col-span-2">
+            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
+              <span className="text-red-500 mr-1">*</span> Full Name
             </label>
             <input
               type="text"
-              name="firstName"
-              value={formData.firstName}
+              name="fullName"
+              value={formData.fullName}
               onChange={handleChange}
-              placeholder="Enter first name"
+              placeholder="Enter full name"
               className="w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
               required
             />
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
-            <input
-              type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              placeholder="Enter last name"
-              className="w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-            />
-          </div>
-
-          <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
-              <span className="text-red-500 mr-1">*</span> Age
+              Age
             </label>
             <input
               type="number"
@@ -605,13 +578,12 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
               onChange={handleChange}
               placeholder="Enter age"
               className="w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-              required
             />
           </div>
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
-              <span className="text-red-500 mr-1">*</span> Type
+              Type
             </label>
             <div className="relative">
               <select
@@ -619,7 +591,6 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
                 value={formData.ageType}
                 onChange={handleChange}
                 className="w-full border border-gray-300 p-2 rounded text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-                required
               >
                 <option value="Year">Year</option>
                 <option value="Month">Month</option>
@@ -631,7 +602,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
-              <span className="text-red-500 mr-1">*</span> Mobile Number
+              Mobile Number
             </label>
             <input
               type="tel"
@@ -643,7 +614,6 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
               }}
               placeholder="10 digit mobile"
               className="w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
-              required
             />
             {isCheckingPhone && <div className="text-[10px] text-blue-500 mt-1 animate-pulse font-bold">Checking...</div>}
           </div>
@@ -652,71 +622,43 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         {/* Existing Patients Match Alert */}
         {existingPatients.length > 0 && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-             <div className="flex items-start gap-3">
-                <div className="p-2 bg-amber-100 dark:bg-amber-800/40 rounded-full">
-                   <CalendarIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-800/40 rounded-full">
+                <CalendarIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-black text-amber-900 dark:text-amber-100 uppercase tracking-tight">Existing Records Found</h4>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">Choose an existing patient or register a new one for this number.</p>
+                
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {existingPatients.map(p => (
+                    <button
+                      key={p._id}
+                      type="button"
+                      onClick={() => handleUseExistingPatient(p)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 transition-all"
+                    >
+                      <div className="flex flex-col items-start">
+                        <span className="text-xs font-bold">{p.fullName || `${p.firstName} ${p.lastName}`}</span>
+                        <span className="text-[10px] text-gray-500">ID: {p.patientId}</span>
+                      </div>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleRegisterNewPatient}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold"
+                  >
+                    Add New Patient
+                  </button>
                 </div>
-                <div className="flex-1">
-                   <h4 className="text-sm font-black text-amber-900 dark:text-amber-100 uppercase tracking-tight">Existing Records Found</h4>
-                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">Choose an existing patient or register a new one for this number.</p>
-                   
-                   <div className="mt-3 flex flex-wrap gap-2">
-                      {existingPatients.map(p => (
-                        <button
-                          key={p._id}
-                          type="button"
-                          onClick={() => handleUseExistingPatient(p)}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 transition-all"
-                        >
-                           <div className="flex flex-col items-start">
-                              <span className="text-xs font-bold">{p.fullName || `${p.firstName} ${p.lastName}`}</span>
-                              <span className="text-[10px] text-gray-500">ID: {p.patientId}</span>
-                           </div>
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={handleRegisterNewPatient}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold"
-                      >
-                         Add New Patient
-                      </button>
-                   </div>
-                </div>
-             </div>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Row 2: Gender, Dept, Doctor, Date */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
-          <div>
-            <label className="text-xs text-gray-700 dark:text-gray-300 mb-2 flex items-center font-semibold italic">
-              <span className="text-red-500 mr-1">*</span> Gender
-            </label>
-            <div className="flex items-center space-x-4">
-              {['Male', 'Female', 'Other'].map(option => (
-                <label key={option} className="flex items-center cursor-not-allowed">
-                  <div className="relative flex items-center">
-                    <input
-                      type="radio"
-                      name="gender"
-                      value={option}
-                      checked={formData.gender === option}
-                      readOnly
-                      className="sr-only"
-                    />
-                    <div className={`w-5 h-5 rounded-full border ${formData.gender === option ? 'border-blue-500 bg-blue-50' : 'border-gray-300'} flex items-center justify-center transition-all`}>
-                      {formData.gender === option && <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />}
-                    </div>
-                  </div>
-                  <span className={`ml-2 text-sm ${formData.gender === option ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-400'}`}>
-                    {option}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-
+        {/* Department, Doctor, Date Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {doctors && doctors.length === 1 ? (
             <div className="flex flex-col">
               <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-semibold">Department</label>
@@ -732,7 +674,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
                   name="department"
                   value={formData.department}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 p-2 rounded text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8 bg-white dark:bg-gray-700"
+                  className="w-full border border-gray-300 p-2 rounded text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
                 >
                   <option value="">All Departments</option>
                   {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
@@ -754,7 +696,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           ) : (
             <div className="flex flex-col">
               <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
-                <span className="text-red-500 mr-1">*</span> Doctor
+                Doctor
               </label>
               <div className="flex space-x-2">
                 <div className="relative flex-1">
@@ -762,8 +704,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
                     name="doctor"
                     value={formData.doctor}
                     onChange={handleChange}
-                    required
-                    className="w-full border border-gray-300 p-2 rounded text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8 bg-white dark:bg-gray-700"
+                    className="w-full border border-gray-300 p-2 rounded text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 pr-8 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
                   >
                     <option value="">Select Doctor</option>
                     {doctors.filter(d => !formData.department || d.specialization === formData.department).map(doc => (
@@ -791,7 +732,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
           <div className="flex flex-col">
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
-              <span className="text-red-500 mr-1">*</span> {bookingMode === 'WALK_IN' ? 'Visit Date' : 'Date'}
+              {bookingMode === 'WALK_IN' ? 'Visit Date' : 'Date'}
             </label>
             <div className="relative">
               <input 
@@ -799,137 +740,33 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
                 name="appointmentDate" 
                 value={formData.appointmentDate} 
                 onChange={handleChange} 
-                required 
-                readOnly={false}
                 min={new Date().toISOString().split('T')[0]} 
-                className={`w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 pl-8 bg-white dark:bg-gray-700`} 
+                className="w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 pl-8 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100" 
               />
               <CalendarIcon className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5 pointer-events-none" />
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col">
-          <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-semibold">
-            Symptoms / Reason for Visit <span className="text-gray-400 font-normal italic">(Optional)</span>
-          </label>
-          <textarea
-            name="symptoms"
-            value={formData.symptoms}
-            onChange={handleChange}
-            placeholder="E.g., Severe headache and fever for 2 days. Known allergy to penicillin."
-            rows="2"
-            className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 resize-none"
-          ></textarea>
-        </div>
-
-        {/* Available Slots / Billing Section */}
-        <div className="pt-2">
-          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-2 block">Available Slots</label>
-          <div className="min-h-[60px]">
-            {isFetchingSlots ? (
-              <div className="flex items-center gap-2 text-xs text-gray-500 py-3"><Loader2 className="w-4 h-4 animate-spin" /> Loading slots...</div>
-            ) : formData.doctor && formData.appointmentDate ? (
-              availableSlots.length > 0 ? (
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                  {availableSlots.map(slot => {
-                    const slotTime = typeof slot === 'object' ? slot.time : slot;
-                    const isBooked = typeof slot === 'object' ? slot.isBooked : false;
-                    const isPast = typeof slot === 'object' ? slot.isPast : false;
-                    
-                    return (
-                      <button 
-                        key={slotTime} 
-                        type="button" 
-                        disabled={isBooked || isPast}
-                        onClick={() => setFormData(prev => ({ ...prev, appointmentTime: slotTime }))}
-                        className={`py-1.5 px-1 rounded border text-[11px] font-medium transition-all ${
-                          formData.appointmentTime === slotTime 
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                            : isPast || isBooked
-                              ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
-                              : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-blue-400 hover:text-blue-600'
-                        }`}
-                      >
-                        {slotTime}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-sm text-orange-500 py-2 font-medium">{slotError || 'No slots available for this selection'}</div>
-              )
-            ) : (
-              <div className="text-sm text-gray-400 italic py-2">Select doctor and date to view availability</div>
-            )}
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-gray-100 dark:border-gray-700 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="flex flex-col">
-             <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Billing Status</label>
-             <div className="flex gap-2">
-                {['Pending', 'Paid'].map(status => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => setBillingData(prev => ({ ...prev, status }))}
-                    className={`flex-1 py-2 px-4 rounded-lg text-xs font-bold border transition-all ${
-                      billingData.status === status 
-                        ? 'bg-blue-50 border-blue-200 text-blue-600' 
-                        : 'bg-white border-gray-200 text-gray-500'
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-             </div>
-          </div>
-
-          {billingData.status === 'Paid' && (
+        {/* WhatsApp & Register button row */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+            <input
+              type="checkbox"
+              checked={sendWhatsApp}
+              onChange={(e) => setSendWhatsApp(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
             <div className="flex flex-col">
-              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Payment Mode</label>
-              <div className="flex gap-2">
-                 {['Cash', 'UPI', 'Card'].map(mode => (
-                   <button
-                     key={mode}
-                     type="button"
-                     onClick={() => setBillingData(prev => ({ ...prev, paymentMode: mode }))}
-                     className={`flex-1 py-2 px-2 rounded-lg text-[10px] font-bold border transition-all ${
-                       billingData.paymentMode === mode 
-                         ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
-                         : 'bg-white border-gray-200 text-gray-500'
-                     }`}
-                   >
-                     {mode}
-                   </button>
-                 ))}
-              </div>
+              <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Send WhatsApp Message</span>
+              <span className="text-[10px] text-gray-400">Confirmation will be sent to {formData.phone || 'patient'}</span>
             </div>
-          )}
+          </label>
 
-          <div className="flex flex-col justify-end">
-             <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={sendWhatsApp}
-                  onChange={(e) => setSendWhatsApp(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Send WhatsApp Message</span>
-                  <span className="text-[10px] text-gray-400">Confirmation will be sent to {formData.phone || 'patient'}</span>
-                </div>
-             </label>
-          </div>
-        </div>
-
-        {/* Submit */}
-        <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-700">
           <button
             type="submit"
-            disabled={isLoading || !formData.appointmentTime}
-            className="px-8 py-2.5 text-white rounded-lg font-bold shadow-lg transition-all active:scale-95 flex items-center disabled:opacity-50 disabled:shadow-none bg-blue-600 hover:bg-blue-700 shadow-blue-500/30"
+            disabled={isLoading}
+            className="px-10 py-3 text-white rounded-xl font-extrabold shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center disabled:opacity-50 disabled:shadow-none bg-blue-600 hover:bg-blue-700 shadow-blue-500/30"
           >
             {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Register Patient

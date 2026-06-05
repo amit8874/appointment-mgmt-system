@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, FileText, IndianRupee, Clock, Users, MapPin, Hash } from 'lucide-react';
+import { Building2, FileText, IndianRupee, Users, MapPin, Hash } from 'lucide-react';
 
 const ClinicInfoTab = ({ organization, onUpdate, loading }) => {
   const [formData, setFormData] = React.useState({
@@ -170,35 +170,6 @@ const ClinicInfoTab = ({ organization, onUpdate, loading }) => {
               />
             </div>
           </div>
-        </div>
-
-        <div className="p-8 border-t border-slate-100 bg-slate-50/30">
-            <h4 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <Clock size={16} className="text-indigo-600" />
-                Working Hours
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Start Time</label>
-                    <input 
-                        type="time" 
-                        name="workingHours.start"
-                        value={formData.workingHours.start}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 bg-white border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium text-slate-700"
-                    />
-                </div>
-                <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Time</label>
-                    <input 
-                        type="time" 
-                        name="workingHours.end"
-                        value={formData.workingHours.end}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 bg-white border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium text-slate-700"
-                    />
-                </div>
-            </div>
         </div>
 
         <div className="p-8 border-t border-slate-100">

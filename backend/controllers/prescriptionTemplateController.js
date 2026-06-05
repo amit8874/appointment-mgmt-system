@@ -191,6 +191,9 @@ export const generatePdf = async (req, res) => {
     if (templateId === 'system_default') {
       console.log("[generatePdf] Explicitly requested system default. Skipping custom templates.");
       // template remains null, so it falls back to system layout
+    } else if (templateId === 'default_v2') {
+      console.log("[generatePdf] Explicitly requested default template V2.");
+      template = { _id: 'default_v2', templateName: 'Oviaan Default Template 2' };
     } else if (templateId === 'global_a4') {
       console.log("[generatePdf] Explicitly requested global A4 template.");
       template = { headerType: 'a4', layoutType: 'a4' };

@@ -1,28 +1,22 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Activity,
-  Clock,
-  User,
   Stethoscope,
-  ChevronRight,
   Search,
   Calendar,
   RefreshCw,
   CheckCircle,
   XCircle,
-  Clock as ClockIcon,
   Timer,
-  Flag,
   CalendarDays,
-  AlertCircle,
   X,
   Loader2,
   MessageSquare,
   Sparkles,
   Zap,
-  FileText
+  FileText,
+  MoreVertical
 } from 'lucide-react';
-import { format, isSameDay, parse, addMinutes } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { getSocketUrl } from '../../../services/api';
 import api, { whatsappApi } from '../../../services/api';
 import { io } from 'socket.io-client';
@@ -37,6 +31,15 @@ const TrackAppointmentView = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeFilter, setActiveFilter] = useState('all');
+  const [openActionId, setOpenActionId] = useState(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setOpenActionId(null);
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   // Socket state
   const socketRef = useRef(null);
@@ -297,7 +300,7 @@ const TrackAppointmentView = () => {
   };
 
   const getStatusInfo = (app) => {
-    if (app.status === 'completed') return { label: 'CONFIRMED', color: 'green', bg: 'bg-green-100 text-green-700' };
+    if (app.status === 'completed' || app.status === 'arrived') return { label: 'Arrived', color: 'green', bg: 'bg-green-100 text-green-700' };
     if (app.status === 'missed') return { label: 'Missed', color: 'red', bg: 'bg-red-100 text-red-700' };
     if (app.status === 'in-progress' || app.status === 'confirmed') return { label: 'CONFIRMED', color: 'green', bg: 'bg-green-100 text-green-700' };
     if (app.status === 'cancelled') return { label: 'Cancelled', color: 'slate', bg: 'bg-slate-100 text-slate-700' };
@@ -404,213 +407,194 @@ const TrackAppointmentView = () => {
           </div>
         </div>
 
-        {/* Compact Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          <StatBox label="Total Today" value={appointments.length} icon={<Calendar className="text-blue-500" />} />
-          <StatBox label="Upcoming" value={appointments.filter(a => getStatusInfo(a).label === 'Upcoming').length} icon={<ClockIcon className="text-yellow-500" />} />
-          <StatBox label="In Progress" value={appointments.filter(a => a.status === 'in-progress').length} icon={<Activity className="text-blue-500" />} />
-          <StatBox label="Completed" value={appointments.filter(a => a.status === 'completed').length} icon={<CheckCircle className="text-green-500" />} />
-        </div>
 
-        {/* Filter Tabs - Horizontal scroll on mobile */}
-        <div className="flex items-center gap-1 bg-white p-1 rounded-2xl w-full overflow-x-auto no-scrollbar border border-gray-200 shadow-sm">
-          {[
-            { id: 'all', label: 'All', count: appointments.length },
-            { id: 'confirmed', label: 'Confirmed', count: appointments.filter(a => a.status === 'completed').length },
-            { id: 'cancelled', label: 'Cancelled', count: appointments.filter(a => a.status === 'cancelled').length },
-            { id: 'missed', label: 'Not Arrived', count: appointments.filter(a => getStatusInfo(a).label === 'Missed').length },
-            { id: 'rescheduled', label: 'Rescheduled', count: appointments.filter(a => a.isRescheduled).length }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveFilter(tab.id)}
-              className={`px-4 py-2 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${activeFilter === tab.id
-                  ? 'bg-blue-600 text-white shadow-md ring-1 ring-blue-700/10'
-                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
-                }`}
-            >
-              {tab.label}
-              <span className={`px-1.5 py-0.5 rounded-md text-[9px] ${activeFilter === tab.id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'
-                }`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
 
-        {/* Data Table */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  <th className="px-6 py-4">Time</th>
-                  <th className="px-6 py-4">Patient</th>
-                  <th className="px-6 py-4 text-center">Age</th>
-                  <th className="px-6 py-4">Attending Doctor</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right pr-10">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center text-gray-400 font-medium">
-                      <div className="flex items-center justify-center gap-3">
-                        <RefreshCw className="animate-spin" size={20} />
-                        Syncing live schedule...
-                      </div>
-                    </td>
-                  </tr>
-                ) : processedAppointments.length > 0 ? (
-                  processedAppointments.map((app) => {
-                    const status = getStatusInfo(app);
-                    const isNow = isCurrentApp(app);
-                    return (
-                      <tr key={app._id} className={`hover:bg-gray-50 transition-all group relative ${isNow ? 'bg-blue-50/30' : ''} ${app.status === 'cancelled' ? 'opacity-50 grayscale select-none' : ''}`}>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-bold ${isNow ? 'text-blue-700 scale-105 inline-block transition-transform' : 'text-gray-900'}`}>
-                              {app.time?.split('-')[0].trim() || '--:--'}
-                            </span>
-                            {isNow && (
-                              <div className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase tracking-tighter animate-pulse shadow-sm">
-                                NOW
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className={`flex items-center gap-3 ${isNow ? 'translate-x-1 transition-transform' : ''}`}>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isNow ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 text-blue-600'}`}>
-                              {app.patientName?.charAt(0)}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className={`text-sm font-semibold ${isNow ? 'text-blue-800' : 'text-gray-800'}`}>{app.patientName}</p>
-                                <button
-                                  onClick={() => handleFetchAiSummary(app.patientId, app.patientName, app.symptoms || app.reason)}
-                                  className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 p-1 rounded-full transition-all"
-                                  title="AI Medical Summary"
-                                >
-                                  <Sparkles size={14} />
-                                </button>
-                              </div>
-                              {app.patientPhone && <p className="text-[10px] text-gray-400 font-medium">{app.patientPhone}</p>}
-                            </div>
-                          </div>
-                        </td>
-                        <td className={`px-6 py-4 text-center text-sm ${isNow ? 'text-blue-700 font-bold' : 'text-gray-600'}`}>
-                          {app.patientAge || '—'}
-                        </td>
-                        <td className={`px-6 py-4 text-sm ${isNow ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>
-                          <div className="flex items-center gap-2 text-nowrap">
-                            <Stethoscope size={14} className={isNow ? 'text-blue-600' : 'text-gray-400'} />
-                            <span>{app.doctorName}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight ${status.bg} text-nowrap`}>
-                            {status.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right pr-10">
-                          <div className="flex justify-end items-center gap-1.5 min-h-[36px]">
+        {/* Appointments Grid */}
+        {loading ? (
+          <div className="flex items-center justify-center py-20 bg-white rounded-2xl border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3 text-gray-400 font-medium">
+              <RefreshCw className="animate-spin text-blue-500" size={24} />
+              <span>Syncing live schedule...</span>
+            </div>
+          </div>
+        ) : processedAppointments.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {processedAppointments.map((app) => {
+              const status = getStatusInfo(app);
+              const isNow = isCurrentApp(app);
+              return (
+                <div key={app._id} className={`bg-white rounded-2xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all relative flex flex-col justify-between min-h-[170px] ${isNow ? 'bg-blue-50/20 border-blue-200 ring-1 ring-blue-100' : ''} ${app.status === 'cancelled' ? 'opacity-60 grayscale select-none' : ''}`}>
+                  {isNow && <div className="absolute inset-y-0 left-0 w-1 bg-blue-600 rounded-l-2xl shadow-[0_0_10px_rgba(37,99,235,0.4)]" />}
+                  
+                  {/* Card Header (Time & Actions Dropdown) */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-xl text-slate-700 text-xs font-bold border border-slate-100">
+                      <span>{app.time?.split('-')[0].trim() || '--:--'}</span>
+                    </div>
+                    
+                    {/* Dropdown Button */}
+                    {app.status !== 'cancelled' && (
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenActionId(openActionId === app._id ? null : app._id);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                          title="Actions"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+                        
+                        {openActionId === app._id && (
+                          <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-100 rounded-xl shadow-lg py-1.5 z-20">
                             {processingId === app._id.toString() ? (
-                              <div className="p-2 text-blue-500 animate-spin mr-2">
+                              <div className="p-3 text-blue-500 flex items-center justify-center animate-spin">
                                 <Loader2 size={18} />
                               </div>
                             ) : (
-                              <>
-                                {/* One-Click Arrive / Complete - Hidden for future dates */}
-                                {app.status !== 'completed' && app.status !== 'cancelled' && !isFutureDate(app.date) ? (
-                                  <button
-                                    onClick={() => handleStatusUpdate(app._id, 'completed')}
-                                    className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                                    title="Mark Arrived"
-                                  >
-                                    <CheckCircle size={18} />
-                                  </button>
-                                ) : null}
 
-                                {/* Reschedule */}
+
+                              <div className="flex flex-col">
                                 {app.status !== 'completed' && app.status !== 'cancelled' && (
                                   <button
-                                    onClick={() => setRescheduleData({ id: app._id, doctorId: app.doctorId, date: app.date, time: app.time })}
-                                    className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
-                                    title="Reschedule"
+                                    onClick={() => {
+                                      setRescheduleData({ id: app._id, doctorId: app.doctorId, date: app.date, time: app.time });
+                                      setOpenActionId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 transition-colors"
                                   >
-                                    <CalendarDays size={18} />
+                                    <CalendarDays size={14} />
+                                    <span>Reschedule</span>
                                   </button>
                                 )}
 
                                 {/* Cancel */}
                                 {app.status !== 'completed' && app.status !== 'cancelled' && (
                                   <button
-                                    onClick={() => setCancelData({ id: app._id, patientName: app.patientName })}
-                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                    title="Cancel Appointment"
+                                    onClick={() => {
+                                      setCancelData({ id: app._id, patientName: app.patientName });
+                                      setOpenActionId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-rose-50 flex items-center gap-2 transition-colors"
                                   >
-                                    <XCircle size={18} />
+                                    <XCircle size={14} />
+                                    <span>Cancel Appointment</span>
                                   </button>
                                 )}
 
-                                {/* Show Final Check for completed */}
+                                {/* Visit Notes for completed */}
                                 {app.status === 'completed' && (
-                                  <>
-                                    <div className="text-green-500 pr-2 cursor-help" title="Completed">
-                                      <CheckCircle size={20} />
-                                    </div>
-                                    <button
-                                      onClick={() => setVisitNotesData({ id: app._id || app.id, notes: app.visitNotes || '', doctorName: app.doctorName, patientName: app.patientName })}
-                                      className={`p-2 rounded-lg transition-colors border-l border-gray-100 ml-1 pl-3 flex items-center justify-center ${app.visitNotes
-                                          ? 'text-indigo-600 hover:bg-indigo-50'
-                                          : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
-                                        }`}
-                                      title={app.visitNotes ? "Edit Visit Notes" : "Add Visit Notes"}
-                                    >
-                                      <FileText size={18} className={app.visitNotes ? "fill-indigo-100" : ""} />
-                                    </button>
-                                  </>
-                                )}
-
-                                {/* Show Final X for cancelled */}
-                                {app.status === 'cancelled' && (
-                                  <div className="text-slate-400 pr-2">
-                                    <XCircle size={20} />
-                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setVisitNotesData({ id: app._id || app.id, notes: app.visitNotes || '', doctorName: app.doctorName, patientName: app.patientName });
+                                      setOpenActionId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 transition-colors"
+                                  >
+                                    <FileText size={14} />
+                                    <span>{app.visitNotes ? "Edit Visit Notes" : "Add Visit Notes"}</span>
+                                  </button>
                                 )}
 
                                 {/* WhatsApp Notify - Only for Upcoming */}
                                 {app.patientPhone && app.status !== 'completed' && app.status !== 'cancelled' && app.status !== 'confirmed' && (
                                   <button
-                                    onClick={() => handleWhatsAppNotify(app)}
-                                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors border-l border-gray-100 ml-1 pl-3"
-                                    title="Send prescription to patient on their WhatsApp"
+                                    onClick={() => {
+                                      handleWhatsAppNotify(app);
+                                      setOpenActionId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-green-600 hover:bg-green-50 flex items-center gap-2 transition-colors border-t border-gray-50"
                                   >
-                                    <MessageSquare size={18} />
+                                    <MessageSquare size={14} />
+                                    <span>Send Prescription</span>
                                   </button>
                                 )}
-                              </>
+                              </div>
                             )}
                           </div>
-                        </td>
-                        {isNow && <div className="absolute inset-y-0 left-0 w-1 bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]" />}
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-20 text-center text-gray-400 font-medium italic space-y-4">
-                      <Calendar size={40} className="mx-auto opacity-20 mb-3" />
-                      <p>No appointments found for today.</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Card Content (Patient Info, Doctor, Age) */}
+                  <div className="flex-1 flex flex-col gap-2">
+                    <div className="flex items-start gap-2.5">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${isNow ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 text-blue-600'}`}>
+                        {app.patientName?.charAt(0)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className={`text-sm font-bold truncate ${isNow ? 'text-blue-800' : 'text-gray-800'}`}>{app.patientName}</span>
+                          <button
+                            onClick={() => handleFetchAiSummary(app.patientId, app.patientName, app.symptoms || app.reason)}
+                            className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 p-0.5 rounded-full transition-all flex-shrink-0"
+                            title="AI Medical Summary"
+                          >
+                            <Sparkles size={12} />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="text-[10px] text-gray-400 font-bold uppercase">Age: {app.patientAge || '—'}</span>
+                          {app.patientPhone && <span className="text-[10px] text-gray-300">•</span>}
+                          {app.patientPhone && <span className="text-[10px] text-gray-400 font-medium">{app.patientPhone}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-600 font-semibold bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100/55 self-start">
+                      <Stethoscope size={12} className={isNow ? 'text-blue-600' : 'text-gray-400'} />
+                      <span className="truncate max-w-[120px]">{app.doctorName}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Card Footer (Status) */}
+                  <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-3">
+                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${status.bg} text-nowrap`}>
+                      {status.label}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {app.status !== 'completed' && app.status !== 'cancelled' && !isFutureDate(app.date) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStatusUpdate(app._id, 'completed');
+                          }}
+                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-[9px] font-black uppercase tracking-wider transition-colors shadow-sm shadow-blue-100"
+                        >
+                          Mark Arrived
+                        </button>
+                      )}
+                      {app.status === 'completed' && app.visitNotes && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setVisitNotesData({ id: app._id || app.id, notes: app.visitNotes || '', doctorName: app.doctorName, patientName: app.patientName });
+                          }}
+                          className="p-1 hover:bg-indigo-50 text-indigo-600 rounded transition-colors flex items-center justify-center"
+                          title="View/Edit Visit Notes"
+                        >
+                          <FileText size={12} className="fill-indigo-100" />
+                        </button>
+                      )}
+                      {isNow && (
+                        <div className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase tracking-tighter animate-pulse shadow-sm">
+                          NOW
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm py-20 text-center text-gray-400 font-medium italic">
+            <Calendar size={48} className="mx-auto opacity-25 mb-4 text-gray-400" />
+            <p>No appointments found for today.</p>
+          </div>
+        )}
       </div>
 
       {/* Reschedule Modal */}
@@ -841,16 +825,6 @@ const TrackAppointmentView = () => {
   );
 };
 
-const StatBox = ({ label, value, icon }) => (
-  <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between transition-all hover:shadow-md hover:border-blue-100 group">
-    <div className="min-w-0">
-      <p className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest truncate">{label}</p>
-      <p className="text-lg md:text-2xl font-black text-gray-900 mt-0.5">{value}</p>
-    </div>
-    <div className="p-2 md:p-3 bg-blue-50/50 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all flex-shrink-0">
-      {React.cloneElement(icon, { size: 16, className: "md:w-5 md:h-5" })}
-    </div>
-  </div>
-);
+
 
 export default TrackAppointmentView;

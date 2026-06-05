@@ -2,6 +2,7 @@ import Organization from '../models/Organization.js';
 import mongoose from 'mongoose';
 import sharp from 'sharp';
 import { uploadToS3 } from '../utils/uploadToS3.js';
+import { resolveS3UrlIfNeeded } from '../services/s3Service.js';
 
 const extractObjectId = (value) => {
   if (!value) return null;
@@ -30,6 +31,35 @@ export const getSettings = async (req, res) => {
     const org = await Organization.findById(organizationId).select('prescriptionTemplate');
     if (!org) {
       return res.status(404).json({ success: false, message: "Organization not found" });
+    }
+
+    if (org.prescriptionTemplate && org.prescriptionTemplate.templateUrl) {
+      const freshUrl = await resolveS3UrlIfNeeded(org.prescriptionTemplate.templateUrl);
+      if (freshUrl && freshUrl !== org.prescriptionTemplate.templateUrl) {
+        org.prescriptionTemplate.templateUrl = freshUrl;
+
+        // For backwards compatibility: parse s3Key/pathname as templatePublicId if missing
+        if (!org.prescriptionTemplate.templatePublicId) {
+          try {
+            const urlObj = new URL(freshUrl);
+            let pathname = urlObj.pathname;
+            if (pathname.startsWith('/')) {
+              pathname = pathname.substring(1);
+            }
+            if (pathname) {
+              org.prescriptionTemplate.templatePublicId = pathname.split('?')[0];
+            }
+          } catch (e) {
+            // Ignore parsing errors
+          }
+        }
+
+        // Cache the fresh URL back to DB to minimize signing overhead next time
+        await Organization.updateOne(
+          { _id: organizationId },
+          { $set: { prescriptionTemplate: org.prescriptionTemplate } }
+        );
+      }
     }
 
     res.status(200).json({
@@ -131,11 +161,13 @@ export const uploadTemplate = async (req, res) => {
     });
 
     const templateUrl = s3Result.signedUrl || s3Result.fileUrl;
+    const templatePublicId = s3Result.s3Key || '';
 
     const org = await Organization.findById(organizationId);
     if (!org.prescriptionTemplate) org.prescriptionTemplate = {};
     
     org.prescriptionTemplate.templateUrl = templateUrl;
+    org.prescriptionTemplate.templatePublicId = templatePublicId;
     org.prescriptionTemplate.updatedAt = Date.now();
 
     await Organization.updateOne(

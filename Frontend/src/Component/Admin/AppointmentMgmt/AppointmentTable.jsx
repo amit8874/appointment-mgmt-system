@@ -33,7 +33,7 @@ import { toast } from "react-toastify";
 import { useAuth } from "../../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
-export default function AppointmentTable({ rebookData }) {
+export default function AppointmentTable({ rebookData, activeTab }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
@@ -46,7 +46,9 @@ export default function AppointmentTable({ rebookData }) {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
-  const [viewMode, setViewMode] = useState("list"); // 'list' or 'calendar'
+  const [viewMode, setViewMode] = useState(() => {
+    return activeTab === "Calendar View" ? "calendar" : "list";
+  }); // 'list' or 'calendar'
   const [isBulkWhatsappModalOpen, setBulkWhatsappModalOpen] = useState(false);
 
   // Handle re-booking from navigation state
@@ -56,6 +58,15 @@ export default function AppointmentTable({ rebookData }) {
       // The AppointmentManagement component will handle the actual modal opening
     }
   }, [rebookData]);
+
+  // Sync viewMode with activeTab
+  useEffect(() => {
+    if (activeTab === "Calendar View") {
+      setViewMode("calendar");
+    } else if (activeTab === "Appointment Mgmt") {
+      setViewMode("list");
+    }
+  }, [activeTab]);
 
 
 
@@ -297,14 +308,14 @@ export default function AppointmentTable({ rebookData }) {
   }
 
   return (
-    <div className="bg-gray-100 min-h-screen p-0 md:p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="bg-gray-100 min-h-screen p-2 md:p-3">
+      <div className="w-full mx-auto">
 
         {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="text-center md:text-left">
-            <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Appointments</h1>
-            <nav className="flex items-center justify-center md:justify-start gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+          <div className="text-center sm:text-left flex items-baseline gap-2 flex-wrap">
+            <h1 className="text-base md:text-lg font-bold text-slate-800 tracking-tight">Appointments</h1>
+            <nav className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               <span>Dashboard</span>
               <span className="text-slate-200">/</span>
               <span className="text-indigo-600">Appointments</span>
@@ -350,7 +361,7 @@ export default function AppointmentTable({ rebookData }) {
         </div>
 
         {viewMode === "calendar" ? (
-          <div className="mt-6">
+          <div className="mt-2">
             <AppointmentManagement isEmbedded={true} rebookData={rebookData} />
           </div>
         ) : (

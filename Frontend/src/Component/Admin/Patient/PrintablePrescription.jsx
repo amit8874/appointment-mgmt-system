@@ -46,6 +46,7 @@ const PrintablePrescription = ({
   const bodyImageUrl = getImageUrl(bodyImage);
   const footerImageUrl = getImageUrl(footerImage);
 
+  const isDefaultV2 = template?._id === 'default_v2';
   const isA4 = template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4';
 
   const margins = printableArea || { top: 55, left: 12, right: 12, bottom: 30 };
@@ -91,7 +92,24 @@ const PrintablePrescription = ({
         {/* PROFESSIONAL HEADER (Only if NOT A4) */}
         {!isA4 && (
           <div className="w-full relative p-8 z-10">
-            {headerType === 'custom' && headerImageUrl ? (
+            {isDefaultV2 ? (
+              <div className="flex flex-col items-center text-center mb-4 w-full">
+                {clinicLogo && (
+                  <img 
+                    src={getImageUrl(clinicLogo)} 
+                    alt="Clinic Logo" 
+                    className="h-20 w-20 object-contain mb-2" 
+                  />
+                )}
+                <h2 className="text-2xl font-black text-emerald-700 leading-tight">
+                  {clinicName || "Clinic Name"}
+                </h2>
+                <div className="text-[11px] font-bold text-slate-500 mt-1 space-y-0.5">
+                  {clinicAddress && <p className="max-w-[600px] leading-tight">{clinicAddress}</p>}
+                  {clinicContact && <p>Contact: {clinicContact}</p>}
+                </div>
+              </div>
+            ) : headerType === 'custom' && headerImageUrl ? (
               <div className="min-h-[120px]">
                 <img src={headerImageUrl} alt="Header" className="w-full h-auto object-contain" />
               </div>
@@ -144,27 +162,52 @@ const PrintablePrescription = ({
           className={`bg-slate-100 flex items-center gap-6 text-[11px] border border-slate-200 print:bg-slate-100 ${isA4 ? 'p-3 rounded-lg mb-6 shadow-sm' : 'px-8 py-3 border-b'}`} 
           style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
         >
-          <span className="font-black text-slate-900 uppercase">Patient ID: {patient?.patientId || 'N/A'}</span>
-          <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase">
-            Name: {(() => {
-              let name = patient?.fullName || `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim();
-              // Clean redundant prefixes (e.g., "MR. MR.", "Dr. Dr.")
-              const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
-              let parts = name.split(/\s+/);
-              while (parts.length > 1) {
-                const p0 = parts[0].toUpperCase().replace(/\./g, '');
-                const p1 = parts[1].toUpperCase().replace(/\./g, '');
-                if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
-                  parts.shift();
-                } else {
-                  break;
-                }
-              }
-              return parts.join(' ');
-            })()}
-          </span>
-          <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase">Age/Sex: {patient?.age || '--'}Y / {patient?.gender || '--'}</span>
-          <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase ml-auto">Date: {new Date(prescription.date).toLocaleDateString()} {prescription.time && `| ${prescription.time}`}</span>
+          {isDefaultV2 ? (
+            <>
+              <span className="font-black text-slate-900 uppercase">
+                Name: {(() => {
+                  let name = patient?.fullName || `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim();
+                  const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
+                  let parts = name.split(/\s+/);
+                  while (parts.length > 1) {
+                    const p0 = parts[0].toUpperCase().replace(/\./g, '');
+                    const p1 = parts[1].toUpperCase().replace(/\./g, '');
+                    if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
+                      parts.shift();
+                    } else {
+                      break;
+                    }
+                  }
+                  return parts.join(' ');
+                })()}
+              </span>
+              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase">Age: {patient?.age || '--'} Years</span>
+              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase ml-auto">Date: {new Date(prescription.date).toLocaleDateString()}</span>
+            </>
+          ) : (
+            <>
+              <span className="font-black text-slate-900 uppercase">Patient ID: {patient?.patientId || 'N/A'}</span>
+              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase">
+                Name: {(() => {
+                  let name = patient?.fullName || `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim();
+                  const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
+                  let parts = name.split(/\s+/);
+                  while (parts.length > 1) {
+                    const p0 = parts[0].toUpperCase().replace(/\./g, '');
+                    const p1 = parts[1].toUpperCase().replace(/\./g, '');
+                    if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
+                      parts.shift();
+                    } else {
+                      break;
+                    }
+                  }
+                  return parts.join(' ');
+                })()}
+              </span>
+              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase">Age/Sex: {patient?.age || '--'}Y / {patient?.gender || '--'}</span>
+              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase ml-auto">Date: {new Date(prescription.date).toLocaleDateString()} {prescription.time && `| ${prescription.time}`}</span>
+            </>
+          )}
         </div>
 
         {/* PREVIEW BODY */}
@@ -261,7 +304,17 @@ const PrintablePrescription = ({
         {/* PREVIEW FOOTER (Only if NOT A4) */}
         {!isA4 && (
           <div className="w-full min-h-[80px] mt-auto relative z-10">
-            {footerType === 'custom' && footerImageUrl ? (
+            {isDefaultV2 ? (
+              <div className="p-4 px-8 border-t border-slate-200 flex justify-between items-center w-full">
+                <div className="text-left text-[9px] font-black text-slate-500 uppercase tracking-wider">
+                  Dr. {prescription.doctorName}
+                </div>
+                <div className="text-center opacity-70">
+                  <p className="text-[10px] font-bold text-slate-400">Powered by Oviaan</p>
+                </div>
+                <div style={{ width: '80px' }}></div> {/* Spacer to keep powered by centered */}
+              </div>
+            ) : footerType === 'custom' && footerImageUrl ? (
               <img src={footerImageUrl} alt="Footer" className="w-full h-full object-contain" />
             ) : (
               <div className="p-4 text-center opacity-70 border-t border-slate-200">

@@ -444,13 +444,16 @@ const Admin = () => {
             isTrialExpired={trialStatus?.isTrialExpired}
             dashboardMode={dashboardMode}
             onModeSwitch={handleModeSwitch}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onDoctorAdd={doctorsHook.openDoctorForm}
+            limits={trialStatus?.limits}
+            totalDoctors={Math.max(doctorsHook.totalDoctors || 0, (doctorsHook.doctors || []).length)}
           />
         </div>
         <div className="flex flex-grow h-[calc(100vh-81px)] sm:h-[calc(100vh-89px)] overflow-hidden relative">
           <div 
             className="no-print h-full"
-            onMouseEnter={() => setIsSidebarCollapsed(false)}
-            onMouseLeave={() => setIsSidebarCollapsed(true)}
           >
             <AdminSidebar
               isSidebarOpen={isSidebarOpen}

@@ -5,7 +5,7 @@ const medicineSchema = new mongoose.Schema(
     organizationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Organization',
-      required: true,
+      required: false, // Optional for global medicines
     },
     name: { type: String, required: true, trim: true }, // medicineName
     genericName: { type: String, trim: true },        // genericName

@@ -55,26 +55,26 @@ const appointmentSchema = new mongoose.Schema({
   },
   doctorId: {
     type: String, // For now, using string since doctors are static
-    required: true,
+    required: false,
   },
   doctorName: {
     type: String,
-    required: true,
+    required: false,
   },
   specialty: {
     type: String,
-    required: true,
+    required: false,
   },
   date: {
     type: String, // Format: YYYY-MM-DD
-    required: true,
+    required: false,
   },
   appointmentDate: {
     type: String,
   },
   time: {
     type: String, // Format: HH:MM
-    required: true,
+    required: false,
   },
   appointmentTime: {
     type: String,

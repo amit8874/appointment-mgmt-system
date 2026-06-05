@@ -61,6 +61,12 @@ const GenericDropdownInput = ({ value, onChange, options, placeholder, className
           value={value}
           readOnly={options.length > 0 && !['Dose', 'Dur'].includes(placeholder)} // Allow typing in dose and duration
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.target.blur();
+              setShow(false);
+            }
+          }}
           placeholder={placeholder}
           className={`w-full bg-transparent border-none p-0 text-sm font-medium text-slate-800 dark:text-slate-200 focus:ring-0 cursor-pointer ${className}`}
         />
@@ -159,6 +165,12 @@ const FrequencyDropdownInput = ({ value, onChange, complaintName, doctorSpecialt
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setShow(true)}
         onBlur={() => setTimeout(() => setShow(false), 250)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.target.blur();
+            setShow(false);
+          }
+        }}
         placeholder="Frequency..."
         className="w-full bg-transparent border-none p-0 text-sm font-medium text-slate-800 dark:text-slate-300 focus:ring-0 cursor-pointer"
       />
@@ -254,6 +266,12 @@ const SeverityDropdownInput = ({ value, onChange, complaintName, user }) => {
         onClick={() => setShow(true)}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => setTimeout(() => setShow(false), 250)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.target.blur();
+            setShow(false);
+          }
+        }}
         placeholder="Severity..."
         className="w-full bg-transparent border-none p-0 text-sm font-medium text-slate-800 dark:text-slate-300 focus:ring-0 cursor-pointer"
       />
@@ -307,6 +325,12 @@ const DurationDropdownInput = ({ value, onChange, user }) => {
         onClick={() => setShow(true)}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => setTimeout(() => setShow(false), 250)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.target.blur();
+            setShow(false);
+          }
+        }}
         placeholder="Duration..."
         className="w-full bg-transparent border-none p-0 text-sm font-medium text-slate-800 dark:text-slate-300 focus:ring-0 cursor-pointer"
       />
@@ -348,7 +372,12 @@ const DiagnosisDurationInput = ({ value, onChange, diagnosisType, user }) => {
         value={value}
         onClick={() => setShow(true)}
         onChange={(e) => onChange(e.target.value)}
-
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.target.blur();
+            setShow(false);
+          }
+        }}
         placeholder="Duration..."
         className="w-full bg-transparent border-none p-0 text-sm font-medium text-slate-800 dark:text-slate-300 focus:ring-0 cursor-pointer"
       />
@@ -475,18 +504,23 @@ const ComplaintDropdownInput = ({ index, value, onChange, masterComplaints, onAd
       setCursor(prev => (prev < totalOptions - 1 ? prev + 1 : prev));
     } else if (e.key === 'ArrowUp') {
       setCursor(prev => (prev > 0 ? prev - 1 : prev));
-    } else if (e.key === 'Enter' && cursor >= 0) {
+    } else if (e.key === 'Enter') {
       e.preventDefault();
-      const mayaIdx = filtered.length + aiSuggestions.length;
-      if (cursor < filtered.length) {
-        handleSelect(filtered[cursor].name);
-      } else if (cursor < filtered.length + aiSuggestions.length) {
-        handleSelect(aiSuggestions[cursor - filtered.length]);
-      } else if (mayaAiResult && cursor === mayaIdx) {
-        handleSelect(mayaAiResult);
+      if (cursor >= 0) {
+        const mayaIdx = filtered.length + aiSuggestions.length;
+        if (cursor < filtered.length) {
+          handleSelect(filtered[cursor].name);
+        } else if (cursor < filtered.length + aiSuggestions.length) {
+          handleSelect(aiSuggestions[cursor - filtered.length]);
+        } else if (mayaAiResult && cursor === mayaIdx) {
+          handleSelect(mayaAiResult);
+        } else {
+          setShow(false);
+        }
       } else {
         setShow(false);
       }
+      e.target.blur();
     } else if (e.key === 'Escape') {
       setShow(false);
     }
@@ -631,6 +665,7 @@ const ComplaintDropdownInput = ({ index, value, onChange, masterComplaints, onAd
 const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }) => {
   const { user } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [doctors, setDoctors] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [masterComplaints, setMasterComplaints] = useState([]);
@@ -730,7 +765,29 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
   // 2. Initialize Form Fields
   useEffect(() => {
     if (isOpen) {
+      setIsInitialized(false);
       if (editData) {
+        // Edit Mode: check for draft first
+        const editDraftKey = `prescription_draft_edit_${editData.id}`;
+        const savedEditDraft = localStorage.getItem(editDraftKey);
+        if (savedEditDraft) {
+          try {
+            const draft = JSON.parse(savedEditDraft);
+            if (draft.vitals) setVitals(draft.vitals);
+            if (draft.complaints) setComplaints(draft.complaints);
+            if (draft.diagnosis) setDiagnosis(draft.diagnosis);
+            if (draft.medications) setMedications(draft.medications);
+            if (draft.advice !== undefined) setAdvice(draft.advice);
+            if (draft.translatedAdvice !== undefined) setTranslatedAdvice(draft.translatedAdvice);
+            if (draft.adviceLanguage) setTargetLanguage(draft.adviceLanguage);
+            if (draft.testsRequested) setTestsRequested(draft.testsRequested);
+            setIsInitialized(true);
+            return;
+          } catch (e) {
+            console.error("Error parsing edit draft:", e);
+          }
+        }
+
         // Edit Mode: Pre-populate from record
         let parsedNotes = {};
         try {
@@ -749,12 +806,33 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
         });
         setComplaints(parsedNotes.complaints || [{ name: '', frequency: 'daily', severity: 'mild', duration: '', durationUnit: 'days' }]);
         setDiagnosis(parsedNotes.diagnosis || [{ name: '', duration: '', durationUnit: 'days' }]);
-        setMedications(parsedNotes.medications || [{ name: '', dose: '', when: 'After Food', frequency: 'Daily', duration: '', instructions: '' }]);
+        setMedications(parsedNotes.medications || [{ name: '', composition: '', genericName: '', form: '', strength: '', dose: '', when: 'After Food', frequency: 'Daily', duration: '', instructions: '' }]);
         setAdvice(parsedNotes.advice || '');
         setTranslatedAdvice(parsedNotes.translatedAdvice || '');
         setTargetLanguage(parsedNotes.adviceLanguage || 'English');
         setTestsRequested(parsedNotes.testsRequested || []);
       } else {
+        // Create Mode: check for draft first
+        const draftKey = `prescription_draft_${patient?._id}`;
+        const savedDraft = localStorage.getItem(draftKey);
+        if (savedDraft) {
+          try {
+            const draft = JSON.parse(savedDraft);
+            if (draft.vitals) setVitals(draft.vitals);
+            if (draft.complaints) setComplaints(draft.complaints);
+            if (draft.diagnosis) setDiagnosis(draft.diagnosis);
+            if (draft.medications) setMedications(draft.medications);
+            if (draft.advice !== undefined) setAdvice(draft.advice);
+            if (draft.translatedAdvice !== undefined) setTranslatedAdvice(draft.translatedAdvice);
+            if (draft.adviceLanguage) setTargetLanguage(draft.adviceLanguage);
+            if (draft.testsRequested) setTestsRequested(draft.testsRequested);
+            setIsInitialized(true);
+            return;
+          } catch (e) {
+            console.error("Error parsing saved draft:", e);
+          }
+        }
+
         // Create Mode: Use patient vitals as default
         setVitals({
           height: patient?.vitals?.height || patient?.height || '',
@@ -766,14 +844,35 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
         });
         setComplaints([{ name: '', frequency: 'daily', severity: 'mild', duration: '', durationUnit: 'days' }]);
         setDiagnosis([{ name: '', duration: '', durationUnit: 'days' }]);
-        setMedications([{ name: '', dose: '', when: 'After Food', frequency: 'Daily', duration: '', instructions: '' }]);
+        setMedications([{ name: '', composition: '', genericName: '', form: '', strength: '', dose: '', when: 'After Food', frequency: 'Daily', duration: '', instructions: '' }]);
         setAdvice('');
         setTranslatedAdvice('');
         setTargetLanguage('English');
         setTestsRequested([]);
       }
+      setIsInitialized(true);
+    } else {
+      setIsInitialized(false);
     }
-  }, [isOpen, editData]);
+  }, [isOpen, editData, patient]);
+
+  // Auto-save draft to localStorage
+  useEffect(() => {
+    if (isOpen && isInitialized && patient?._id) {
+      const detailedData = {
+        vitals,
+        complaints,
+        diagnosis,
+        medications,
+        advice,
+        translatedAdvice,
+        adviceLanguage: targetLanguage,
+        testsRequested
+      };
+      const key = editData ? `prescription_draft_edit_${editData.id}` : `prescription_draft_${patient._id}`;
+      localStorage.setItem(key, JSON.stringify(detailedData));
+    }
+  }, [isOpen, isInitialized, vitals, complaints, diagnosis, medications, advice, translatedAdvice, targetLanguage, testsRequested, patient?._id, editData]);
 
   // --- Voice to Text Logic ---
   useEffect(() => {
@@ -1231,6 +1330,12 @@ setDiagnosis(newArr);
         console.error("Failed to sync vitals to patient profile:", err);
       }
       
+      // Clear draft on successful save
+      if (patient?._id) {
+        const draftKey = editData ? `prescription_draft_edit_${editData.id}` : `prescription_draft_${patient._id}`;
+        localStorage.removeItem(draftKey);
+      }
+
       if (onSaveSuccess) onSaveSuccess();
       onClose();
     } catch (error) {
@@ -1401,6 +1506,11 @@ setDiagnosis(newArr);
                        placeholder="120"
                        value={vitals.bp_sys}
                        onChange={(e) => setVitals({...vitals, bp_sys: e.target.value})}
+                       onKeyDown={(e) => {
+                         if (e.key === 'Enter') {
+                           e.target.blur();
+                         }
+                       }}
                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-lg p-2 text-base font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500/20"
                      />
                      <span className="text-slate-300">/</span>
@@ -1409,6 +1519,11 @@ setDiagnosis(newArr);
                        placeholder="80"
                        value={vitals.bp_dia}
                        onChange={(e) => setVitals({...vitals, bp_dia: e.target.value})}
+                       onKeyDown={(e) => {
+                         if (e.key === 'Enter') {
+                           e.target.blur();
+                         }
+                       }}
                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-lg p-2 text-base font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500/20"
                      />
                    </div>
@@ -1559,6 +1674,11 @@ setDiagnosis(newArr);
                             type="date"
                             value={d.date}
                             onChange={(e) => updateDiagnosis(i, 'date', e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.target.blur();
+                              }
+                            }}
                             className="w-full sm:w-auto bg-transparent border-none p-0 text-sm font-normal text-slate-700 dark:text-slate-300 focus:ring-0 cursor-pointer text-right sm:text-left"
                           />
                         </td>
@@ -1608,6 +1728,7 @@ setDiagnosis(newArr);
                               <div className="flex flex-col gap-0.5 flex-1 w-full relative">
                                 <SmartMedicineInput 
                                   value={m.name}
+                                  onChange={(val) => updateMedication(i, 'name', val)}
                                   onSelect={(fullMed) => handleSelectMedication(i, fullMed)}
                                   context={{
                                     diagnosis: diagnosis[0]?.name || '',
@@ -1976,6 +2097,11 @@ const VitalInput = ({ label, unit, value, onChange }) => (
         type="text" 
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.target.blur();
+          }
+        }}
         placeholder="--"
         className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl p-2.5 pr-10 text-base font-medium text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
       />

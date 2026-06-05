@@ -56,24 +56,7 @@ const InvoiceList = React.memo(({
     </div>
 
     {/* NEW: Filtering & Search Bar */}
-    <div className="flex flex-col sm:flex-row justify-between items-center mb-3 gap-3">
-
-      {/* Filter Tabs */}
-      <div className="flex space-x-2 text-black bg-gray-200 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
-        {['All', 'Paid', 'Pending', 'Cash', 'UPI', 'Card'].map(filter => (
-          <button
-            key={filter}
-            onClick={() => setActiveFilter(filter)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap
-                      ${activeFilter === filter
-                ? `bg-${PRIMARY_COLOR}-600 text-black shadow-md`
-                : 'text-gray-600 hover:bg-gray-200'
-              }`}
-          >
-            {filter}
-          </button>
-        ))}
-      </div>
+    <div className="flex flex-col sm:flex-row justify-end items-center mb-3 gap-3">
 
       {/* Search Bar */}
       <div className="relative w-full sm:max-w-xs">
