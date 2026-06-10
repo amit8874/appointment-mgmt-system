@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, ChevronDown, Calendar as CalendarIcon, Loader2, Mic, MicOff, X } from 'lucide-react';
+import { Plus, ChevronDown, Calendar as CalendarIcon, Loader2, Mic, MicOff, X, Clock, Star, Heart } from 'lucide-react';
 import api, { whatsappApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
@@ -45,6 +45,11 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     paymentMode: 'Cash'
   });
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
+
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [categorizedSlots, setCategorizedSlots] = useState({ morning: [], afternoon: [], evening: [] });
+  const [isFetchingSlots, setIsFetchingSlots] = useState(false);
+  const [slotError, setSlotError] = useState('');
 
   // Handle Voice-to-Text Conversational Loop
   const stopVoiceAgent = () => {
@@ -246,7 +251,44 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    if (name === 'doctor' || name === 'appointmentDate') {
+      setFormData(prev => ({ ...prev, appointmentTime: '' }));
+    }
   };
+
+  const fetchAvailableSlots = async () => {
+    if (!formData.doctor || !formData.appointmentDate) return;
+    setIsFetchingSlots(true);
+    setAvailableSlots([]);
+    setCategorizedSlots({ morning: [], afternoon: [], evening: [] });
+    setSlotError('');
+    try {
+      const response = await api.get(`/doctors/${formData.doctor}/slots?date=${formData.appointmentDate}`);
+      const data = response.data;
+      if (response.status === 200 && data.available && data.slots && data.slots.length > 0) {
+        setAvailableSlots(data.slots);
+        setCategorizedSlots(data.categorizedSlots || { morning: [], afternoon: [], evening: [] });
+      } else if (data.message) {
+        setSlotError(data.message);
+      } else {
+        setSlotError('No slots available');
+      }
+    } catch (error) {
+      console.error('Error fetching slots:', error);
+      setSlotError('Failed to load slots');
+    } finally {
+      setIsFetchingSlots(false);
+    }
+  };
+
+  useEffect(() => {
+    if (formData.doctor && formData.appointmentDate) {
+      fetchAvailableSlots();
+    } else {
+      setAvailableSlots([]);
+      setCategorizedSlots({ morning: [], afternoon: [], evening: [] });
+    }
+  }, [formData.doctor, formData.appointmentDate]);
 
   // Real-time Patient Lookup by Phone
   useEffect(() => {
@@ -353,7 +395,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           doctorName: selectedDoc ? selectedDoc.name : '',
           specialty: selectedDoc ? selectedDoc.specialization : 'General',
           date: formData.appointmentDate,
-          time: '',
+          time: formData.appointmentTime,
           paymentStatus: 'paid',
           sendWhatsApp: sendWhatsApp,
           patientDetails: {
@@ -747,6 +789,113 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
             </div>
           </div>
         </div>
+
+        {/* Time Slots Section */}
+        {formData.doctor && formData.appointmentDate && (
+          <div className="pt-4 border-t border-gray-100 dark:border-gray-700 space-y-4">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Available Slots</label>
+            
+            {isFetchingSlots ? (
+              <div className="flex items-center gap-2 text-xs text-blue-500 py-4 font-medium">
+                <Loader2 className="w-5 h-5 animate-spin" /> Fetching latest availability...
+              </div>
+            ) : slotError ? (
+              <div className="p-4 bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 rounded-xl text-xs text-orange-600 dark:text-orange-400 font-bold">
+                {slotError}
+              </div>
+            ) : categorizedSlots.morning.length === 0 && categorizedSlots.afternoon.length === 0 && categorizedSlots.evening.length === 0 ? (
+              <div className="p-4 bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 rounded-xl text-xs text-orange-600 dark:text-orange-400 font-bold">
+                No slots available on this date. Please try another date.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Morning Slots */}
+                {categorizedSlots.morning.length > 0 && (
+                  <div className="flex flex-col md:flex-row gap-4 items-start border-b border-gray-50 dark:border-gray-700/30 pb-3">
+                    <div className="w-28 flex items-center gap-1.5 text-gray-400 dark:text-gray-500 font-bold text-xs uppercase tracking-wider pt-2.5">
+                      <Clock size={14} /> Morning
+                    </div>
+                    <div className="flex-1 flex flex-wrap gap-2">
+                      {categorizedSlots.morning.map((slot, idx) => (
+                        <button
+                          key={`morning-${idx}`}
+                          type="button"
+                          disabled={slot.isBooked}
+                          onClick={() => setFormData(prev => ({ ...prev, appointmentTime: slot.time }))}
+                          className={`px-3 py-1.5 border font-bold rounded-lg transition-all text-xs flex flex-col items-center justify-center min-w-[75px] ${
+                            formData.appointmentTime === slot.time
+                              ? "bg-blue-600 text-white border-blue-600 shadow-md transform scale-105"
+                              : slot.isBooked
+                              ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50 dark:bg-gray-700/20 dark:border-gray-800"
+                              : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 bg-white dark:bg-gray-800"
+                          }`}
+                        >
+                          {slot.time}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Afternoon Slots */}
+                {categorizedSlots.afternoon.length > 0 && (
+                  <div className="flex flex-col md:flex-row gap-4 items-start border-b border-gray-50 dark:border-gray-700/30 pb-3">
+                    <div className="w-28 flex items-center gap-1.5 text-gray-400 dark:text-gray-500 font-bold text-xs uppercase tracking-wider pt-2.5">
+                      <Star size={14} /> Afternoon
+                    </div>
+                    <div className="flex-1 flex flex-wrap gap-2">
+                      {categorizedSlots.afternoon.map((slot, idx) => (
+                        <button
+                          key={`afternoon-${idx}`}
+                          type="button"
+                          disabled={slot.isBooked}
+                          onClick={() => setFormData(prev => ({ ...prev, appointmentTime: slot.time }))}
+                          className={`px-3 py-1.5 border font-bold rounded-lg transition-all text-xs flex flex-col items-center justify-center min-w-[75px] ${
+                            formData.appointmentTime === slot.time
+                              ? "bg-blue-600 text-white border-blue-600 shadow-md transform scale-105"
+                              : slot.isBooked
+                              ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50 dark:bg-gray-700/20 dark:border-gray-800"
+                              : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 bg-white dark:bg-gray-800"
+                          }`}
+                        >
+                          {slot.time}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Evening Slots */}
+                {categorizedSlots.evening.length > 0 && (
+                  <div className="flex flex-col md:flex-row gap-4 items-start pb-2">
+                    <div className="w-28 flex items-center gap-1.5 text-gray-400 dark:text-gray-500 font-bold text-xs uppercase tracking-wider pt-2.5">
+                      <Heart size={14} /> Evening
+                    </div>
+                    <div className="flex-1 flex flex-wrap gap-2">
+                      {categorizedSlots.evening.map((slot, idx) => (
+                        <button
+                          key={`evening-${idx}`}
+                          type="button"
+                          disabled={slot.isBooked}
+                          onClick={() => setFormData(prev => ({ ...prev, appointmentTime: slot.time }))}
+                          className={`px-3 py-1.5 border font-bold rounded-lg transition-all text-xs flex flex-col items-center justify-center min-w-[75px] ${
+                            formData.appointmentTime === slot.time
+                              ? "bg-blue-600 text-white border-blue-600 shadow-md transform scale-105"
+                              : slot.isBooked
+                              ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50 dark:bg-gray-700/20 dark:border-gray-800"
+                              : "border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 bg-white dark:bg-gray-800"
+                          }`}
+                        >
+                          {slot.time}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* WhatsApp & Register button row */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
