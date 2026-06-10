@@ -72,11 +72,11 @@ export const setupAppointmentReminderCron = () => {
                         reminderTemplate,
                         templateLang,
                         [
-                            patientName,           // {{1}}
-                            app.doctorName,        // {{2}}
+                            patientName || 'Patient',           // {{1}}
+                            app.doctorName || 'Doctor',        // {{2}}
                             clinicName,            // {{3}}
-                            app.date,              // {{4}}
-                            app.time               // {{5}}
+                            app.date ? (new Date(app.date).toLocaleDateString('en-US') === 'Invalid Date' ? app.date : new Date(app.date).toLocaleDateString('en-US')) : 'Not Specified',              // {{4}}
+                            app.time || 'Not Specified'               // {{5}}
                         ],
                         [],
                         {

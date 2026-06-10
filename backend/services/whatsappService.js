@@ -12,11 +12,12 @@ dotenv.config();
  * - Limits consecutive spaces to 4
  */
 const sanitizeTemplateParam = (val) => {
-  if (val === undefined || val === null) return "";
-  return val.toString()
+  if (val === undefined || val === null) return "N/A";
+  const str = val.toString()
     .replace(/[\n\r\t]/g, ' ')
     .replace(/\s{5,}/g, '    ')
     .trim();
+  return str === "" ? "N/A" : str;
 };
 
 /**

@@ -362,11 +362,11 @@ export const bookPatientAppointment = async (req, res) => {
         confirmationTemplate,
         templateLang,
         [
-          patientName,
-          doctorName,
+          patientName || 'Patient',
+          doctorName || 'Doctor',
           clinicName,
-          new Date(date).toLocaleDateString('en-US'),
-          time
+          date ? (new Date(date).toLocaleDateString('en-US') === 'Invalid Date' ? date : new Date(date).toLocaleDateString('en-US')) : 'Not Specified',
+          time || 'Not Specified'
         ],
         [],
         {
@@ -853,11 +853,11 @@ export const bookAppointment = async (req, res) => {
         confirmationTemplate,
         templateLang,
         [
-          patientName,
-          doctorName,
+          patientName || 'Patient',
+          doctorName || 'Doctor',
           clinicName,
-          new Date(date).toLocaleDateString('en-US'),
-          time
+          date ? (new Date(date).toLocaleDateString('en-US') === 'Invalid Date' ? date : new Date(date).toLocaleDateString('en-US')) : 'Not Specified',
+          time || 'Not Specified'
         ],
         [],
         {
@@ -952,11 +952,11 @@ export const updateAppointmentStatus = async (req, res) => {
               confirmationTemplate,
               templateLang,
               [
-                patientName,
-                newAppointment.doctorName,
+                patientName || 'Patient',
+                newAppointment.doctorName || 'Doctor',
                 clinicName,
-                new Date(newAppointment.date).toLocaleDateString('en-US'),
-                newAppointment.time
+                newAppointment.date ? (new Date(newAppointment.date).toLocaleDateString('en-US') === 'Invalid Date' ? newAppointment.date : new Date(newAppointment.date).toLocaleDateString('en-US')) : 'Not Specified',
+                newAppointment.time || 'Not Specified'
               ],
               [],
               {
@@ -1008,11 +1008,11 @@ export const updateAppointmentStatus = async (req, res) => {
                 cancellationTemplate,
                 templateLang,
                 [
-                  patientName,
-                  newAppointment.doctorName,
+                  patientName || 'Patient',
+                  newAppointment.doctorName || 'Doctor',
                   clinicName,
-                  new Date(newAppointment.date).toLocaleDateString('en-US'),
-                  newAppointment.time
+                  newAppointment.date ? (new Date(newAppointment.date).toLocaleDateString('en-US') === 'Invalid Date' ? newAppointment.date : new Date(newAppointment.date).toLocaleDateString('en-US')) : 'Not Specified',
+                  newAppointment.time || 'Not Specified'
                 ],
                 [],
                 {
@@ -1156,11 +1156,11 @@ export const updateAppointment = async (req, res) => {
               confirmationTemplate,
               templateLang,
               [
-                patientName,
-                newAppointment.doctorName,
+                patientName || 'Patient',
+                newAppointment.doctorName || 'Doctor',
                 clinicName,
-                new Date(newAppointment.date).toLocaleDateString('en-US'),
-                newAppointment.time
+                newAppointment.date ? (new Date(newAppointment.date).toLocaleDateString('en-US') === 'Invalid Date' ? newAppointment.date : new Date(newAppointment.date).toLocaleDateString('en-US')) : 'Not Specified',
+                newAppointment.time || 'Not Specified'
               ],
               [],
               {
@@ -1215,11 +1215,11 @@ export const updateAppointment = async (req, res) => {
                   cancellationTemplate,
                   templateLang,
                   [
-                    patientName,
-                    newAppointment.doctorName,
+                    patientName || 'Patient',
+                    newAppointment.doctorName || 'Doctor',
                     clinicName,
-                    new Date(newAppointment.date).toLocaleDateString('en-US'),
-                    newAppointment.time
+                    newAppointment.date ? (new Date(newAppointment.date).toLocaleDateString('en-US') === 'Invalid Date' ? newAppointment.date : new Date(newAppointment.date).toLocaleDateString('en-US')) : 'Not Specified',
+                    newAppointment.time || 'Not Specified'
                   ],
                   [],
                   {
@@ -1636,11 +1636,11 @@ export const bookPublicAppointment = async (req, res) => {
         confirmationTemplate,
         templateLang,
         [
-          patientName,
-          doctor.name,
+          patientName || 'Patient',
+          doctor.name || 'Doctor',
           clinicName,
-          new Date(date).toLocaleDateString('en-US'),
-          time
+          date ? (new Date(date).toLocaleDateString('en-US') === 'Invalid Date' ? date : new Date(date).toLocaleDateString('en-US')) : 'Not Specified',
+          time || 'Not Specified'
         ],
         [],
         {
@@ -1750,11 +1750,11 @@ export const cancelPublicAppointment = async (req, res) => {
         cancellationTemplate,
         templateLang,
         [
-          pendingApp.patientName,
-          pendingApp.doctorName,
+          pendingApp.patientName || 'Patient',
+          pendingApp.doctorName || 'Doctor',
           clinicName,
-          new Date(pendingApp.date).toLocaleDateString('en-US'),
-          pendingApp.time
+          pendingApp.date ? (new Date(pendingApp.date).toLocaleDateString('en-US') === 'Invalid Date' ? pendingApp.date : new Date(pendingApp.date).toLocaleDateString('en-US')) : 'Not Specified',
+          pendingApp.time || 'Not Specified'
         ],
         [],
         {
@@ -2199,11 +2199,11 @@ export const bookWalkInAppointment = async (req, res) => {
           confirmationTemplate,
           templateLang,
           [
-            appointment.patientName,
-            appointment.doctorName,
+            appointment.patientName || 'Patient',
+            appointment.doctorName || 'Doctor',
             clinicName,
-            new Date(date).toLocaleDateString('en-US'),
-            time
+            date ? (new Date(date).toLocaleDateString('en-US') === 'Invalid Date' ? date : new Date(date).toLocaleDateString('en-US')) : 'Not Specified',
+            time || 'Not Specified'
           ],
           [],
           {
