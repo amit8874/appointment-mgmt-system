@@ -130,7 +130,7 @@ export const getPatientSummary = async (req, res) => {
 
 export const bookPatientAppointment = async (req, res) => {
   try {
-    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, patientDetails, sendWhatsApp = false } = req.body;
+    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, patientDetails, sendWhatsApp = false, skipBilling = false } = req.body;
 
     if (!organizationId) return res.status(400).json({ message: 'Organization is required' });
     if (!patientDetails || !patientDetails.firstName) {
@@ -299,38 +299,40 @@ export const bookPatientAppointment = async (req, res) => {
     }
 
     // Create Billing Record
-    try {
-      const billCounter = await Counter.findOneAndUpdate(
-        { name: `billId_${organizationId}` },
-        { $inc: { value: 1 } },
-        { new: true, upsert: true }
-      );
-      const billId = `BIL${String(billCounter.value).padStart(6, '0')}`;
-      
-      const fee = finalAmount;
-
-      const newBill = new Billing({
-        billId,
-        organizationId: organizationId,
-        patientId: patientIdToUse,
-        patientName,
-        patientPhone: patientDetails.phone || '',
-        doctorId: docObj ? docObj.doctorId : doctorId || '',
-        doctorName: doctorName || '',
-        amount: fee,
-        paidAmount: 0,
-        dueAmount: fee,
-        appointmentId: appointment._id.toString(),
-        appointmentDate: date || '',
-        appointmentTime: time || '',
-        items: [{ description: 'Consultation Fee', cost: fee, unitPrice: fee, subtotal: fee, qty: 1 }],
-        status: paymentStatus === 'paid' ? 'Paid' : 'Pending',
-        notes: `Patient Web Booking on ${date || ''} at ${time || ''}`,
-        paymentMethod: 'N/A'
-      });
-      await newBill.save();
-    } catch (billingError) {
-      console.error('Error creating linked bill for patient booking:', billingError);
+    if (!skipBilling) {
+      try {
+        const billCounter = await Counter.findOneAndUpdate(
+          { name: `billId_${organizationId}` },
+          { $inc: { value: 1 } },
+          { new: true, upsert: true }
+        );
+        const billId = `BIL${String(billCounter.value).padStart(6, '0')}`;
+        
+        const fee = finalAmount;
+  
+        const newBill = new Billing({
+          billId,
+          organizationId: organizationId,
+          patientId: patientIdToUse,
+          patientName,
+          patientPhone: patientDetails.phone || '',
+          doctorId: docObj ? docObj.doctorId : doctorId || '',
+          doctorName: doctorName || '',
+          amount: fee,
+          paidAmount: 0,
+          dueAmount: fee,
+          appointmentId: appointment._id.toString(),
+          appointmentDate: date || '',
+          appointmentTime: time || '',
+          items: [{ description: 'Consultation Fee', cost: fee, unitPrice: fee, subtotal: fee, qty: 1 }],
+          status: paymentStatus === 'paid' ? 'Paid' : 'Pending',
+          notes: `Patient Web Booking on ${date || ''} at ${time || ''}`,
+          paymentMethod: 'N/A'
+        });
+        await newBill.save();
+      } catch (billingError) {
+        console.error('Error creating linked bill for patient booking:', billingError);
+      }
     }
 
     const responseData = {
@@ -635,7 +637,7 @@ export const getAllAppointments = async (req, res) => {
 
 export const bookAppointment = async (req, res) => {
   try {
-    const { patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, patientDetails, amount } = req.body;
+    const { patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, patientDetails, amount, skipBilling = false } = req.body;
 
     if (!patientDetails || !patientDetails.firstName) return res.status(400).json({ message: 'Patient first name is required' });
 
@@ -791,43 +793,45 @@ export const bookAppointment = async (req, res) => {
     }
     
     // Create Billing Record
-    try {
-      const billCounter = await Counter.findOneAndUpdate(
-        { name: `billId_${req.tenantId}` },
-        { $inc: { value: 1 } },
-        { new: true, upsert: true }
-      );
-      const billId = `BIL${String(billCounter.value).padStart(6, '0')}`;
-      
-      // Look up doctor fee
-      let docObj = await Doctor.findOne({ doctorId });
-      if (!docObj) {
-        docObj = await Doctor.findById(doctorId);
+    if (!skipBilling) {
+      try {
+        const billCounter = await Counter.findOneAndUpdate(
+          { name: `billId_${req.tenantId}` },
+          { $inc: { value: 1 } },
+          { new: true, upsert: true }
+        );
+        const billId = `BIL${String(billCounter.value).padStart(6, '0')}`;
+        
+        // Look up doctor fee
+        let docObj = await Doctor.findOne({ doctorId });
+        if (!docObj) {
+          docObj = await Doctor.findById(doctorId);
+        }
+        const fee = Number(amount) || docObj?.fee || 500;
+  
+        const newBill = new Billing({
+          billId,
+          organizationId: req.tenantId,
+          patientId: patientIdToUse,
+          patientName,
+          patientPhone: patientPhone || '',
+          doctorId: docObj ? docObj.doctorId : doctorId,
+          doctorName: doctorName || '',
+          amount: fee,
+          paidAmount: 0,
+          dueAmount: fee,
+          appointmentId: appointment._id.toString(),
+          appointmentDate: date,
+          appointmentTime: time,
+          items: [{ description: 'Consultation Fee', cost: fee, unitPrice: fee, subtotal: fee, qty: 1 }],
+          status: 'Pending',
+          notes: `Auto-generated for appointment on ${date} at ${time}`,
+          paymentMethod: 'N/A'
+        });
+        await newBill.save();
+      } catch (billingError) {
+        console.error('Error creating linked bill:', billingError);
       }
-      const fee = Number(amount) || docObj?.fee || 500;
-
-      const newBill = new Billing({
-        billId,
-        organizationId: req.tenantId,
-        patientId: patientIdToUse,
-        patientName,
-        patientPhone: patientPhone || '',
-        doctorId: docObj ? docObj.doctorId : doctorId,
-        doctorName: doctorName || '',
-        amount: fee,
-        paidAmount: 0,
-        dueAmount: fee,
-        appointmentId: appointment._id.toString(),
-        appointmentDate: date,
-        appointmentTime: time,
-        items: [{ description: 'Consultation Fee', cost: fee, unitPrice: fee, subtotal: fee, qty: 1 }],
-        status: 'Pending',
-        notes: `Auto-generated for appointment on ${date} at ${time}`,
-        paymentMethod: 'N/A'
-      });
-      await newBill.save();
-    } catch (billingError) {
-      console.error('Error creating linked bill:', billingError);
     }
 
     res.status(201).json(appointment);
@@ -2055,7 +2059,8 @@ export const bookWalkInAppointment = async (req, res) => {
       administrativeNotes,
       billingStatus,
       paymentMode,
-      sendWhatsApp = false
+      sendWhatsApp = false,
+      skipBilling = false
     } = req.body;
 
     const organizationId = req.tenantId;
@@ -2150,36 +2155,38 @@ export const bookWalkInAppointment = async (req, res) => {
 
     // 5. Create Billing Record
     let billId = null;
-    try {
-      const billCounter = await Counter.findOneAndUpdate(
-        { name: `billId_${organizationId}` },
-        { $inc: { value: 1 } },
-        { new: true, upsert: true }
-      );
-      billId = `BIL${String(billCounter.value).padStart(6, '0')}`;
-      
-      const newBill = new Billing({
-        billId,
-        organizationId,
-        patientId: appointment.patientId,
-        patientName: appointment.patientName,
-        patientPhone: mobileNumber || '',
-        doctorId: appointment.doctorId || '',
-        doctorName: appointment.doctorName || '',
-        amount: amount,
-        paidAmount: billingStatus === 'Paid' ? amount : 0,
-        dueAmount: billingStatus === 'Paid' ? 0 : amount,
-        appointmentId: appointment._id.toString(),
-        appointmentDate: date,
-        appointmentTime: time,
-        items: [{ description: 'Consultation Fee', cost: amount, unitPrice: amount, subtotal: amount, qty: 1 }],
-        status: billingStatus === 'Paid' ? 'Paid' : 'Pending',
-        notes: `Walk-in Visit on ${date}`,
-        paymentMethod: billingStatus === 'Paid' ? (paymentMode || 'Cash') : 'N/A'
-      });
-      await newBill.save();
-    } catch (billingError) {
-      console.error('[Walk-in] Billing creation failed:', billingError);
+    if (!skipBilling) {
+      try {
+        const billCounter = await Counter.findOneAndUpdate(
+          { name: `billId_${organizationId}` },
+          { $inc: { value: 1 } },
+          { new: true, upsert: true }
+        );
+        billId = `BIL${String(billCounter.value).padStart(6, '0')}`;
+        
+        const newBill = new Billing({
+          billId,
+          organizationId,
+          patientId: appointment.patientId,
+          patientName: appointment.patientName,
+          patientPhone: mobileNumber || '',
+          doctorId: appointment.doctorId || '',
+          doctorName: appointment.doctorName || '',
+          amount: amount,
+          paidAmount: billingStatus === 'Paid' ? amount : 0,
+          dueAmount: billingStatus === 'Paid' ? 0 : amount,
+          appointmentId: appointment._id.toString(),
+          appointmentDate: date,
+          appointmentTime: time,
+          items: [{ description: 'Consultation Fee', cost: amount, unitPrice: amount, subtotal: amount, qty: 1 }],
+          status: billingStatus === 'Paid' ? 'Paid' : 'Pending',
+          notes: `Walk-in Visit on ${date}`,
+          paymentMethod: billingStatus === 'Paid' ? (paymentMode || 'Cash') : 'N/A'
+        });
+        await newBill.save();
+      } catch (billingError) {
+        console.error('[Walk-in] Billing creation failed:', billingError);
+      }
     }
 
     // 6. Handle WhatsApp (Optional)

@@ -45,6 +45,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     paymentMode: 'Cash'
   });
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
+  const [skipBilling, setSkipBilling] = useState(false);
 
   const [availableSlots, setAvailableSlots] = useState([]);
   const [categorizedSlots, setCategorizedSlots] = useState({ morning: [], afternoon: [], evening: [] });
@@ -372,7 +373,8 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           administrativeNotes: '',
           billingStatus: 'Paid',
           paymentMode: 'Cash',
-          sendWhatsApp: sendWhatsApp
+          sendWhatsApp: sendWhatsApp,
+          skipBilling: skipBilling
         };
 
         const response = await api.post('/appointments/walk-in', walkInData);
@@ -398,6 +400,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           time: formData.appointmentTime,
           paymentStatus: 'paid',
           sendWhatsApp: sendWhatsApp,
+          skipBilling: skipBilling,
           patientDetails: {
             designation: formData.designation || 'MR.',
             firstName: firstName,
@@ -448,6 +451,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     setSelectedExistingId(null);
     setExistingPatients([]);
     setSendWhatsApp(false);
+    setSkipBilling(false);
   };
 
   const departments = [...new Set(doctors.map(d => d.specialization).filter(Boolean))];
@@ -899,18 +903,33 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
         {/* WhatsApp & Register button row */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-          <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-            <input
-              type="checkbox"
-              checked={sendWhatsApp}
-              onChange={(e) => setSendWhatsApp(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Send WhatsApp Message</span>
-              <span className="text-[10px] text-gray-400">Confirmation will be sent to {formData.phone || 'patient'}</span>
-            </div>
-          </label>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+              <input
+                type="checkbox"
+                checked={sendWhatsApp}
+                onChange={(e) => setSendWhatsApp(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Send WhatsApp Message</span>
+                <span className="text-[10px] text-gray-400">Confirmation will be sent to {formData.phone || 'patient'}</span>
+              </div>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+              <input
+                type="checkbox"
+                checked={skipBilling}
+                onChange={(e) => setSkipBilling(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">No Billing (Free Visit)</span>
+                <span className="text-[10px] text-gray-400">Skip generating consultation bill</span>
+              </div>
+            </label>
+          </div>
 
           <button
             type="submit"

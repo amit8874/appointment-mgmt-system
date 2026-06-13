@@ -109,6 +109,50 @@ const InvoiceTemplateRenderer = ({ billData, clinicInfo, template }) => {
     processedHtml = processedHtml.replace(regex, values[key]);
   });
 
+  const installmentsHtml = (() => {
+    if (!billData.installments || billData.installments.length === 0) return '';
+    const rows = billData.installments.map(inst => `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px; text-align: left;">${formatDate(inst.date)}</td>
+        <td style="padding: 8px; text-align: left;">${billData.patientName || 'Walk-in Patient'}</td>
+        <td style="padding: 8px; text-align: left;">${inst.paymentMethod || 'N/A'}</td>
+        <td style="padding: 8px; text-align: right; font-weight: bold;">${formatCurrency(inst.amount)}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div style="margin-top: 25px; border: 2.5px solid #000; padding: 15px; border-radius: 8px; background-color: #fff; page-break-inside: avoid; clear: both; box-sizing: border-box; width: 100%;">
+        <h4 style="margin: 0 0 12px 0; font-size: 13px; font-weight: 900; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 6px; letter-spacing: 0.5px; color: #000;">Payment Installments / History</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 12px; table-layout: fixed; color: #000;">
+          <thead>
+            <tr style="border-bottom: 2.5px solid #000;">
+              <th style="padding: 6px 8px; text-align: left; font-weight: bold; width: 25%;">Date</th>
+              <th style="padding: 6px 8px; text-align: left; font-weight: bold; width: 35%;">Patient Name</th>
+              <th style="padding: 6px 8px; text-align: left; font-weight: bold; width: 20%;">Mode</th>
+              <th style="padding: 6px 8px; text-align: right; font-weight: bold; width: 20%;">Paid Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 1.5px dashed #000; padding-top: 8px; margin-top: 5px; color: #000;">
+          <span>Total Paid So Far: ${formatCurrency(billData.paidAmount || 0)}</span>
+          ${billData.dueAmount > 0 
+            ? `<span style="color: #dc2626;">Total Payment Due: ${formatCurrency(billData.dueAmount)}</span>` 
+            : `<span style="color: #16a34a; text-transform: uppercase;">Status: PAID</span>`
+          }
+        </div>
+      </div>
+    `;
+  })();
+
+  if (processedHtml.includes('{{installments_section}}')) {
+    processedHtml = processedHtml.replace('{{installments_section}}', installmentsHtml);
+  } else {
+    processedHtml = processedHtml.replace('</table>', '</table>' + installmentsHtml);
+  }
+
   return (
     <div className="invoice-renderer-container bg-slate-50 p-4 rounded-3xl" style={{
       '--primary-color': metadata.primaryColor || '#3b82f6',

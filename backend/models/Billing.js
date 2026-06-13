@@ -99,12 +99,12 @@ const billingSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Paid', 'Pending', 'Due', 'Cancelled', 'Dead'],
+    enum: ['Paid', 'Pending', 'Due', 'Partial', 'Cancelled', 'Dead'],
     default: 'Pending'
   },
   paymentMethod: {
     type: String,
-    enum: ['Cash', 'Card', 'UPI', 'Insurance', 'N/A'],
+    enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Insurance', 'N/A'],
     default: 'N/A'
   },
   transactionId: {
@@ -158,9 +158,31 @@ const billingSchema = new mongoose.Schema({
   invoiceS3Key: { type: String },
   invoiceUrl: { type: String },
   invoiceFileName: { type: String },
-  invoiceMimeType: { type: String }
+  invoiceMimeType: { type: String },
+  installments: [{
+    date: { type: Date, default: Date.now },
+    amount: { type: Number, required: true },
+    paymentMethod: { type: String, enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Insurance', 'N/A'], required: true },
+    transactionId: { type: String, default: '' },
+    notes: { type: String, default: '' }
+  }]
 }, {
   timestamps: true
+});
+
+// Auto recalculate paidAmount, dueAmount, and status on save when installments are present
+billingSchema.pre('save', function (next) {
+  if (this.installments && this.installments.length > 0) {
+    this.paidAmount = this.installments.reduce((sum, inst) => sum + (inst.amount || 0), 0);
+    this.dueAmount = Math.max(0, (this.amount || this.grandTotal || 0) - this.paidAmount);
+    
+    if (this.dueAmount === 0) {
+      this.status = 'Paid';
+    } else if (this.paidAmount > 0) {
+      this.status = 'Due';
+    }
+  }
+  next();
 });
 
 // Indexes for performance
@@ -170,3 +192,4 @@ billingSchema.index({ organizationId: 1 });
 billingSchema.index({ organizationId: 1, patientId: 1 });
 
 export default mongoose.model('Billing', billingSchema);
+

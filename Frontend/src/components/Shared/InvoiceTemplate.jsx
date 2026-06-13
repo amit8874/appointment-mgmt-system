@@ -28,7 +28,8 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo, template = null }) => {
         total = 0,
         notes = '',
         paymentMethod = 'N/A',
-        status = 'Paid'
+        status = 'Paid',
+        installments = []
     } = invoiceData;
 
     const formatAddress = (addr) => {
@@ -196,6 +197,41 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo, template = null }) => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Installments Breakdown Section */}
+                {installments && installments.length > 0 && (
+                    <div className="mb-8 p-5 border-2 border-black rounded-xl bg-white shadow-sm print:border-black print:border-2">
+                        <h4 className="text-sm font-black text-black uppercase tracking-wider mb-3 border-b-2 border-black pb-1.5">Payment Installments / History</h4>
+                        <table className="min-w-full divide-y divide-black text-xs">
+                            <thead>
+                                <tr>
+                                    <th className="px-3 py-2 text-left font-bold text-black uppercase tracking-widest">Date</th>
+                                    <th className="px-3 py-2 text-left font-bold text-black uppercase tracking-widest">Patient Name</th>
+                                    <th className="px-3 py-2 text-left font-bold text-black uppercase tracking-widest">Payment Mode</th>
+                                    <th className="px-3 py-2 text-right font-bold text-black uppercase tracking-widest">Amount Paid</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200">
+                                {installments.map((inst, index) => (
+                                    <tr key={index}>
+                                        <td className="px-3 py-2 text-slate-800 font-medium">{formatDateSafe(inst.date)}</td>
+                                        <td className="px-3 py-2 text-slate-800 font-medium">{patientName}</td>
+                                        <td className="px-3 py-2 text-slate-800 font-medium">{inst.paymentMethod}</td>
+                                        <td className="px-3 py-2 text-right font-bold text-black">{formatCurrency(inst.amount)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <div className="mt-3 pt-3 border-t border-dashed border-black flex justify-between items-center text-xs font-black text-black">
+                            <span>TOTAL PAID SO FAR: {formatCurrency(invoiceData.paidAmount !== undefined ? invoiceData.paidAmount : total)}</span>
+                            {invoiceData.dueAmount > 0 ? (
+                                <span className="text-red-600 font-black">TOTAL PAYMENT DUE: {formatCurrency(invoiceData.dueAmount)}</span>
+                            ) : (
+                                <span className="text-green-600 font-black">STATUS: FULLY PAID</span>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Totals Section */}
                 <div className="flex flex-col sm:flex-row justify-between items-start mt-auto pt-8 border-t border-slate-100">

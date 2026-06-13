@@ -8,12 +8,14 @@ import {
   Eye,
   Printer,
   ChevronLeft,
-  Phone
+  Phone,
+  FileText
 } from 'lucide-react';
 import { billingApi, appointmentApi, centralDoctorApi, authApi, whatsappApi, pharmacyApi, medicineApi } from '../../../services/api';
 import InvoiceTemplate from '../../Shared/InvoiceTemplate';
 import { useAuth } from '../../../context/AuthContext';
 import Pagination from '../../common/Pagination';
+import { normalizePharmacyInvoice } from '../../../utils/pharmacyInvoiceCalculator';
 
 // --- Status Badge Component ---
 const StatusBadge = ({ status }) => {
@@ -159,6 +161,46 @@ const formatCurrency = (amount) => {
 };
 
 const transformApiData = (apiBill) => {
+  if (apiBill.billType === 'Pharmacy') {
+    const normalized = normalizePharmacyInvoice(apiBill);
+    return {
+      id: apiBill.billId,
+      _id: apiBill._id,
+      patient: String(apiBill.patientName || ''),
+      patientId: String(apiBill.patientId || ''),
+      doctor: String(apiBill.doctorName || ''),
+      doctorId: String(apiBill.doctorId || ''),
+      date: apiBill.date ? new Date(apiBill.date).toLocaleDateString('en-US') : new Date().toLocaleDateString('en-US'),
+      dateRaw: apiBill.date,
+      amount: normalized.grandTotal,
+      status: apiBill.status,
+      patientPhone: apiBill.patientPhone || '',
+      billType: 'Pharmacy',
+      items: normalized.items,
+      installments: apiBill.installments || [],
+      paidAmount: apiBill.paidAmount !== undefined ? apiBill.paidAmount : (normalized.paidAmount || 0),
+      dueAmount: apiBill.dueAmount !== undefined ? apiBill.dueAmount : (normalized.dueAmount || 0),
+      details: {
+        ...getInitialBillState(),
+        patient: String(apiBill.patientName || ''),
+        doctor: String(apiBill.doctorName || ''),
+        appointmentDate: apiBill.date ? new Date(apiBill.date).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
+        consultationFee: 0,
+        tests: 0,
+        medicines: normalized.grossAmount,
+        additionalCharges: 0,
+        discount: normalized.discountAmount,
+        discounts: normalized.discountAmount,
+        taxRate: normalized.taxAmount > 0 ? (normalized.taxAmount / normalized.taxableAmount) * 100 : 0,
+        taxAmount: normalized.taxAmount,
+        totalAmount: normalized.grandTotal,
+        paymentMode: apiBill.paymentMethod || 'N/A',
+        status: apiBill.status,
+        notes: apiBill.notes
+      }
+    };
+  }
+
   const itemsSubtotal = (apiBill.items || []).reduce((sum, i) =>
     sum + (parseFloat(i.subtotal) || (parseFloat(i.qty || 1) * parseFloat(i.unitPrice || i.cost || 0))), 0
   );
@@ -178,13 +220,16 @@ const transformApiData = (apiBill) => {
     patientPhone: apiBill.patientPhone || '',
     billType: apiBill.billType || 'General',
     items: apiBill.items || [],
+    installments: apiBill.installments || [],
+    paidAmount: apiBill.paidAmount !== undefined ? apiBill.paidAmount : (apiBill.amount || 0),
+    dueAmount: apiBill.dueAmount !== undefined ? apiBill.dueAmount : 0,
     details: {
       patient: String(apiBill.patientName || ''),
       doctor: String(apiBill.doctorName || ''),
       appointmentDate: apiBill.date ? new Date(apiBill.date).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
       consultationFee: (() => {
         const item = apiBill.items?.find(i => i.description?.toLowerCase().includes('consultation'));
-        return item ? (item.cost ?? item.unitPrice ?? item.subtotal ?? 0) : 0;
+        return item ? (item.cost ?? item.unitPrice ?? item.subtotal ?? apiBill.amount ?? 0) : 0;
       })(),
       tests: (() => {
         const item = apiBill.items?.find(i => i.description?.toLowerCase().includes('test'));
@@ -716,8 +761,27 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
 };
 
 
-const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, onSendWhatsApp, clinicInfo = {} }) => {
+const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, onSendWhatsApp, clinicInfo = {}, onUpdateBill }) => {
+  const [newInstallmentAmount, setNewInstallmentAmount] = useState('');
+  const [newInstallmentMode, setNewInstallmentMode] = useState('Cash');
+  const [newInstallmentTxId, setNewInstallmentTxId] = useState('');
+  const [newInstallmentNotes, setNewInstallmentNotes] = useState('');
+  const [savingInstallment, setSavingInstallment] = useState(false);
+  const [installmentError, setInstallmentError] = useState('');
+
   const details = invoice.details || {};
+
+  const paymentHistory = (invoice.installments && invoice.installments.length > 0)
+    ? invoice.installments
+    : (invoice.paidAmount > 0
+        ? [{
+            date: invoice.dateRaw || invoice.date || new Date(),
+            amount: invoice.paidAmount,
+            paymentMethod: details.paymentMode || invoice.paymentMethod || 'N/A',
+            transactionId: invoice.transactionId || '',
+            notes: 'Single payment'
+          }]
+        : []);
   const isItemized = invoice.items && invoice.items.length > 0;
   const chargeItems = isItemized
     ? invoice.items.map(item => ({ label: item.description, value: item.subtotal || (item.qty * (item.unitPrice || item.cost)) || 0, qty: item.qty, unitPrice: item.unitPrice || item.cost }))
@@ -732,47 +796,254 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
   const amountAfterDiscount = Math.max(0, subtotalCharges - (parseFloat(details.discount || details.discounts) || 0));
   const taxAmount = amountAfterDiscount * ((parseFloat(details.taxRate) || 0) / 100);
 
+  const handleAddInstallment = async (e) => {
+    e.preventDefault();
+    setInstallmentError('');
+    const amt = parseFloat(newInstallmentAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setInstallmentError('Please enter a valid installment amount.');
+      return;
+    }
+    if (amt > invoice.dueAmount) {
+      setInstallmentError(`Installment amount cannot exceed remaining due (₹${invoice.dueAmount}).`);
+      return;
+    }
+
+    setSavingInstallment(true);
+    try {
+      const baseInstallments = (invoice.installments && invoice.installments.length > 0)
+        ? invoice.installments
+        : (invoice.paidAmount > 0
+            ? [{
+                date: invoice.dateRaw || invoice.date || new Date(),
+                amount: invoice.paidAmount,
+                paymentMethod: details.paymentMode || invoice.paymentMethod || 'N/A',
+                transactionId: invoice.transactionId || '',
+                notes: 'Initial payment'
+              }]
+            : []);
+
+      const updatedInstallments = [
+        ...baseInstallments,
+        {
+          date: new Date(),
+          amount: amt,
+          paymentMethod: newInstallmentMode,
+          transactionId: newInstallmentTxId,
+          notes: newInstallmentNotes || 'Subsequent payment'
+        }
+      ];
+
+      const updatedBill = await billingApi.update(invoice._id, {
+        installments: updatedInstallments
+      });
+
+      if (onUpdateBill) {
+        onUpdateBill(updatedBill);
+      }
+      
+      setNewInstallmentAmount('');
+      setNewInstallmentTxId('');
+      setNewInstallmentNotes('');
+    } catch (err) {
+      console.error(err);
+      setInstallmentError('Failed to record installment payment. Please try again.');
+    } finally {
+      setSavingInstallment(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-gray-900/80 flex items-center justify-center p-4 no-print" onClick={onClose}>
-      <div className="bg-white shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative p-6" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><XIcon /></button>
-        <div className="border-b-2 border-slate-800 pb-4 mb-6">
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight">INVOICE</h1>
-          <p className="text-xs font-bold text-slate-500">#{invoice.id}</p>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-80 flex items-center justify-center p-4 sm:p-6 no-print" onClick={onClose}>
+      <div className="bg-white shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative p-6 border-4 border-black" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-black hover:text-red-500 font-bold"><XIcon /></button>
+        <div className="border-b-2 border-black pb-4 mb-4">
+          <h1 className="text-3xl font-black text-black tracking-tight uppercase mb-1">INVOICE</h1>
+          <p className="text-xs font-black text-black">#{invoice.id}</p>
         </div>
         <div className="grid grid-cols-2 gap-6 mb-6">
-          <div className="bg-slate-50 p-4 rounded-xl">
-            <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Patient</p>
-            <h3 className="font-bold text-lg">{invoice.patient}</h3>
-            <p className="text-xs">ID: {invoice.patientId}</p>
+          <div className="bg-slate-50 p-4 rounded-xl border border-black">
+            <p className="text-[10px] font-black uppercase text-black mb-2">Patient</p>
+            <h3 className="font-extrabold text-lg text-black">{invoice.patient}</h3>
+            <p className="text-xs font-bold text-black">ID: {invoice.patientId}</p>
           </div>
-          <div className="text-right">
-            <p className="text-xs font-bold">Date: {invoice.date}</p>
-            <p className="text-xs font-bold">Mode: {details.paymentMode}</p>
-            <span className={`inline-block px-2 py-1 rounded-full text-[10px] font-bold mt-2 ${invoice.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{invoice.status}</span>
+          <div className="text-right text-black">
+            <p className="text-xs font-black">Date: {invoice.date}</p>
+            <p className="text-xs font-black">Mode: {details.paymentMode}</p>
+            <span className={`inline-block px-3 py-1 rounded-full text-xs font-black mt-2 ${invoice.status === 'Paid' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-red-100 text-red-800 border border-red-300'}`}>{invoice.status}</span>
           </div>
         </div>
-        <table className="w-full mb-6 border rounded-lg overflow-hidden">
-          <thead className="bg-slate-800 text-white text-[10px] uppercase">
-            <tr><th className="px-4 py-2 text-left">Description</th>{isItemized && <th className="px-4 py-2">Qty</th>}<th className="px-4 py-2 text-right">Amount</th></tr>
+        <table className="w-full mb-6 border-2 border-black rounded-lg overflow-hidden">
+          <thead className="bg-black text-white text-[10px] uppercase font-black">
+            <tr><th className="px-4 py-2 text-left border-r border-black">Description</th>{isItemized && <th className="px-4 py-2 border-r border-black">Qty</th>}<th className="px-4 py-2 text-right">Amount</th></tr>
           </thead>
-          <tbody className="text-xs divide-y">
+          <tbody className="text-xs divide-y-2 divide-black text-black">
             {chargeItems.map((item, i) => (
-              <tr key={i}><td className="px-4 py-2">{item.label}</td>{isItemized && <td className="px-4 py-2 text-center">{item.qty}</td>}<td className="px-4 py-2 text-right">{formatCurrency(item.value)}</td></tr>
+              <tr key={i}><td className="px-4 py-2 font-bold border-r border-black">{item.label}</td>{isItemized && <td className="px-4 py-2 text-center font-bold border-r border-black">{item.qty}</td>}<td className="px-4 py-2 text-right font-black">{formatCurrency(item.value)}</td></tr>
             ))}
           </tbody>
         </table>
+
+        {/* Payment Installments / History Section */}
+        {paymentHistory.length > 0 && (
+          <div className="mb-6 p-4 border-2 border-black rounded-xl bg-slate-50">
+            <h4 className="text-xs font-black text-black uppercase tracking-widest mb-3 border-b-2 border-black pb-1.5">
+              Payment Installments / History
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y-2 divide-black text-xs">
+                <thead>
+                  <tr className="text-black font-black">
+                    <th className="px-2 py-1.5 text-left font-black tracking-wider border-r border-black">Date</th>
+                    <th className="px-2 py-1.5 text-left font-black tracking-wider border-r border-black">Patient Name</th>
+                    <th className="px-2 py-1.5 text-left font-black tracking-wider border-r border-black">Mode</th>
+                    <th className="px-2 py-1.5 text-left font-black tracking-wider border-r border-black">Transaction ID</th>
+                    <th className="px-2 py-1.5 text-right font-black tracking-wider">Amount Paid</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black text-black">
+                  {paymentHistory.map((inst, index) => (
+                    <tr key={index}>
+                      <td className="px-2 py-1.5 font-bold border-r border-black">
+                        {new Date(inst.date).toLocaleDateString('en-GB')}
+                      </td>
+                      <td className="px-2 py-1.5 font-bold border-r border-black">{invoice.patient}</td>
+                      <td className="px-2 py-1.5 border-r border-black">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                          inst.paymentMethod === 'Cash' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                          inst.paymentMethod === 'UPI' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                          inst.paymentMethod === 'Card' ? 'bg-indigo-100 text-indigo-800 border border-indigo-300' : 'bg-gray-100 text-gray-800 border border-gray-300'
+                        }`}>
+                          {inst.paymentMethod}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5 font-mono text-[10px] font-bold border-r border-black">{inst.transactionId || '—'}</td>
+                      <td className="px-2 py-1.5 text-right font-black">{formatCurrency(inst.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Record New Installment payment Mode */}
+        {invoice.dueAmount > 0 && (
+          <div className="mb-6 p-4 border-2 border-black rounded-xl bg-green-50/20">
+            <h4 className="text-xs font-black text-black uppercase tracking-widest mb-3 border-b-2 border-black pb-1.5">
+              Record New Payment / Installment
+            </h4>
+            {installmentError && (
+              <div className="mb-3 p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-black">
+                {installmentError}
+              </div>
+            )}
+            <form onSubmit={handleAddInstallment} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                <div>
+                  <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                    Payment Mode
+                  </label>
+                  <select
+                    value={newInstallmentMode}
+                    onChange={(e) => setNewInstallmentMode(e.target.value)}
+                    className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Card">Card</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                    Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={invoice.dueAmount}
+                    value={newInstallmentAmount}
+                    onChange={(e) => setNewInstallmentAmount(e.target.value)}
+                    placeholder={`Max ₹${invoice.dueAmount}`}
+                    className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none"
+                    required
+                  />
+                </div>
+                {newInstallmentMode !== 'Cash' ? (
+                  <div>
+                    <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                      Transaction ID
+                    </label>
+                    <input
+                      type="text"
+                      value={newInstallmentTxId}
+                      onChange={(e) => setNewInstallmentTxId(e.target.value)}
+                      placeholder="Tx ID"
+                      className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none"
+                    />
+                  </div>
+                ) : (
+                  <div className="hidden sm:block"></div>
+                )}
+                <div>
+                  <button
+                    type="submit"
+                    disabled={savingInstallment || !newInstallmentAmount}
+                    className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-black uppercase tracking-wider transition disabled:opacity-50 border border-black"
+                  >
+                    {savingInstallment ? 'Recording...' : 'Record Payment'}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                  Notes / Remarks
+                </label>
+                <input
+                  type="text"
+                  value={newInstallmentNotes}
+                  onChange={(e) => setNewInstallmentNotes(e.target.value)}
+                  placeholder="Installment payment notes..."
+                  className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none"
+                />
+              </div>
+            </form>
+          </div>
+        )}
+
         <div className="flex justify-end mb-6">
-          <div className="w-64 bg-slate-50 p-4 rounded-xl space-y-2">
-            <div className="flex justify-between text-xs"><span>Subtotal:</span><span>{formatCurrency(subtotalCharges)}</span></div>
-            <div className="flex justify-between text-xs"><span>Tax:</span><span>{formatCurrency(taxAmount)}</span></div>
-            {parseFloat(details.discount || details.discounts) > 0 && <div className="flex justify-between text-xs text-red-600"><span>Discount:</span><span>-{formatCurrency(details.discount || details.discounts)}</span></div>}
-            <div className="flex justify-between font-black text-lg border-t pt-2 mt-2"><span>Total:</span><span className="text-indigo-600">{formatCurrency(details.totalAmount)}</span></div>
+          <div className="w-64 bg-slate-50 p-4 border-2 border-black rounded-xl space-y-2 text-black">
+            <div className="flex justify-between text-xs font-bold"><span>Subtotal:</span><span>{formatCurrency(subtotalCharges)}</span></div>
+            <div className="flex justify-between text-xs font-bold"><span>Tax:</span><span>{formatCurrency(taxAmount)}</span></div>
+            {parseFloat(details.discount || details.discounts) > 0 && <div className="flex justify-between text-xs text-red-650 font-bold"><span>Discount:</span><span>-{formatCurrency(details.discount || details.discounts)}</span></div>}
+            
+            {invoice.installments && invoice.installments.length > 0 ? (
+              <>
+                <div className="flex justify-between items-center pt-2 text-xs text-green-700 border-t-2 border-black mt-2 font-black">
+                  <span className="uppercase tracking-wide">Paid So Far</span>
+                  <span>{formatCurrency(invoice.paidAmount)}</span>
+                </div>
+                {invoice.dueAmount > 0 ? (
+                  <div className="flex justify-between items-center pt-2 text-xs text-red-700 font-black">
+                    <span className="uppercase tracking-wide">Due Amount</span>
+                    <span>{formatCurrency(invoice.dueAmount)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center pt-2 text-xs text-green-700 font-black border-t-2 border-black mt-2">
+                    <span className="uppercase tracking-wide">STATUS</span>
+                    <span>FULLY PAID</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex justify-between font-black text-lg border-t-2 border-black pt-2 mt-2"><span>Total:</span><span className="text-black">{formatCurrency(details.totalAmount)}</span></div>
+            )}
           </div>
         </div>
         <div className="flex justify-center gap-4">
-          <button onClick={() => onPrint(invoice)} className="px-6 py-2 bg-slate-800 text-white rounded-lg flex items-center gap-2 font-bold"><PrinterIcon /> Print</button>
-          <button onClick={() => onSendWhatsApp(invoice)} className="px-6 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 font-bold"><Phone size={18} /> WhatsApp</button>
+          <button onClick={() => onPrint(invoice)} className="px-6 py-2 bg-slate-800 text-white rounded-lg flex items-center gap-2 font-black border border-black"><PrinterIcon /> Print</button>
+          <button onClick={() => onSendWhatsApp(invoice)} className="px-6 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 font-black border border-black"><Phone size={18} /> WhatsApp</button>
         </div>
       </div>
     </div>
@@ -797,7 +1068,8 @@ const BillingMgmt = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [printingInvoice, setPrintingInvoice] = useState(null);
 
-  const fetchData = useCallback(async (page = 1) => {
+  const fetchData = useCallback(async (page = 1, overrideBillType) => {
+    const currentBillType = overrideBillType !== undefined ? overrideBillType : billingTab;
     try {
       setLoading(true);
       const [billingResponse, appointmentData, doctorData] = await Promise.all([
@@ -806,7 +1078,7 @@ const BillingMgmt = () => {
           limit: itemsPerPage,
           search: searchTerm,
           status: activeFilter === 'All' ? '' : activeFilter,
-          billType: billingTab
+          billType: currentBillType
         }),
         appointmentApi.getAll(),
         centralDoctorApi.getAll()
@@ -827,7 +1099,7 @@ const BillingMgmt = () => {
   }, [searchTerm, activeFilter, billingTab]);
 
   useEffect(() => {
-    fetchData(1);
+    fetchData(1, billingTab);
   }, [activeFilter, billingTab]);
 
   useEffect(() => {
@@ -851,6 +1123,14 @@ const BillingMgmt = () => {
       await billingApi.sendWhatsApp(invoice._id);
       setStatusMessage('WhatsApp sent!');
     } catch (err) { setStatusMessage('WhatsApp failed.'); }
+  };
+
+  const handleUpdateBill = (updatedBill) => {
+    const transformed = transformApiData(updatedBill);
+    setInvoices(prev => prev.map(inv => inv.id === transformed.id ? transformed : inv));
+    if (selectedInvoice && selectedInvoice.id === transformed.id) {
+      setSelectedInvoice(transformed);
+    }
   };
 
   useEffect(() => {
@@ -884,10 +1164,11 @@ const BillingMgmt = () => {
         <header className="mb-6"><h1 className="text-2xl font-black text-gray-900 md:pl-10 transition-all">Billing Management</h1></header>
         {statusMessage && <div className="mb-4 p-3 bg-blue-50 text-blue-800 rounded-lg font-bold">{statusMessage}</div>}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {[
             { id: 'General', label: 'Consultation', icon: User, color: 'sky' },
-            { id: 'Pharmacy', label: 'Pharmacy', icon: PlusCircle, color: 'indigo' }
+            { id: 'Pharmacy', label: 'Pharmacy', icon: PlusCircle, color: 'indigo' },
+            { id: 'Dental', label: 'Dental', icon: FileText, color: 'emerald' }
           ].map(tab => (
             <button key={tab.id} onClick={() => { setBillingTab(tab.id); setViewMode('list'); }}
               className={`p-5 rounded-2xl border-2 text-left transition-all ${billingTab === tab.id ? `bg-white border-${tab.color}-500 shadow-xl ring-4 ring-${tab.color}-500/10` : 'bg-slate-50 border-slate-100 hover:bg-white'}`}>
@@ -920,7 +1201,16 @@ const BillingMgmt = () => {
             <GenerateBillForm onSave={(inv) => { setInvoices(p => [inv, ...p]); setViewMode('list'); }} onCancel={() => setViewMode('list')} setStatusMessage={setStatusMessage} appointments={appointments} doctors={doctors} billType={billingTab} />
           )}
         </div>
-        {selectedInvoice && <InvoiceDetailModal invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} onPrint={i => setPrintingInvoice(i)} onSendWhatsApp={handleSendWhatsApp} clinicInfo={clinicInfo} />}
+        {selectedInvoice && (
+          <InvoiceDetailModal 
+            invoice={selectedInvoice} 
+            onClose={() => setSelectedInvoice(null)} 
+            onPrint={i => setPrintingInvoice(i)} 
+            onSendWhatsApp={handleSendWhatsApp} 
+            clinicInfo={clinicInfo} 
+            onUpdateBill={handleUpdateBill}
+          />
+        )}
       </div>
 
       <div className="print-only bg-white text-black">
@@ -939,7 +1229,10 @@ const BillingMgmt = () => {
               taxRate: printingInvoice.details?.taxRate || 0,
               total: printingInvoice.amount,
               paymentMethod: printingInvoice.details?.paymentMode || 'Cash',
-              status: printingInvoice.status
+              status: printingInvoice.status,
+              installments: printingInvoice.installments || [],
+              paidAmount: printingInvoice.paidAmount,
+              dueAmount: printingInvoice.dueAmount
             }}
           />
         )}

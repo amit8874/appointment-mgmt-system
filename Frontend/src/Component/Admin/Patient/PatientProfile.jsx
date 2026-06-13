@@ -78,6 +78,7 @@ import DentalChart from './DentalChart';
 import DentalTreatmentTab from './DentalTreatmentTab';
 import DentalImagesTab from './DentalImagesTab';
 import ToothHistoryTab from './ToothHistoryTab';
+import MobileAppNavigation from '../../../components/common/MobileAppNavigation';
 
 // --- Utility Components ---
 
@@ -1183,44 +1184,122 @@ const TabAppointments = ({ appointments, onRebook }) => {
   );
 };
 
-const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint }) => {
+const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload, onWhatsApp, onUpdateBill }) => {
+  const [newInstallmentAmount, setNewInstallmentAmount] = useState('');
+  const [newInstallmentMode, setNewInstallmentMode] = useState('Cash');
+  const [newInstallmentTxId, setNewInstallmentTxId] = useState('');
+  const [newInstallmentNotes, setNewInstallmentNotes] = useState('');
+  const [savingInstallment, setSavingInstallment] = useState(false);
+  const [installmentError, setInstallmentError] = useState('');
+
   if (!bill) return null;
   
   const totals = bill.billType === 'Pharmacy' ? normalizePharmacyInvoice(bill) : calculateInvoiceTotals(bill);
   const items = bill.items || bill.services || [];
-  
+
+  const handleAddInstallment = async (e) => {
+    e.preventDefault();
+    setInstallmentError('');
+    const amt = parseFloat(newInstallmentAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setInstallmentError('Please enter a valid installment amount.');
+      return;
+    }
+    const currentDue = bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount;
+    if (amt > currentDue) {
+      setInstallmentError(`Installment amount cannot exceed remaining due (₹${currentDue}).`);
+      return;
+    }
+
+    setSavingInstallment(true);
+    try {
+      const baseInstallments = (bill.installments && bill.installments.length > 0)
+        ? bill.installments
+        : (totals.paidAmount > 0
+            ? [{
+                date: bill.date || bill.createdAt || new Date(),
+                amount: totals.paidAmount,
+                paymentMethod: bill.paymentMethod || 'N/A',
+                transactionId: bill.transactionId || '',
+                notes: 'Initial payment'
+              }]
+            : []);
+
+      const updatedInstallments = [
+        ...baseInstallments,
+        {
+          date: new Date(),
+          amount: amt,
+          paymentMethod: newInstallmentMode,
+          transactionId: newInstallmentTxId,
+          notes: newInstallmentNotes || 'Subsequent payment'
+        }
+      ];
+
+      const updatedBill = await billingApi.update(bill._id, {
+        installments: updatedInstallments
+      });
+
+      if (onUpdateBill) {
+        onUpdateBill(updatedBill);
+      }
+      
+      setNewInstallmentAmount('');
+      setNewInstallmentTxId('');
+      setNewInstallmentNotes('');
+      toast.success("Installment payment recorded successfully");
+    } catch (err) {
+      console.error(err);
+      setInstallmentError('Failed to record installment payment. Please try again.');
+    } finally {
+      setSavingInstallment(false);
+    }
+  };
+
+  const paymentHistory = (bill.installments && bill.installments.length > 0)
+    ? bill.installments
+    : (totals.paidAmount > 0
+        ? [{
+            date: bill.date || bill.createdAt || new Date(),
+            amount: totals.paidAmount,
+            paymentMethod: bill.paymentMethod || 'N/A',
+            transactionId: bill.transactionId || '',
+            notes: 'Single payment'
+          }]
+        : []);
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col border-4 border-black"
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+        <div className="p-6 border-b-2 border-black flex justify-between items-center bg-white sticky top-0 z-10">
           <div>
-            <h3 className="text-xl font-bold text-slate-800">Invoice Details</h3>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{bill.invoiceNumber || bill.billId}</p>
+            <h3 className="text-xl font-black text-black">Invoice Details</h3>
+            <p className="text-xs font-black text-black uppercase tracking-widest">{bill.invoiceNumber || bill.billId}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-            <X size={20} className="text-slate-400" />
+            <X size={20} className="text-black font-black" />
           </button>
         </div>
 
         <div className="p-8 overflow-y-auto space-y-8">
           <div className="grid grid-cols-2 gap-8">
             <div className="space-y-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Billed To</p>
-              <p className="text-lg font-bold text-slate-800">{patient.fullName || `${patient.firstName} ${patient.lastName}`}</p>
-              <p className="text-sm text-slate-500">ID: {patient.patientId}</p>
-              <p className="text-sm text-slate-500">Ph: {patient.mobile || patient.contactNumber}</p>
+              <p className="text-[10px] font-black text-black uppercase tracking-widest">Billed To</p>
+              <p className="text-lg font-black text-black">{patient.fullName || `${patient.firstName} ${patient.lastName}`}</p>
+              <p className="text-sm font-bold text-black">ID: {patient.patientId}</p>
+              <p className="text-sm font-bold text-black">Ph: {patient.mobile || patient.contactNumber}</p>
             </div>
             <div className="space-y-1 text-right">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Invoice Date</p>
-              <p className="text-lg font-bold text-slate-800">{new Date(bill.date || bill.createdAt).toLocaleDateString()}</p>
+              <p className="text-[10px] font-black text-black uppercase tracking-widest">Invoice Date</p>
+              <p className="text-lg font-black text-black">{new Date(bill.date || bill.createdAt).toLocaleDateString()}</p>
               <div className="flex justify-end mt-2">
-                <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
-                  bill.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                <span className={`px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full border border-black ${
+                  bill.status === 'Paid' ? 'bg-emerald-100 text-emerald-900 border-emerald-400' : 'bg-rose-100 text-rose-900 border-rose-400'
                 }`}>
                   {bill.status}
                 </span>
@@ -1229,87 +1308,243 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint }) => {
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-widest border-b pb-2">Itemized Breakdown</h4>
+            <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black pb-2">Itemized Breakdown</h4>
             <table className="w-full">
               <thead>
-                <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">
+                <tr className="text-[10px] font-black text-black uppercase tracking-widest text-left border-b border-black">
                   <th className="pb-2">Description</th>
                   <th className="pb-2 text-center">Qty</th>
                   <th className="pb-2 text-right">Price</th>
                   <th className="pb-2 text-right">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-200">
                 {items.length > 0 ? items.map((item, idx) => (
                   <tr key={idx} className="text-sm">
-                    <td className="py-3 font-medium text-slate-700">{item.description}</td>
-                    <td className="py-3 text-center text-slate-500">{item.qty || 1}</td>
-                    <td className="py-3 text-right text-slate-500">₹{(parseFloat(item.unitPrice || item.price || 0)).toFixed(2)}</td>
-                    <td className="py-3 text-right font-bold text-slate-800">₹{(parseFloat(item.subtotal || item.amount || 0)).toFixed(2)}</td>
+                    <td className="py-3 font-bold text-black">{item.description}</td>
+                    <td className="py-3 text-center font-bold text-black">{item.qty || 1}</td>
+                    <td className="py-3 text-right font-bold text-black">₹{(parseFloat(item.unitPrice || item.price || 0)).toFixed(2)}</td>
+                    <td className="py-3 text-right font-black text-black">₹{(parseFloat(item.subtotal || item.amount || 0)).toFixed(2)}</td>
                   </tr>
                 )) : (
                   <tr className="text-sm">
-                    <td className="py-3 font-medium text-slate-700">General Consultation</td>
-                    <td className="py-3 text-center text-slate-500">1</td>
-                    <td className="py-3 text-right text-slate-500">₹{bill.amount?.toFixed(2)}</td>
-                    <td className="py-3 text-right font-bold text-slate-800">₹{bill.amount?.toFixed(2)}</td>
+                    <td className="py-3 font-bold text-black">General Consultation</td>
+                    <td className="py-3 text-center font-bold text-black">1</td>
+                    <td className="py-3 text-right font-bold text-black">₹{bill.amount?.toFixed(2)}</td>
+                    <td className="py-3 text-right font-black text-black">₹{bill.amount?.toFixed(2)}</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex justify-end">
+          {/* Payment Installments / History Section */}
+          {paymentHistory.length > 0 && (
+            <div className="space-y-4">
+              <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black pb-2">Payment Installments / History</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border border-black rounded-lg overflow-hidden">
+                  <thead>
+                    <tr className="text-[10px] font-black text-white bg-black uppercase tracking-widest text-left">
+                      <th className="p-2 border-r border-white">Date</th>
+                      <th className="p-2 border-r border-white">Mode</th>
+                      <th className="p-2 border-r border-white">Transaction ID</th>
+                      <th className="p-2 text-right">Amount Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black text-black">
+                    {paymentHistory.map((inst, index) => (
+                      <tr key={index} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-2 font-bold border-r border-slate-200">{new Date(inst.date).toLocaleDateString('en-GB')}</td>
+                        <td className="p-2 border-r border-slate-200">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase border ${
+                            inst.paymentMethod === 'Cash' ? 'bg-orange-100 text-orange-900 border-orange-300' :
+                            inst.paymentMethod === 'UPI' ? 'bg-blue-100 text-blue-900 border-blue-300' :
+                            inst.paymentMethod === 'Card' ? 'bg-indigo-100 text-indigo-900 border-indigo-300' : 'bg-gray-100 text-gray-900 border-gray-300'
+                          }`}>
+                            {inst.paymentMethod}
+                          </span>
+                        </td>
+                        <td className="p-2 font-mono text-[10px] font-bold border-r border-slate-200">{inst.transactionId || '—'}</td>
+                        <td className="p-2 text-right font-black">₹{(inst.amount || 0).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Record New Installment payment Mode */}
+          {((bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount) > 0) && (
+            <div className="p-4 border-2 border-black rounded-2xl bg-green-50/20">
+              <h4 className="text-xs font-black text-black uppercase tracking-widest mb-3 border-b-2 border-black pb-1.5">
+                Record New Payment / Installment
+              </h4>
+              {installmentError && (
+                <div className="mb-3 p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-black">
+                  {installmentError}
+                </div>
+              )}
+              <form onSubmit={handleAddInstallment} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                  <div>
+                    <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={newInstallmentMode}
+                      onChange={(e) => setNewInstallmentMode(e.target.value)}
+                      className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Card">Card</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                      Amount (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount}
+                      value={newInstallmentAmount}
+                      onChange={(e) => setNewInstallmentAmount(e.target.value)}
+                      placeholder={`Max ₹${bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount}`}
+                      className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
+                      required
+                    />
+                  </div>
+                  {newInstallmentMode !== 'Cash' ? (
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                        Transaction ID
+                      </label>
+                      <input
+                        type="text"
+                        value={newInstallmentTxId}
+                        onChange={(e) => setNewInstallmentTxId(e.target.value)}
+                        placeholder="Tx ID"
+                        className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
+                      />
+                    </div>
+                  ) : (
+                    <div className="hidden sm:block"></div>
+                  )}
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={savingInstallment || !newInstallmentAmount}
+                      className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition disabled:opacity-50 border border-black cursor-pointer shadow-md"
+                    >
+                      {savingInstallment ? 'Recording...' : 'Record Payment'}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                    Notes / Remarks
+                  </label>
+                  <input
+                    type="text"
+                    value={newInstallmentNotes}
+                    onChange={(e) => setNewInstallmentNotes(e.target.value)}
+                    placeholder="Installment payment notes..."
+                    className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="bg-slate-50 p-6 rounded-2xl border border-black flex justify-end">
             <div className="w-64 space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Subtotal:</span>
-                <span className="font-bold text-slate-800">₹{totals.grossAmount.toFixed(2)}</span>
+                <span className="text-black font-bold">Subtotal:</span>
+                <span className="font-black text-black">₹{totals.grossAmount.toFixed(2)}</span>
               </div>
               {totals.discountAmount > 0 && (
-                <div className="flex justify-between text-sm text-rose-600">
+                <div className="flex justify-between text-sm text-rose-700 font-bold border-b border-dashed border-rose-200 pb-1">
                   <span>Discount:</span>
-                  <span className="font-bold">-₹{totals.discountAmount.toFixed(2)}</span>
+                  <span className="font-black">-₹{totals.discountAmount.toFixed(2)}</span>
                 </div>
               )}
               {totals.taxAmount > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Tax ({totals.taxValue}%):</span>
-                  <span className="font-bold text-slate-800">₹{totals.taxAmount.toFixed(2)}</span>
+                  <span className="text-black font-bold">Tax ({totals.taxValue}%):</span>
+                  <span className="font-black text-black">₹{totals.taxAmount.toFixed(2)}</span>
                 </div>
               )}
-              <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
-                <span className="text-lg font-bold text-slate-800 uppercase tracking-tighter">Grand Total</span>
-                <span className="text-2xl font-bold text-indigo-600">₹{totals.grandTotal.toFixed(2)}</span>
+              
+              {bill.installments && bill.installments.length > 0 ? (
+                <>
+                  <div className="flex justify-between text-sm text-green-700 border-t border-black pt-2 font-bold">
+                    <span>Paid So Far:</span>
+                    <span className="font-black">₹{(bill.paidAmount !== undefined ? bill.paidAmount : totals.paidAmount).toFixed(2)}</span>
+                  </div>
+                  {((bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount) > 0) ? (
+                    <div className="flex justify-between text-sm text-rose-700 font-black">
+                      <span>Remaining Due:</span>
+                      <span>₹{(bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount).toFixed(2)}</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-sm text-green-700 font-black border-t border-black pt-1">
+                      <span>STATUS:</span>
+                      <span>FULLY PAID</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                bill.status === 'Paid' && (
+                  <div className="flex justify-between text-sm text-green-700 border-t border-black pt-2 font-bold">
+                    <span>Amount Paid:</span>
+                    <span className="font-black">₹{totals.grandTotal.toFixed(2)}</span>
+                  </div>
+                )
+              )}
+
+              <div className="pt-3 border-t-2 border-black flex justify-between items-center">
+                <span className="text-lg font-black text-black uppercase tracking-tighter">Grand Total</span>
+                <span className="text-2xl font-black text-indigo-900">₹{totals.grandTotal.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
           {bill.notes && (
             <div className="space-y-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Additional Notes</p>
-              <p className="text-sm text-slate-600 bg-amber-50/50 p-3 rounded-xl border border-amber-100/50 italic">
+              <p className="text-[10px] font-black text-black uppercase tracking-widest">Additional Notes</p>
+              <p className="text-sm text-black font-bold bg-amber-50 p-3 rounded-xl border border-black italic">
                 {bill.notes}
               </p>
             </div>
           )}
         </div>
 
-        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-between gap-4">
+        <div className="p-6 bg-slate-50 border-t-2 border-black flex justify-between gap-4">
           <div className="flex gap-2">
             <button 
               onClick={() => onDownload(bill)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 border border-black transition-colors"
             >
               <Download size={16} /> Download
             </button>
             <button 
               onClick={() => onPrint(bill)}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-black hover:bg-slate-900 border border-black transition-colors"
             >
               <Printer size={16} /> Print
             </button>
+            <button 
+              onClick={() => onWhatsApp && onWhatsApp(bill)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-650 text-white rounded-xl text-sm font-black hover:bg-green-700 border border-black transition-colors"
+            >
+              <Phone size={16} /> WhatsApp
+            </button>
           </div>
-          <button onClick={onClose} className="px-6 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-white transition-colors">
+          <button onClick={onClose} className="px-6 py-2 border-2 border-black text-black bg-white rounded-xl text-sm font-black hover:bg-slate-50 transition-colors">
             Close
           </button>
         </div>
@@ -1320,6 +1555,8 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint }) => {
 
 const BillEditModal = ({ bill, onClose, onSave }) => {
   const [formData, setFormData] = useState({
+    _id: bill?._id,
+    billId: bill?.billId,
     status: bill?.status || 'Pending',
     paymentMethod: bill?.paymentMethod || 'Cash',
     amount: bill?.amount || 0,
@@ -1485,6 +1722,7 @@ const TabBilling = ({
   patient,
   onPrint,
   onDownload,
+  onWhatsApp,
   clinicInfo,
   setIsDownloading,
   setDownloadProgress,
@@ -1514,7 +1752,7 @@ const TabBilling = ({
   const fetchBills = async (page = 1) => {
     setLoading(true);
     try {
-      const billType = billingTab === 'Consultant' ? 'General' : 'Pharmacy';
+      const billType = billingTab === 'Consultant' ? 'General' : (billingTab === 'Pharmacy' ? 'Pharmacy' : 'Dental');
       const response = await billingApi.getByPatient(patient.patientId || patient._id, { 
         page, 
         limit: 10,
@@ -1793,6 +2031,17 @@ const TabBilling = ({
             <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />
           )}
         </button>
+        <button
+          onClick={() => setBillingTab('Dental')}
+          className={`px-6 py-3 text-sm font-bold transition-all relative ${
+            billingTab === 'Dental' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          Dental Billing
+          {billingTab === 'Dental' && (
+            <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />
+          )}
+        </button>
       </div>
 
       {/* Summary Metrics */}
@@ -2016,11 +2265,11 @@ const TabBilling = ({
                   })()}
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4 border-t border-slate-100">
                   {(() => {
                     const totals = bill.billType === 'Pharmacy' ? normalizePharmacyInvoice(bill) : calculateInvoiceTotals(bill);
                     return (
-                      <div className="flex items-center gap-6 w-full sm:w-auto">
+                      <div className="flex items-center justify-between sm:justify-start gap-4 sm:gap-6 w-full sm:w-auto flex-wrap">
                         <div className="space-y-0.5">
                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Billed</p>
                           <p className="text-sm font-bold text-slate-600">₹{totals.grossAmount.toLocaleString()}</p>
@@ -2035,7 +2284,7 @@ const TabBilling = ({
                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Paid</p>
                           <p className="text-sm font-bold text-emerald-600">₹{totals.paidAmount.toLocaleString()}</p>
                         </div>
-                        <div className="w-px h-8 bg-slate-100"></div>
+                        <div className="hidden sm:block w-px h-8 bg-slate-100"></div>
                         <div className="space-y-0.5">
                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Due</p>
                           <p className="text-sm font-bold text-rose-600">₹{totals.dueAmount.toLocaleString()}</p>
@@ -2044,7 +2293,7 @@ const TabBilling = ({
                     );
                   })()}
 
-                  <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
                     <div className="flex p-1 bg-slate-50 rounded-2xl border border-slate-100">
                       <ActionButton 
                         icon={Eye} 
@@ -2076,6 +2325,13 @@ const TabBilling = ({
                         onClick={() => onPrint(bill)} 
                         colorClass="text-slate-500" 
                         hoverBg="bg-white text-emerald-600 shadow-sm" 
+                      />
+                      <ActionButton 
+                        icon={Phone} 
+                        label="WhatsApp" 
+                        onClick={() => onWhatsApp && onWhatsApp(bill)} 
+                        colorClass="text-slate-500" 
+                        hoverBg="bg-white text-green-600 shadow-sm" 
                       />
                     </div>
 
@@ -2127,6 +2383,11 @@ const TabBilling = ({
             patient={patient} 
             onDownload={onDownload}
             onPrint={onPrint}
+            onWhatsApp={onWhatsApp}
+            onUpdateBill={(updatedBill) => {
+              setViewingBill(updatedBill);
+              fetchBills(currentPage);
+            }}
           />
         )}
         {editingBill && (
@@ -4148,6 +4409,27 @@ const PatientProfile = () => {
     }, 500);
   };
 
+  const handleInvoiceWhatsApp = async (bill) => {
+    const loadingToast = toast.loading("Sending invoice via WhatsApp...");
+    try {
+      await billingApi.sendWhatsApp(bill._id || bill.id);
+      toast.update(loadingToast, {
+        render: "Invoice sent via WhatsApp successfully!",
+        type: "success",
+        isLoading: false,
+        autoClose: 3000
+      });
+    } catch (err) {
+      console.error("WhatsApp error:", err);
+      toast.update(loadingToast, {
+        render: err.response?.data?.message || "Failed to send WhatsApp message.",
+        type: "error",
+        isLoading: false,
+        autoClose: 3000
+      });
+    }
+  };
+
   const fetchData = async (showLoading = true) => {
     try {
       if (showLoading) {
@@ -4716,6 +4998,7 @@ const PatientProfile = () => {
                       patient={data}
                       onPrint={handleBillingPrint}
                       onDownload={handleBillingDownload}
+                      onWhatsApp={handleInvoiceWhatsApp}
                       clinicInfo={clinicInfo}
                       setIsDownloading={setIsDownloading}
                       setDownloadProgress={setDownloadProgress}
@@ -4735,7 +5018,7 @@ const PatientProfile = () => {
                       onPrintReport={(comp) => setPrintingClinicalReport(comp)}
                     />
                   )}
-                  {activeTab === 'dental-chart' && <DentalChart patientId={id} />}
+                  {activeTab === 'dental-chart' && <DentalChart patientId={id} patientData={data} appointments={appointments} />}
                   {activeTab === 'treatment-plan' && <DentalTreatmentTab patientId={id} patientData={data} appointments={appointments} />}
                   {activeTab === 'dental-images' && <DentalImagesTab patientId={id} />}
                   {activeTab === 'tooth-history' && <ToothHistoryTab patientId={id} />}
@@ -4906,7 +5189,10 @@ const PatientProfile = () => {
                   total: totals.grandTotal,
                   notes: printingInvoice.notes || '',
                   paymentMethod: printingInvoice.paymentMethod || 'N/A',
-                  status: printingInvoice.status
+                  status: printingInvoice.status,
+                  installments: printingInvoice.installments || [],
+                  paidAmount: totals.paidAmount,
+                  dueAmount: totals.dueAmount
                 }}
               />
             );
@@ -5312,6 +5598,7 @@ const PrintableStatement = ({ bills, patient, clinicInfo }) => {
           </div>
         </div>
       </div>
+      <MobileAppNavigation />
     </div>
   );
 };

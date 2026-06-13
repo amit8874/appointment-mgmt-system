@@ -137,7 +137,14 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
         notes: data.notes,
         paymentMode: data.paymentMode,
         transactionId: data.transactionId || null,
-        billType: data.billType || 'General'
+        billType: data.billType || 'General',
+        installments: paid > 0 ? [{
+          date: new Date(),
+          amount: paid,
+          paymentMethod: data.paymentMode === 'cash' ? 'Cash' : (data.paymentMode === 'upi' ? 'UPI' : (data.paymentMode === 'netbanking' ? 'Card' : 'N/A')),
+          transactionId: data.transactionId || '',
+          notes: 'Initial payment / Installment'
+        }] : []
       });
 
       if (action === 'download') {
@@ -275,60 +282,60 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
                 {/* Left Side - Patient Info */}
                 <div className="flex-1">
                   <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <h3 className="text-lg font-bold text-black mb-4 flex items-center">
                       <span className="w-2 h-6 bg-blue-600 rounded mr-2"></span>
                       Patient Information
                     </h3>
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Patient Name</label>
-                        <p className="text-gray-900 font-semibold text-lg">{data.patientName || '—'}</p>
+                        <label className="block text-xs font-bold text-black uppercase tracking-wide">Patient Name</label>
+                        <p className="text-black font-bold text-lg">{data.patientName || '—'}</p>
                       </div>
                       
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Age</label>
-                        <p className="text-gray-700 font-medium">{data.age || '—'} years</p>
+                        <label className="block text-xs font-bold text-black uppercase tracking-wide">Age</label>
+                        <p className="text-black font-semibold">{data.age || '—'} years</p>
                       </div>
                       
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Gender</label>
-                        <p className="text-gray-700 font-medium">{data.gender || '—'}</p>
+                        <label className="block text-xs font-bold text-black uppercase tracking-wide">Gender</label>
+                        <p className="text-black font-semibold">{data.gender || '—'}</p>
                       </div>
                       
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Contact</label>
-                        <p className="text-gray-700 font-medium">{data.contactNumber || '—'}</p>
+                        <label className="block text-xs font-bold text-black uppercase tracking-wide">Contact</label>
+                        <p className="text-black font-semibold">{data.contactNumber || '—'}</p>
                       </div>
                       
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Blood Group</label>
-                        <p className="text-gray-700 font-medium">{data.bloodGroup || '—'}</p>
+                        <label className="block text-xs font-bold text-black uppercase tracking-wide">Blood Group</label>
+                        <p className="text-black font-semibold">{data.bloodGroup || '—'}</p>
                       </div>
                       
                       <div className="col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
-                        <p className="text-gray-700 font-medium">{data.email || '—'}</p>
+                        <label className="block text-xs font-bold text-black uppercase tracking-wide">Email</label>
+                        <p className="text-black font-semibold">{data.email || '—'}</p>
                       </div>
                       
                       <div className="col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Assigned Doctor</label>
-                        <p className="text-gray-700 font-medium">{data.doctorName || 'Unassigned'}</p>
+                        <label className="block text-xs font-bold text-black uppercase tracking-wide">Assigned Doctor</label>
+                        <p className="text-black font-semibold">{data.doctorName || 'Unassigned'}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Appointment Details */}
                   <div className="bg-blue-50 rounded-xl p-5 border border-blue-200 mt-4">
-                    <h3 className="text-md font-semibold text-blue-800 mb-3">Appointment Details</h3>
+                    <h3 className="text-md font-bold text-blue-900 mb-3">Appointment Details</h3>
                     <div className="flex gap-6">
                       <div>
-                        <label className="block text-xs font-medium text-blue-600 uppercase tracking-wide">Date</label>
-                        <p className="text-blue-900 font-medium">{formatDate(data.appointmentDate)}</p>
+                        <label className="block text-xs font-bold text-blue-900 uppercase tracking-wide">Date</label>
+                        <p className="text-black font-bold">{formatDate(data.appointmentDate)}</p>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-blue-600 uppercase tracking-wide">Time</label>
-                        <p className="text-blue-900 font-medium">{formatTime(data.appointmentTime)}</p>
+                        <label className="block text-xs font-bold text-blue-900 uppercase tracking-wide">Time</label>
+                        <p className="text-black font-bold">{formatTime(data.appointmentTime)}</p>
                       </div>
                     </div>
                   </div>
@@ -340,14 +347,14 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
                 {/* Right Side - Billing Details */}
                 <div className="flex-1">
                   <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <h3 className="text-lg font-bold text-black mb-4 flex items-center">
                       <span className="w-2 h-6 bg-green-600 rounded mr-2"></span>
                       Payment Details
                     </h3>
                     
                     {/* Amount Section */}
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-bold text-black mb-1">
                         Total Amount (₹)
                       </label>
                       <input
@@ -362,7 +369,7 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
 
                     {/* Discount Section */}
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-bold text-black mb-1">
                         Discount
                       </label>
                       <div className="flex gap-2">
@@ -396,7 +403,7 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
 
                     {/* Payment Mode Selection */}
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-bold text-black mb-2">
                         Payment Mode
                       </label>
                       <div className="grid grid-cols-3 gap-2">
@@ -405,36 +412,36 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
                           onClick={() => handlePaymentModeChange('cash')}
                           className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition ${
                             data.paymentMode === 'cash'
-                              ? 'border-green-500 bg-green-50 text-green-700'
-                              : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                              ? 'border-green-500 bg-green-50 text-green-800 font-bold'
+                              : 'border-gray-300 hover:border-gray-400 text-black font-bold'
                           }`}
                         >
                           <Banknote className="w-6 h-6 mb-1" />
-                          <span className="text-sm font-medium">Cash</span>
+                          <span className="text-sm font-bold">Cash</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handlePaymentModeChange('upi')}
                           className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition ${
                             data.paymentMode === 'upi'
-                              ? 'border-green-500 bg-green-50 text-green-700'
-                              : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                              ? 'border-green-500 bg-green-50 text-green-800 font-bold'
+                              : 'border-gray-300 hover:border-gray-400 text-black font-bold'
                           }`}
                         >
                           <Smartphone className="w-6 h-6 mb-1" />
-                          <span className="text-sm font-medium">UPI</span>
+                          <span className="text-sm font-bold">UPI</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handlePaymentModeChange('netbanking')}
                           className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition ${
                             data.paymentMode === 'netbanking'
-                              ? 'border-green-500 bg-green-50 text-green-700'
-                              : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                              ? 'border-green-500 bg-green-50 text-green-800 font-bold'
+                              : 'border-gray-300 hover:border-gray-400 text-black font-bold'
                           }`}
                         >
                           <CreditCard className="w-6 h-6 mb-1" />
-                          <span className="text-sm font-medium">Net Banking</span>
+                          <span className="text-sm font-bold">Net Banking</span>
                         </button>
                       </div>
                     </div>
@@ -442,7 +449,7 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
                     {/* Transaction ID - Only for UPI/Netbanking */}
                     {(data.paymentMode === 'upi' || data.paymentMode === 'netbanking') && (
                       <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-bold text-black mb-1">
                           Transaction ID (Optional)
                         </label>
                         <input
@@ -458,7 +465,7 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
 
                     {/* Amount Paid */}
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-bold text-black mb-1">
                         Amount Paid (₹)
                       </label>
                       <input
@@ -476,7 +483,7 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
 
                     {/* Notes */}
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-bold text-black mb-1">
                         Notes (optional)
                       </label>
                       <textarea
@@ -496,7 +503,7 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
               <button
                 onClick={handleClose}
-                className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-medium transition"
+                className="px-6 py-2.5 border border-gray-400 text-black rounded-lg hover:bg-gray-100 font-bold transition"
               >
                 Cancel
               </button>
@@ -553,7 +560,10 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
               total: bill.amount,
               notes: bill.notes,
               paymentMethod: bill.paymentMode || bill.status,
-              status: bill.status || 'Paid'
+              status: bill.status || 'Paid',
+              installments: bill.installments || [],
+              paidAmount: bill.paidAmount,
+              dueAmount: bill.dueAmount
             }}
           />
         </div>,

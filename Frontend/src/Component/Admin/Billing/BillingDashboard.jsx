@@ -202,6 +202,9 @@ const transformApiData = (apiBill) => {
       patientPhone: apiBill.patientPhone || '',
       billType: 'Pharmacy',
       items: normalized.items,
+      installments: apiBill.installments || [],
+      paidAmount: apiBill.paidAmount !== undefined ? apiBill.paidAmount : (normalized.paidAmount || 0),
+      dueAmount: apiBill.dueAmount !== undefined ? apiBill.dueAmount : (normalized.dueAmount || 0),
       details: {
         ...getInitialBillState(),
         patient: String(apiBill.patientName || ''),
@@ -242,6 +245,9 @@ const transformApiData = (apiBill) => {
     patientPhone: apiBill.patientPhone || '',
     billType: apiBill.billType || 'General',
     items: apiBill.items || [],
+    installments: apiBill.installments || [],
+    paidAmount: apiBill.paidAmount !== undefined ? apiBill.paidAmount : (apiBill.amount || 0),
+    dueAmount: apiBill.dueAmount !== undefined ? apiBill.dueAmount : 0,
     details: {
       patient: String(apiBill.patientName || ''),
       doctor: String(apiBill.doctorName || ''),
@@ -292,6 +298,8 @@ const getInitialBillState = () => ({
   discounts: 0,
   taxRate: 5, // Default 5%
   totalAmount: 0,
+  paidAmount: 0,
+  paidAmountModified: false,
   paymentMode: 'Cash',
   status: 'Paid',
 });
@@ -615,9 +623,17 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
     const subtotal = consultation + test + medicine + additional + itemTotal;
     const amountAfterDiscount = Math.max(0, subtotal - discount);
     const taxAmount = amountAfterDiscount * (tax / 100);
-    const total = amountAfterDiscount + taxAmount;
+    const total = parseFloat((amountAfterDiscount + taxAmount).toFixed(2));
 
-    setBillData(prev => ({ ...prev, totalAmount: parseFloat(total.toFixed(2)) }));
+    setBillData(prev => {
+      const isFullyPaid = prev.status === 'Paid';
+      const newPaid = isFullyPaid ? total : 0;
+      return {
+        ...prev,
+        totalAmount: total,
+        paidAmount: prev.paidAmountModified ? prev.paidAmount : newPaid
+      };
+    });
   }, [
     billData.consultationFee,
     billData.tests,
@@ -626,7 +642,8 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
     billData.discounts,
     billData.taxRate,
     itemList,
-    billType
+    billType,
+    billData.status
   ]);
 
   const handleInputChange = (e) => {
@@ -637,18 +654,27 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
       newValue = (value === '' || value === '.') ? '' : parseFloat(value) || 0;
     }
 
-    setBillData(prev => ({
-      ...prev,
-      [name]: newValue
-    }));
-
-    // Update status to Paid if mode is cash/card/UPI, otherwise Pending for Insurance
-    if (name === 'paymentMode') {
-      setBillData(prev => ({
-        ...prev,
-        status: value === 'Insurance' ? 'Pending' : 'Paid'
-      }));
-    }
+    setBillData(prev => {
+      const updated = { ...prev, [name]: newValue };
+      if (name === 'paidAmount') {
+        updated.paidAmountModified = true;
+        if (newValue >= prev.totalAmount) {
+          updated.status = 'Paid';
+        } else if (newValue > 0) {
+          updated.status = 'Due';
+        } else {
+          updated.status = 'Pending';
+        }
+      }
+      // Update status to Paid if mode is cash/card/UPI, otherwise Pending for Insurance
+      if (name === 'paymentMode') {
+        updated.status = value === 'Insurance' ? 'Pending' : 'Paid';
+        if (!prev.paidAmountModified) {
+          updated.paidAmount = value === 'Insurance' ? 0 : prev.totalAmount;
+        }
+      }
+      return updated;
+    });
   };
 
   const handleSave = async (shouldPrint = false) => {
@@ -687,6 +713,15 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
         'Insurance': 'Insurance'
       };
 
+      const initialPaid = parseFloat(billData.paidAmount) || 0;
+      const initialDue = Math.max(0, billData.totalAmount - initialPaid);
+      let calculatedStatus = 'Pending';
+      if (initialPaid >= billData.totalAmount) {
+        calculatedStatus = 'Paid';
+      } else if (initialPaid > 0) {
+        calculatedStatus = 'Due';
+      }
+
       // Create bill via API
       const newBill = await billingApi.create({
         patientId: billData.patientId || 'PID-' + Date.now(),
@@ -695,14 +730,20 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
         doctorId: billData.doctorId || 'DID-001',
         doctorName: billData.doctorName,
         amount: billData.totalAmount,
-        paidAmount: billData.status === 'Paid' ? billData.totalAmount : 0,
-        dueAmount: billData.status === 'Paid' ? 0 : billData.totalAmount,
+        paidAmount: initialPaid,
+        dueAmount: initialDue,
         items: items,
-        status: billData.status,
+        status: calculatedStatus,
         discount: billData.discounts,
         notes: `Bill Type: ${billType}${billData.appointmentDate ? ` | Appt Date: ${billData.appointmentDate}` : ''}`,
         paymentMethod: paymentModeMap[billData.paymentMode] || 'Cash',
-        billType: billType
+        billType: billType,
+        installments: initialPaid > 0 ? [{
+          date: new Date(),
+          amount: initialPaid,
+          paymentMethod: paymentModeMap[billData.paymentMode] || 'Cash',
+          notes: 'Initial payment / Installment'
+        }] : []
       });
 
       // Auto-save medicine names to global DB (non-blocking)
@@ -1022,8 +1063,26 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
                   );
                 })}
               </div>
+
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-sky-100">
+                <InputField 
+                  label="Paid Amount (₹)" 
+                  name="paidAmount" 
+                  type="number" 
+                  value={billData.paidAmount} 
+                  onChange={handleInputChange} 
+                  placeholder="Enter paid amount" 
+                  unit="₹" 
+                />
+                {billData.totalAmount - billData.paidAmount > 0 && (
+                  <div className="flex flex-col justify-end pb-1 text-red-600 text-sm font-black uppercase tracking-wider">
+                    Remaining Due: {formatCurrency(Math.max(0, billData.totalAmount - billData.paidAmount))}
+                  </div>
+                )}
+              </div>
+
               <p className="mt-4 text-sm text-gray-500">
-                Invoice status upon saving: <span className={`font-semibold ${billData.status === 'Paid' ? 'text-green-600' : 'text-red-600'}`}>
+                Invoice status upon saving: <span className={`font-semibold ${billData.status === 'Paid' ? 'text-green-600' : (billData.status === 'Due' ? 'text-orange-500' : 'text-red-500')}`}>
                   {billData.status}
                 </span> (Based on **{billData.paymentMode}**).
               </p>
@@ -1048,12 +1107,16 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
               <span className="text-md font-medium">Tax ({billData.taxRate}%):</span>
               <span className="font-bold">{formatCurrency(taxAmount)}</span>
             </div>
+            <div className="flex justify-between pt-2 border-t border-gray-200 text-green-600">
+              <span className="text-md font-medium">Paid Amount:</span>
+              <span className="font-bold">{formatCurrency(billData.paidAmount)}</span>
+            </div>
           </div>
 
           <div className={`flex justify-between items-center pt-4 mt-4 border-t-2 border-${PRIMARY_COLOR}-400`}>
-            <span className="text-xl font-extrabold text-gray-900">Total Due:</span>
-            <span className="text-3xl font-extrabold text-${PRIMARY_COLOR}-800">
-              {formatCurrency(billData.totalAmount)}
+            <span className="text-lg font-extrabold text-gray-900">Remaining Balance:</span>
+            <span className="text-2xl font-extrabold text-${PRIMARY_COLOR}-800">
+              {formatCurrency(Math.max(0, billData.totalAmount - billData.paidAmount))}
             </span>
           </div>
         </div>
@@ -1100,8 +1163,27 @@ const SummaryCard = ({ title, value, colorClass, icon: Icon }) => (
 
 
 // --- Invoice Detail Modal Component ---
-const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, onSend, clinicInfo = {} }) => {
+const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrint, onSend, clinicInfo = {}, onUpdateBill }) => {
+  const [newInstallmentAmount, setNewInstallmentAmount] = useState('');
+  const [newInstallmentMode, setNewInstallmentMode] = useState('Cash');
+  const [newInstallmentTxId, setNewInstallmentTxId] = useState('');
+  const [newInstallmentNotes, setNewInstallmentNotes] = useState('');
+  const [savingInstallment, setSavingInstallment] = useState(false);
+  const [installmentError, setInstallmentError] = useState('');
+
   const details = invoice.details || {};
+
+  const paymentHistory = (invoice.installments && invoice.installments.length > 0)
+    ? invoice.installments
+    : (invoice.paidAmount > 0
+        ? [{
+            date: invoice.dateRaw || invoice.date || new Date(),
+            amount: invoice.paidAmount,
+            paymentMethod: details.paymentMode || invoice.paymentMethod || 'N/A',
+            transactionId: invoice.transactionId || '',
+            notes: 'Single payment'
+          }]
+        : []);
 
   // Map the detail fields to readable labels or use the itemized list
   const isItemized = invoice.items && invoice.items.length > 0;
@@ -1149,6 +1231,63 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
     });
   }
 
+  const handleAddInstallment = async (e) => {
+    e.preventDefault();
+    setInstallmentError('');
+    const amt = parseFloat(newInstallmentAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setInstallmentError('Please enter a valid installment amount.');
+      return;
+    }
+    if (amt > invoice.dueAmount) {
+      setInstallmentError(`Installment amount cannot exceed remaining due (₹${invoice.dueAmount}).`);
+      return;
+    }
+
+    setSavingInstallment(true);
+    try {
+      const baseInstallments = (invoice.installments && invoice.installments.length > 0)
+        ? invoice.installments
+        : (invoice.paidAmount > 0
+            ? [{
+                date: invoice.dateRaw || invoice.date || new Date(),
+                amount: invoice.paidAmount,
+                paymentMethod: details.paymentMode || invoice.paymentMethod || 'N/A',
+                transactionId: invoice.transactionId || '',
+                notes: 'Initial payment'
+              }]
+            : []);
+
+      const updatedInstallments = [
+        ...baseInstallments,
+        {
+          date: new Date(),
+          amount: amt,
+          paymentMethod: newInstallmentMode,
+          transactionId: newInstallmentTxId,
+          notes: newInstallmentNotes || 'Subsequent payment'
+        }
+      ];
+
+      const updatedBill = await billingApi.update(invoice._id, {
+        installments: updatedInstallments
+      });
+
+      if (onUpdateBill) {
+        onUpdateBill(updatedBill);
+      }
+      
+      setNewInstallmentAmount('');
+      setNewInstallmentTxId('');
+      setNewInstallmentNotes('');
+    } catch (err) {
+      console.error(err);
+      setInstallmentError('Failed to record installment payment. Please try again.');
+    } finally {
+      setSavingInstallment(false);
+    }
+  };
+
   const handleStatusChange = (newStatus) => {
     if (onUpdateStatus) {
       onUpdateStatus(invoice.id, newStatus);
@@ -1164,7 +1303,7 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-80 flex items-center justify-center p-4 sm:p-6 no-print" onClick={onClose}>
       <div
-        className="bg-white shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative transform transition-all duration-300 scale-100"
+        className="bg-white shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative transform transition-all duration-300 scale-100 border-4 border-black"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Status Watermark */}
@@ -1178,26 +1317,26 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
         <div className="absolute top-0 right-0 p-4 flex gap-2 print:hidden z-50 bg-white/90 rounded-bl-xl shadow-sm">
           <button
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-lg transition"
+            className="p-2 text-black hover:text-red-650 hover:bg-gray-100 rounded-lg transition font-bold"
           >
             <XIcon />
           </button>
         </div>
 
         {/* Invoice Content */}
-        <div className="p-4 sm:p-5 print:p-4 relative z-10 w-full bg-transparent">
+        <div className="p-4 sm:p-5 print:p-4 relative z-10 w-full bg-transparent text-black">
 
           {/* Header */}
-          <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-800 pb-4 mb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-black pb-4 mb-4">
             <div>
-              <h1 className="text-3xl font-black text-slate-800 tracking-tight uppercase mb-1">INVOICE</h1>
-              <p className="text-xs font-bold text-slate-500">#{String(invoice.id || '')}</p>
+              <h1 className="text-3xl font-black text-black tracking-tight uppercase mb-1">INVOICE</h1>
+              <p className="text-xs font-black text-black">#{String(invoice.id || '')}</p>
             </div>
 
-            <div className="flex items-start text-right mt-2 sm:mt-0 gap-4">
+            <div className="flex items-start text-right mt-2 sm:mt-0 gap-4 text-black">
               <div className="text-right flex-1">
-                <h2 className="text-xl font-bold text-slate-800">{clinicInfo.name || clinicInfo.clinicName || 'Clinic Name'}</h2>
-                <p className="text-xs text-slate-600 mt-1">
+                <h2 className="text-xl font-black text-black">{clinicInfo.name || clinicInfo.clinicName || 'Clinic Name'}</h2>
+                <p className="text-xs font-bold text-black mt-1">
                   {(() => {
                     const addr = clinicInfo.address || clinicInfo.clinicAddress || clinicInfo.location;
                     if (!addr) return '';
@@ -1206,12 +1345,12 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
                     return parts.join(', ');
                   })()}
                 </p>
-                <p className="text-xs text-slate-600">{clinicInfo.email || clinicInfo.clinicEmail || clinicInfo.contactEmail || ''}</p>
-                <p className="text-xs text-slate-600">{clinicInfo.phone || clinicInfo.mobile || clinicInfo.contact || ''}</p>
+                <p className="text-xs font-bold text-black">{clinicInfo.email || clinicInfo.clinicEmail || clinicInfo.contactEmail || ''}</p>
+                <p className="text-xs font-bold text-black">{clinicInfo.phone || clinicInfo.mobile || clinicInfo.contact || ''}</p>
               </div>
               {clinicInfo.branding?.logo && (
                 <div className="flex-shrink-0">
-                  <img src={clinicInfo.branding.logo} alt="Organization Logo" className="h-16 w-16 object-contain rounded border border-gray-100 p-1" />
+                  <img src={clinicInfo.branding.logo} alt="Organization Logo" className="h-16 w-16 object-contain rounded border border-black p-1" />
                 </div>
               )}
             </div>
@@ -1220,30 +1359,30 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
           {/* Billing Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Billed To</p>
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                <h3 className="text-md font-bold text-slate-800">{String(invoice.patient || '')}</h3>
-                <p className="text-xs text-slate-600 mt-0.5">Patient ID: {String(details.patientId || invoice.patientId || 'N/A')}</p>
-                <p className="text-xs text-slate-600">Attending Doctor: <span className="font-semibold">{String(invoice.doctor || '')}</span></p>
+              <p className="text-[10px] font-black text-black uppercase tracking-wider mb-1">Billed To</p>
+              <div className="bg-slate-50 p-3 rounded-lg border-2 border-black">
+                <h3 className="text-md font-extrabold text-black">{String(invoice.patient || '')}</h3>
+                <p className="text-xs text-black mt-0.5 font-bold">Patient ID: {String(details.patientId || invoice.patientId || 'N/A')}</p>
+                <p className="text-xs text-black font-bold">Attending Doctor: <span className="font-extrabold">{String(invoice.doctor || '')}</span></p>
               </div>
             </div>
-            <div className="sm:text-right">
+            <div className="sm:text-right text-black">
               <div className="grid grid-cols-2 gap-3">
                 <div className="text-left sm:text-right">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Invoice Date</p>
-                  <p className="text-xs font-semibold text-slate-800">{String(invoice.date || '')}</p>
+                  <p className="text-[10px] font-black text-black uppercase tracking-wider mb-0.5">Invoice Date</p>
+                  <p className="text-xs font-black text-black">{String(invoice.date || '')}</p>
                 </div>
                 <div className="text-left sm:text-right">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Due Date</p>
-                  <p className="text-xs font-semibold text-slate-800">{String(invoice.date || '')}</p>
+                  <p className="text-[10px] font-black text-black uppercase tracking-wider mb-0.5">Due Date</p>
+                  <p className="text-xs font-black text-black">{String(invoice.date || '')}</p>
                 </div>
                 <div className="text-left sm:text-right">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Payment Mode</p>
-                  <p className="text-xs font-semibold text-slate-800">{String(details.paymentMode || 'N/A')}</p>
+                  <p className="text-[10px] font-black text-black uppercase tracking-wider mb-0.5">Payment Mode</p>
+                  <p className="text-xs font-black text-black">{String(details.paymentMode || 'N/A')}</p>
                 </div>
                 <div className="text-left sm:text-right">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Status</p>
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${invoice.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <p className="text-[10px] font-black text-black uppercase tracking-wider mb-0.5">Status</p>
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-black ${invoice.status === 'Paid' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-red-100 text-red-800 border border-red-300'}`}>
                     {invoice.status}
                   </span>
                 </div>
@@ -1252,65 +1391,213 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
           </div>
 
           {/* Itemized Table */}
-          <div className="mb-6 rounded-lg overflow-hidden border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-800">
+          <div className="mb-6 rounded-lg overflow-hidden border-2 border-black">
+            <table className="min-w-full divide-y divide-black">
+              <thead className="bg-black">
                 <tr>
-                  <th scope="col" className="px-4 py-2 text-left text-[10px] font-bold text-white uppercase tracking-wider">Item Description</th>
-                  {isItemized && <th scope="col" className="px-4 py-2 text-center text-[10px] font-bold text-white uppercase tracking-wider">Qty</th>}
-                  {isItemized && <th scope="col" className="px-4 py-2 text-center text-[10px] font-bold text-white uppercase tracking-wider">Unit Price</th>}
-                  <th scope="col" className="px-4 py-2 text-right text-[10px] font-bold text-white uppercase tracking-wider">Amount</th>
+                  <th scope="col" className="px-4 py-2 text-left text-[10px] font-black text-white uppercase tracking-wider">Item Description</th>
+                  {isItemized && <th scope="col" className="px-4 py-2 text-center text-[10px] font-black text-white uppercase tracking-wider">Qty</th>}
+                  {isItemized && <th scope="col" className="px-4 py-2 text-center text-[10px] font-black text-white uppercase tracking-wider">Unit Price</th>}
+                  <th scope="col" className="px-4 py-2 text-right text-[10px] font-black text-white uppercase tracking-wider">Amount</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
+              <tbody className="bg-white divide-y-2 divide-black text-black">
                 {chargeItems.map((item, index) => (
                   <tr key={index} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-2 whitespace-nowrap text-xs font-medium text-slate-800">{item.label}</td>
-                    {isItemized && <td className="px-4 py-2 whitespace-nowrap text-xs text-center text-slate-600">{item.qty || 1}</td>}
-                    {isItemized && <td className="px-4 py-2 whitespace-nowrap text-xs text-center text-slate-600">{formatCurrency(item.unitPrice)}</td>}
-                    <td className="px-4 py-2 whitespace-nowrap text-xs text-right font-medium text-slate-700">{formatCurrency(item.value)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap text-xs font-bold text-black">{item.label}</td>
+                    {isItemized && <td className="px-4 py-2 whitespace-nowrap text-xs text-center font-bold text-black">{item.qty || 1}</td>}
+                    {isItemized && <td className="px-4 py-2 whitespace-nowrap text-xs text-center font-bold text-black">{formatCurrency(item.unitPrice)}</td>}
+                    <td className="px-4 py-2 whitespace-nowrap text-xs text-right font-black text-black">{formatCurrency(item.value)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
+          {/* Payment Installments / History Section */}
+          {paymentHistory.length > 0 && (
+            <div className="mb-6 p-4 border-2 border-black rounded-xl bg-slate-50">
+              <h4 className="text-xs font-black text-black uppercase tracking-widest mb-3 border-b-2 border-black pb-1.5 flex items-center gap-1.5">
+                <span>Payment Installments / History</span>
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-black text-xs text-black">
+                  <thead>
+                    <tr className="font-black text-black">
+                      <th className="px-2 py-1.5 text-left font-black uppercase tracking-wider border-r border-black">Date</th>
+                      <th className="px-2 py-1.5 text-left font-black uppercase tracking-wider border-r border-black">Patient Name</th>
+                      <th className="px-2 py-1.5 text-left font-black uppercase tracking-wider border-r border-black">Mode</th>
+                      <th className="px-2 py-1.5 text-left font-black uppercase tracking-wider border-r border-black">Transaction ID</th>
+                      <th className="px-2 py-1.5 text-right font-black uppercase tracking-wider">Amount Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y-2 divide-black text-black">
+                    {paymentHistory.map((inst, index) => (
+                      <tr key={index}>
+                        <td className="px-2 py-1.5 font-bold border-r border-black">
+                          {new Date(inst.date).toLocaleDateString('en-GB')}
+                        </td>
+                        <td className="px-2 py-1.5 font-bold border-r border-black">{invoice.patient}</td>
+                        <td className="px-2 py-1.5 border-r border-black">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                            inst.paymentMethod === 'Cash' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                            inst.paymentMethod === 'UPI' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                            inst.paymentMethod === 'Card' ? 'bg-indigo-100 text-indigo-800 border border-indigo-300' : 'bg-gray-100 text-gray-800 border border-gray-300'
+                          }`}>
+                            {inst.paymentMethod}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5 font-mono text-[10px] font-bold border-r border-black">{inst.transactionId || '—'}</td>
+                        <td className="px-2 py-1.5 text-right font-black">{formatCurrency(inst.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Record New Installment payment Mode */}
+          {invoice.dueAmount > 0 && (
+            <div className="mb-6 p-4 border-2 border-black rounded-xl bg-green-50/20">
+              <h4 className="text-xs font-black text-black uppercase tracking-widest mb-3 border-b-2 border-black pb-1.5">
+                Record New Payment / Installment
+              </h4>
+              {installmentError && (
+                <div className="mb-3 p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-black">
+                  {installmentError}
+                </div>
+              )}
+              <form onSubmit={handleAddInstallment} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                  <div>
+                    <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={newInstallmentMode}
+                      onChange={(e) => setNewInstallmentMode(e.target.value)}
+                      className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none"
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Card">Card</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                      Amount (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={invoice.dueAmount}
+                      value={newInstallmentAmount}
+                      onChange={(e) => setNewInstallmentAmount(e.target.value)}
+                      placeholder={`Max ₹${invoice.dueAmount}`}
+                      className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none"
+                      required
+                    />
+                  </div>
+                  {newInstallmentMode !== 'Cash' ? (
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                        Transaction ID
+                      </label>
+                      <input
+                        type="text"
+                        value={newInstallmentTxId}
+                        onChange={(e) => setNewInstallmentTxId(e.target.value)}
+                        placeholder="Tx ID"
+                        className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none"
+                      />
+                    </div>
+                  ) : (
+                    <div className="hidden sm:block"></div>
+                  )}
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={savingInstallment || !newInstallmentAmount}
+                      className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-black uppercase tracking-wider transition disabled:opacity-50 border border-black"
+                    >
+                      {savingInstallment ? 'Recording...' : 'Record Payment'}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                    Notes / Remarks
+                  </label>
+                  <input
+                    type="text"
+                    value={newInstallmentNotes}
+                    onChange={(e) => setNewInstallmentNotes(e.target.value)}
+                    placeholder="Installment payment notes..."
+                    className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none"
+                  />
+                </div>
+              </form>
+            </div>
+          )}
+
           {/* Totals Section */}
           <div className="flex flex-col sm:flex-row justify-end items-start pt-4 mb-6">
             <div className="w-full sm:w-5/12 ml-auto">
-              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                <div className="flex justify-between mb-2 text-xs">
-                  <span className="font-medium text-slate-600">Subtotal</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(subtotalCharges)}</span>
+              <div className="bg-slate-50 rounded-lg p-4 border-2 border-black text-black">
+                <div className="flex justify-between mb-2 text-xs font-bold">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(subtotalCharges)}</span>
                 </div>
-                <div className="flex justify-between mb-2 text-xs">
-                  <span className="font-medium text-slate-600">Tax ({details.taxRate || 0}%)</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(taxAmount)}</span>
+                <div className="flex justify-between mb-2 text-xs font-bold">
+                  <span>Tax ({details.taxRate || 0}%)</span>
+                  <span>{formatCurrency(taxAmount)}</span>
                 </div>
                 {(totalDiscount > 0) && (
-                  <div className="flex justify-between mb-2 text-xs text-red-600">
-                    <span className="font-medium">Total Discount</span>
-                    <span className="font-semibold">-{formatCurrency(totalDiscount)}</span>
+                  <div className="flex justify-between mb-2 text-xs text-red-650 font-bold">
+                    <span>Total Discount</span>
+                    <span>-{formatCurrency(totalDiscount)}</span>
                   </div>
                 )}
 
-                <div className="flex justify-between items-center py-2 border-t border-slate-800 mt-2">
-                  <span className="text-lg font-black text-slate-800 uppercase tracking-tight">Total</span>
-                  <span className="text-xl font-black text-indigo-600">{formatCurrency(details.totalAmount)}</span>
+                <div className="flex justify-between items-center py-2 border-t-2 border-black mt-2 font-black">
+                  <span className="text-lg uppercase tracking-tight">Total</span>
+                  <span className="text-xl">{formatCurrency(details.totalAmount)}</span>
                 </div>
 
-                {invoice.status === 'Paid' && (
-                  <div className="flex justify-between items-center pt-2 text-xs text-green-600">
-                    <span className="font-bold uppercase tracking-wide">Amount Paid</span>
-                    <span className="font-bold">{formatCurrency(details.totalAmount)}</span>
-                  </div>
+                {invoice.installments && invoice.installments.length > 0 ? (
+                  <>
+                    <div className="flex justify-between items-center pt-2 text-xs text-green-700 border-t-2 border-black mt-2 font-black">
+                      <span className="uppercase tracking-wide">Paid So Far</span>
+                      <span>{formatCurrency(invoice.paidAmount)}</span>
+                    </div>
+                    {invoice.dueAmount > 0 ? (
+                      <div className="flex justify-between items-center pt-2 text-xs text-red-700 font-black">
+                        <span className="uppercase tracking-wide">Due Amount</span>
+                        <span>{formatCurrency(invoice.dueAmount)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center pt-2 text-xs text-green-700 font-black border-t-2 border-black mt-2">
+                        <span className="uppercase tracking-wide">STATUS</span>
+                        <span>FULLY PAID</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  invoice.status === 'Paid' && (
+                    <div className="flex justify-between items-center pt-2 text-xs text-green-700 border-t border-black mt-2 font-black">
+                      <span className="uppercase tracking-wide">Amount Paid</span>
+                      <span>{formatCurrency(details.totalAmount)}</span>
+                    </div>
+                  )
                 )}
               </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="border-t border-slate-200 pt-4 mt-6 text-center text-[10px] text-slate-400">
+          <div className="border-t border-black pt-4 mt-6 text-center text-[10px] font-bold text-black uppercase tracking-wider">
             <p>This is a computer-generated invoice and does not require a signature.</p>
           </div>
 
@@ -1318,14 +1605,14 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 no-print px-2">
             <button
               onClick={() => onSend(invoice, 'Email')}
-              className="flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-100 active:scale-95"
+              className="flex items-center justify-center px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-100 active:scale-95 border border-black"
             >
               <Send className="w-4 h-4 mr-2" />
               Email Invoice
             </button>
             <button
               onClick={() => onSend(invoice, 'WhatsApp')}
-              className="flex items-center justify-center px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-emerald-100 active:scale-95"
+              className="flex items-center justify-center px-4 py-3 bg-green-600 hover:bg-green-750 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-emerald-100 active:scale-95 border border-black"
             >
               <Phone className="w-4 h-4 mr-2" />
               WhatsApp
@@ -1338,7 +1625,7 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
                   window.print();
                 }
               }}
-              className="flex items-center justify-center px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-slate-100 active:scale-95"
+              className="flex items-center justify-center px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-slate-100 active:scale-95 border border-black"
             >
               <Printer className="w-4 h-4 mr-2" />
               Print Invoice
@@ -1368,7 +1655,7 @@ const BillingDashboard = () => {
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'generate'
-  const [billingTab, setBillingTab] = useState('General'); // 'General', 'Pharmacy', 'Lab'
+  const [billingTab, setBillingTab] = useState('General'); // 'General', 'Pharmacy', 'Dental'
   const [activeFilter, setActiveFilter] = useState('All'); // 'All', 'Paid', 'Pending'
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null); // State for modal
@@ -1401,10 +1688,12 @@ const BillingDashboard = () => {
   }, []);
 
   // Fetch bills from API on component mount
-  const fetchData = useCallback(async (page = 1) => {
+  const fetchData = useCallback(async (page = 1, overrideBillType) => {
+    const currentBillType = overrideBillType !== undefined ? overrideBillType : billingTab;
     try {
       setLoading(true);
       setError(null);
+      console.log('[BILLING FRONTEND] Fetching with billType:', currentBillType, 'page:', page);
       const [billingResponse, appointmentData, doctorData] = await Promise.all([
         billingApi.getAll({
           page,
@@ -1412,12 +1701,13 @@ const BillingDashboard = () => {
           search: searchTerm,
           status: ['Paid', 'Pending', 'Due'].includes(activeFilter) ? activeFilter : '',
           paymentMethod: ['Cash', 'UPI', 'Card'].includes(activeFilter) ? activeFilter : '',
-          billType: billingTab
+          billType: currentBillType
         }),
         appointmentApi.getAll(),
         centralDoctorApi.getAll()
       ]);
 
+      console.log('[BILLING FRONTEND] Response:', billingResponse?.bills?.length, 'bills found');
       const billsData = billingResponse.bills || (Array.isArray(billingResponse) ? billingResponse : []);
       const transformedData = billsData.map(transformApiData);
       setInvoices(transformedData);
@@ -1435,8 +1725,9 @@ const BillingDashboard = () => {
     }
   }, [searchTerm, activeFilter, billingTab]);
 
+  // Re-fetch whenever tab or filter changes — pass the new value directly to avoid stale closure
   useEffect(() => {
-    fetchData(1);
+    fetchData(1, billingTab);
   }, [activeFilter, billingTab]);
 
   useEffect(() => {
@@ -1534,6 +1825,14 @@ const BillingDashboard = () => {
     }
   };
 
+  const handleUpdateBill = (updatedBill) => {
+    const transformed = transformApiData(updatedBill);
+    setInvoices(prev => prev.map(inv => inv.id === transformed.id ? transformed : inv));
+    if (selectedInvoice && selectedInvoice.id === transformed.id) {
+      setSelectedInvoice(transformed);
+    }
+  };
+
   // Handler for deleting invoice
   const handleDeleteInvoice = async (invoiceId) => {
     try {
@@ -1624,10 +1923,11 @@ const BillingDashboard = () => {
         )}
 
         {/* Category Tabs (Three Boxes) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {[
             { id: 'General', label: 'Consultation & General', icon: User, color: 'sky', description: 'Doctors, Appointments & OPD' },
             { id: 'Pharmacy', label: 'Pharmacy Billing', icon: PlusCircle, color: 'indigo', description: 'Medicines, Inventory & Retail' },
+            { id: 'Dental', label: 'Dental Billing', icon: FileText, color: 'emerald', description: 'Dental Procedures & Treatments' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1716,6 +2016,7 @@ const BillingDashboard = () => {
             onPrint={handlePrintFromModal}
             onSend={(invoice, method) => handleAction(method, invoice.id)}
             clinicInfo={clinicInfo}
+            onUpdateBill={handleUpdateBill}
           />
         )}
       </div>
@@ -1754,7 +2055,10 @@ const BillingDashboard = () => {
               total: parseFloat(printingInvoice.amount) || 0,
               notes: printingInvoice.details?.remarks || printingInvoice.notes || '',
               paymentMethod: printingInvoice.details?.paymentMode || printingInvoice.paymentMethod || 'N/A',
-              status: printingInvoice.status
+              status: printingInvoice.status,
+              installments: printingInvoice.installments || [],
+              paidAmount: printingInvoice.paidAmount,
+              dueAmount: printingInvoice.dueAmount
             }}
           />
         )}

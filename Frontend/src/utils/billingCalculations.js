@@ -14,8 +14,34 @@ export const calculateInvoiceTotals = (invoice) => {
     dueAmount: 0
   };
 
-  // Helper to round to 2 decimals safely
   const r = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
+
+  // If the invoice is already saved in the database, respect and use the saved totals directly
+  if (invoice._id || invoice.billId) {
+    const gross = parseFloat(invoice.grossAmount !== undefined ? invoice.grossAmount : (invoice.subtotal !== undefined ? invoice.subtotal : (invoice.amount || 0)));
+    const discountAmt = parseFloat(invoice.discountAmount !== undefined ? invoice.discountAmount : (invoice.discount || 0));
+    const taxAmt = parseFloat(invoice.taxAmount || 0);
+    const grand = parseFloat(invoice.amount || invoice.grandTotal || 0);
+    let paidAmt = parseFloat(invoice.paidAmount !== undefined ? invoice.paidAmount : (invoice.paid || 0));
+    
+    if (invoice.status === 'Paid' && paidAmt === 0 && grand > 0) {
+      paidAmt = grand;
+    }
+    const dueAmt = Math.max(0, grand - paidAmt);
+    const taxable = Math.max(0, gross - discountAmt);
+
+    return {
+      grossAmount: r(gross),
+      discountAmount: r(discountAmt),
+      taxableAmount: r(taxable),
+      taxAmount: r(taxAmt),
+      grandTotal: r(grand),
+      paidAmount: r(paidAmt),
+      dueAmount: r(dueAmt),
+      discountValue: invoice.discountValue || invoice.discount || 0,
+      taxValue: invoice.taxValue || (taxAmt > 0 && taxable > 0 ? (taxAmt / taxable) * 100 : 0)
+    };
+  }
 
   const items = invoice.items || invoice.services || [];
   let grossAmount = 0;

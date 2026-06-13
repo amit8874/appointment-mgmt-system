@@ -14,7 +14,7 @@ dotenv.config();
 const sanitizeTemplateParam = (val) => {
   if (val === undefined || val === null) return "N/A";
   const str = val.toString()
-    .replace(/[\n\r\t]/g, ' ')
+    .replace(/[\r\t]/g, ' ')
     .replace(/\s{5,}/g, '    ')
     .trim();
   return str === "" ? "N/A" : str;

@@ -174,6 +174,54 @@ function formatAddress(addr) {
   return parts.length > 0 ? parts.join(', ') : '';
 }
 
+const generateInstallmentsSection = (bill) => {
+  if (!bill.installments || bill.installments.length === 0) return '';
+  
+  const formatDate = (d) => {
+    try {
+      return new Date(d).toLocaleDateString('en-GB');
+    } catch (e) {
+      return 'N/A';
+    }
+  };
+  const formatVal = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'INR' }).format(val || 0);
+  
+  const rows = bill.installments.map(inst => `
+    <tr style="border-bottom: 1px solid #e2e8f0;">
+      <td style="padding: 8px; text-align: left;">${formatDate(inst.date)}</td>
+      <td style="padding: 8px; text-align: left;">${bill.patientName || 'Walk-in Patient'}</td>
+      <td style="padding: 8px; text-align: left;">${inst.paymentMethod || 'N/A'}</td>
+      <td style="padding: 8px; text-align: right; font-weight: bold;">${formatVal(inst.amount)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div style="margin-top: 25px; border: 2.5px solid #000; padding: 15px; border-radius: 8px; background-color: #fff; page-break-inside: avoid; clear: both; box-sizing: border-box; width: 100%;">
+      <h4 style="margin: 0 0 12px 0; font-size: 13px; font-weight: 900; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 6px; letter-spacing: 0.5px; color: #000;">Payment Installments / History</h4>
+      <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 12px; table-layout: fixed; color: #000;">
+        <thead>
+          <tr style="border-bottom: 2.5px solid #000;">
+            <th style="padding: 6px 8px; text-align: left; font-weight: bold; width: 25%;">Date</th>
+            <th style="padding: 6px 8px; text-align: left; font-weight: bold; width: 35%;">Patient Name</th>
+            <th style="padding: 6px 8px; text-align: left; font-weight: bold; width: 20%;">Mode</th>
+            <th style="padding: 6px 8px; text-align: right; font-weight: bold; width: 20%;">Paid Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+      <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 1.5px dashed #000; padding-top: 8px; margin-top: 5px; color: #000;">
+        <span>Total Paid So Far: ${formatVal(bill.paidAmount || 0)}</span>
+        ${bill.dueAmount > 0 
+          ? `<span style="color: #dc2626;">Total Payment Due: ${formatVal(bill.dueAmount)}</span>` 
+          : `<span style="color: #16a34a; text-transform: uppercase;">Status: PAID</span>`
+        }
+      </div>
+    </div>
+  `;
+};
+
 async function getOviaanDefaultPharmacyHtml(bill, org, template) {
   const logoBase64 = (template?.headerType === 'custom' && template?.headerImage) 
     ? await getBase64Image(template.headerImage) 
@@ -365,6 +413,7 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
             }).join('') : '<tr><td colspan="' + (showGst ? '10' : '9') + '" style="text-align:center; padding:10px;">No items</td></tr>'}
           </tbody>
         </table>
+        ${generateInstallmentsSection(bill)}
         <div class="payment-row">
           <span>Pay Mode : ${paymentMode.toUpperCase()}</span>
           <span>GST SUMMARY: Included in Total</span>
@@ -463,6 +512,13 @@ async function getInvoiceHtml(bill, org, template) {
     const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
     processedHtml = processedHtml.replace(regex, values[key]);
   });
+
+  const installmentsHtml = generateInstallmentsSection(bill);
+  if (processedHtml.includes('{{installments_section}}')) {
+    processedHtml = processedHtml.replace('{{installments_section}}', installmentsHtml);
+  } else {
+    processedHtml = processedHtml.replace('</table>', '</table>' + installmentsHtml);
+  }
 
   // Body Watermark
   const bodyBgStyle = bodyBase64 ? `background-image: url('${bodyBase64}'); background-size: 60%; background-position: center; background-repeat: no-repeat; opacity: 0.1;` : '';

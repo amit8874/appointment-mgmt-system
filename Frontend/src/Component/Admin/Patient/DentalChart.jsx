@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dentistApi } from '../../../services/api';
-import { Smile, AlertCircle, Plus, Info, Trash2, Award, Pencil, Check, X } from 'lucide-react';
+import { Smile, AlertCircle, Plus, Info, Trash2, Award, Pencil, Check, X, IndianRupee } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -12,13 +12,15 @@ import {
   STANDARD_DENTAL_PROCEDURES
 } from './dentalUtils';
 import { getToothSVG } from './ToothIcons';
+import DentalBillingCreatorModal from './DentalBillingCreatorModal';
 
-const DentalChart = ({ patientId }) => {
+const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   const [chartData, setChartData] = useState({});
   const [selectedTooth, setSelectedTooth] = useState(null);
   const [loading, setLoading] = useState(true);
   const [customProcedures, setCustomProcedures] = useState([]);
   const [selectedProceduresList, setSelectedProceduresList] = useState([]);
+  const [billingModalOpen, setBillingModalOpen] = useState(false);
   
   // Custom persistent dental numbering system selection
   const [numberingSystem, setNumberingSystem] = useState(() => {
@@ -299,9 +301,9 @@ const DentalChart = ({ patientId }) => {
   }
 
   return (
-    <div className="p-6 bg-white border border-slate-100 rounded-b-3xl mt-4 shadow-sm">
+    <div className="p-4 sm:p-6 bg-white border border-slate-100 rounded-b-3xl mt-4 shadow-sm">
       {/* Header and Numbering System Toggles */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 pb-6 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8 pb-6 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <Smile className="w-5 h-5 text-indigo-600 animate-pulse" />
           <h3 className="text-sm font-black text-indigo-900 uppercase tracking-wider">
@@ -309,32 +311,43 @@ const DentalChart = ({ patientId }) => {
           </h3>
         </div>
 
-        {/* Standard Numbering Selector */}
-        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 p-1 rounded-xl w-fit self-end sm:self-auto shadow-sm">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-2 pr-1 select-none">Numbering:</span>
-          {['FDI', 'Universal', 'Palmer'].map((sys) => (
-            <button
-              key={sys}
-              type="button"
-              onClick={() => {
-                setNumberingSystem(sys);
-                localStorage.setItem('dentalNumberingSystem', sys);
-                window.dispatchEvent(new Event('dentalNumberingSystemChanged'));
-              }}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
-                numberingSystem === sys
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                  : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-200/50'
-              }`}
-            >
-              {sys}
-            </button>
-          ))}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+          {/* Create Bill Button */}
+          <button
+            type="button"
+            onClick={() => setBillingModalOpen(true)}
+            className="w-full sm:w-auto justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase rounded-xl tracking-wider shadow-md shadow-emerald-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <IndianRupee className="w-3.5 h-3.5" /> Create Bill
+          </button>
+
+          {/* Standard Numbering Selector */}
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-50 border border-slate-200/80 p-1 rounded-xl shadow-sm w-full sm:w-auto">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-2 pr-1 select-none">Numbering:</span>
+            {['FDI', 'Universal', 'Palmer'].map((sys) => (
+              <button
+                key={sys}
+                type="button"
+                onClick={() => {
+                  setNumberingSystem(sys);
+                  localStorage.setItem('dentalNumberingSystem', sys);
+                  window.dispatchEvent(new Event('dentalNumberingSystemChanged'));
+                }}
+                className={`flex-1 sm:flex-initial text-center px-2.5 sm:px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
+                  numberingSystem === sys
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                    : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-200/50'
+                }`}
+              >
+                {sys}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Guide/Legend */}
-      <div className="flex flex-wrap items-center gap-6 mb-8 p-4 bg-slate-50/50 rounded-2xl border border-slate-100 shadow-sm">
+      <div className="flex flex-wrap items-center gap-4 sm:gap-6 mb-8 p-4 bg-slate-50/50 rounded-2xl border border-slate-100 shadow-sm">
         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-2 select-none">Legend:</span>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded-lg bg-white border border-slate-200"></div>
@@ -360,7 +373,7 @@ const DentalChart = ({ patientId }) => {
           <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 select-none">
             Upper Jaw (Maxillary Arch)
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 px-2 justify-start sm:justify-center w-full scroll-smooth select-none custom-scrollbar">
             {getUpperArchTeeth().map((tooth) => {
               const label = getToothLabel(tooth.id, numberingSystem);
               const iconColor = getToothIconColor(tooth.id);
@@ -368,7 +381,7 @@ const DentalChart = ({ patientId }) => {
                 <button
                   key={tooth.id}
                   onClick={() => handleToothClick(tooth.id)}
-                  className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${getToothStatusColor(tooth.id)}`}
+                  className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 shrink-0 ${getToothStatusColor(tooth.id)}`}
                   title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
                 >
                   {/* Tooth shape SVG icon */}
@@ -388,7 +401,7 @@ const DentalChart = ({ patientId }) => {
 
         {/* Lower Jaw Arch */}
         <div>
-          <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
+          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 px-2 justify-start sm:justify-center w-full scroll-smooth select-none custom-scrollbar mb-4">
             {getLowerArchTeeth().map((tooth) => {
               const label = getToothLabel(tooth.id, numberingSystem);
               const iconColor = getToothIconColor(tooth.id);
@@ -396,7 +409,7 @@ const DentalChart = ({ patientId }) => {
                 <button
                   key={tooth.id}
                   onClick={() => handleToothClick(tooth.id)}
-                  className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${getToothStatusColor(tooth.id)}`}
+                  className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 shrink-0 ${getToothStatusColor(tooth.id)}`}
                   title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
                 >
                   {getToothIndicator(tooth.id)}
@@ -704,6 +717,20 @@ const DentalChart = ({ patientId }) => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Custom Dental Billing Creator Modal */}
+      {billingModalOpen && (
+        <DentalBillingCreatorModal
+          patientId={patientId}
+          patientData={patientData}
+          appointments={appointments}
+          onClose={() => setBillingModalOpen(false)}
+          onComplete={(newBill) => {
+            setBillingModalOpen(false);
+            fetchChart();
+          }}
+        />
+      )}
 
     </div>
   );

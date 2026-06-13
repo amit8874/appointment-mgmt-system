@@ -471,10 +471,10 @@ export default function AppointmentTable({ rebookData, activeTab }) {
                 <table className="w-full text-left text-sm">
                   <thead className="text-gray-600 border-b bg-gray-50">
                     <tr>
-                      <th className="p-4">Doctor</th>
-                      <th className="p-4">Speciality</th>
                       <th className="p-4">Patient</th>
                       <th className="p-4">Appointment Date & Time</th>
+                      <th className="p-4">Doctor</th>
+                      <th className="p-4">Speciality</th>
                       <th className="p-4">Status</th>
                       <th className="p-4">Amount</th>
                       <th className="p-4">Actions</th>
@@ -491,24 +491,6 @@ export default function AppointmentTable({ rebookData, activeTab }) {
                     ) : (
                       currentAppointments.map((appointment) => (
                         <tr key={appointment._id} className="border-b hover:bg-gray-50">
-
-                          {/* Doctor */}
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                <User className="w-5 h-5 text-blue-500" />
-                              </div>
-                              <div>
-                                <p className="text-gray-700 font-medium">{appointment.doctorName || 'N/A'}</p>
-                                <p className="text-xs text-gray-500">ID: {appointment.doctorId || '-'}</p>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Speciality */}
-                          <td className="p-4">
-                            <span className="text-gray-600">{appointment.specialty || '-'}</span>
-                          </td>
 
                           {/* Patient */}
                           <td className="p-4">
@@ -566,6 +548,24 @@ export default function AppointmentTable({ rebookData, activeTab }) {
                           <td className="p-4">
                             <div className="text-gray-700">{formatDate(appointment.date)}</div>
                             <div className="text-xs text-gray-500">{formatTime(appointment.time)}</div>
+                          </td>
+
+                          {/* Doctor */}
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                <User className="w-5 h-5 text-blue-500" />
+                              </div>
+                              <div>
+                                <p className="text-gray-700 font-medium">{appointment.doctorName || 'N/A'}</p>
+                                <p className="text-xs text-gray-500">ID: {appointment.doctorId || '-'}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Speciality */}
+                          <td className="p-4">
+                            <span className="text-gray-600">{appointment.specialty || '-'}</span>
                           </td>
 
                           {/* Status */}

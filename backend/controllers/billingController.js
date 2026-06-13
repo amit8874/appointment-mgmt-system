@@ -69,10 +69,14 @@ export const getAllBills = async (req, res) => {
       ];
     }
 
+    console.log('[BILLING DEBUG] getAllBills query:', JSON.stringify(query));
+
     const [bills, total] = await Promise.all([
       Billing.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Billing.countDocuments(query)
     ]);
+
+    console.log(`[BILLING DEBUG] Found ${bills.length} bills (total: ${total}), billTypes:`, [...new Set(bills.map(b => b.billType))]);
     
     // Attach signed URLs for S3 stored invoices
     for (let bill of bills) {
@@ -194,13 +198,15 @@ export const getBillingStats = async (req, res) => {
 
 export const createBill = async (req, res) => {
   try {
-    const { patientId, patientName, patientPhone, doctorId, doctorName, amount, items, status, notes, paymentMethod, transactionId, appointmentId, appointmentDate, appointmentTime, paidAmount, dueAmount, billType, discount } = req.body;
+    const { patientId, patientName, patientPhone, doctorId, doctorName, amount, items, status, notes, paymentMethod, transactionId, appointmentId, appointmentDate, appointmentTime, paidAmount, dueAmount, billType, discount, installments } = req.body;
+
+    console.log('[BILLING DEBUG] createBill received:', { patientId, patientName, doctorId, doctorName, amount, billType, paymentMethod, itemCount: items?.length });
 
     if (!patientId) return res.status(400).json({ message: 'Patient ID is required' });
     if (!patientName) return res.status(400).json({ message: 'Patient name is required' });
     if (!doctorId) return res.status(400).json({ message: 'Doctor ID is required' });
     if (!doctorName) return res.status(400).json({ message: 'Doctor name is required' });
-    if (!amount || isNaN(amount)) return res.status(400).json({ message: 'Valid amount is required' });
+    if (amount === undefined || amount === null || isNaN(amount) || amount < 0) return res.status(400).json({ message: 'Valid amount is required (cannot be negative)' });
 
     const totals = calculateInvoiceTotals({
       amount,
@@ -208,7 +214,8 @@ export const createBill = async (req, res) => {
       discountType: 'flat',
       items: items || [],
       status: status || 'Pending',
-      paidAmount: paidAmount || 0
+      paidAmount: paidAmount || 0,
+      installments: installments || []
     });
 
     let bill;
@@ -240,12 +247,13 @@ export const createBill = async (req, res) => {
       bill.appointmentDate = appointmentDate || bill.appointmentDate;
       bill.appointmentTime = appointmentTime || bill.appointmentTime;
       bill.items = items || [];
-      bill.status = status || 'Pending';
+      bill.status = totals.dueAmount === 0 ? 'Paid' : (totals.paidAmount > 0 ? 'Due' : (status || 'Pending'));
       bill.notes = notes || bill.notes;
       bill.paymentMethod = paymentMethod || 'N/A';
       bill.transactionId = transactionId || null;
       bill.billType = billType || 'General';
       bill.discount = totals.discountAmount;
+      bill.installments = installments || [];
 
       await bill.save();
     } else {
@@ -276,12 +284,13 @@ export const createBill = async (req, res) => {
         appointmentDate: appointmentDate || null,
         appointmentTime: appointmentTime || null,
         items: items || [],
-        status: status || 'Pending',
+        status: totals.dueAmount === 0 ? 'Paid' : (totals.paidAmount > 0 ? 'Due' : (status || 'Pending')),
         notes: notes || '',
         paymentMethod: paymentMethod || 'N/A',
         transactionId: transactionId || null,
         billType: billType || 'General',
-        discount: totals.discountAmount
+        discount: totals.discountAmount,
+        installments: installments || []
       });
 
       await bill.save();
@@ -680,7 +689,25 @@ export const getBillsByPatient = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10; // Default limit for pagination
     const skip = (page - 1) * limit;
     
-    let query = { organizationId: req.tenantId, patientId: patientId };
+    // Resolve both custom patientId and MongoDB _id
+    let patientIds = [patientId];
+    try {
+      if (mongoose.Types.ObjectId.isValid(patientId)) {
+        const patientDoc = await Patient.findById(patientId).lean();
+        if (patientDoc && patientDoc.patientId) {
+          patientIds.push(patientDoc.patientId);
+        }
+      } else {
+        const patientDoc = await Patient.findOne({ organizationId: req.tenantId, patientId }).lean();
+        if (patientDoc) {
+          patientIds.push(patientDoc._id.toString());
+        }
+      }
+    } catch (err) {
+      console.warn('[BILLING CONTROLLER] Patient lookup error:', err.message);
+    }
+
+    let query = { organizationId: req.tenantId, patientId: { $in: patientIds } };
 
     // Support filtering in the query
     if (req.query.billType) query.billType = req.query.billType;
@@ -715,7 +742,7 @@ export const getBillsByPatient = async (req, res) => {
     }
     
     // Calculate totals for summary (always based on ALL bills for this patient for accurate metrics)
-    const summaryQuery = { organizationId: req.tenantId, patientId: patientId };
+    const summaryQuery = { organizationId: req.tenantId, patientId: { $in: patientIds } };
     const allBillsForSummary = await Billing.find(summaryQuery).lean();
     let totalBilled = 0;
     let totalPaid = 0;

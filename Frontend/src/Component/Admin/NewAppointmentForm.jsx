@@ -41,6 +41,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     appointmentDate: new Date().toISOString().split('T')[0],
     appointmentTime: '',
     symptoms: '',
+    skipBilling: false,
   });
 
   // Handle Voice-to-Text Conversational Loop
@@ -383,6 +384,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
         },
         reason: formData.symptoms,
         symptoms: formData.symptoms,
+        skipBilling: formData.skipBilling || false,
       };
 
       const response = await api.post('/appointments/book-patient', appointmentData);
@@ -754,6 +756,29 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
             rows="2"
             className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 resize-none"
           ></textarea>
+        </div>
+
+        {/* Skip Billing Checkbox */}
+        <div className="flex items-center space-x-2.5 py-1">
+          <label className="relative flex items-center cursor-pointer group">
+            <input
+              type="checkbox"
+              name="skipBilling"
+              checked={formData.skipBilling || false}
+              onChange={(e) => setFormData(prev => ({ ...prev, skipBilling: e.target.checked }))}
+              className="sr-only"
+            />
+            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${formData.skipBilling ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 dark:border-gray-600 bg-transparent'}`}>
+              {formData.skipBilling && (
+                <svg className="w-3.5 h-3.5 stroke-2 stroke-current" viewBox="0 0 24 24" fill="none">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
+            <span className="ml-2.5 text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+              No Billing: Register patient and book appointment only
+            </span>
+          </label>
         </div>
 
         {/* Time Slots Section */}

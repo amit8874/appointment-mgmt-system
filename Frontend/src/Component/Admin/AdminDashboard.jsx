@@ -24,6 +24,7 @@ import TrialNotification from '../Organization/TrialNotification';
 import LogoutConfirmationModal from '../../components/common/LogoutConfirmationModal';
 import OnboardingTour from '../../components/common/OnboardingTour';
 import AddMedicine from './Pharmacy/AddMedicine.jsx';
+import MobileAppNavigation from '../../components/common/MobileAppNavigation';
 
 // Main App Component
 const Admin = () => {
@@ -33,7 +34,9 @@ const Admin = () => {
 
   // Initialize tab and mode from URL or fallback
   const queryParams = new URLSearchParams(location.search);
-  const initialTab = queryParams.get('tab') || 'New Appointment';
+  const isMobile = window.innerWidth < 768;
+  const defaultTab = isMobile ? 'Patients' : 'New Appointment';
+  const initialTab = queryParams.get('tab') || defaultTab;
 
   // List of tabs that belong to pharmacy mode to help with auto-detection if mode param is missing
   const pharmacyTabs = [
@@ -636,6 +639,7 @@ const Admin = () => {
             navigate('/login');
           }}
         />
+        <MobileAppNavigation />
       </div>
     </ErrorBoundary>
   );

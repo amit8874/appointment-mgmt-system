@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import LogoutConfirmationModal from '../../components/common/LogoutConfirmationModal';
 import OnboardingTour from '../../components/common/OnboardingTour';
 import api, { centralDoctorApi } from '../../services/api';
+import MobileAppNavigation from '../common/MobileAppNavigation';
 
 const ReceptionistLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 1024);
@@ -21,6 +22,14 @@ const ReceptionistLayout = () => {
   const [limitsLoading, setLimitsLoading] = useState(true);
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Redirect to patients list on mobile view to show patient data first
+  useEffect(() => {
+    if (window.innerWidth < 768 && (location.pathname === '/receptionist' || location.pathname === '/receptionist/')) {
+      navigate('/receptionist/patients', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   // Handle window resize to auto-hide sidebar on mobile
   useEffect(() => {
@@ -185,6 +194,7 @@ const ReceptionistLayout = () => {
         onClose={() => setIsLogoutModalOpen(false)}
         onConfirm={handleLogout}
       />
+      <MobileAppNavigation />
     </div>
   );
 };

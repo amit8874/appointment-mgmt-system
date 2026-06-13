@@ -91,12 +91,22 @@ export const runDailyAdminSummaryJob = async () => {
                     // {{1}}: Recipient Name (e.g. adminName)
                     // {{2}}: Today's Date (e.g. humanDateStr)
                     // {{3}}: Clinic / Organization Name (e.g. org.name)
-                    // {{4}}: Number of appointments today (e.g. appointmentsCount)
+                    // {{4}}: Number of appointments today (e.g. appointmentsCount) with patient name - slot details
+                    let appointmentDetailsStr = '';
+                    if (appointments.length > 0) {
+                        const details = appointments.map(appt => {
+                            const patientName = appt.patientName || 'Unknown Patient';
+                            const timeSlot = appt.time || appt.appointmentTime || 'N/A';
+                            return `${patientName} - ${timeSlot}`;
+                        }).join(', ');
+                        appointmentDetailsStr = ` (${details})`;
+                    }
+
                     const templateParams = [
                         adminName,
                         humanDateStr,
                         org.name,
-                        String(appointmentsCount)
+                        `${appointmentsCount}${appointmentDetailsStr}`
                     ];
 
                     const response = await sendWhatsAppTemplate(
