@@ -16,7 +16,7 @@ import os from 'os';
 import path from 'path';
 import { uploadToS3 } from '../utils/uploadToS3.js';
 import { getSignedDownloadUrl } from '../services/s3Service.js';
-import { generateInvoicePDF } from '../services/pdfService.js';
+import { generateInvoicePDF, generateDailyCaseRegisterPDF } from '../services/pdfService.js';
 
 import { sanitizePhone } from '../utils/phoneUtils.js';
 import { saveMedicineNames } from './medicineController.js';
@@ -1004,5 +1004,139 @@ export const sendWhatsAppStatement = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const getDailyCaseRegisterData = async (req, res) => {
+  try {
+    const query = { organizationId: req.tenantId };
+    
+    let startDateVal = req.query.startDate;
+    let endDateVal = req.query.endDate;
+    
+    if (startDateVal && endDateVal) {
+      const start = new Date(startDateVal);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDateVal);
+      end.setHours(23, 59, 59, 999);
+      query.date = { $gte: start, $lte: end };
+    } else if (startDateVal) {
+      const start = new Date(startDateVal);
+      start.setHours(0, 0, 0, 0);
+      query.date = { $gte: start };
+    } else if (endDateVal) {
+      const end = new Date(endDateVal);
+      end.setHours(23, 59, 59, 999);
+      query.date = { $lte: end };
+    } else if (req.query.date) {
+      const start = new Date(req.query.date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(req.query.date);
+      end.setHours(23, 59, 59, 999);
+      query.date = { $gte: start, $lte: end };
+    } else {
+      // Default to today
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+      query.date = { $gte: start, $lte: end };
+    }
+
+    if (req.query.doctorId) {
+      query.doctorId = req.query.doctorId;
+    }
+
+    const bills = await Billing.find(query).sort({ date: 1 }).lean();
+    res.json({ success: true, data: bills });
+  } catch (error) {
+    console.error('getDailyCaseRegisterData error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const downloadDailyCaseRegisterPDF = async (req, res) => {
+  try {
+    const query = { organizationId: req.tenantId };
+    
+    let startDateVal = req.query.startDate;
+    let endDateVal = req.query.endDate;
+    
+    if (startDateVal && endDateVal) {
+      const start = new Date(startDateVal);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDateVal);
+      end.setHours(23, 59, 59, 999);
+      query.date = { $gte: start, $lte: end };
+    } else if (startDateVal) {
+      const start = new Date(startDateVal);
+      start.setHours(0, 0, 0, 0);
+      query.date = { $gte: start };
+    } else if (endDateVal) {
+      const end = new Date(endDateVal);
+      end.setHours(23, 59, 59, 999);
+      query.date = { $lte: end };
+    } else if (req.query.date) {
+      const start = new Date(req.query.date);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(req.query.date);
+      end.setHours(23, 59, 59, 999);
+      query.date = { $gte: start, $lte: end };
+    } else {
+      // Default to today
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+      query.date = { $gte: start, $lte: end };
+    }
+
+    if (req.query.doctorId) {
+      query.doctorId = req.query.doctorId;
+    }
+
+    const bills = await Billing.find(query).sort({ date: 1 }).lean();
+    const org = await Organization.findById(req.tenantId);
+
+    // Resolve doctor name if filtered by doctor
+    let doctorName = '';
+    if (req.query.doctorId) {
+      const Doctor = (await import('../models/Doctor.js')).default;
+      const doctor = await Doctor.findById(req.query.doctorId).lean();
+      doctorName = doctor ? (doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim()) : '';
+    }
+
+    // Determine values for report
+    const startReportDate = startDateVal || req.query.date || new Date().toISOString().substring(0, 10);
+    const endReportDate = endDateVal || req.query.date || new Date().toISOString().substring(0, 10);
+
+    const pdfBuffer = await generateDailyCaseRegisterPDF(bills, {
+      startDate: startReportDate,
+      endDate: endReportDate,
+      doctorName
+    }, org);
+
+    const fileName = `DailyCaseRegister-${startReportDate}-to-${endReportDate}.pdf`;
+    
+    // Upload to S3
+    const s3Result = await uploadToS3({
+      buffer: pdfBuffer,
+      originalName: fileName,
+      mimeType: 'application/pdf',
+      folderType: 'reports',
+      organizationId: req.tenantId
+    });
+
+    const signedUrl = await getSignedDownloadUrl({
+      key: s3Result.s3Key,
+      expiresInSeconds: 3600,
+      responseContentDisposition: `attachment; filename="${fileName}"`
+    });
+
+    res.json({ success: true, url: signedUrl });
+  } catch (error) {
+    console.error('downloadDailyCaseRegisterPDF error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 
 

@@ -1641,7 +1641,7 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
 
 // --- Main Application Component ---
 const BillingDashboard = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, isDentistClinic } = useAuth();
   const clinicInfo = user?.organization || user?.organizationId || {};
 
   const [invoices, setInvoices] = useState([]);
@@ -1922,12 +1922,11 @@ const BillingDashboard = () => {
           </div>
         )}
 
-        {/* Category Tabs (Three Boxes) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className={`grid grid-cols-1 ${isDentistClinic ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4 mb-6`}>
           {[
             { id: 'General', label: 'Consultation & General', icon: User, color: 'sky', description: 'Doctors, Appointments & OPD' },
             { id: 'Pharmacy', label: 'Pharmacy Billing', icon: PlusCircle, color: 'indigo', description: 'Medicines, Inventory & Retail' },
-            { id: 'Dental', label: 'Dental Billing', icon: FileText, color: 'emerald', description: 'Dental Procedures & Treatments' },
+            ...(isDentistClinic ? [{ id: 'Dental', label: 'Dental Billing', icon: FileText, color: 'emerald', description: 'Dental Procedures & Treatments' }] : []),
           ].map((tab) => (
             <button
               key={tab.id}

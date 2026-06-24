@@ -1051,7 +1051,7 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
 };
 
 const BillingMgmt = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, isDentistClinic } = useAuth();
   const clinicInfo = user?.organization || user?.organizationId || {};
   const [invoices, setInvoices] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -1164,11 +1164,11 @@ const BillingMgmt = () => {
         <header className="mb-6"><h1 className="text-2xl font-black text-gray-900 md:pl-10 transition-all">Billing Management</h1></header>
         {statusMessage && <div className="mb-4 p-3 bg-blue-50 text-blue-800 rounded-lg font-bold">{statusMessage}</div>}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className={`grid grid-cols-1 ${isDentistClinic ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4 mb-6`}>
           {[
             { id: 'General', label: 'Consultation', icon: User, color: 'sky' },
             { id: 'Pharmacy', label: 'Pharmacy', icon: PlusCircle, color: 'indigo' },
-            { id: 'Dental', label: 'Dental', icon: FileText, color: 'emerald' }
+            ...(isDentistClinic ? [{ id: 'Dental', label: 'Dental', icon: FileText, color: 'emerald' }] : [])
           ].map(tab => (
             <button key={tab.id} onClick={() => { setBillingTab(tab.id); setViewMode('list'); }}
               className={`p-5 rounded-2xl border-2 text-left transition-all ${billingTab === tab.id ? `bg-white border-${tab.color}-500 shadow-xl ring-4 ring-${tab.color}-500/10` : 'bg-slate-50 border-slate-100 hover:bg-white'}`}>

@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 import Pagination from '../../common/Pagination';
 import PaymentModeModal from '../../common/PaymentModeModal';
 import { TableSkeleton } from '../../Shared/DashboardSkeletons';
+import DailyCaseRegisterModal from '../../Shared/DailyCaseRegisterModal';
 
 import { usePatients } from '../../../hooks/usePatients';
 
@@ -33,6 +34,7 @@ const PatientPanel = () => {
   const [statusFilter, setStatusFilter] = useState("All");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const itemsPerPage = 15;
   const menuRef = useRef(null);
   const navigate = useNavigate();
@@ -302,6 +304,15 @@ const PatientPanel = () => {
             <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
             Export Excel
           </button>
+
+          <button
+            onClick={() => setIsRegisterModalOpen(true)}
+            className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md shadow-indigo-600/20 font-bold text-xs sm:text-sm whitespace-nowrap"
+            title="Form 25 Daily Case Register"
+          >
+            <FileText className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+            Form 25 Register
+          </button>
         </div>
       </div>
 
@@ -512,6 +523,12 @@ const PatientPanel = () => {
         onClose={() => setIsPaymentModalOpen(false)}
         onConfirm={confirmMarkAsPaid}
         patientName={selectedPatientForPayment?.name}
+      />
+
+      {/* Daily Case Register Form 25 Modal */}
+      <DailyCaseRegisterModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
       />
 
 

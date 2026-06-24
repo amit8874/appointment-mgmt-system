@@ -562,6 +562,14 @@ export const billingApi = {
   sendStatementWhatsApp: async (patientId, payload) => {
     const { data } = await api.post(`/billing/patient/${patientId}/statement/whatsapp`, payload);
     return data;
+  },
+  getDailyCaseRegisterData: async (params = {}) => {
+    const { data } = await api.get('/billing/daily-case-register', { params });
+    return data;
+  },
+  downloadDailyCaseRegisterPDF: async (params = {}) => {
+    const { data } = await api.get('/billing/daily-case-register/pdf', { params });
+    return data;
   }
 };
 

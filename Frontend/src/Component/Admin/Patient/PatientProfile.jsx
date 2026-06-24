@@ -1730,7 +1730,8 @@ const TabBilling = ({
   invoiceTemplates = [],
   selectedInvoiceTemplate = null,
   setSelectedInvoiceTemplate = () => {},
-  onOpenTemplateModal
+  onOpenTemplateModal,
+  isDentistClinic
 }) => {
   const [bills, setBills] = useState([]);
   const [summary, setSummary] = useState({ totalBilled: 0, totalPaid: 0, totalDue: 0, invoiceCount: 0 });
@@ -2031,17 +2032,19 @@ const TabBilling = ({
             <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />
           )}
         </button>
-        <button
-          onClick={() => setBillingTab('Dental')}
-          className={`px-6 py-3 text-sm font-bold transition-all relative ${
-            billingTab === 'Dental' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          Dental Billing
-          {billingTab === 'Dental' && (
-            <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />
-          )}
-        </button>
+        {isDentistClinic && (
+          <button
+            onClick={() => setBillingTab('Dental')}
+            className={`px-6 py-3 text-sm font-bold transition-all relative ${
+              billingTab === 'Dental' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            Dental Billing
+            {billingTab === 'Dental' && (
+              <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Summary Metrics */}
@@ -5007,6 +5010,7 @@ const PatientProfile = () => {
                       selectedInvoiceTemplate={selectedInvoiceTemplate}
                       setSelectedInvoiceTemplate={setSelectedInvoiceTemplate}
                       onOpenTemplateModal={() => setShowInvoiceTemplateModal(true)}
+                      isDentistClinic={isDentistClinic}
                     />
                   )}
                   {activeTab === 'progress' && (

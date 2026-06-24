@@ -1214,3 +1214,149 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     </html>
   `;
 }
+
+export const generateDailyCaseRegisterPDF = async (bills, options, org) => {
+  let browser = null;
+  let page = null;
+  try {
+    const html = getDailyCaseRegisterHtml(bills, options, org);
+    browser = await getBrowser();
+    page = await browser.newPage();
+    await page.setViewport({ width: 794, height: 1123 }); // A4 dimensions
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 500));
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '15mm',
+        right: '15mm',
+        bottom: '15mm',
+        left: '15mm'
+      }
+    });
+
+    return pdfBuffer;
+  } catch (err) {
+    console.error(`[DAILY CASE REGISTER PDF ERROR]:`, err);
+    throw err;
+  } finally {
+    if (page) await page.close();
+  }
+};
+
+function getDailyCaseRegisterHtml(bills, options, org) {
+  const clinicName = org?.branding?.clinicName || org?.clinicName || org?.name || 'Clinic';
+  
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const rows = bills.map((bill, index) => {
+    const dateFormatted = formatDate(bill.date);
+    const slNo = index + 1;
+    const name = bill.patientName || 'Walk-in Patient';
+    
+    // Nature of services
+    const services = bill.items && bill.items.length > 0
+      ? bill.items.map(item => item.description || item.procedureName).filter(Boolean).join(', ')
+      : bill.billType || 'Consultation';
+      
+    const fees = Number(bill.paidAmount !== undefined ? bill.paidAmount : bill.amount || 0).toFixed(2);
+    const dateOfReceipt = formatDate(bill.date);
+
+    return `
+      <tr>
+        <td style="border: 1px solid #000; padding: 6px; font-size: 11px;">${dateFormatted}</td>
+        <td style="border: 1px solid #000; padding: 6px; text-align: center; font-size: 11px;">${slNo}</td>
+        <td style="border: 1px solid #000; padding: 6px; font-weight: bold; font-size: 11px;">${name}</td>
+        <td style="border: 1px solid #000; padding: 6px; font-size: 11px;">${services}</td>
+        <td style="border: 1px solid #000; padding: 6px; text-align: right; font-weight: bold; font-size: 11px;">₹${fees}</td>
+        <td style="border: 1px solid #000; padding: 6px; font-size: 11px;">${dateOfReceipt}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const reportDateStr = options.startDate === options.endDate
+    ? `Date: ${formatDate(options.startDate)}`
+    : `Period: ${formatDate(options.startDate)} to ${formatDate(options.endDate)}`;
+
+  const doctorStr = options.doctorName ? `Doctor: Dr. ${options.doctorName}` : 'All Doctors';
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; background: #fff; color: #000; }
+        .register-container { width: 100%; box-sizing: border-box; }
+        .header-section { text-align: center; margin-bottom: 25px; }
+        .form-title { font-size: 15px; font-weight: bold; text-transform: uppercase; margin: 0; }
+        .rule-title { font-size: 12px; font-style: italic; font-weight: bold; margin: 2px 0 6px 0; }
+        .main-title { font-size: 13px; font-weight: bold; text-transform: uppercase; margin: 0 0 10px 0; border-bottom: 1px solid #000; display: inline-block; padding-bottom: 2px; }
+        .subtitle { font-size: 10px; font-weight: 500; max-width: 650px; margin: 0 auto; line-height: 1.4; }
+        
+        .clinic-info-bar { display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 15px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #000; padding: 6px 8px; vertical-align: top; }
+        th { font-style: italic; font-weight: bold; font-size: 10px; }
+        
+        @media print {
+          body { -webkit-print-color-adjust: exact; }
+          .register-container { page-break-after: always; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="register-container">
+        <div class="header-section">
+          <h1 class="form-title">FORM NO. 25</h1>
+          <p class="rule-title">[See rule 46(6)(i)]</p>
+          <h2 class="main-title">Form of daily case register</h2>
+          <p class="subtitle">[To be maintained by practitioners of any system of medicine, i.e., physicians, surgeons, dentists, pathologists, radiologists, vaids, hakims, etc.]</p>
+        </div>
+        
+        <div class="clinic-info-bar">
+          <div>Clinic: ${clinicName}</div>
+          <div>${doctorStr}</div>
+          <div>${reportDateStr}</div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 12%;">Date</th>
+              <th style="width: 8%; text-align: center;">Sl. No</th>
+              <th style="width: 22%;">Patient's name</th>
+              <th style="width: 38%;">Nature of professional services rendered, e.g., general consultation, surgery, injection, visit, etc.</th>
+              <th style="width: 10%; text-align: right;">Fees received</th>
+              <th style="width: 10%;">Date of receipt</th>
+            </tr>
+            <tr style="text-align: center; font-weight: normal; font-size: 9px;">
+              <td>(1)</td>
+              <td>(2)</td>
+              <td>(3)</td>
+              <td>(4)</td>
+              <td>(5)</td>
+              <td>(6)</td>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length > 0 ? rows : '<tr><td colspan="6" style="text-align: center; padding: 20px; font-style: italic;">No records found for the selected period</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </body>
+    </html>
+  `;
+}
+

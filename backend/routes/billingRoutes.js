@@ -15,7 +15,9 @@ import {
   downloadInvoicePDF,
   updateBill,
   generatePatientStatement,
-  sendWhatsAppStatement
+  sendWhatsAppStatement,
+  getDailyCaseRegisterData,
+  downloadDailyCaseRegisterPDF
 } from '../controllers/billingController.js';
 
 const router = express.Router();
@@ -44,6 +46,12 @@ router.put('/:id', updateBill);
 
 // DELETE bill
 router.delete('/:id', deleteBill);
+
+// GET Daily Case Register JSON data
+router.get('/daily-case-register', getDailyCaseRegisterData);
+
+// GET Daily Case Register PDF
+router.get('/daily-case-register/pdf', downloadDailyCaseRegisterPDF);
 
 // GET single bill by ID
 router.get('/:id', getBillById);
