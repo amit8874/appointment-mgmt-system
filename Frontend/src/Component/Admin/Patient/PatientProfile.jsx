@@ -5108,7 +5108,7 @@ const PatientProfile = () => {
       )}
 
       {printingInvoice && (
-        <div id="invoice-print-area" className="hidden-print">
+        <div className="hidden-print">
           {(() => {
             const totals = printingInvoice.billType === 'Pharmacy' ? normalizePharmacyInvoice(printingInvoice) : calculateInvoiceTotals(printingInvoice);
             

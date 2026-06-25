@@ -115,6 +115,11 @@ const appointmentSchema = new mongoose.Schema({
     enum: ['pending', 'paid', 'refunded'],
     default: 'pending',
   },
+  paymentMethod: {
+    type: String,
+    enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Insurance', 'N/A'],
+    default: 'N/A'
+  },
   amount: {
     type: Number,
     default: 0,

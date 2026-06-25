@@ -130,7 +130,7 @@ export const getPatientSummary = async (req, res) => {
 
 export const bookPatientAppointment = async (req, res) => {
   try {
-    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, patientDetails, sendWhatsApp = false, skipBilling = false } = req.body;
+    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, paymentMethod, patientDetails, sendWhatsApp = false, skipBilling = false } = req.body;
 
     if (!organizationId) return res.status(400).json({ message: 'Organization is required' });
     if (!patientDetails || !patientDetails.firstName) {
@@ -269,6 +269,7 @@ export const bookPatientAppointment = async (req, res) => {
       dispatchMethods: patientDetails.dispatchMethods || [],
       amount: finalAmount,
       paymentStatus: paymentStatus || 'pending',
+      paymentMethod: paymentMethod || 'N/A',
       ...(isPaid ? { status: 'confirmed' } : {})
     });
 
@@ -319,15 +320,15 @@ export const bookPatientAppointment = async (req, res) => {
           doctorId: docObj ? docObj.doctorId : doctorId || '',
           doctorName: doctorName || '',
           amount: fee,
-          paidAmount: 0,
-          dueAmount: fee,
+          paidAmount: paymentStatus === 'paid' ? fee : 0,
+          dueAmount: paymentStatus === 'paid' ? 0 : fee,
           appointmentId: appointment._id.toString(),
           appointmentDate: date || '',
           appointmentTime: time || '',
           items: [{ description: 'Consultation Fee', cost: fee, unitPrice: fee, subtotal: fee, qty: 1 }],
           status: paymentStatus === 'paid' ? 'Paid' : 'Pending',
           notes: `Patient Web Booking on ${date || ''} at ${time || ''}`,
-          paymentMethod: 'N/A'
+          paymentMethod: paymentMethod || 'N/A'
         });
         await newBill.save();
       } catch (billingError) {

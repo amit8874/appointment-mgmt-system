@@ -1,36 +1,72 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { centralDoctorApi, patientApi } from '../../services/api';
 
-const InvoiceTemplate = ({ invoiceData, clinicInfo, template = null }) => {
-    // Safe date formatter
-    const formatDateSafe = (dateStr) => {
-        try {
-            if (!dateStr) return format(new Date(), 'dd/MM/yyyy');
-            const parsedDate = new Date(dateStr);
-            if (isNaN(parsedDate.getTime())) return format(new Date(), 'dd/MM/yyyy');
-            return format(parsedDate, 'dd/MM/yyyy');
-        } catch (e) {
-            return format(new Date(), 'dd/MM/yyyy');
-        }
-    };
-
+const InvoiceTemplate = ({ invoiceData = {}, clinicInfo = {}, template = null }) => {
     const {
         billId,
         date,
-        patientName,
+        patientName = 'Walk-in Patient',
         patientId = 'N/A',
         doctorName = 'N/A',
         items = [],
-        subtotal = 0,
-        discount = 0,
-        taxRate = 0,
-        taxAmount = 0,
-        total = 0,
         notes = '',
         paymentMethod = 'N/A',
         status = 'Paid',
         installments = []
     } = invoiceData;
+
+    // Financial fallback resolution
+    const total = Number(invoiceData.total ?? invoiceData.amount ?? 0);
+    const subtotal = Number(invoiceData.subtotal ?? invoiceData.grossAmount ?? total ?? 0);
+    const paidAmount = Number(invoiceData.paidAmount ?? invoiceData.paid ?? total ?? 0);
+    const dueAmount = Number(invoiceData.dueAmount ?? Math.max(0, total - paidAmount));
+
+    const [doctorDetails, setDoctorDetails] = useState(null);
+
+    useEffect(() => {
+        const fetchDoctor = async () => {
+            if (!doctorName || doctorName === 'N/A') return;
+            try {
+                if (invoiceData.doctorId && invoiceData.doctorId !== 'N/A') {
+                    const doc = await centralDoctorApi.getById(invoiceData.doctorId);
+                    if (doc) {
+                        setDoctorDetails(doc);
+                        return;
+                    }
+                }
+                const response = await centralDoctorApi.getAll();
+                const docsList = response?.doctors || (Array.isArray(response) ? response : []);
+                const match = docsList.find(d => 
+                    d.name?.toLowerCase().includes(doctorName.toLowerCase()) || 
+                    `${d.firstName} ${d.lastName}`.toLowerCase().includes(doctorName.toLowerCase())
+                );
+                if (match) {
+                    setDoctorDetails(match);
+                }
+            } catch (e) {
+                console.error("Error fetching doctor in InvoiceTemplate:", e);
+            }
+        };
+        fetchDoctor();
+    }, [invoiceData.doctorId, doctorName]);
+
+    const [patientDetails, setPatientDetails] = useState(null);
+
+    useEffect(() => {
+        const fetchPatient = async () => {
+            if (!patientId || patientId === 'N/A' || patientId === 'Walk-in Patient' || patientId === '000000') return;
+            try {
+                const res = await patientApi.getByPatientId(patientId);
+                if (res) {
+                    setPatientDetails(res);
+                }
+            } catch (e) {
+                console.error("Error fetching patient in InvoiceTemplate:", e);
+            }
+        };
+        fetchPatient();
+    }, [patientId]);
 
     const formatAddress = (addr) => {
         if (!addr) return '';
@@ -39,246 +75,496 @@ const InvoiceTemplate = ({ invoiceData, clinicInfo, template = null }) => {
         return parts.join(', ');
     };
 
-    // Safety parse metadata if it comes as a string
-    let metadata = template?.metadata || {};
-    if (typeof metadata === 'string') {
-        try {
-            metadata = JSON.parse(metadata);
-        } catch (e) {
-            metadata = {};
+    const rawClinicName = String(clinicInfo.branding?.clinicName || clinicInfo.clinicName || clinicInfo.name || 'Manomay Dental Care');
+    const parsedClinic = (() => {
+        const match = rawClinicName.match(/\(([^)]+)\)/);
+        if (match) {
+            const subtitle = match[1].trim();
+            const name = rawClinicName.replace(/\([^)]+\)/, '').trim();
+            return { name, subtitle };
         }
-    }
+        return { name: rawClinicName.trim(), subtitle: clinicInfo.branding?.clinicSubtitle || '' };
+    })();
+
+    const cleanClinicName = parsedClinic.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+    const fallbackWebsite = `www.${cleanClinicName}.in`;
 
     const info = {
         ...clinicInfo,
-        name: String(clinicInfo.branding?.clinicName || clinicInfo.clinicName || clinicInfo.name || 'Clinic Name'),
+        name: parsedClinic.name,
+        subtitle: parsedClinic.subtitle,
         address: String(formatAddress(clinicInfo.address || clinicInfo.clinicAddress || clinicInfo.location)),
-        phone: String(clinicInfo.phone || clinicInfo.mobile || clinicInfo.contact || ''),
+        phone: String(clinicInfo.phone || clinicInfo.mobile || clinicInfo.contact || '+919354303128'),
         email: String(clinicInfo.email || clinicInfo.clinicEmail || clinicInfo.contactEmail || ''),
         logo: clinicInfo.branding?.logo || clinicInfo.logo || clinicInfo.clinicLogo || null,
-        gstNumber: metadata.gstNumber || clinicInfo.gstNumber,
-        showGst: metadata.showGst !== undefined ? metadata.showGst : true,
+        website: clinicInfo.website || clinicInfo.branding?.website || fallbackWebsite
     };
 
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'INR',
-        }).format(amount);
+        return new Intl.NumberFormat('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(amount || 0);
     };
 
+    const formatDate = (dateStr) => {
+        try {
+            if (!dateStr) return format(new Date(), 'dd MMM, yyyy');
+            const parsedDate = new Date(dateStr);
+            if (isNaN(parsedDate.getTime())) return format(new Date(), 'dd MMM, yyyy');
+            return format(parsedDate, 'dd MMM, yyyy');
+        } catch (e) {
+            return format(new Date(), 'dd MMM, yyyy');
+        }
+    };
+
+    // Doctor details fallback
+    const isManomay = info.name.toLowerCase().includes('manomay');
+    const attendingDoctorName = doctorDetails?.name || doctorName || (isManomay ? 'Parimal Anand' : 'Attending Doctor');
+    const attendingDoctorSpecialization = doctorDetails?.specialization 
+        ? `( ${doctorDetails.specialization} )` 
+        : (isManomay ? '( Periodontist, Oral Implantologist & Laser Specialist )' : '');
+    const attendingDoctorQualification = doctorDetails?.qualification 
+        ? doctorDetails.qualification 
+        : (isManomay ? 'B.D.S(Manipal), M.D.S(M.A.M.C. New Delhi)' : '');
+    const attendingDoctorRegNo = doctorDetails?.registrationNumber 
+        ? `Reg. No.${doctorDetails.registrationNumber}` 
+        : (doctorDetails?.licenseNumber 
+            ? `Reg. No.${doctorDetails.licenseNumber}` 
+            : (isManomay ? 'Reg. No.A-14880' : ''));
+
+    // Resolve patient details
+    const finalGender = patientDetails?.gender || invoiceData.gender || '';
+    const rawAge = patientDetails?.age || invoiceData.age || '';
+    const finalAge = rawAge ? `${rawAge} Years` : '';
+    const genderAge = [finalGender, finalAge].filter(Boolean).join(', ') || '';
+
+    const patientLocation = invoiceData.patientAddress || patientDetails?.address || '';
+
+    const getReceiptNumber = (index, inst) => {
+        if (inst.transactionId) return inst.transactionId;
+        const invNum = (billId || '').replace(/\D/g, '');
+        const baseNum = parseInt(invNum) || 118;
+        return `RCPT${baseNum - (installments.length - 1 - index)}`;
+    };
+
+    const generatedOnDate = format(new Date(), 'dd MMM, yyyy');
+
     return (
-        <div id="invoice-print-area" className="invoice-print-container bg-white shadow-2xl w-full max-w-3xl mx-auto relative transform transition-all duration-300 scale-100 print:shadow-none print:w-full print:max-w-none print:m-0 print:max-h-none font-['Inter', 'sans-serif'] text-slate-800">
-            {/* Status Watermark / Custom Watermark */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-10 pointer-events-none select-none z-0 print:opacity-10 w-full flex justify-center items-center" style={{ zIndex: 0 }}>
-                {template?.bodyType === 'custom' && template?.bodyImage ? (
-                    <img src={template.bodyImage} alt="Watermark" className="max-w-[70%] max-h-[70%] object-contain" />
-                ) : (
-                    <span className={`text-[100px] font-black uppercase transform -rotate-45 block ${status === 'Paid' ? 'text-green-600' : 'text-red-500'}`}>
-                        {String(status || '')}
-                    </span>
-                )}
-            </div>
+        <div id="invoice-print-area" className="bg-white text-black p-6 font-sans relative w-full max-w-[210mm] mx-auto print:p-0" style={{ color: '#000000', backgroundColor: '#ffffff' }}>
+            <style dangerouslySetInnerHTML={{__html: `
+                #invoice-print-area {
+                    font-family: 'Arial', 'Helvetica', sans-serif !important;
+                    color: #000000 !important;
+                    background-color: #ffffff !important;
+                    font-size: 12px !important;
+                    line-height: 1.4 !important;
+                    width: 100% !important;
+                    max-width: 210mm !important;
+                    margin: 0 auto !important;
+                    box-sizing: border-box !important;
+                }
+                #invoice-print-area .invoice-container {
+                    width: 100% !important;
+                    min-height: 257mm !important;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    justify-content: space-between !important;
+                    box-sizing: border-box !important;
+                }
+                #invoice-print-area .invoice-content-wrap {
+                    flex-grow: 1 !important;
+                }
+                #invoice-print-area .clinic-logo {
+                    width: 65px !important;
+                    height: 65px !important;
+                    object-fit: contain !important;
+                    margin-right: 15px !important;
+                }
+                #invoice-print-area .clinic-title {
+                    font-size: 20px !important;
+                    font-weight: bold !important;
+                    text-transform: uppercase !important;
+                    color: #000000 !important;
+                    margin: 0 !important;
+                    letter-spacing: 0.5px !important;
+                }
+                #invoice-print-area .clinic-subtitle {
+                    font-size: 11px !important;
+                    color: #000000 !important;
+                    margin: 4px 0 !important;
+                    font-weight: bold !important;
+                }
+                #invoice-print-area .clinic-detail {
+                    font-size: 11px !important;
+                    color: #000000 !important;
+                    margin: 2px 0 !important;
+                }
+                #invoice-print-area .doctor-title {
+                    font-size: 13px !important;
+                    font-weight: bold !important;
+                    margin: 0 !important;
+                }
+                #invoice-print-area .doctor-specialization {
+                    font-size: 11px !important;
+                    color: #000000 !important;
+                    margin: 4px 0 !important;
+                }
+                #invoice-print-area .doctor-qualification {
+                    font-size: 11px !important;
+                    color: #000000 !important;
+                    margin: 2px 0 !important;
+                }
+                #invoice-print-area .doctor-reg {
+                    font-size: 11px !important;
+                    color: #000000 !important;
+                    margin: 2px 0 !important;
+                }
+                #invoice-print-area .separator-line {
+                    border: 0 !important;
+                    border-top: 1.5px solid #000000 !important;
+                    margin: 15px 0 !important;
+                }
+                #invoice-print-area .patient-name {
+                    font-size: 14px !important;
+                    font-weight: bold !important;
+                    color: #000000 !important;
+                }
+                #invoice-print-area .patient-label {
+                    font-size: 12px !important;
+                    color: #000000 !important;
+                }
+                #invoice-print-area .patient-value {
+                    font-size: 12px !important;
+                    color: #000000 !important;
+                }
+                #invoice-print-area .meta-row {
+                    display: flex !important;
+                    justify-content: space-between !important;
+                    align-items: flex-end !important;
+                    margin-top: 15px !important;
+                    margin-bottom: 20px !important;
+                }
+                #invoice-print-area .meta-doctor-by {
+                    font-size: 12px !important;
+                    font-weight: bold !important;
+                    color: #000000 !important;
+                }
+                #invoice-print-area .meta-title {
+                    font-size: 24px !important;
+                    font-weight: bold !important;
+                    color: #2f855a !important;
+                    margin: 6px 0 0 0 !important;
+                }
+                #invoice-print-area .meta-details {
+                    text-align: right !important;
+                    font-size: 12px !important;
+                    color: #000000 !important;
+                }
+                #invoice-print-area .meta-details div {
+                    margin-bottom: 4px !important;
+                }
+                #invoice-print-area .meta-bold {
+                    font-weight: bold !important;
+                }
+                #invoice-print-area .items-table {
+                    width: 100% !important;
+                    border-collapse: collapse !important;
+                    margin-bottom: 30px !important;
+                }
+                #invoice-print-area .items-table th {
+                    background-color: #cbd5e0 !important;
+                    color: #000000 !important;
+                    font-weight: bold !important;
+                    font-size: 11px !important;
+                    text-transform: uppercase !important;
+                    padding: 10px 10px !important;
+                    text-align: left !important;
+                    border-top: 1.5px solid #000000 !important;
+                    border-bottom: 1.5px solid #000000 !important;
+                }
+                #invoice-print-area .items-table td {
+                    padding: 12px 10px !important;
+                    font-size: 12px !important;
+                    vertical-align: top !important;
+                    border-bottom: 1px dotted #cbd5e0 !important;
+                }
+                #invoice-print-area .item-date {
+                    font-size: 10px !important;
+                    color: #4a5568 !important;
+                    margin-top: 4px !important;
+                }
+                #invoice-print-area .financials-section {
+                    width: 100% !important;
+                    margin-top: 25px !important;
+                }
+                #invoice-print-area .financials-left {
+                    width: 53% !important;
+                    float: left !important;
+                }
+                #invoice-print-area .financials-right {
+                    width: 42% !important;
+                    float: right !important;
+                }
+                #invoice-print-area .summary-table {
+                    width: 100% !important;
+                    border-collapse: collapse !important;
+                }
+                #invoice-print-area .summary-table td {
+                    padding: 8px 8px !important;
+                    font-size: 12px !important;
+                    border-bottom: 1px solid #cbd5e0 !important;
+                }
+                #invoice-print-area .summary-label {
+                    text-align: left !important;
+                    color: #4a5568 !important;
+                }
+                #invoice-print-area .summary-value {
+                    text-align: right !important;
+                    font-weight: bold !important;
+                }
+                #invoice-print-area .payment-details-title {
+                    font-size: 12px !important;
+                    font-weight: bold !important;
+                    margin-bottom: 8px !important;
+                    text-transform: uppercase !important;
+                }
+                #invoice-print-area .payment-table {
+                    width: 100% !important;
+                    border-collapse: collapse !important;
+                    font-size: 11px !important;
+                    border: 1px solid #cbd5e0 !important;
+                }
+                #invoice-print-area .payment-table th {
+                    background-color: #e2e8f0 !important;
+                    font-weight: bold !important;
+                    padding: 6px 8px !important;
+                    text-align: left !important;
+                    border: 1px solid #cbd5e0 !important;
+                }
+                #invoice-print-area .payment-table td {
+                    padding: 6px 8px !important;
+                    border: 1px solid #cbd5e0 !important;
+                }
+                #invoice-print-area .footer {
+                    width: 100% !important;
+                    margin-top: auto !important;
+                    border-top: 1.5px solid #000000 !important;
+                    padding-top: 10px !important;
+                    display: flex !important;
+                    justify-content: space-between !important;
+                    align-items: center !important;
+                    font-size: 10px !important;
+                    color: #000000 !important;
+                }
+                #invoice-print-area .footer-left {
+                    width: 30% !important;
+                    text-align: left !important;
+                }
+                #invoice-print-area .footer-center {
+                    width: 40% !important;
+                    text-align: center !important;
+                }
+                #invoice-print-area .footer-right {
+                    width: 30% !important;
+                    text-align: right !important;
+                }
+                #invoice-print-area .clearfix::after {
+                    content: "" !important;
+                    clear: both !important;
+                    display: table !important;
+                }
+                @media print {
+                    body * {
+                        visibility: hidden !important;
+                    }
+                    #invoice-print-area, #invoice-print-area * {
+                        visibility: visible !important;
+                    }
+                    #invoice-print-area {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 210mm !important;
+                        min-height: 297mm !important;
+                        padding: 15mm 15mm 25mm 15mm !important;
+                        box-sizing: border-box !important;
+                        margin: 0 !important;
+                        box-shadow: none !important;
+                        background-color: #ffffff !important;
+                    }
+                    .print-only {
+                        padding: 0 !important;
+                        margin: 0 !important;
+                    }
+                    @page {
+                        size: A4 !important;
+                        margin: 0 !important;
+                    }
+                }
+            `}} />
 
-            {/* Invoice Content */}
-            <div className="p-8 print:p-4 relative z-10 w-full bg-transparent min-h-[1000px] flex flex-col">
-                {/* GST Section */}
-                {info.showGst && (
-                    <div className="mb-4 text-xs font-bold text-slate-800">
-                        GST NO : {info.gstNumber}
-                    </div>
-                )}
-                
-                {/* Header */}
-                {template?.headerType === 'custom' && template?.headerImage ? (
-                    <div className="mb-8 -mx-8 -mt-8">
-                        <img src={template.headerImage} alt="Header" className="w-full h-auto object-contain" />
-                    </div>
-                ) : (
-                    <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-800 pb-6 mb-8">
-                        <div>
-                            <h1 className="text-4xl font-black text-slate-800 tracking-tight uppercase mb-2">INVOICE</h1>
-                            <p className="text-sm font-bold text-slate-500">#{String(billId || '')}</p>
-                        </div>
-                        
-                        <div className="flex items-start text-right mt-4 sm:mt-0 gap-6">
-                            <div className="text-right">
-                                <h2 className="text-2xl font-bold text-slate-800">{String(info.name)}</h2>
-                                <p className="text-xs text-slate-600 mt-1 max-w-[250px] ml-auto">{String(info.address)}</p>
-                                <p className="text-xs text-slate-600">{String(info.email)}</p>
-                                <p className="text-xs text-slate-600">{String(info.phone)}</p>
-                            </div>
-                            {info.logo && (
-                                <div className="flex-shrink-0">
-                                    <img src={info.logo} alt="Clinic Logo" className="h-20 w-20 object-contain rounded border border-gray-100 p-1 bg-white" />
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Billing Info */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
-                    <div>
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Billed To</p>
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                            <h3 className="text-lg font-bold text-slate-800">{String(patientName || '')}</h3>
-                            <p className="text-xs text-slate-600 mt-1">Patient ID: {String(patientId || '')}</p>
-                            <p className="text-xs text-slate-600">Attending Doctor: <span className="font-semibold">{String(doctorName || '')}</span></p>
-                            <p className="text-xs text-slate-600 mt-2 italic">Thank you for choosing {String(info.name || '')}</p>
-                        </div>
-                    </div>
-                    <div className="sm:text-right">
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                            <div className="text-left sm:text-right">
-                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Invoice Date</p>
-                                <p className="text-xs font-semibold text-slate-800">{String(formatDateSafe(date))}</p>
-                            </div>
-                            <div className="text-left sm:text-right">
-                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Due Date</p>
-                                <p className="text-xs font-semibold text-slate-800">{String(formatDateSafe(date))}</p>
-                            </div>
-                            <div className="text-left sm:text-right">
-                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Payment Mode</p>
-                                <p className="text-xs font-semibold text-slate-800">{String(paymentMethod || 'N/A')}</p>
-                            </div>
-                            <div className="text-left sm:text-right">
-                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                                <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                    {status.toUpperCase()}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Itemized Table */}
-                <div className="mb-8 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
-                    <table className="min-w-full divide-y divide-slate-200">
-                        <thead className="bg-slate-800">
+            <div className="invoice-container">
+                <div className="invoice-content-wrap">
+                    <table className="w-full mb-[20px] border-collapse">
+                        <tbody>
                             <tr>
-                                <th scope="col" className="px-6 py-4 text-left text-[11px] font-bold text-white uppercase tracking-widest">Item Description</th>
-                                <th scope="col" className="px-6 py-4 text-center text-[11px] font-bold text-white uppercase tracking-widest w-24">Qty</th>
-                                <th scope="col" className="px-6 py-4 text-right text-[11px] font-bold text-white uppercase tracking-widest w-32">Price</th>
-                                <th scope="col" className="px-6 py-4 text-right text-[11px] font-bold text-white uppercase tracking-widest w-32">Amount</th>
+                                <td className="align-top p-0 w-[58%] text-left">
+                                    <div className="flex items-center">
+                                        {info.logo ? (
+                                            <img src={info.logo} alt="Clinic Logo" className="clinic-logo" />
+                                        ) : null}
+                                        <div>
+                                            <h1 className="clinic-title">{info.name}</h1>
+                                            {info.subtitle ? <p className="clinic-subtitle">{info.subtitle}</p> : null}
+                                            <p className="clinic-detail">Phone: {info.phone}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="align-top p-0 w-[42%] text-right">
+                                    <h2 className="doctor-title">Dr. {attendingDoctorName}</h2>
+                                    {attendingDoctorSpecialization && <p className="doctor-specialization">{attendingDoctorSpecialization}</p>}
+                                    {attendingDoctorQualification && <p className="doctor-qualification">{attendingDoctorQualification}</p>}
+                                    {attendingDoctorRegNo && <p className="doctor-reg">{attendingDoctorRegNo}</p>}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <hr className="separator-line" />
+
+                    <table className="w-full mb-[15px] border-collapse">
+                        <tbody>
+                            <tr>
+                                <td className="p-0 py-0.5 align-top w-[50%] text-left">
+                                    <div className="patient-name">{patientName}</div>
+                                    <div className="patient-label mt-[4px]">Patient Id: <span className="patient-value font-bold">{patientId}</span></div>
+                                </td>
+                                <td className="p-0 py-0.5 align-top w-[50%] text-right">
+                                    {genderAge && <div className="patient-value font-bold">{genderAge}</div>}
+                                    {patientLocation && <div className="patient-value mt-[4px]">{patientLocation}</div>}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <hr className="separator-line" />
+
+                    <div className="meta-row">
+                        <div className="text-left">
+                            <div className="meta-doctor-by">By: Dr. {attendingDoctorName.toUpperCase()}</div>
+                            <h2 className="meta-title">Invoices</h2>
+                        </div>
+                        <div className="meta-details text-right">
+                            <div>Date: <span className="meta-bold">{formatDate(date)}</span></div>
+                            <div>Invoice Number: <span className="meta-bold">{billId}</span></div>
+                        </div>
+                    </div>
+
+                    <table className="items-table">
+                        <thead>
+                            <tr>
+                                <th className="w-[5%] text-center">#</th>
+                                <th className="w-[50%] text-left">Treatments & Products</th>
+                                <th className="w-[15%] text-right">Unit Cost INR</th>
+                                <th className="w-[10%] text-center">Qty</th>
+                                <th className="w-[20%] text-right">Total Cost INR</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-slate-200">
-                            {items.length > 0 ? items.map((item, index) => (
-                                <tr key={index} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">{String(item.description || 'Service')}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-slate-600">{String(item.quantity || 1)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-slate-700">
-                                        {(() => {
-                                            const price = Number(item.price || item.cost || 0);
-                                            // Handle legacy records where items had no price but invoice had total
-                                            if (price === 0 && items.length === 1 && total > 0) return formatCurrency(total);
-                                            return formatCurrency(price);
-                                        })()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-slate-800">
-                                        {(() => {
-                                            if (item.subtotal !== undefined) return formatCurrency(item.subtotal);
-                                            if (item.totalAmount !== undefined) return formatCurrency(item.totalAmount);
-                                            const price = Number(item.price || item.cost || 0);
-                                            const qty = Number(item.quantity || 1);
-                                            const amount = price * qty;
-                                            // Handle legacy records
-                                            if (amount === 0 && items.length === 1 && total > 0) return formatCurrency(total);
-                                            return formatCurrency(amount);
-                                        })()}
-                                    </td>
-                                </tr>
-                            )) : (
+                        <tbody>
+                            {items.length > 0 ? items.map((item, index) => {
+                                const price = Number(item.price || item.unitPrice || item.cost || 0);
+                                const qty = Number(item.quantity || item.qty || 1);
+                                const itemTotal = Number(item.subtotal !== undefined ? item.subtotal : (item.total !== undefined ? item.total : price * qty));
+                                let desc = item.description || item.procedureName || item.medicineName || 'Treatment';
+                                if (item.toothNumber) {
+                                    desc += ` (Tooth: ${item.toothNumber})`;
+                                }
+
+                                return (
+                                    <tr key={index}>
+                                        <td className="text-center">{index + 1}.</td>
+                                        <td className="text-left">
+                                            <div className="font-bold text-slate-800">{desc}</div>
+                                            <div className="item-date">Date &nbsp; &nbsp; {formatDate(item.date || date)}</div>
+                                        </td>
+                                        <td className="text-right">{formatCurrency(price)}</td>
+                                        <td className="text-center">{qty}</td>
+                                        <td className="text-right font-bold">{formatCurrency(itemTotal)}</td>
+                                    </tr>
+                                );
+                            }) : (
                                 <tr>
-                                    <td colSpan="4" className="px-6 py-8 text-center text-sm text-slate-400 italic">No items listed on this invoice</td>
+                                    <td colSpan="5" className="text-center text-slate-400 py-4 italic">No treatments listed</td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
-                </div>
 
-                {/* Installments Breakdown Section */}
-                {installments && installments.length > 0 && (
-                    <div className="mb-8 p-5 border-2 border-black rounded-xl bg-white shadow-sm print:border-black print:border-2">
-                        <h4 className="text-sm font-black text-black uppercase tracking-wider mb-3 border-b-2 border-black pb-1.5">Payment Installments / History</h4>
-                        <table className="min-w-full divide-y divide-black text-xs">
-                            <thead>
-                                <tr>
-                                    <th className="px-3 py-2 text-left font-bold text-black uppercase tracking-widest">Date</th>
-                                    <th className="px-3 py-2 text-left font-bold text-black uppercase tracking-widest">Patient Name</th>
-                                    <th className="px-3 py-2 text-left font-bold text-black uppercase tracking-widest">Payment Mode</th>
-                                    <th className="px-3 py-2 text-right font-bold text-black uppercase tracking-widest">Amount Paid</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {installments.map((inst, index) => (
-                                    <tr key={index}>
-                                        <td className="px-3 py-2 text-slate-800 font-medium">{formatDateSafe(inst.date)}</td>
-                                        <td className="px-3 py-2 text-slate-800 font-medium">{patientName}</td>
-                                        <td className="px-3 py-2 text-slate-800 font-medium">{inst.paymentMethod}</td>
-                                        <td className="px-3 py-2 text-right font-bold text-black">{formatCurrency(inst.amount)}</td>
+                    <div className="financials-section clearfix">
+                        <div className="financials-left">
+                            <div className="payment-details-title">Payment Details</div>
+                            <table className="payment-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Receipt Number</th>
+                                        <th>Mode Of Payment</th>
+                                        <th style={{ textAlign: 'right' }}>Amount Paid INR</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        <div className="mt-3 pt-3 border-t border-dashed border-black flex justify-between items-center text-xs font-black text-black">
-                            <span>TOTAL PAID SO FAR: {formatCurrency(invoiceData.paidAmount !== undefined ? invoiceData.paidAmount : total)}</span>
-                            {invoiceData.dueAmount > 0 ? (
-                                <span className="text-red-600 font-black">TOTAL PAYMENT DUE: {formatCurrency(invoiceData.dueAmount)}</span>
-                            ) : (
-                                <span className="text-green-600 font-black">STATUS: FULLY PAID</span>
-                            )}
+                                </thead>
+                                <tbody>
+                                    {installments.length > 0 ? installments.map((inst, index) => (
+                                        <tr key={index}>
+                                            <td>{formatDate(inst.date)}</td>
+                                            <td>{getReceiptNumber(index, inst)}</td>
+                                            <td>{inst.paymentMethod || 'Card'}</td>
+                                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(inst.amount)}</td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td>{formatDate(date)}</td>
+                                            <td>{invoiceData.transactionId || `RCPT${(parseInt((billId || '').replace(/\D/g, '')) || 118) - 1}`}</td>
+                                            <td>{paymentMethod}</td>
+                                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(paidAmount)}</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
-                    </div>
-                )}
 
-                {/* Totals Section */}
-                <div className="flex flex-col sm:flex-row justify-between items-start mt-auto pt-8 border-t border-slate-100">
-                    <div className="w-full sm:w-1/2 mb-6 sm:mb-0">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Notes & Terms</p>
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                            {typeof notes === 'string' && notes ? notes : (typeof notes === 'number' ? String(notes) : 'Please keep this invoice for your records. For any queries regarding this bill, please contact our billing department.')}
-                        </p>
-                    </div>
-                    <div className="w-full sm:w-5/12 ml-auto">
-                        <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-                            <div className="flex justify-between mb-3 text-sm">
-                                <span className="font-medium text-slate-600">Subtotal</span>
-                                <span className="font-bold text-slate-800">{formatCurrency(subtotal)}</span>
-                            </div>
-                            <div className="flex justify-between mb-3 text-sm">
-                                <span className="font-medium text-slate-600">
-                                    {taxRate > 0 ? `Tax (${taxRate}%)` : 'Tax (GST)'}
-                                </span>
-                                <span className="font-bold text-slate-800">{formatCurrency(taxAmount)}</span>
-                            </div>
-                            
-                            {discount > 0 && (
-                                <div className="flex justify-between mb-3 text-sm text-red-600">
-                                    <span className="font-medium">Total Discount</span>
-                                    <span className="font-bold">-{formatCurrency(discount)}</span>
-                                </div>
-                            )}
-                            
-                            <div className="flex justify-between items-center py-3 border-t-2 border-slate-800 mt-3">
-                                <span className="text-xl font-black text-slate-800 uppercase tracking-tight">Total</span>
-                                <span className="text-2xl font-black text-indigo-600">{formatCurrency(total)}</span>
-                            </div>
+                        <div className="financials-right">
+                            <table className="summary-table">
+                                <tbody>
+                                    <tr>
+                                        <td className="summary-label">Total Cost:</td>
+                                        <td className="summary-value">{formatCurrency(subtotal)} INR</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="summary-label">Grand Total:</td>
+                                        <td className="summary-value">{formatCurrency(total)} INR</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="summary-label">Amount Received:</td>
+                                        <td className="summary-value">{formatCurrency(paidAmount)} INR</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="summary-label">Balance Amount:</td>
+                                        <td className="summary-value">{formatCurrency(dueAmount)} INR</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
 
-                {/* Footer */}
-                {template?.footerType === 'custom' && template?.footerImage ? (
-                    <div className="mt-12 -mx-8 -mb-8">
-                        <img src={template.footerImage} alt="Footer" className="w-full h-auto object-contain" />
-                    </div>
-                ) : (
-                    <div className="mt-12 text-center text-[10px] text-slate-400 uppercase tracking-[0.2em]">
-                        <p>Computer Generated Invoice - No Signature Required</p>
-                    </div>
-                )}
+                <div className="footer">
+                    <div className="footer-left">Generated On: {generatedOnDate}</div>
+                    <div className="footer-center">Computer Generated, No Signature Required Page 1 of 1</div>
+                    <div className="footer-right">Powered by Oviaan</div>
+                </div>
             </div>
         </div>
     );

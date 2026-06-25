@@ -42,7 +42,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const [bookingMode, setBookingMode] = useState('APPOINTMENT'); // Force APPOINTMENT mode to enable calendar and slots
   const [billingData, setBillingData] = useState({
     status: 'Pending',
-    paymentMode: 'Cash'
+    paymentMode: 'Pending'
   });
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [skipBilling, setSkipBilling] = useState(false);
@@ -371,8 +371,8 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           doctorName: selectedDoc ? selectedDoc.name : '',
           symptoms: '',
           administrativeNotes: '',
-          billingStatus: 'Paid',
-          paymentMode: 'Cash',
+          billingStatus: billingData.paymentMode === 'Pending' ? 'Pending' : 'Paid',
+          paymentMode: billingData.paymentMode === 'Pending' ? 'N/A' : billingData.paymentMode,
           sendWhatsApp: sendWhatsApp,
           skipBilling: skipBilling
         };
@@ -389,6 +389,9 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         const nameParts = (formData.fullName || '').trim().split(/\s+/);
         const firstName = nameParts[0] || '';
         const lastName = nameParts.slice(1).join(' ') || '';
+        const paymentStatus = billingData.paymentMode === 'Pending' ? 'pending' : 'paid';
+        const paymentMethod = billingData.paymentMode === 'Pending' ? 'N/A' : billingData.paymentMode;
+
         // Standard Appointment
         const appointmentData = {
           organizationId: orgId,
@@ -398,7 +401,8 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           specialty: selectedDoc ? selectedDoc.specialization : 'General',
           date: formData.appointmentDate,
           time: formData.appointmentTime,
-          paymentStatus: 'paid',
+          paymentStatus,
+          paymentMethod,
           sendWhatsApp: sendWhatsApp,
           skipBilling: skipBilling,
           patientDetails: {
@@ -929,6 +933,22 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
                 <span className="text-[10px] text-gray-400">Skip generating consultation bill</span>
               </div>
             </label>
+
+            {!skipBilling && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-150 dark:border-gray-700">
+                <span className="text-xs font-bold text-gray-750 dark:text-gray-250">Payment Mode:</span>
+                <select
+                  value={billingData.paymentMode}
+                  onChange={(e) => setBillingData({ ...billingData, paymentMode: e.target.value })}
+                  className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-650 rounded px-2.5 py-1.5 text-xs font-bold text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="Pending">Pending / Unpaid</option>
+                  <option value="Cash">Cash</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Card">Card</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <button

@@ -2,6 +2,7 @@ import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import mongoose from 'mongoose';
 import { resolveS3UrlIfNeeded } from './s3Service.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -144,10 +145,10 @@ export const generateInvoicePDF = async (bill, org, template = null) => {
       format: 'A4',
       printBackground: true,
       margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
-        left: '10mm'
+        top: '15mm',
+        right: '15mm',
+        bottom: '15mm',
+        left: '15mm'
       }
     });
 
@@ -440,88 +441,203 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
 }
 
 async function getInvoiceHtml(bill, org, template) {
-  // Use Oviaan Default Pharmacy Layout ONLY for Pharmacy bills
-  if (bill.billType === 'Pharmacy') {
-    return await getOviaanDefaultPharmacyHtml(bill, org, template);
+  // Query Doctor details dynamically
+  let doctorDetails = null;
+  if (bill.doctorId) {
+    try {
+      const Doctor = mongoose.model('Doctor');
+      doctorDetails = await Doctor.findOne({
+        $or: [
+          { doctorId: bill.doctorId },
+          { _id: mongoose.Types.ObjectId.isValid(bill.doctorId) ? new mongoose.Types.ObjectId(bill.doctorId) : null }
+        ].filter(Boolean),
+        organizationId: bill.organizationId || org._id
+      }).lean();
+    } catch (err) {
+      console.error("Error loading doctor in pdfService:", err.message);
+    }
+  }
+  
+  if (!doctorDetails && bill.doctorName) {
+    try {
+      const Doctor = mongoose.model('Doctor');
+      doctorDetails = await Doctor.findOne({
+        name: new RegExp(bill.doctorName, 'i'),
+        organizationId: bill.organizationId || org._id
+      }).lean();
+    } catch (err) {
+      console.error("Error loading doctor by name in pdfService:", err.message);
+    }
   }
 
-  const metadata = template?.metadata || {
-    primaryColor: '#3b82f6',
-    secondaryColor: '#1e293b',
-    fontFamily: 'Inter',
-    showLogo: true,
-    showGst: true,
-    showPatientId: true,
-    showDoctor: true
+  // Format Helpers
+  const formatCurrency = (val) => {
+    return new Intl.NumberFormat('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(val || 0);
   };
 
-  // Branding Images
-  const headerBase64 = template?.headerType === 'custom' && template?.headerImage ? await getBase64Image(template.headerImage) : null;
-  const footerBase64 = template?.footerType === 'custom' && template?.footerImage ? await getBase64Image(template.footerImage) : null;
-  const bodyBase64 = template?.bodyType === 'custom' && template?.bodyImage ? await getBase64Image(template.bodyImage) : null;
-  const logoBase64 = (org?.branding?.logo ? await getBase64Image(org.branding.logo) : (org?.logo ? await getBase64Image(org.logo) : null));
-
-  const layoutHtml = template?.htmlLayout === 'CORE_LAYOUT_REFERENCE' 
-    ? getBaseLayoutHtml(metadata.baseLayoutId || 'layout-standard')
-    : (template?.htmlLayout || getBaseLayoutHtml('layout-standard'));
-
-  const values = {
-    '{{clinic_name}}': org.branding?.clinicName || org.clinicName || org.name || 'Our Clinic',
-    '{{clinic_address}}': formatAddress(org.address || org.location),
-    '{{clinic_phone}}': org.phone || '',
-    '{{clinic_email}}': org.email || '',
-    '{{clinic_logo}}': logoBase64 ? `<img src="${logoBase64}" style="max-height: 80px;" />` : '',
-
-    '{{patient_name}}': bill.patientName || 'Walk-in Patient',
-    '{{patient_id}}': bill.patientId || 'N/A',
-    '{{doctor_name}}': bill.doctorName || 'General Consultant',
-    '{{invoice_number}}': bill.invoiceNumber || bill.billId || 'DRAFT-001',
-    '{{date}}': new Date(bill.date || bill.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }),
-
-    '{{subtotal}}': formatCurrency(bill.subtotal || bill.amount),
-    '{{tax_amount}}': formatCurrency(bill.taxAmount || 0),
-    '{{discount}}': formatCurrency(bill.discount || 0),
-    '{{total_amount}}': formatCurrency((bill.amount || 0) - (bill.discount || 0)),
-    '{{payment_method}}': bill.paymentMethod || 'Cash',
-    '{{notes}}': bill.notes || 'Thank you for your visit.',
-
-    '{{items_table}}': generateItemsTable(bill.items, 'standard', bill.discount),
-    '{{items_table_modern}}': generateItemsTable(bill.items, 'standard', bill.discount),
-    '{{items_table_minimal}}': generateItemsTable(bill.items, 'minimal', bill.discount),
-    '{{items_table_thermal}}': generateItemsTable(bill.items, 'thermal', bill.discount)
+  const formatDate = (d) => {
+    if (!d) return 'N/A';
+    try {
+      return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (e) {
+      return 'N/A';
+    }
   };
 
-  // Process conditional logic
-  let processedHtml = layoutHtml;
+  // Clinic Details
+  let logoBase64 = org.branding?.logo ? await getBase64Image(org.branding.logo) : (org.logo ? await getBase64Image(org.logo) : null);
+  const rawClinicName = org.branding?.clinicName || org.clinicName || org.name || 'Manomay Dental Care';
+  const parsedClinic = (() => {
+    const match = rawClinicName.match(/\(([^)]+)\)/);
+    if (match) {
+      const subtitle = match[1].trim();
+      const name = rawClinicName.replace(/\([^)]+\)/, '').trim();
+      return { name, subtitle };
+    }
+    return { name: rawClinicName.trim(), subtitle: org.branding?.clinicSubtitle || '' };
+  })();
+  
+  const clinicName = parsedClinic.name;
+  const clinicSubtitle = parsedClinic.subtitle;
+  const cleanClinicName = String(clinicName).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const clinicWebsite = org.website || org.branding?.website || `www.${cleanClinicName}.in`;
+  const clinicPhone = org.phone || org.branding?.phone || '+919354303128';
 
-  // CUSTOM BRANDING OVERRIDE (If custom header/footer exists)
-  if (headerBase64) {
-    // Replace the default header section with the custom header image
-    // This is a bit tricky as we need to identify the header section.
-    // In our base layouts, the header is usually the first div or has clinic_name.
-    // For now, let's wrap the whole thing if it's custom.
+  // Doctor Details
+  const isManomay = String(clinicName).toLowerCase().includes('manomay');
+  const attendingDoctorName = doctorDetails?.name || bill.doctorName || (isManomay ? 'Parimal Anand' : 'Attending Doctor');
+  const attendingDoctorSpecialization = doctorDetails?.specialization 
+    ? `( ${doctorDetails.specialization} )` 
+    : (isManomay ? '( Periodontist, Oral Implantologist & Laser Specialist )' : '');
+  const attendingDoctorQualification = doctorDetails?.qualification 
+    ? doctorDetails.qualification 
+    : (isManomay ? 'B.D.S(Manipal), M.D.S(M.A.M.C. New Delhi)' : '');
+  const attendingDoctorRegNo = doctorDetails?.registrationNumber 
+    ? `Reg. No.${doctorDetails.registrationNumber}` 
+    : (doctorDetails?.licenseNumber 
+        ? `Reg. No.${doctorDetails.licenseNumber}` 
+        : (isManomay ? 'Reg. No.A-14880' : ''));
+
+  // Query Patient details dynamically
+  let patientDetails = null;
+  if (bill.patientId) {
+    try {
+      const Patient = mongoose.model('Patient');
+      patientDetails = await Patient.findOne({
+        patientId: bill.patientId,
+        organizationId: bill.organizationId || org._id
+      }).lean();
+    } catch (err) {
+      console.error("Error loading patient in pdfService:", err.message);
+    }
+  }
+  if (!patientDetails && bill.patientPhone) {
+    try {
+      const Patient = mongoose.model('Patient');
+      patientDetails = await Patient.findOne({
+        mobile: bill.patientPhone.replace(/\D/g, '').slice(-10),
+        organizationId: bill.organizationId || org._id
+      }).lean();
+    } catch (err) {
+      console.error("Error loading patient by phone in pdfService:", err.message);
+    }
   }
 
-  const ifRegex = /{{#if (\w+)}}([\s\S]*?){{\/if}}/g;
-  processedHtml = processedHtml.replace(ifRegex, (match, key, content) => {
-    return metadata[key] ? content : '';
-  });
+  // Patient Details
+  const patientName = bill.patientName || 'Hemlata Tiwari';
+  const patientId = bill.patientId || 'P245';
+  const finalGender = patientDetails?.gender || bill.gender || '';
+  const rawAge = patientDetails?.age || bill.age || '';
+  const finalAge = rawAge ? `${rawAge} Years` : '';
+  const genderAge = [finalGender, finalAge].filter(Boolean).join(', ') || '';
+  const patientLocation = bill.patientAddress || patientDetails?.address || '';
 
-  // Process placeholders
-  Object.keys(values).forEach(key => {
-    const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-    processedHtml = processedHtml.replace(regex, values[key]);
-  });
+  // Metadata
+  const invoiceDate = formatDate(bill.date || bill.createdAt);
+  const invoiceNumber = bill.invoiceNumber || bill.billId || 'INV118';
 
-  const installmentsHtml = generateInstallmentsSection(bill);
-  if (processedHtml.includes('{{installments_section}}')) {
-    processedHtml = processedHtml.replace('{{installments_section}}', installmentsHtml);
+  // Itemized Table Rows
+  const items = bill.items || [];
+  let itemsRowsHtml = '';
+  if (items.length > 0) {
+    itemsRowsHtml = items.map((item, index) => {
+      let desc = item.description || item.procedureName || item.medicineName || 'Treatment';
+      if (item.toothNumber) {
+        desc += ` (Tooth: ${item.toothNumber})`;
+      }
+      const unitCost = item.unitPrice || item.price || item.cost || 0;
+      const qty = item.qty || item.quantity || 1;
+      const totalCost = item.subtotal || item.total || item.totalAmount || (unitCost * qty);
+
+      return `
+        <tr>
+          <td style="text-align: center; border-bottom: 1px dotted #cbd5e0; padding: 10px 5px;">${index + 1}.</td>
+          <td style="border-bottom: 1px dotted #cbd5e0; padding: 10px 5px;">
+            <div style="font-weight: bold; color: #2d3748;">${desc}</div>
+            <div class="item-date">Date &nbsp; &nbsp; ${formatDate(item.date || bill.date || bill.createdAt)}</div>
+          </td>
+          <td style="text-align: right; border-bottom: 1px dotted #cbd5e0; padding: 10px 5px;">${formatCurrency(unitCost)}</td>
+          <td style="text-align: center; border-bottom: 1px dotted #cbd5e0; padding: 10px 5px;">${qty}</td>
+          <td style="text-align: right; border-bottom: 1px dotted #cbd5e0; padding: 10px 5px;">${formatCurrency(totalCost)}</td>
+        </tr>
+      `;
+    }).join('');
   } else {
-    processedHtml = processedHtml.replace('</table>', '</table>' + installmentsHtml);
+    itemsRowsHtml = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 15px; border-bottom: 1px dotted #cbd5e0; color: #718096;">
+          No treatments or products listed.
+        </td>
+      </tr>
+    `;
   }
 
-  // Body Watermark
-  const bodyBgStyle = bodyBase64 ? `background-image: url('${bodyBase64}'); background-size: 60%; background-position: center; background-repeat: no-repeat; opacity: 0.1;` : '';
+  // Payment Installments
+  const installments = bill.installments || [];
+  let paymentRowsHtml = '';
+  
+  const getReceiptNumber = (index, inst) => {
+    if (inst.transactionId) return inst.transactionId;
+    const invNum = (bill.invoiceNumber || bill.billId || '').replace(/\D/g, '');
+    const baseNum = parseInt(invNum) || 118;
+    return `RCPT${baseNum - (installments.length - 1 - index)}`;
+  };
+
+  if (installments.length > 0) {
+    paymentRowsHtml = installments.map((inst, index) => {
+      const receiptNo = getReceiptNumber(index, inst);
+      return `
+        <tr>
+          <td>${formatDate(inst.date)}</td>
+          <td>${receiptNo}</td>
+          <td>${inst.paymentMethod || 'Card'}</td>
+          <td style="text-align: right; font-weight: bold;">${formatCurrency(inst.amount)}</td>
+        </tr>
+      `;
+    }).join('');
+  } else {
+    const invNum = (bill.invoiceNumber || bill.billId || '').replace(/\D/g, '');
+    const baseNum = parseInt(invNum) || 118;
+    const receiptNo = bill.transactionId || `RCPT${baseNum - 1}`;
+    paymentRowsHtml = `
+      <tr>
+        <td>${formatDate(bill.date || bill.createdAt)}</td>
+        <td>${receiptNo}</td>
+        <td>${bill.paymentMethod || 'Card'}</td>
+        <td style="text-align: right; font-weight: bold;">${formatCurrency(bill.paidAmount || bill.amount)}</td>
+      </tr>
+    `;
+  }
+
+  // Totals
+  const subtotal = bill.subtotal || bill.grossAmount || bill.amount || 0;
+  const grandTotal = bill.amount || bill.grandTotal || 0;
+  const amountReceived = bill.paidAmount || 0;
+  const balanceAmount = bill.dueAmount !== undefined ? bill.dueAmount : Math.max(0, grandTotal - amountReceived);
+  const generatedOnDate = formatDate(new Date());
 
   return `
     <!DOCTYPE html>
@@ -529,29 +645,365 @@ async function getInvoiceHtml(bill, org, template) {
     <head>
       <meta charset="UTF-8">
       <style>
-        ${getInvoiceCSS(metadata)}
-        .custom-header { width: 100%; margin-bottom: 20px; }
-        .custom-header img { width: 100%; max-height: 150px; object-fit: contain; }
-        .custom-footer { width: 100%; margin-top: 40px; }
-        .custom-footer img { width: 100%; max-height: 80px; object-fit: contain; }
-        .watermark-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; ${bodyBgStyle} z-index: -1; pointer-events: none; }
-        .invoice-wrapper { position: relative; min-height: 100vh; display: flex; flex-direction: column; }
-        .invoice-content { flex: 1; }
+        body {
+          font-family: 'Arial', 'Helvetica', sans-serif;
+          margin: 0;
+          padding: 0;
+          color: #000;
+          background-color: #fff;
+          font-size: 12px;
+          line-height: 1.4;
+          -webkit-print-color-adjust: exact;
+        }
+        .invoice-container {
+          width: 100%;
+          min-height: 267mm;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          box-sizing: border-box;
+        }
+        .invoice-content-wrap {
+          flex-grow: 1;
+        }
+        .header-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 20px;
+        }
+        .header-table td {
+          vertical-align: top;
+          padding: 0;
+        }
+        .clinic-logo {
+          width: 65px;
+          height: 65px;
+          object-fit: contain;
+          margin-right: 15px;
+        }
+        .clinic-title {
+          font-size: 20px;
+          font-weight: bold;
+          color: #000000;
+          margin: 0;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .clinic-subtitle {
+          font-size: 11px;
+          color: #000000;
+          margin: 4px 0;
+          font-weight: bold;
+        }
+        .clinic-detail {
+          font-size: 11px;
+          color: #000000;
+          margin: 2px 0;
+        }
+        .doctor-title {
+          font-size: 13px;
+          font-weight: bold;
+          margin: 0;
+        }
+        .doctor-specialization {
+          font-size: 11px;
+          color: #000000;
+          margin: 4px 0;
+        }
+        .doctor-qualification {
+          font-size: 11px;
+          color: #000000;
+          margin: 2px 0;
+        }
+        .doctor-reg {
+          font-size: 11px;
+          color: #000000;
+          margin: 2px 0;
+        }
+        .separator-line {
+          border: 0;
+          border-top: 1.5px solid #000000;
+          margin: 15px 0;
+        }
+        .patient-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 15px;
+        }
+        .patient-table td {
+          padding: 2px 0;
+          vertical-align: top;
+        }
+        .patient-name {
+          font-size: 14px;
+          font-weight: bold;
+          color: #000000;
+        }
+        .patient-label {
+          font-size: 12px;
+          color: #000000;
+        }
+        .patient-value {
+          font-size: 12px;
+          color: #000000;
+        }
+        .meta-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          margin-top: 15px;
+          margin-bottom: 20px;
+        }
+        .meta-doctor-by {
+          font-size: 12px;
+          font-weight: bold;
+          color: #000000;
+        }
+        .meta-title {
+          font-size: 24px;
+          font-weight: bold;
+          color: #2f855a;
+          margin: 6px 0 0 0;
+        }
+        .meta-details {
+          text-align: right;
+          font-size: 12px;
+          color: #000000;
+        }
+        .meta-details div {
+          margin-bottom: 4px;
+        }
+        .meta-bold {
+          font-weight: bold;
+        }
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 30px;
+        }
+        .items-table th {
+          background-color: #cbd5e0;
+          color: #000000;
+          font-weight: bold;
+          font-size: 11px;
+          text-transform: uppercase;
+          padding: 10px 10px;
+          text-align: left;
+          border-top: 1.5px solid #000000;
+          border-bottom: 1.5px solid #000000;
+        }
+        .items-table td {
+          padding: 12px 10px;
+          font-size: 12px;
+          vertical-align: top;
+          border-bottom: 1px dotted #cbd5e0;
+        }
+        .item-date {
+          font-size: 10px;
+          color: #4a5568;
+          margin-top: 4px;
+        }
+        .financials-section {
+          width: 100%;
+          margin-top: 25px;
+        }
+        .financials-left {
+          width: 53%;
+          float: left;
+        }
+        .financials-right {
+          width: 42%;
+          float: right;
+        }
+        .summary-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .summary-table td {
+          padding: 8px 8px;
+          font-size: 12px;
+          border-bottom: 1px solid #cbd5e0;
+        }
+        .summary-label {
+          text-align: left;
+          color: #4a5568;
+        }
+        .summary-value {
+          text-align: right;
+          font-weight: bold;
+        }
+        .payment-details-title {
+          font-size: 12px;
+          font-weight: bold;
+          margin-bottom: 8px;
+          text-transform: uppercase;
+        }
+        .payment-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 11px;
+          border: 1px solid #cbd5e0;
+        }
+        .payment-table th {
+          background-color: #e2e8f0;
+          font-weight: bold;
+          padding: 6px 8px;
+          text-align: left;
+          border: 1px solid #cbd5e0;
+        }
+        .payment-table td {
+          padding: 6px 8px;
+          border: 1px solid #cbd5e0;
+        }
+        .footer {
+          width: 100%;
+          margin-top: auto;
+          border-top: 1.5px solid #000000;
+          padding-top: 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 10px;
+          color: #000000;
+        }
+        .footer-left {
+          width: 30%;
+          text-align: left;
+        }
+        .footer-center {
+          width: 40%;
+          text-align: center;
+        }
+        .footer-right {
+          width: 30%;
+          text-align: right;
+        }
+        .clearfix::after {
+          content: "";
+          clear: both;
+          display: table;
+        }
       </style>
     </head>
     <body>
-      <div class="invoice-wrapper">
-        ${headerBase64 ? `<div class="custom-header"><img src="${headerBase64}" /></div>` : ''}
-        <div class="invoice-content">
-          <div class="watermark-container"></div>
-          ${processedHtml}
+      <div class="invoice-container">
+        <div class="invoice-content-wrap">
+          <table class="header-table">
+            <tr>
+              <td style="width: 58%;">
+                <div style="display: flex; align-items: center;">
+                  ${logoBase64 ? `<img src="${logoBase64}" class="clinic-logo" />` : ''}
+                  <div>
+                    <h1 class="clinic-title">${clinicName}</h1>
+                    ${clinicSubtitle ? `<p class="clinic-subtitle">${clinicSubtitle}</p>` : ''}
+                    <p class="clinic-detail">Phone: ${clinicPhone}</p>
+                  </div>
+                </div>
+              </td>
+              <td style="width: 42%; text-align: right;">
+                <h2 class="doctor-title">Dr. ${attendingDoctorName}</h2>
+                ${attendingDoctorSpecialization ? `<p class="doctor-specialization">${attendingDoctorSpecialization}</p>` : ''}
+                ${attendingDoctorQualification ? `<p class="doctor-qualification">${attendingDoctorQualification}</p>` : ''}
+                ${attendingDoctorRegNo ? `<p class="doctor-reg">${attendingDoctorRegNo}</p>` : ''}
+              </td>
+            </tr>
+          </table>
+
+          <hr class="separator-line" />
+
+          <table class="patient-table">
+            <tr>
+              <td style="width: 50%;">
+                <div class="patient-name">${patientName}</div>
+                <div class="patient-label" style="margin-top: 2px;">Patient Id: <span class="patient-value" style="font-weight: bold;">${patientId}</span></div>
+              </td>
+              <td style="width: 50%; text-align: right;">
+                ${genderAge ? `<div class="patient-value" style="font-weight: bold;">${genderAge}</div>` : ''}
+                ${patientLocation ? `<div class="patient-value" style="margin-top: 2px;">${patientLocation}</div>` : ''}
+              </td>
+            </tr>
+          </table>
+
+          <hr class="separator-line" />
+
+          <div class="meta-row">
+            <div>
+              <div class="meta-doctor-by">By: Dr. ${attendingDoctorName.toUpperCase()}</div>
+              <h2 class="meta-title">Invoices</h2>
+            </div>
+            <div class="meta-details">
+              <div>Date: <span class="meta-bold">${invoiceDate}</span></div>
+              <div>Invoice Number: <span class="meta-bold">${invoiceNumber}</span></div>
+            </div>
+          </div>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 5%; text-align: center;">#</th>
+                <th style="width: 50%;">Treatments & Products</th>
+                <th style="width: 15%; text-align: right;">Unit Cost INR</th>
+                <th style="width: 10%; text-align: center;">Qty</th>
+                <th style="width: 20%; text-align: right;">Total Cost INR</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsRowsHtml}
+            </tbody>
+          </table>
+
+          <div class="financials-section clearfix">
+            <div class="financials-left">
+              <div class="payment-details-title">Payment Details</div>
+              <table class="payment-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Receipt Number</th>
+                    <th>Mode Of Payment</th>
+                    <th style="text-align: right;">Amount Paid INR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${paymentRowsHtml}
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="financials-right">
+              <table class="summary-table">
+                <tr>
+                  <td class="summary-label">Total Cost:</td>
+                  <td class="summary-value">${formatCurrency(subtotal)} INR</td>
+                </tr>
+                <tr>
+                  <td class="summary-label">Grand Total:</td>
+                  <td class="summary-value">${formatCurrency(grandTotal)} INR</td>
+                </tr>
+                <tr>
+                  <td class="summary-label">Amount Received:</td>
+                  <td class="summary-value">${formatCurrency(amountReceived)} INR</td>
+                </tr>
+                <tr>
+                  <td class="summary-label">Balance Amount:</td>
+                  <td class="summary-value">${formatCurrency(balanceAmount)} INR</td>
+                </tr>
+              </table>
+            </div>
+          </div>
         </div>
-        ${footerBase64 ? `<div class="custom-footer"><img src="${footerBase64}" /></div>` : ''}
+
+        <div class="footer">
+          <div class="footer-left">Generated On: ${generatedOnDate}</div>
+          <div class="footer-center">Computer Generated, No Signature Required Page 1 of 1</div>
+          <div class="footer-right">Powered by Oviaan</div>
+        </div>
       </div>
     </body>
     </html>
   `;
 }
+
 
 function getInvoiceCSS(metadata) {
   const primary = metadata.primaryColor || '#3b82f6';
@@ -1269,7 +1721,7 @@ function getDailyCaseRegisterHtml(bills, options, org) {
       ? bill.items.map(item => item.description || item.procedureName).filter(Boolean).join(', ')
       : bill.billType || 'Consultation';
       
-    const fees = Number(bill.paidAmount !== undefined ? bill.paidAmount : bill.amount || 0).toFixed(2);
+    const fees = Number(bill.amount !== undefined && bill.amount !== null ? bill.amount : (bill.paidAmount || 0)).toFixed(2);
     const dateOfReceipt = formatDate(bill.date);
 
     return `

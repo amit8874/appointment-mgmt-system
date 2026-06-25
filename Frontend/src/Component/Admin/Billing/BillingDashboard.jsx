@@ -1889,13 +1889,16 @@ const BillingDashboard = () => {
             position: absolute !important; 
             left: 0 !important; 
             top: 0 !important; 
-            width: 100% !important;
+            width: 210mm !important;
+            min-height: 297mm !important;
             margin: 0 !important;
-            padding: 1.5cm !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+            background-color: #ffffff !important;
           }
           @page { 
-            margin: 0; 
-            size: auto; 
+            margin: 0 !important; 
+            size: A4; 
           }
         }
         @media screen {

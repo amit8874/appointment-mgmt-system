@@ -283,7 +283,7 @@ const DailyCaseRegisterModal = ({ isOpen, onClose }) => {
                       const services = bill.items && bill.items.length > 0
                         ? bill.items.map(item => item.description || item.procedureName).filter(Boolean).join(', ')
                         : bill.billType || 'Consultation';
-                      const fees = Number(bill.paidAmount !== undefined ? bill.paidAmount : bill.amount || 0).toLocaleString('en-IN', {
+                      const fees = Number(bill.amount !== undefined && bill.amount !== null ? bill.amount : (bill.paidAmount || 0)).toLocaleString('en-IN', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2
                       });

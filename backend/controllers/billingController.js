@@ -800,22 +800,6 @@ export const downloadInvoicePDF = async (req, res) => {
       ? `attachment; filename="${fileName}"`
       : `inline; filename="${fileName}"`;
 
-    // If already generated and in S3, just return a fresh signed URL
-    // UNLESS a specific templateId is requested that might be different
-    if (bill.storageProvider === 'aws_s3' && bill.invoiceS3Key && !req.query.templateId) {
-      const signedUrl = await getSignedDownloadUrl({ 
-        key: bill.invoiceS3Key, 
-        expiresInSeconds: 3600,
-        responseContentDisposition: contentDisposition
-      });
-      return res.json({ success: true, url: signedUrl });
-    }
-    
-    // If it has an old local/cloudinary url, return it (note: standard URLs don't easily support force-download via presigned params)
-    if (bill.invoiceUrl && bill.storageProvider !== 'aws_s3') {
-       return res.json({ success: true, url: bill.invoiceUrl });
-    }
-
     // Generate on the fly
     const org = await Organization.findById(req.tenantId);
     
