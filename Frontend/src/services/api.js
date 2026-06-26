@@ -1436,8 +1436,8 @@ export const dentistApi = {
     const { data } = await api.delete(`/dentist/images/${imageId}`);
     return data;
   },
-  getCustomProcedures: async () => {
-    const { data } = await api.get('/dentist/procedures');
+  getCustomProcedures: async (doctorId = '') => {
+    const { data } = await api.get('/dentist/procedures', { params: { doctorId } });
     return data;
   },
   createCustomProcedure: async (procedureData) => {

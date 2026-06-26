@@ -389,6 +389,7 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
                                              <div>
                                                  <h1 className="clinic-title">{info.name}</h1>
                                                  {info.subtitle ? <p className="clinic-subtitle">{info.subtitle}</p> : null}
+                                                 {info.address ? <p className="clinic-detail">{info.address}</p> : null}
                                                  <p className="clinic-detail">Phone: {info.phone}</p>
                                              </div>
                                         </div>

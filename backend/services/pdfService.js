@@ -505,6 +505,7 @@ async function getInvoiceHtml(bill, org, template) {
   const cleanClinicName = String(clinicName).toLowerCase().replace(/[^a-z0-9]/g, '');
   const clinicWebsite = org.website || org.branding?.website || `www.${cleanClinicName}.in`;
   const clinicPhone = org.phone || org.branding?.phone || '+919354303128';
+  const clinicAddress = formatAddress(org.address || org.location || org.clinicAddress || org.branding?.address);
 
   // Doctor Details
   const isManomay = String(clinicName).toLowerCase().includes('manomay');
@@ -896,6 +897,7 @@ async function getInvoiceHtml(bill, org, template) {
                   <div>
                     <h1 class="clinic-title">${clinicName}</h1>
                     ${clinicSubtitle ? `<p class="clinic-subtitle">${clinicSubtitle}</p>` : ''}
+                    ${clinicAddress ? `<p class="clinic-detail">${clinicAddress}</p>` : ''}
                     <p class="clinic-detail">Phone: ${clinicPhone}</p>
                   </div>
                 </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, IndianRupee } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../../context/AuthContext';
-import { billingApi } from '../../../services/api';
+import { billingApi, dentistApi } from '../../../services/api';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
 import { createPortal } from 'react-dom';
 import { STANDARD_DENTAL_PROCEDURES } from './dentalUtils';
@@ -14,6 +14,30 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
   const [items, setItems] = useState([
     { description: '', qty: 1, price: 0, discount: 0, subtotal: 0 }
   ]);
+  const [customProcedures, setCustomProcedures] = useState([]);
+
+  useEffect(() => {
+    const fetchCustomProcedures = async () => {
+      try {
+        const res = await dentistApi.getCustomProcedures(patientData?.assignedDoctorId);
+        setCustomProcedures(res || []);
+      } catch (err) {
+        console.error('Error fetching custom procedures in billing creator:', err);
+      }
+    };
+    fetchCustomProcedures();
+  }, [patientData?.assignedDoctorId]);
+
+  // Merge custom procedures and standard presets, prioritizing custom default prices
+  const mergedPresets = STANDARD_DENTAL_PROCEDURES.map(p => ({ ...p }));
+  customProcedures.forEach(cp => {
+    const existingIndex = mergedPresets.findIndex(sp => sp.name.toLowerCase() === cp.name.toLowerCase());
+    if (existingIndex !== -1) {
+      mergedPresets[existingIndex].defaultCost = cp.defaultCost;
+    } else {
+      mergedPresets.push({ name: cp.name, defaultCost: cp.defaultCost });
+    }
+  });
   const [overallDiscount, setOverallDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('fixed'); // 'fixed' or 'percentage'
   const [taxRate, setTaxRate] = useState(0);
@@ -71,7 +95,7 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
   };
 
   const handlePresetSelect = (index, presetName) => {
-    const preset = STANDARD_DENTAL_PROCEDURES.find(p => p.name === presetName);
+    const preset = mergedPresets.find(p => p.name === presetName);
     if (!preset) return;
 
     handleItemChange(index, 'description', preset.name);
@@ -336,7 +360,7 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
                         defaultValue=""
                       >
                         <option value="" disabled>Presets...</option>
-                        {STANDARD_DENTAL_PROCEDURES.map(proc => (
+                        {mergedPresets.map(proc => (
                           <option key={proc.name} value={proc.name}>
                             {proc.name.replace(/ Treatment| Placement| Surgery/g, '')}
                           </option>

@@ -22,6 +22,81 @@ import { sanitizePhone } from '../utils/phoneUtils.js';
 import { saveMedicineNames } from './medicineController.js';
 import { calculateInvoiceTotals } from '../utils/billingCalculations.js';
 
+const resolveDoctorUserId = async (doctorIdStr, tenantId) => {
+  if (!doctorIdStr) return null;
+  
+  try {
+    const User = mongoose.model('User');
+    const Doctor = mongoose.model('Doctor');
+
+    // 1. If it's a valid ObjectId
+    if (mongoose.Types.ObjectId.isValid(doctorIdStr)) {
+      const oid = new mongoose.Types.ObjectId(doctorIdStr);
+      
+      // Check if it's already a User ID
+      const userExists = await User.exists({ _id: oid });
+      if (userExists) {
+        return oid;
+      }
+
+      // If not, check if it's a Doctor ID
+      const docDoc = await Doctor.findById(oid).lean();
+      if (docDoc) {
+        const queryOr = [];
+        if (docDoc.phone) queryOr.push({ mobile: docDoc.phone });
+        if (docDoc.email) queryOr.push({ email: docDoc.email });
+        if (queryOr.length > 0) {
+          const userDoc = await User.findOne({
+            role: 'doctor',
+            organizationId: tenantId,
+            $or: queryOr
+          }).lean();
+          if (userDoc) {
+            return userDoc._id;
+          }
+        }
+      }
+      return oid; // fallback
+    }
+
+    // 2. If it's a custom string (like "DOC663C92")
+    const docDoc = await Doctor.findOne({ doctorId: doctorIdStr, organizationId: tenantId }).lean();
+    if (docDoc) {
+      const queryOr = [];
+      if (docDoc.phone) queryOr.push({ mobile: docDoc.phone });
+      if (docDoc.email) queryOr.push({ email: docDoc.email });
+      if (queryOr.length > 0) {
+        const userDoc = await User.findOne({
+          role: 'doctor',
+          organizationId: tenantId,
+          $or: queryOr
+        }).lean();
+        if (userDoc) {
+          return userDoc._id;
+        }
+      }
+
+      // Suffix regex fallback if user isn't found by mobile/email
+      if (doctorIdStr.startsWith('DOC')) {
+        const hexSuffix = doctorIdStr.substring(3).toLowerCase();
+        if (hexSuffix.length === 6) {
+          const userDocBySuffix = await User.findOne({
+            role: 'doctor',
+            organizationId: tenantId,
+            _id: { $regex: new RegExp(`${hexSuffix}$`, 'i') }
+          }).lean();
+          if (userDocBySuffix) {
+            return userDocBySuffix._id;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error resolving doctor user ID:', err);
+  }
+  return null;
+};
+
 // Helper to sync payment status with Appointment across all collections
 const syncAppointmentStatus = async (appointmentId, billStatus) => {
   if (!appointmentId) return;
@@ -303,6 +378,39 @@ export const createBill = async (req, res) => {
         .filter(n => n.trim().length >= 2);
       // Non-blocking — runs in background, won't break billing
       saveMedicineNames(medicineNames);
+    }
+
+    // Auto-save custom procedure prices to DentalProcedureMaster for Dental bills
+    if (billType === 'Dental' && Array.isArray(items) && items.length > 0) {
+      const activeDoctorId = await resolveDoctorUserId(doctorId, req.tenantId) || req.user?._id;
+      if (activeDoctorId) {
+        try {
+          const DentalProcedureMaster = mongoose.model('DentalProcedureMaster');
+          for (const item of items) {
+            const procedureName = item.description || '';
+            const unitPrice = Number(item.unitPrice || item.price || item.cost || 0);
+            if (procedureName.trim() && unitPrice >= 0) {
+              await DentalProcedureMaster.findOneAndUpdate(
+                {
+                  organizationId: req.tenantId,
+                  doctorId: activeDoctorId,
+                  name: { $regex: new RegExp(`^${procedureName.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
+                },
+                {
+                  organizationId: req.tenantId,
+                  doctorId: activeDoctorId,
+                  name: procedureName.trim(),
+                  defaultCost: unitPrice,
+                  isActive: true
+                },
+                { upsert: true }
+              );
+            }
+          }
+        } catch (masterErr) {
+          console.warn('Could not auto-save custom procedure master from billing:', masterErr.message);
+        }
+      }
     }
 
     // Sync with Appointment paymentStatus

@@ -6,6 +6,81 @@ import Billing from '../models/Billing.js';
 import DentalProcedureMaster from '../models/DentalProcedureMaster.js';
 import mongoose from 'mongoose';
 
+const resolveDoctorUserId = async (doctorIdStr, tenantId) => {
+  if (!doctorIdStr) return null;
+  
+  try {
+    const User = mongoose.model('User');
+    const Doctor = mongoose.model('Doctor');
+
+    // 1. If it's a valid ObjectId
+    if (mongoose.Types.ObjectId.isValid(doctorIdStr)) {
+      const oid = new mongoose.Types.ObjectId(doctorIdStr);
+      
+      // Check if it's already a User ID
+      const userExists = await User.exists({ _id: oid });
+      if (userExists) {
+        return oid;
+      }
+
+      // If not, check if it's a Doctor ID
+      const docDoc = await Doctor.findById(oid).lean();
+      if (docDoc) {
+        const queryOr = [];
+        if (docDoc.phone) queryOr.push({ mobile: docDoc.phone });
+        if (docDoc.email) queryOr.push({ email: docDoc.email });
+        if (queryOr.length > 0) {
+          const userDoc = await User.findOne({
+            role: 'doctor',
+            organizationId: tenantId,
+            $or: queryOr
+          }).lean();
+          if (userDoc) {
+            return userDoc._id;
+          }
+        }
+      }
+      return oid; // fallback
+    }
+
+    // 2. If it's a custom string (like "DOC663C92")
+    const docDoc = await Doctor.findOne({ doctorId: doctorIdStr, organizationId: tenantId }).lean();
+    if (docDoc) {
+      const queryOr = [];
+      if (docDoc.phone) queryOr.push({ mobile: docDoc.phone });
+      if (docDoc.email) queryOr.push({ email: docDoc.email });
+      if (queryOr.length > 0) {
+        const userDoc = await User.findOne({
+          role: 'doctor',
+          organizationId: tenantId,
+          $or: queryOr
+        }).lean();
+        if (userDoc) {
+          return userDoc._id;
+        }
+      }
+
+      // Suffix regex fallback if user isn't found by mobile/email
+      if (doctorIdStr.startsWith('DOC')) {
+        const hexSuffix = doctorIdStr.substring(3).toLowerCase();
+        if (hexSuffix.length === 6) {
+          const userDocBySuffix = await User.findOne({
+            role: 'doctor',
+            organizationId: tenantId,
+            _id: { $regex: new RegExp(`${hexSuffix}$`, 'i') }
+          }).lean();
+          if (userDocBySuffix) {
+            return userDocBySuffix._id;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error resolving doctor user ID:', err);
+  }
+  return null;
+};
+
 /**
  * Resolves a patient identifier (either a MongoDB ObjectId or a display
  * patientId like "000020") to the actual Patient document's _id.
@@ -167,9 +242,11 @@ export const createTreatment = async (req, res) => {
       return res.status(404).json({ message: 'Patient not found' });
     }
 
+    const resolvedDoctorId = await resolveDoctorUserId(req.body.doctorId, organizationId) || req.user?._id;
     const newTreatment = new DentalTreatment({
       organizationId,
       patientId: resolvedId,
+      doctorId: resolvedDoctorId,
       toothNumber,
       procedure,
       notes,
@@ -182,6 +259,30 @@ export const createTreatment = async (req, res) => {
     });
 
     await newTreatment.save();
+
+    // Auto-upsert custom procedure price for this doctor
+    const activeDoctorId = newTreatment.doctorId || req.user?._id;
+    if (activeDoctorId && procedure && estimatedCost !== undefined) {
+      try {
+        await DentalProcedureMaster.findOneAndUpdate(
+          {
+            organizationId,
+            doctorId: activeDoctorId,
+            name: { $regex: new RegExp(`^${procedure.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
+          },
+          {
+            organizationId,
+            doctorId: activeDoctorId,
+            name: procedure.trim(),
+            defaultCost: Number(estimatedCost) || 0,
+            isActive: true
+          },
+          { upsert: true }
+        );
+      } catch (err) {
+        console.warn('Could not auto-save custom procedure master:', err.message);
+      }
+    }
 
     res.status(201).json(newTreatment);
   } catch (error) {
@@ -213,6 +314,32 @@ export const updateTreatment = async (req, res) => {
     if (nextVisitDate !== undefined) treatment.nextVisitDate = nextVisitDate;
 
     await treatment.save();
+
+    // Auto-upsert custom procedure price for this doctor on update
+    const activeProcedure = procedure !== undefined ? procedure : treatment.procedure;
+    const activeCost = estimatedCost !== undefined ? estimatedCost : treatment.estimatedCost;
+    const activeDoctorId = await resolveDoctorUserId(req.body.doctorId, organizationId) || treatment.doctorId || req.user?._id;
+    if (activeProcedure && activeCost !== undefined && activeDoctorId) {
+      try {
+        await DentalProcedureMaster.findOneAndUpdate(
+          {
+            organizationId,
+            doctorId: activeDoctorId,
+            name: { $regex: new RegExp(`^${activeProcedure.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
+          },
+          {
+            organizationId,
+            doctorId: activeDoctorId,
+            name: activeProcedure.trim(),
+            defaultCost: Number(activeCost) || 0,
+            isActive: true
+          },
+          { upsert: true }
+        );
+      } catch (err) {
+        console.warn('Could not auto-save custom procedure master on treatment update:', err.message);
+      }
+    }
 
     res.json(treatment);
   } catch (error) {
@@ -361,21 +488,42 @@ export const deleteDentalImage = async (req, res) => {
 export const getCustomProcedures = async (req, res) => {
   try {
     const organizationId = req.tenantId;
+    const doctorIdQuery = req.query.doctorId;
+    const doctorId = await resolveDoctorUserId(doctorIdQuery, organizationId) || req.user?._id;
+
     const procedures = await DentalProcedureMaster.find({ 
       organizationId,
-      isActive: true 
+      isActive: true,
+      $or: [
+        { doctorId },
+        { doctorId: null },
+        { doctorId: { $exists: false } }
+      ]
     }).sort({ name: 1 });
-    res.json(procedures);
+
+    // Merge in memory to prioritize the doctor's custom price over organization defaults
+    const mergedMap = {};
+    procedures.forEach(p => {
+      const key = p.name.toLowerCase();
+      const existing = mergedMap[key];
+      if (!existing || (!existing.doctorId && p.doctorId)) {
+        mergedMap[key] = p;
+      }
+    });
+
+    const mergedProcedures = Object.values(mergedMap).sort((a, b) => a.name.localeCompare(b.name));
+    res.json(mergedProcedures);
   } catch (error) {
     console.error('Error fetching custom dental procedures:', error);
     res.status(500).json({ message: 'Error fetching custom dental procedures', error: error.message });
   }
 };
 
-// Create a new custom procedure master entry
+// Create or update a custom procedure master entry for this doctor
 export const createCustomProcedure = async (req, res) => {
   try {
     const organizationId = req.tenantId;
+    const doctorId = req.user?._id;
     const { name, defaultCost } = req.body;
 
     if (!name || !name.trim()) {
@@ -384,26 +532,26 @@ export const createCustomProcedure = async (req, res) => {
 
     const trimmedName = name.trim();
 
-    // Check case-insensitive duplicate for the same tenant
-    const existing = await DentalProcedureMaster.findOne({
-      organizationId,
-      name: { $regex: new RegExp(`^${trimmedName.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
-    });
+    // Upsert (update or insert) for this doctor and organization
+    const updatedProcedure = await DentalProcedureMaster.findOneAndUpdate(
+      {
+        organizationId,
+        doctorId,
+        name: { $regex: new RegExp(`^${trimmedName.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
+      },
+      {
+        organizationId,
+        doctorId,
+        name: trimmedName,
+        defaultCost: Number(defaultCost) || 0,
+        isActive: true
+      },
+      { new: true, upsert: true }
+    );
 
-    if (existing) {
-      return res.status(400).json({ message: 'A procedure with this name already exists' });
-    }
-
-    const newProcedure = new DentalProcedureMaster({
-      organizationId,
-      name: trimmedName,
-      defaultCost: Number(defaultCost) || 0
-    });
-
-    await newProcedure.save();
-    res.status(201).json(newProcedure);
+    res.status(200).json(updatedProcedure);
   } catch (error) {
-    console.error('Error creating custom dental procedure:', error);
+    console.error('Error saving custom dental procedure:', error);
     res.status(500).json({ message: 'Error saving custom dental procedure', error: error.message });
   }
 };

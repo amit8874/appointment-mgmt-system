@@ -40,10 +40,12 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   const [editingCost, setEditingCost] = useState('');
 
   // Compute merged presets dynamically
-  const mergedPresets = [...STANDARD_DENTAL_PROCEDURES];
+  const mergedPresets = STANDARD_DENTAL_PROCEDURES.map(p => ({ ...p }));
   customProcedures.forEach(cp => {
-    const exists = mergedPresets.some(sp => sp.name.toLowerCase() === cp.name.toLowerCase());
-    if (!exists) {
+    const existingIndex = mergedPresets.findIndex(sp => sp.name.toLowerCase() === cp.name.toLowerCase());
+    if (existingIndex !== -1) {
+      mergedPresets[existingIndex].defaultCost = cp.defaultCost;
+    } else {
       mergedPresets.push({ name: cp.name, defaultCost: cp.defaultCost });
     }
   });
@@ -62,7 +64,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
 
   const fetchCustomProcedures = async () => {
     try {
-      const res = await dentistApi.getCustomProcedures();
+      const res = await dentistApi.getCustomProcedures(patientData?.assignedDoctorId);
       setCustomProcedures(res || []);
     } catch (err) {
       console.error('Error fetching custom procedures:', err);
@@ -72,7 +74,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   useEffect(() => {
     fetchChart();
     fetchCustomProcedures();
-  }, [patientId]);
+  }, [patientId, patientData?.assignedDoctorId]);
 
   // Synchronize numbering system choice across other dental tabs dynamically
   useEffect(() => {
