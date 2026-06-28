@@ -123,8 +123,8 @@ export const getToothSVG = (toothId, color = 'currentColor', size = 26) => {
 
   switch (tooth.type) {
     case 'incisor':
-      // Central incisors: 11,21,31,41 — Lateral: 12,22,32,42
-      if (['11', '21', '31', '41'].includes(String(toothId))) {
+      // Central incisors: 11,21,31,41 (Adult), 51,61,71,81 (Child) — Lateral: others
+      if (['11', '21', '31', '41', '51', '61', '71', '81'].includes(String(toothId))) {
         return <IncisorSVG {...props} />;
       }
       return <LateralIncisorSVG {...props} />;

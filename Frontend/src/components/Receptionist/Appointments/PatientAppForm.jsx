@@ -33,6 +33,11 @@ const PatientAppointmentForm = ({ onSuccess }) => {
   const location = useLocation();
   const rebookData = location.state?.rebookData;
 
+  // Patient suggestions state
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const nameSearchRef = useRef(null);
+
   // billing modal related state
   const [billingOpen, setBillingOpen] = useState(false);
   const [billingInitData, setBillingInitData] = useState({});
@@ -106,6 +111,94 @@ const PatientAppointmentForm = ({ onSuccess }) => {
   }, [rebookData]);
 
 
+  // Handle click outside to close name suggestions dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (nameSearchRef.current && !nameSearchRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Search existing patients when typing names
+  useEffect(() => {
+    const fullNameInput = `${formData.firstName} ${formData.lastName}`.trim();
+    if (formData.patientId) {
+      setSearchResults([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      if (fullNameInput.length >= 2) {
+        try {
+          const response = await api.get('/patients', { params: { search: fullNameInput, limit: 8 } });
+          const foundPatients = response.data?.patients || (Array.isArray(response.data) ? response.data : []);
+          setSearchResults(foundPatients);
+          setShowSuggestions(true);
+        } catch (error) {
+          console.error('Search patients failed:', error);
+        }
+      } else {
+        setSearchResults([]);
+        setShowSuggestions(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [formData.firstName, formData.lastName, formData.patientId]);
+
+  const handleSelectPatient = (p) => {
+    const rawName = p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
+    setFormData(prev => ({
+      ...prev,
+      firstName: p.firstName || rawName.split(' ')[0] || '',
+      lastName: p.lastName || rawName.split(' ').slice(1).join(' ') || '',
+      age: p.age || '',
+      gender: p.gender || '',
+      bloodGroup: p.bloodGroup || '',
+      contactNumber: p.mobile || p.contactNumber || p.phone || '',
+      email: p.email || '',
+      address: p.address || '',
+      city: p.city || '',
+      state: p.state || '',
+      zip: p.zip || '',
+      emergencyContact: p.emergencyContact || '',
+      emergencyPhone: p.emergencyPhone || '',
+      pastMedicalHistory: p.pastMedicalHistory || '',
+      allergies: p.allergies || '',
+      patientId: p.patientId || p._id || '',
+    }));
+    setSearchResults([]);
+    setShowSuggestions(false);
+  };
+
+  const handleClearPatientSelection = () => {
+    setFormData(prev => ({
+      ...prev,
+      firstName: '',
+      lastName: '',
+      age: '',
+      gender: '',
+      bloodGroup: '',
+      contactNumber: '',
+      email: '',
+      address: '',
+      city: '',
+      state: '',
+      zip: '',
+      emergencyContact: '',
+      emergencyPhone: '',
+      pastMedicalHistory: '',
+      allergies: '',
+      patientId: ''
+    }));
+    setSearchResults([]);
+    setShowSuggestions(false);
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -130,7 +223,9 @@ const PatientAppointmentForm = ({ onSuccess }) => {
     } else {
       setFormData(prev => ({
         ...prev,
-        [name]: value
+        [name]: value,
+        // Clear patientId if they change first/last name manually
+        ...((name === 'firstName' || name === 'lastName') ? { patientId: '' } : {})
       }));
     }
   };
@@ -280,19 +375,55 @@ const PatientAppointmentForm = ({ onSuccess }) => {
         <div className="flex flex-wrap gap-2 h-full content-start">
 
           {/* Personal Info Row */}
-          <div className="w-full flex gap-2 items-end border-b pb-2 mb-1">
+          <div className="w-full flex justify-between items-center border-b pb-2 mb-1">
             <span className="text-xs font-bold text-blue-600 self-center">PERSONAL</span>
+            {formData.patientId && (
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 animate-fade select-none">
+                Linked Patient: {formData.patientId}
+                <button
+                  type="button"
+                  onClick={handleClearPatientSelection}
+                  className="text-emerald-900 hover:text-red-600 font-bold ml-1 cursor-pointer transition-colors"
+                  title="Clear patient selection"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
           </div>
 
-          <div className="w-32">
-            <label className="block text-xs font-medium text-gray-700">First *</label>
-            <input type="text" name="firstName" value={formData.firstName} onChange={handleChange}
-              className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500" required />
-          </div>
-          <div className="w-28">
-            <label className="block text-xs font-medium text-gray-700">Last *</label>
-            <input type="text" name="lastName" value={formData.lastName} onChange={handleChange}
-              className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500" required />
+          {/* Name Fields Container with Suggestions Dropdown */}
+          <div className="relative w-full flex flex-wrap gap-2" ref={nameSearchRef}>
+            <div className="w-32">
+              <label className="block text-xs font-medium text-gray-700">First *</label>
+              <input type="text" name="firstName" value={formData.firstName} onChange={handleChange}
+                className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500" required autoComplete="off" />
+            </div>
+            <div className="w-28">
+              <label className="block text-xs font-medium text-gray-700">Last *</label>
+              <input type="text" name="lastName" value={formData.lastName} onChange={handleChange}
+                className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500" required autoComplete="off" />
+            </div>
+
+            {showSuggestions && searchResults.length > 0 && (
+              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 w-80 max-h-48 overflow-y-auto">
+                <div className="px-3 py-1.5 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase border-b select-none">Database Match</div>
+                {searchResults.map(p => (
+                  <button
+                    key={p._id}
+                    type="button"
+                    onClick={() => handleSelectPatient(p)}
+                    className="w-full px-3 py-2 text-left hover:bg-blue-50 flex justify-between items-center border-b last:border-0 cursor-pointer"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-800 truncate">{p.name || p.fullName}</p>
+                      <p className="text-[10px] text-slate-500 font-medium truncate">Phone: {p.mobile || p.contactNumber || 'N/A'} • Age: {p.age || 'N/A'}</p>
+                    </div>
+                    <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-black uppercase shrink-0 ml-2">Select</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
               <div className="w-20">
                 <label className="block text-xs font-medium text-gray-700">Age *</label>

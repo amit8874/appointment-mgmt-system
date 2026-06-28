@@ -27,9 +27,7 @@ export const TEETH_DEFS = [
   { id: '27', fdi: '27', universal: '15', palmer: 'UL7', name: 'Maxillary Left Second Molar', shortName: 'UL 2nd Molar', quadrant: 'UL', type: 'molar', arch: 'Upper' },
   { id: '28', fdi: '28', universal: '16', palmer: 'UL8', name: 'Maxillary Left Third Molar (Wisdom)', shortName: 'UL 3rd Molar', quadrant: 'UL', type: 'molar', arch: 'Upper' },
 
-  // ================= LOWER LEFT QUADRANT (FDI 38 - 31) =================
-  // Ordered left-to-right from midline to back, or back to midline. 
-  // Standard Lower Arch order visually: 48 to 41, then 31 to 38.
+  // ================= LOWER LEFT QUADRANT (FDI 31 - 38) =================
   { id: '31', fdi: '31', universal: '24', palmer: 'LL1', name: 'Mandibular Left Central Incisor', shortName: 'LL Central Incisor', quadrant: 'LL', type: 'incisor', arch: 'Lower' },
   { id: '32', fdi: '32', universal: '23', palmer: 'LL2', name: 'Mandibular Left Lateral Incisor', shortName: 'LL Lateral Incisor', quadrant: 'LL', type: 'incisor', arch: 'Lower' },
   { id: '33', fdi: '33', universal: '22', palmer: 'LL3', name: 'Mandibular Left Canine', shortName: 'LL Canine', quadrant: 'LL', type: 'canine', arch: 'Lower' },
@@ -39,15 +37,44 @@ export const TEETH_DEFS = [
   { id: '37', fdi: '37', universal: '18', palmer: 'LL7', name: 'Mandibular Left Second Molar', shortName: 'LL 2nd Molar', quadrant: 'LL', type: 'molar', arch: 'Lower' },
   { id: '38', fdi: '38', universal: '17', palmer: 'LL8', name: 'Mandibular Left Third Molar (Wisdom)', shortName: 'LL 3rd Molar', quadrant: 'LL', type: 'molar', arch: 'Lower' },
 
-  // ================= LOWER RIGHT QUADRANT (FDI 41 - 48) =================
-  { id: '41', fdi: '41', universal: '25', palmer: 'LR1', name: 'Mandibular Right Central Incisor', shortName: 'LR Central Incisor', quadrant: 'LR', type: 'incisor', arch: 'Lower' },
-  { id: '42', fdi: '42', universal: '26', palmer: 'LR2', name: 'Mandibular Right Lateral Incisor', shortName: 'LR Lateral Incisor', quadrant: 'LR', type: 'incisor', arch: 'Lower' },
-  { id: '43', fdi: '43', universal: '27', palmer: 'LR3', name: 'Mandibular Right Canine', shortName: 'LR Canine', quadrant: 'LR', type: 'canine', arch: 'Lower' },
-  { id: '44', fdi: '44', universal: '28', palmer: 'LR4', name: 'Mandibular Right First Premolar', shortName: 'LR 1st Premolar', quadrant: 'LR', type: 'premolar', arch: 'Lower' },
-  { id: '45', fdi: '45', universal: '29', palmer: 'LR5', name: 'Mandibular Right Second Premolar', shortName: 'LR 2nd Premolar', quadrant: 'LR', type: 'premolar', arch: 'Lower' },
-  { id: '46', fdi: '46', universal: '30', palmer: 'LR6', name: 'Mandibular Right First Molar', shortName: 'LR 1st Molar', quadrant: 'LR', type: 'molar', arch: 'Lower' },
+  // ================= LOWER RIGHT QUADRANT (FDI 48 - 41) =================
+  { id: '48', fdi: '48', universal: '32', palmer: 'LR8', name: 'Mandibular Right Third Molar (Wisdom)', shortName: 'LR 3rd Molar', quadrant: 'LR', type: 'molar', arch: 'Lower' },
   { id: '47', fdi: '47', universal: '31', palmer: 'LR7', name: 'Mandibular Right Second Molar', shortName: 'LR 2nd Molar', quadrant: 'LR', type: 'molar', arch: 'Lower' },
-  { id: '48', fdi: '48', universal: '32', palmer: 'LR8', name: 'Mandibular Right Third Molar (Wisdom)', shortName: 'LR 3rd Molar', quadrant: 'LR', type: 'molar', arch: 'Lower' }
+  { id: '46', fdi: '46', universal: '30', palmer: 'LR6', name: 'Mandibular Right First Molar', shortName: 'LR 1st Molar', quadrant: 'LR', type: 'molar', arch: 'Lower' },
+  { id: '45', fdi: '45', universal: '29', palmer: 'LR5', name: 'Mandibular Right Second Premolar', shortName: 'LR 2nd Premolar', quadrant: 'LR', type: 'premolar', arch: 'Lower' },
+  { id: '44', fdi: '44', universal: '28', palmer: 'LR4', name: 'Mandibular Right First Premolar', shortName: 'LR 1st Premolar', quadrant: 'LR', type: 'premolar', arch: 'Lower' },
+  { id: '43', fdi: '43', universal: '27', palmer: 'LR3', name: 'Mandibular Right Canine', shortName: 'LR Canine', quadrant: 'LR', type: 'canine', arch: 'Lower' },
+  { id: '42', fdi: '42', universal: '26', palmer: 'LR2', name: 'Mandibular Right Lateral Incisor', shortName: 'LR Lateral Incisor', quadrant: 'LR', type: 'incisor', arch: 'Lower' },
+  { id: '41', fdi: '41', universal: '25', palmer: 'LR1', name: 'Mandibular Right Central Incisor', shortName: 'LR Central Incisor', quadrant: 'LR', type: 'incisor', arch: 'Lower' },
+
+  // ================= PRIMARY TEETH (Children) =================
+  // Upper Right Primary (FDI 55 - 51)
+  { id: '55', fdi: '55', universal: 'A', palmer: 'UR E', name: 'Primary Maxillary Right Second Molar', shortName: 'UR Prim 2nd Molar', quadrant: 'UR', type: 'molar', arch: 'Upper', primary: true },
+  { id: '54', fdi: '54', universal: 'B', palmer: 'UR D', name: 'Primary Maxillary Right First Molar', shortName: 'UR Prim 1st Molar', quadrant: 'UR', type: 'molar', arch: 'Upper', primary: true },
+  { id: '53', fdi: '53', universal: 'C', palmer: 'UR C', name: 'Primary Maxillary Right Canine', shortName: 'UR Prim Canine', quadrant: 'UR', type: 'canine', arch: 'Upper', primary: true },
+  { id: '52', fdi: '52', universal: 'D', palmer: 'UR B', name: 'Primary Maxillary Right Lateral Incisor', shortName: 'UR Prim Lat Incisor', quadrant: 'UR', type: 'incisor', arch: 'Upper', primary: true },
+  { id: '51', fdi: '51', universal: 'E', palmer: 'UR A', name: 'Primary Maxillary Right Central Incisor', shortName: 'UR Prim Cent Incisor', quadrant: 'UR', type: 'incisor', arch: 'Upper', primary: true },
+
+  // Upper Left Primary (FDI 61 - 65)
+  { id: '61', fdi: '61', universal: 'F', palmer: 'UL A', name: 'Primary Maxillary Left Central Incisor', shortName: 'UL Prim Cent Incisor', quadrant: 'UL', type: 'incisor', arch: 'Upper', primary: true },
+  { id: '62', fdi: '62', universal: 'G', palmer: 'UL B', name: 'Primary Maxillary Left Lateral Incisor', shortName: 'UL Prim Lat Incisor', quadrant: 'UL', type: 'incisor', arch: 'Upper', primary: true },
+  { id: '63', fdi: '63', universal: 'H', palmer: 'UL C', name: 'Primary Maxillary Left Canine', shortName: 'UL Prim Canine', quadrant: 'UL', type: 'canine', arch: 'Upper', primary: true },
+  { id: '64', fdi: '64', universal: 'I', palmer: 'UL D', name: 'Primary Maxillary Left First Molar', shortName: 'UL Prim 1st Molar', quadrant: 'UL', type: 'molar', arch: 'Upper', primary: true },
+  { id: '65', fdi: '65', universal: 'J', palmer: 'UL E', name: 'Primary Maxillary Left Second Molar', shortName: 'UL Prim 2nd Molar', quadrant: 'UL', type: 'molar', arch: 'Upper', primary: true },
+
+  // Lower Left Primary (FDI 71 - 75)
+  { id: '71', fdi: '71', universal: 'O', palmer: 'LL A', name: 'Primary Mandibular Left Central Incisor', shortName: 'LL Prim Cent Incisor', quadrant: 'LL', type: 'incisor', arch: 'Lower', primary: true },
+  { id: '72', fdi: '72', universal: 'N', palmer: 'LL B', name: 'Primary Mandibular Left Lateral Incisor', shortName: 'LL Prim Lat Incisor', quadrant: 'LL', type: 'incisor', arch: 'Lower', primary: true },
+  { id: '73', fdi: '73', universal: 'M', palmer: 'LL C', name: 'Primary Mandibular Left Canine', shortName: 'LL Prim Canine', quadrant: 'LL', type: 'canine', arch: 'Lower', primary: true },
+  { id: '74', fdi: '74', universal: 'L', palmer: 'LL D', name: 'Primary Mandibular Left First Molar', shortName: 'LL Prim 1st Molar', quadrant: 'LL', type: 'molar', arch: 'Lower', primary: true },
+  { id: '75', fdi: '75', universal: 'K', palmer: 'LL E', name: 'Primary Mandibular Left Second Molar', shortName: 'LL Prim 2nd Molar', quadrant: 'LL', type: 'molar', arch: 'Lower', primary: true },
+
+  // Lower Right Primary (FDI 85 - 81)
+  { id: '85', fdi: '85', universal: 'T', palmer: 'LR E', name: 'Primary Mandibular Right Second Molar', shortName: 'LR Prim 2nd Molar', quadrant: 'LR', type: 'molar', arch: 'Lower', primary: true },
+  { id: '84', fdi: '84', universal: 'S', palmer: 'LR D', name: 'Primary Mandibular Right First Molar', shortName: 'LR Prim 1st Molar', quadrant: 'LR', type: 'molar', arch: 'Lower', primary: true },
+  { id: '83', fdi: '83', universal: 'R', palmer: 'LR C', name: 'Primary Mandibular Right Canine', shortName: 'LR Prim Canine', quadrant: 'LR', type: 'canine', arch: 'Lower', primary: true },
+  { id: '82', fdi: '82', universal: 'Q', palmer: 'LR B', name: 'Primary Mandibular Right Lateral Incisor', shortName: 'LR Prim Lat Incisor', quadrant: 'LR', type: 'incisor', arch: 'Lower', primary: true },
+  { id: '81', fdi: '81', universal: 'P', palmer: 'LR A', name: 'Primary Mandibular Right Central Incisor', shortName: 'LR Prim Cent Incisor', quadrant: 'LR', type: 'incisor', arch: 'Lower', primary: true }
 ];
 
 // Helper to look up a tooth object by its stored FDI ID
@@ -84,17 +111,19 @@ export const getToothDisplayName = (toothId, system = 'FDI') => {
 };
 
 // Layout mappings to ensure exact render orientation (Upper and Lower arches)
-export const getUpperArchTeeth = () => {
-  // Ordered from Right to Left: FDI 18 to 11, then FDI 21 to 28
-  const rightQuadrant = TEETH_DEFS.filter(t => t.quadrant === 'UR').reverse(); // 18 down to 11
-  const leftQuadrant = TEETH_DEFS.filter(t => t.quadrant === 'UL'); // 21 up to 28
+export const getUpperArchTeeth = (chartType = 'adult') => {
+  const isPrimary = chartType === 'child';
+  const teeth = TEETH_DEFS.filter(t => !!t.primary === isPrimary);
+  const rightQuadrant = teeth.filter(t => t.quadrant === 'UR');
+  const leftQuadrant = teeth.filter(t => t.quadrant === 'UL');
   return [...rightQuadrant, ...leftQuadrant];
 };
 
-export const getLowerArchTeeth = () => {
-  // Ordered from Right to Left visually to align with Upper Arch: FDI 48 down to 41, then 31 up to 38
-  const rightQuadrant = TEETH_DEFS.filter(t => t.quadrant === 'LR').reverse(); // 48 down to 41
-  const leftQuadrant = TEETH_DEFS.filter(t => t.quadrant === 'LL'); // 31 up to 38
+export const getLowerArchTeeth = (chartType = 'adult') => {
+  const isPrimary = chartType === 'child';
+  const teeth = TEETH_DEFS.filter(t => !!t.primary === isPrimary);
+  const rightQuadrant = teeth.filter(t => t.quadrant === 'LR');
+  const leftQuadrant = teeth.filter(t => t.quadrant === 'LL');
   return [...rightQuadrant, ...leftQuadrant];
 };
 // Key dental clinical procedures for quick dropdown selection

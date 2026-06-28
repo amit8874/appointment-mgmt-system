@@ -27,6 +27,9 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     return localStorage.getItem('dentalNumberingSystem') || 'FDI';
   });
 
+  // Selected chart type: 'adult' or 'child'
+  const [chartType, setChartType] = useState('adult');
+
   // Modal/Popup inputs
   const [procedure, setProcedure] = useState('');
   const [estimatedCost, setEstimatedCost] = useState('');
@@ -309,7 +312,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
         <div className="flex items-center gap-2">
           <Smile className="w-5 h-5 text-indigo-600 animate-pulse" />
           <h3 className="text-sm font-black text-indigo-900 uppercase tracking-wider">
-            Interactive 32-Tooth Dental Chart
+            Interactive {chartType === 'adult' ? '32-Tooth' : '20-Tooth'} Dental Chart
           </h3>
         </div>
 
@@ -322,6 +325,28 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
           >
             <IndianRupee className="w-3.5 h-3.5" /> Create Bill
           </button>
+
+          {/* Chart Type Toggle */}
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-50 border border-slate-200/80 p-1 rounded-xl shadow-sm w-full sm:w-auto">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-2 pr-1 select-none">Type:</span>
+            {[
+              { id: 'adult', label: 'Adults' },
+              { id: 'child', label: 'Children' }
+            ].map((type) => (
+              <button
+                key={type.id}
+                type="button"
+                onClick={() => setChartType(type.id)}
+                className={`flex-1 sm:flex-initial text-center px-2.5 sm:px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
+                  chartType === type.id
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                    : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-200/50'
+                }`}
+              >
+                {type.label}
+              </button>
+            ))}
+          </div>
 
           {/* Standard Numbering Selector */}
           <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-50 border border-slate-200/80 p-1 rounded-xl shadow-sm w-full sm:w-auto">
@@ -373,29 +398,34 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
         {/* Upper Jaw Arch */}
         <div>
           <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 select-none">
-            Upper Jaw (Maxillary Arch)
+            Upper Jaw (Maxillary Arch) — {chartType === 'adult' ? '18-11 | 21-28' : '55-51 | 61-65'}
           </p>
           <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 px-2 justify-start sm:justify-center w-full scroll-smooth select-none custom-scrollbar">
-            {getUpperArchTeeth().map((tooth) => {
+            {getUpperArchTeeth(chartType).map((tooth, index) => {
               const label = getToothLabel(tooth.id, numberingSystem);
               const iconColor = getToothIconColor(tooth.id);
+              const isMidline = index === (chartType === 'adult' ? 7 : 4);
               return (
-                <button
-                  key={tooth.id}
-                  onClick={() => handleToothClick(tooth.id)}
-                  className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 shrink-0 ${getToothStatusColor(tooth.id)}`}
-                  title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
-                >
-                  {/* Tooth shape SVG icon */}
-                  <span className="leading-none flex items-center justify-center" style={{ height: 32 }}>
-                    {getToothSVG(tooth.id, iconColor, 28)}
-                  </span>
-                  <span className="text-sm font-black leading-none">{label}</span>
-                  <span className="text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
-                    {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
-                  </span>
-                  {getToothIndicator(tooth.id)}
-                </button>
+                <React.Fragment key={tooth.id}>
+                  <button
+                    onClick={() => handleToothClick(tooth.id)}
+                    className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 shrink-0 ${getToothStatusColor(tooth.id)}`}
+                    title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
+                  >
+                    {/* Tooth shape SVG icon */}
+                    <span className="leading-none flex items-center justify-center" style={{ height: 32 }}>
+                      {getToothSVG(tooth.id, iconColor, 28)}
+                    </span>
+                    <span className="text-sm font-black leading-none">{label}</span>
+                    <span className="text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
+                      {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
+                    </span>
+                    {getToothIndicator(tooth.id)}
+                  </button>
+                  {isMidline && (
+                    <div className="w-[2px] h-16 bg-slate-200 self-center mx-2 shrink-0 rounded-full" />
+                  )}
+                </React.Fragment>
               );
             })}
           </div>
@@ -404,31 +434,36 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
         {/* Lower Jaw Arch */}
         <div>
           <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 px-2 justify-start sm:justify-center w-full scroll-smooth select-none custom-scrollbar mb-4">
-            {getLowerArchTeeth().map((tooth) => {
+            {getLowerArchTeeth(chartType).map((tooth, index) => {
               const label = getToothLabel(tooth.id, numberingSystem);
               const iconColor = getToothIconColor(tooth.id);
+              const isMidline = index === (chartType === 'adult' ? 7 : 4);
               return (
-                <button
-                  key={tooth.id}
-                  onClick={() => handleToothClick(tooth.id)}
-                  className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 shrink-0 ${getToothStatusColor(tooth.id)}`}
-                  title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
-                >
-                  {getToothIndicator(tooth.id)}
-                  <span className="text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
-                    {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
-                  </span>
-                  <span className="text-sm font-black leading-none">{label}</span>
-                  {/* Tooth shape SVG icon — flipped for lower arch */}
-                  <span className="leading-none flex items-center justify-center" style={{ height: 32 }}>
-                    {getToothSVG(tooth.id, iconColor, 28)}
-                  </span>
-                </button>
+                <React.Fragment key={tooth.id}>
+                  <button
+                    onClick={() => handleToothClick(tooth.id)}
+                    className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 shrink-0 ${getToothStatusColor(tooth.id)}`}
+                    title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
+                  >
+                    {getToothIndicator(tooth.id)}
+                    <span className="text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
+                      {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
+                    </span>
+                    <span className="text-sm font-black leading-none">{label}</span>
+                    {/* Tooth shape SVG icon — flipped for lower arch */}
+                    <span className="leading-none flex items-center justify-center" style={{ height: 32 }}>
+                      {getToothSVG(tooth.id, iconColor, 28)}
+                    </span>
+                  </button>
+                  {isMidline && (
+                    <div className="w-[2px] h-16 bg-slate-200 self-center mx-2 shrink-0 rounded-full" />
+                  )}
+                </React.Fragment>
               );
             })}
           </div>
           <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
-            Lower Jaw (Mandibular Arch)
+            Lower Jaw (Mandibular Arch) — {chartType === 'adult' ? '48-41 | 31-38' : '85-81 | 71-75'}
           </p>
         </div>
       </div>

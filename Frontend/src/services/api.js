@@ -372,6 +372,10 @@ export const patientApi = {
   getSummary: async (patientId) => {
     const { data } = await api.get(`/appointments/patient/${patientId}/summary`);
     return data;
+  },
+  searchAvailablePatients: async (query) => {
+    const { data } = await api.get(`/patients/search-available?query=${query}`);
+    return { patients: data };
   }
 };
 

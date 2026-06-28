@@ -9,6 +9,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const generatedPatientIdRef = React.useRef('Loading...');
   
   // Interactive Conversational AI Voice Agent states
   const [voiceAgent, setVoiceAgent] = useState({
@@ -22,6 +23,11 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const [existingPatients, setExistingPatients] = useState([]);
   const [isCheckingPhone, setIsCheckingPhone] = useState(false);
   const [selectedExistingId, setSelectedExistingId] = useState(null);
+
+  // Patient name autocomplete states
+  const [nameSearchResults, setNameSearchResults] = useState([]);
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+  const nameSearchRef = React.useRef(null);
   
   const [formData, setFormData] = useState({
     patientId: 'Loading...',
@@ -218,6 +224,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         if (!orgId) return;
         const response = await api.get(`/patients/generate-id?organizationId=${orgId}`);
         if (response.data && response.data.patientId) {
+          generatedPatientIdRef.current = response.data.patientId;
           setFormData(prev => ({ ...prev, patientId: response.data.patientId }));
         }
       } catch (error) {
@@ -226,6 +233,62 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     };
     fetchPatientId();
   }, [user, initialData]);
+
+  // Handle click outside to close name suggestions dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (nameSearchRef.current && !nameSearchRef.current.contains(event.target)) {
+        setShowNameSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Search existing patients when typing in Full Name field
+  useEffect(() => {
+    if (selectedExistingId) {
+      setNameSearchResults([]);
+      setShowNameSuggestions(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      if (formData.fullName.trim().length >= 2) {
+        try {
+          const response = await api.get('/patients', { params: { search: formData.fullName, limit: 8 } });
+          const foundPatients = response.data?.patients || (Array.isArray(response.data) ? response.data : []);
+          setNameSearchResults(foundPatients);
+          setShowNameSuggestions(true);
+        } catch (error) {
+          console.error('Search patients failed:', error);
+        }
+      } else {
+        setNameSearchResults([]);
+        setShowNameSuggestions(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [formData.fullName, selectedExistingId]);
+
+  const handleSelectPatientByName = (p) => {
+    setSelectedExistingId(p.patientId || p._id);
+    const displayName = p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
+    setFormData(prev => ({
+      ...prev,
+      fullName: displayName,
+      age: p.age || '',
+      ageType: p.ageType || 'Year',
+      gender: p.gender || 'Male',
+      phone: p.mobile || p.contactNumber || p.phone || '',
+      patientId: p.patientId || prev.patientId,
+      designation: p.designation || prev.designation || 'MR.',
+    }));
+    setNameSearchResults([]);
+    setShowNameSuggestions(false);
+    toast.info(`Using existing record for ${displayName}`);
+  };
 
   // Gender auto-selection based on Designation
   useEffect(() => {
@@ -251,7 +314,19 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    let extraUpdates = {};
+    if (name === 'fullName' && selectedExistingId) {
+      setSelectedExistingId(null);
+      extraUpdates = { patientId: generatedPatientIdRef.current };
+    }
+
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: value,
+      ...extraUpdates
+    }));
+    
     if (name === 'doctor' || name === 'appointmentDate') {
       setFormData(prev => ({ ...prev, appointmentTime: '' }));
     }
@@ -451,6 +526,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       symptoms: '',
       notes: '',
       appointmentTime: '',
+      patientId: generatedPatientIdRef.current
     }));
     setSelectedExistingId(null);
     setExistingPatients([]);
@@ -531,9 +607,34 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Action Row */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
-          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">
-            Add Patient
-          </h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wide">
+              Add Patient
+            </h3>
+            {selectedExistingId && (
+              <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5 animate-fade select-none">
+                Linked Patient: {formData.patientId}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedExistingId(null);
+                    setFormData(prev => ({
+                      ...prev,
+                      fullName: '',
+                      age: '',
+                      phone: '',
+                      patientId: generatedPatientIdRef.current
+                    }));
+                    toast.success("Patient linkage cleared.");
+                  }}
+                  className="text-emerald-900 dark:text-emerald-300 hover:text-red-600 font-bold ml-1 cursor-pointer transition-colors"
+                  title="Clear linked patient"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+          </div>
 
           <button
             type="button"
@@ -602,7 +703,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
             </div>
           </div>
 
-          <div className="flex flex-col sm:col-span-2 md:col-span-2">
+          <div className="flex flex-col sm:col-span-2 md:col-span-2 relative" ref={nameSearchRef}>
             <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 flex items-center font-semibold">
               <span className="text-red-500 mr-1">*</span> Full Name
             </label>
@@ -614,7 +715,27 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
               placeholder="Enter full name"
               className="w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
               required
+              autoComplete="off"
             />
+            {showNameSuggestions && nameSearchResults.length > 0 && (
+              <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 w-80 max-h-48 overflow-y-auto">
+                <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-700/50 text-[10px] font-bold text-gray-400 dark:text-gray-300 uppercase border-b border-gray-100 dark:border-gray-600 select-none">Database Match</div>
+                {nameSearchResults.map(p => (
+                  <button
+                    key={p._id}
+                    type="button"
+                    onClick={() => handleSelectPatientByName(p)}
+                    className="w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-gray-700/50 flex justify-between items-center border-b border-gray-100 dark:border-gray-700 last:border-0 cursor-pointer"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-800 dark:text-white truncate">{p.name || p.fullName}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-gray-400 font-medium truncate">Phone: {p.mobile || p.contactNumber || p.phone || 'N/A'} • Age: {p.age || 'N/A'}</p>
+                    </div>
+                    <span className="text-[9px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded font-black uppercase shrink-0 ml-2">Select</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col">
