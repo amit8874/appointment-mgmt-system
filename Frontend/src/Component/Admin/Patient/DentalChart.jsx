@@ -400,7 +400,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
           <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 select-none">
             Upper Jaw (Maxillary Arch) — {chartType === 'adult' ? '18-11 | 21-28' : '55-51 | 61-65'}
           </p>
-          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 px-2 justify-start sm:justify-center w-full scroll-smooth select-none custom-scrollbar">
+          <div className="flex flex-nowrap items-center gap-1 sm:gap-1.5 overflow-x-hidden justify-center w-full select-none">
             {getUpperArchTeeth(chartType).map((tooth, index) => {
               const label = getToothLabel(tooth.id, numberingSystem);
               const iconColor = getToothIconColor(tooth.id);
@@ -409,21 +409,21 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                 <React.Fragment key={tooth.id}>
                   <button
                     onClick={() => handleToothClick(tooth.id)}
-                    className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 shrink-0 ${getToothStatusColor(tooth.id)}`}
+                    className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${getToothStatusColor(tooth.id)}`}
                     title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
                   >
                     {/* Tooth shape SVG icon */}
-                    <span className="leading-none flex items-center justify-center" style={{ height: 32 }}>
-                      {getToothSVG(tooth.id, iconColor, 28)}
+                    <span className="leading-none flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8">
+                      {getToothSVG(tooth.id, iconColor, '100%')}
                     </span>
-                    <span className="text-sm font-black leading-none">{label}</span>
-                    <span className="text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
+                    <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none">{label}</span>
+                    <span className="text-[5px] sm:text-[6px] md:text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
                       {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
                     </span>
                     {getToothIndicator(tooth.id)}
                   </button>
                   {isMidline && (
-                    <div className="w-[2px] h-16 bg-slate-200 self-center mx-2 shrink-0 rounded-full" />
+                    <div className="w-[1.5px] h-10 sm:h-12 md:h-14 lg:h-16 bg-slate-200 self-center mx-0.5 sm:mx-1 shrink-0 rounded-full" />
                   )}
                 </React.Fragment>
               );
@@ -433,7 +433,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
 
         {/* Lower Jaw Arch */}
         <div>
-          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-4 px-2 justify-start sm:justify-center w-full scroll-smooth select-none custom-scrollbar mb-4">
+          <div className="flex flex-nowrap items-center gap-1 sm:gap-1.5 overflow-x-hidden justify-center w-full select-none mb-4">
             {getLowerArchTeeth(chartType).map((tooth, index) => {
               const label = getToothLabel(tooth.id, numberingSystem);
               const iconColor = getToothIconColor(tooth.id);
@@ -442,21 +442,21 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                 <React.Fragment key={tooth.id}>
                   <button
                     onClick={() => handleToothClick(tooth.id)}
-                    className={`relative w-14 h-20 rounded-2xl border-2 font-black text-base flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 shrink-0 ${getToothStatusColor(tooth.id)}`}
+                    className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${getToothStatusColor(tooth.id)}`}
                     title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
                   >
                     {getToothIndicator(tooth.id)}
-                    <span className="text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
+                    <span className="text-[5px] sm:text-[6px] md:text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
                       {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
                     </span>
-                    <span className="text-sm font-black leading-none">{label}</span>
+                    <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none">{label}</span>
                     {/* Tooth shape SVG icon — flipped for lower arch */}
-                    <span className="leading-none flex items-center justify-center" style={{ height: 32 }}>
-                      {getToothSVG(tooth.id, iconColor, 28)}
+                    <span className="leading-none flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8">
+                      {getToothSVG(tooth.id, iconColor, '100%')}
                     </span>
                   </button>
                   {isMidline && (
-                    <div className="w-[2px] h-16 bg-slate-200 self-center mx-2 shrink-0 rounded-full" />
+                    <div className="w-[1.5px] h-10 sm:h-12 md:h-14 lg:h-16 bg-slate-200 self-center mx-0.5 sm:mx-1 shrink-0 rounded-full" />
                   )}
                 </React.Fragment>
               );
