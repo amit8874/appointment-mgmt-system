@@ -28,6 +28,9 @@ const Organizations = () => {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('basic');
+  const [selectedDuration, setSelectedDuration] = useState(1);
+  const [startDateOption, setStartDateOption] = useState('today');
+  const [customStartDate, setCustomStartDate] = useState(new Date().toISOString().split('T')[0]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -104,7 +107,12 @@ const Organizations = () => {
     
     try {
       setIsUpdatingPlan(true);
-      await superAdminApi.updateOrganizationPlan(selectedOrg._id, selectedPlan);
+      await superAdminApi.updateOrganizationPlan(selectedOrg._id, {
+        plan: selectedPlan,
+        durationYears: selectedDuration,
+        startDateOption,
+        customStartDate: startDateOption === 'custom' ? customStartDate : undefined
+      });
       setShowPlanModal(false);
       fetchOrganizations();
       fetchStats();
@@ -115,6 +123,34 @@ const Organizations = () => {
       setIsUpdatingPlan(false);
     }
   };
+
+  const getUpgradeSummary = () => {
+    let start = new Date();
+    if (startDateOption === 'current_end') {
+      const currentEnd = selectedOrg?.subscriptionId?.endDate;
+      if (currentEnd && new Date(currentEnd) > new Date()) {
+        start = new Date(currentEnd);
+      }
+    } else if (startDateOption === 'custom' && customStartDate) {
+      const customDate = new Date(customStartDate);
+      if (!isNaN(customDate.getTime())) {
+        start = customDate;
+      }
+    }
+
+    const end = new Date(start);
+    end.setFullYear(end.getFullYear() + Number(selectedDuration));
+
+    const planName = selectedPlan === 'pro' ? 'Standard' : (selectedPlan === 'enterprise' ? 'Premium' : 'Basic');
+
+    return {
+      startDateStr: start.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      endDateStr: end.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      planName
+    };
+  };
+
+  const summary = selectedOrg ? getUpgradeSummary() : null;
 
   const openTrialModal = (e, org) => {
     if (e && e.stopPropagation) e.stopPropagation();
@@ -145,6 +181,9 @@ const Organizations = () => {
     if (e && e.stopPropagation) e.stopPropagation();
     setSelectedOrg(org);
     setSelectedPlan(org.subscriptionId?.plan || 'basic');
+    setSelectedDuration(1);
+    setStartDateOption('today');
+    setCustomStartDate(new Date().toISOString().split('T')[0]);
     setShowPlanModal(true);
   };
 
@@ -612,87 +651,180 @@ const Organizations = () => {
             onClick={() => setShowPlanModal(false)}
           ></div>
           
-          <div className="relative w-full max-w-lg mx-auto z-[10001] transform transition-all duration-300">
-            <div className="bg-white rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
-              <div className="p-8">
-                <div className="flex items-center gap-5 mb-8">
-                  <div className="flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl bg-amber-50 shadow-inner">
-                    <svg className="h-7 w-7 text-amber-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="relative w-full max-w-xl mx-auto z-[10001] transform transition-all duration-300 my-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-white/20 overflow-hidden max-h-[92vh] flex flex-col">
+              {/* Scrollable Content Container */}
+              <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-xl bg-amber-50 shadow-inner">
+                    <svg className="h-5 w-5 text-amber-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+                    <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">
                       Manual Plan Upgrade
                     </h3>
-                    <p className="text-gray-500 font-medium">
+                    <p className="text-gray-500 font-medium text-xs">
                       Upgrading <span className="text-amber-600 font-bold">{selectedOrg?.name}</span>
                     </p>
                   </div>
                 </div>
                 
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 gap-4">
-                    {[
-                      { id: 'basic', name: 'Basic Plan', price: '₹299', color: 'border-emerald-500 text-emerald-700 bg-emerald-50' },
-                      { id: 'pro', name: 'Standard Plan', price: '₹499', color: 'border-blue-500 text-blue-700 bg-blue-50' },
-                      { id: 'enterprise', name: 'Premium Plan', price: '₹699', color: 'border-purple-500 text-purple-700 bg-purple-50' }
-                    ].map((plan) => (
-                      <label 
-                        key={plan.id}
-                        className={`relative flex items-center p-4 cursor-pointer rounded-2xl border-2 transition-all ${
-                          selectedPlan === plan.id ? plan.color : 'border-gray-100 hover:border-gray-200 bg-gray-50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="plan"
-                          value={plan.id}
-                          checked={selectedPlan === plan.id}
-                          onChange={(e) => setSelectedPlan(e.target.value)}
-                          className="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300"
-                        />
-                        <div className="ml-4 flex flex-col">
-                          <span className="block text-lg font-bold">{plan.name}</span>
-                          <span className="block text-sm font-medium opacity-70">Official Price: {plan.price}/mo</span>
-                        </div>
-                        {selectedPlan === plan.id && (
-                          <div className="ml-auto">
-                            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                        )}
-                      </label>
-                    ))}
+                <div className="space-y-4">
+                  {/* Step 1: Choose Plan */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                      1. Select Upgrade Plan
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { id: 'basic', name: 'Basic', price: '₹299/mo', color: 'border-emerald-500 text-emerald-700 bg-emerald-50/50', activeColor: 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50' },
+                        { id: 'pro', name: 'Standard', price: '₹499/mo', color: 'border-blue-500 text-blue-700 bg-blue-50/50', activeColor: 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50' },
+                        { id: 'enterprise', name: 'Premium', price: '₹699/mo', color: 'border-purple-500 text-purple-700 bg-purple-50/50', activeColor: 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50' }
+                      ].map((plan) => {
+                        const isActive = selectedPlan === plan.id;
+                        return (
+                          <button
+                            type="button"
+                            key={plan.id}
+                            onClick={() => setSelectedPlan(plan.id)}
+                            className={`flex flex-col items-center justify-center py-2.5 px-4 rounded-xl border-2 transition-all duration-200 text-center ${
+                              isActive ? plan.activeColor : 'border-gray-100 bg-gray-50/50 hover:border-gray-200'
+                            }`}
+                          >
+                            <span className="text-sm font-bold text-gray-900">{plan.name}</span>
+                            <span className="text-[11px] text-gray-500 mt-0.5">{plan.price}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
-                    <div className="h-6 w-6 mt-0.5 flex-shrink-0 bg-amber-500 rounded-full flex items-center justify-center text-white">
-                      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                      </svg>
+                  {/* Step 2: Choose Duration */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                      2. Select Duration
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[1, 2, 3, 5].map((years) => {
+                        const isActive = selectedDuration === years;
+                        return (
+                          <button
+                            type="button"
+                            key={years}
+                            onClick={() => setSelectedDuration(years)}
+                            className={`py-2 px-3 rounded-lg font-bold transition-all text-center text-xs border-2 ${
+                              isActive 
+                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100' 
+                                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            {years} {years === 1 ? 'Year' : 'Years'}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <p className="text-sm text-amber-800 leading-relaxed font-medium">
-                      This manual upgrade will process with <span className="font-bold underline">₹0 charge</span> and set the subscription expiration to 1 month from today.
+                  </div>
+
+                  {/* Step 3: Choose Start Date */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">
+                      3. Select Start Date
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        {[
+                          { id: 'today', name: 'Today' },
+                          { 
+                            id: 'current_end', 
+                            name: 'Current Expiry', 
+                            disabled: !selectedOrg?.subscriptionId?.endDate || new Date(selectedOrg.subscriptionId.endDate) <= new Date() 
+                          },
+                          { id: 'custom', name: 'Custom Date' }
+                        ].map((opt) => {
+                          const isActive = startDateOption === opt.id;
+                          return (
+                            <button
+                              type="button"
+                              key={opt.id}
+                              disabled={opt.disabled}
+                              onClick={() => setStartDateOption(opt.id)}
+                              className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all text-center border-2 ${
+                                opt.disabled 
+                                  ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-55' 
+                                  : isActive 
+                                    ? 'bg-amber-500 border-amber-500 text-white shadow-sm' 
+                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              {opt.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Show current expiry date info if available */}
+                      {startDateOption === 'current_end' && selectedOrg?.subscriptionId?.endDate && (
+                        <div className="text-[11px] text-indigo-600 font-semibold px-1">
+                          Will start from current expiry: {formatDate(selectedOrg.subscriptionId.endDate)}
+                        </div>
+                      )}
+
+                      {/* Custom Date Input */}
+                      {startDateOption === 'custom' && (
+                        <input
+                          type="date"
+                          value={customStartDate}
+                          onChange={(e) => setCustomStartDate(e.target.value)}
+                          className="w-full px-3 py-2 bg-gray-50 border-2 border-gray-100 rounded-lg focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-semibold text-xs text-gray-900"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Summary Box */}
+                  {summary && (
+                    <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100/50 space-y-1">
+                      <h4 className="text-[10px] font-black text-indigo-800 uppercase tracking-wider mb-0.5">Upgrade Summary</h4>
+                      <div className="grid grid-cols-2 gap-y-1 text-xs">
+                        <span className="text-gray-500 font-medium">Plan:</span>
+                        <span className="text-gray-900 font-bold">{summary.planName} Plan</span>
+                        <span className="text-gray-500 font-medium">Duration:</span>
+                        <span className="text-gray-900 font-bold">{selectedDuration} {selectedDuration === 1 ? 'Year' : 'Years'}</span>
+                        <span className="text-gray-500 font-medium">Start Date:</span>
+                        <span className="text-gray-900 font-bold">{summary.startDateStr}</span>
+                        <span className="text-gray-500 font-medium">Expiration Date:</span>
+                        <span className="text-indigo-600 font-black">{summary.endDateStr}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-100 flex gap-2 text-[11px]">
+                    <div className="h-4.5 w-4.5 mt-0.5 flex-shrink-0 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold text-[10px]">
+                      !
+                    </div>
+                    <p className="text-amber-800 leading-relaxed font-medium">
+                      This manual upgrade will process with <span className="font-bold underline">₹0 charge</span> on the platform ledger.
                     </p>
                   </div>
                 </div>
               </div>
               
-              <div className="bg-gray-50/80 px-8 py-5 flex flex-row-reverse gap-4 border-t border-gray-100">
+              {/* Fixed Footer */}
+              <div className="bg-gray-50/80 px-6 py-4 flex flex-row-reverse gap-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={(e) => handleUpdatePlan(e)}
                   disabled={isUpdatingPlan}
-                  className="inline-flex justify-center rounded-2xl px-8 py-3.5 bg-amber-600 text-sm font-bold text-white hover:bg-amber-700 shadow-xl shadow-amber-100 transition-all disabled:opacity-50"
+                  className="inline-flex justify-center rounded-xl px-6 py-2.5 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all disabled:opacity-50"
                 >
                   {isUpdatingPlan ? 'Upgrading...' : 'Confirm Upgrade'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowPlanModal(false)}
-                  className="inline-flex justify-center rounded-2xl px-8 py-3.5 bg-white text-sm font-bold text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+                  className="inline-flex justify-center rounded-xl px-6 py-2.5 bg-white text-xs font-bold text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>

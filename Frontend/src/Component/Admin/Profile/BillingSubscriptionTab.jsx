@@ -4,7 +4,18 @@ import { CreditCard, Calendar, CheckCircle2, AlertCircle, ArrowUpCircle, History
 const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
   const plan = subscription?.plan || 'free';
   const planName = subscription?.planName || 'Free Trial';
-  const nextBilling = subscription?.nextBillingDate ? new Date(subscription.nextBillingDate).toLocaleDateString() : 'N/A';
+  const isManual = subscription?.isManualOverride;
+  
+  // Calculate correct expiry date
+  const expiryDate = subscription?.endDate || subscription?.nextBillingDate || subscription?.trialEndDate;
+  const formattedExpiry = expiryDate 
+    ? new Date(expiryDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+    : 'N/A';
+    
   const status = subscription?.status || 'active';
   const amount = subscription?.amount || 0;
   
@@ -22,7 +33,7 @@ const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           {/* Current Plan Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-left">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
@@ -30,22 +41,54 @@ const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
                 </div>
                 <h3 className="text-lg font-bold text-slate-900">Subscription Plan</h3>
               </div>
-              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
-                status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'
-              }`}>
-                {status}
-              </span>
+              <div className="flex gap-2">
+                {isManual && (
+                  <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 border border-indigo-200">
+                    Admin Provisioned
+                  </span>
+                )}
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                  status === 'active' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'
+                }`}>
+                  {status}
+                </span>
+              </div>
             </div>
 
             <div className="p-8">
+              {isManual && (
+                <div className="p-4 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl flex gap-3 text-xs text-indigo-800 mb-6">
+                  <span className="font-bold">ℹ️</span>
+                  <div>
+                    <p className="font-bold">Manual Provisioning Active</p>
+                    <p className="mt-0.5 opacity-80 text-[11px]">This clinic is running on a special plan upgraded by the platform administrator.</p>
+                    {subscription.overrideNote && (
+                      <p className="mt-2 font-medium text-[10px] bg-white/70 p-2 rounded-xl border border-indigo-100">
+                        {subscription.overrideNote}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                 <div>
                   <h4 className="text-3xl font-black text-slate-900">{planName}</h4>
-                  <p className="text-slate-500 mt-1">Your current monthly billing cycle</p>
+                  <p className="text-slate-500 mt-1">
+                    {isManual ? 'Custom billing duration' : 'Your current monthly billing cycle'}
+                  </p>
+                  {isManual && (
+                    <div className="mt-2.5 flex items-center gap-2 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl w-fit border border-indigo-100">
+                      <Calendar size={14} className="text-indigo-500" />
+                      <span>Expires on: {formattedExpiry}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <h4 className="text-3xl font-black text-slate-900">₹{amount}</h4>
-                  <p className="text-slate-500 mt-1">per month</p>
+                  <p className="text-slate-500 mt-1">
+                    {isManual ? 'total cost (sponsored)' : 'per month'}
+                  </p>
                 </div>
               </div>
 
@@ -63,7 +106,10 @@ const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 text-sm text-slate-500">
                   <Calendar size={16} />
-                  <span>Next Billing: <span className="font-bold text-slate-900">{nextBilling}</span></span>
+                  <span>
+                    {isManual ? 'Plan Expiration Date: ' : 'Next Billing: '}
+                    <span className="font-black text-slate-900">{formattedExpiry}</span>
+                  </span>
                 </div>
               </div>
               <div className="flex gap-3">

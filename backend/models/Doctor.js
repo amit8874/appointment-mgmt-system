@@ -186,6 +186,10 @@ const doctorSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  clinicImages: {
+    type: [String],
+    default: [],
+  },
   languages: [String],
   bio: {
     type: String,

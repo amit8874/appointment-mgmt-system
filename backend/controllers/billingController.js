@@ -1097,40 +1097,113 @@ export const sendWhatsAppStatement = async (req, res) => {
   }
 };
 
+export const transformBillsToPaymentEntries = (bills, startDate, endDate) => {
+  const start = startDate ? new Date(startDate) : null;
+  if (start) start.setHours(0, 0, 0, 0);
+  const end = endDate ? new Date(endDate) : null;
+  if (end) end.setHours(23, 59, 59, 999);
+
+  const entries = [];
+
+  for (const bill of bills) {
+    if (bill.installments && bill.installments.length > 0) {
+      bill.installments.forEach((inst, idx) => {
+        const instDate = new Date(inst.date);
+        let inRange = true;
+        if (start && instDate < start) inRange = false;
+        if (end && instDate > end) inRange = false;
+
+        if (inRange && inst.amount > 0) {
+          entries.push({
+            _id: `${bill._id}-inst-${idx}`,
+            date: inst.date,
+            patientName: bill.patientName,
+            items: bill.items,
+            billType: bill.billType,
+            amount: inst.amount,
+            paidAmount: inst.amount,
+            paymentMethod: inst.paymentMethod || 'N/A'
+          });
+        }
+      });
+    } else {
+      // Fallback: If no installments, use the bill.paidAmount if it was paid
+      if (bill.paidAmount > 0) {
+        const billDate = new Date(bill.date);
+        let inRange = true;
+        if (start && billDate < start) inRange = false;
+        if (end && billDate > end) inRange = false;
+
+        if (inRange) {
+          entries.push({
+            _id: `${bill._id}-initial`,
+            date: bill.date,
+            patientName: bill.patientName,
+            items: bill.items,
+            billType: bill.billType,
+            amount: bill.paidAmount,
+            paidAmount: bill.paidAmount,
+            paymentMethod: bill.paymentMethod || 'N/A'
+          });
+        }
+      }
+    }
+  }
+
+  // Sort by date ascending
+  return entries.sort((a, b) => new Date(a.date) - new Date(b.date));
+};
+
 export const getDailyCaseRegisterData = async (req, res) => {
   try {
     const query = { organizationId: req.tenantId };
     
     let startDateVal = req.query.startDate;
     let endDateVal = req.query.endDate;
+    let start, end;
     
     if (startDateVal && endDateVal) {
-      const start = new Date(startDateVal);
+      start = new Date(startDateVal);
       start.setHours(0, 0, 0, 0);
-      const end = new Date(endDateVal);
+      end = new Date(endDateVal);
       end.setHours(23, 59, 59, 999);
-      query.date = { $gte: start, $lte: end };
+      query.$or = [
+        { date: { $gte: start, $lte: end } },
+        { 'installments.date': { $gte: start, $lte: end } }
+      ];
     } else if (startDateVal) {
-      const start = new Date(startDateVal);
+      start = new Date(startDateVal);
       start.setHours(0, 0, 0, 0);
-      query.date = { $gte: start };
+      query.$or = [
+        { date: { $gte: start } },
+        { 'installments.date': { $gte: start } }
+      ];
     } else if (endDateVal) {
-      const end = new Date(endDateVal);
+      end = new Date(endDateVal);
       end.setHours(23, 59, 59, 999);
-      query.date = { $lte: end };
+      query.$or = [
+        { date: { $lte: end } },
+        { 'installments.date': { $lte: end } }
+      ];
     } else if (req.query.date) {
-      const start = new Date(req.query.date);
+      start = new Date(req.query.date);
       start.setHours(0, 0, 0, 0);
-      const end = new Date(req.query.date);
+      end = new Date(req.query.date);
       end.setHours(23, 59, 59, 999);
-      query.date = { $gte: start, $lte: end };
+      query.$or = [
+        { date: { $gte: start, $lte: end } },
+        { 'installments.date': { $gte: start, $lte: end } }
+      ];
     } else {
       // Default to today
-      const start = new Date();
+      start = new Date();
       start.setHours(0, 0, 0, 0);
-      const end = new Date();
+      end = new Date();
       end.setHours(23, 59, 59, 999);
-      query.date = { $gte: start, $lte: end };
+      query.$or = [
+        { date: { $gte: start, $lte: end } },
+        { 'installments.date': { $gte: start, $lte: end } }
+      ];
     }
 
     if (req.query.doctorId) {
@@ -1138,7 +1211,8 @@ export const getDailyCaseRegisterData = async (req, res) => {
     }
 
     const bills = await Billing.find(query).sort({ date: 1 }).lean();
-    res.json({ success: true, data: bills });
+    const data = transformBillsToPaymentEntries(bills, start, end);
+    res.json({ success: true, data });
   } catch (error) {
     console.error('getDailyCaseRegisterData error:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -1151,34 +1225,50 @@ export const downloadDailyCaseRegisterPDF = async (req, res) => {
     
     let startDateVal = req.query.startDate;
     let endDateVal = req.query.endDate;
+    let start, end;
     
     if (startDateVal && endDateVal) {
-      const start = new Date(startDateVal);
+      start = new Date(startDateVal);
       start.setHours(0, 0, 0, 0);
-      const end = new Date(endDateVal);
+      end = new Date(endDateVal);
       end.setHours(23, 59, 59, 999);
-      query.date = { $gte: start, $lte: end };
+      query.$or = [
+        { date: { $gte: start, $lte: end } },
+        { 'installments.date': { $gte: start, $lte: end } }
+      ];
     } else if (startDateVal) {
-      const start = new Date(startDateVal);
+      start = new Date(startDateVal);
       start.setHours(0, 0, 0, 0);
-      query.date = { $gte: start };
+      query.$or = [
+        { date: { $gte: start } },
+        { 'installments.date': { $gte: start } }
+      ];
     } else if (endDateVal) {
-      const end = new Date(endDateVal);
+      end = new Date(endDateVal);
       end.setHours(23, 59, 59, 999);
-      query.date = { $lte: end };
+      query.$or = [
+        { date: { $lte: end } },
+        { 'installments.date': { $lte: end } }
+      ];
     } else if (req.query.date) {
-      const start = new Date(req.query.date);
+      start = new Date(req.query.date);
       start.setHours(0, 0, 0, 0);
-      const end = new Date(req.query.date);
+      end = new Date(req.query.date);
       end.setHours(23, 59, 59, 999);
-      query.date = { $gte: start, $lte: end };
+      query.$or = [
+        { date: { $gte: start, $lte: end } },
+        { 'installments.date': { $gte: start, $lte: end } }
+      ];
     } else {
       // Default to today
-      const start = new Date();
+      start = new Date();
       start.setHours(0, 0, 0, 0);
-      const end = new Date();
+      end = new Date();
       end.setHours(23, 59, 59, 999);
-      query.date = { $gte: start, $lte: end };
+      query.$or = [
+        { date: { $gte: start, $lte: end } },
+        { 'installments.date': { $gte: start, $lte: end } }
+      ];
     }
 
     if (req.query.doctorId) {
@@ -1186,6 +1276,7 @@ export const downloadDailyCaseRegisterPDF = async (req, res) => {
     }
 
     const bills = await Billing.find(query).sort({ date: 1 }).lean();
+    const data = transformBillsToPaymentEntries(bills, start, end);
     const org = await Organization.findById(req.tenantId);
 
     // Resolve doctor name if filtered by doctor
@@ -1200,7 +1291,7 @@ export const downloadDailyCaseRegisterPDF = async (req, res) => {
     const startReportDate = startDateVal || req.query.date || new Date().toISOString().substring(0, 10);
     const endReportDate = endDateVal || req.query.date || new Date().toISOString().substring(0, 10);
 
-    const pdfBuffer = await generateDailyCaseRegisterPDF(bills, {
+    const pdfBuffer = await generateDailyCaseRegisterPDF(data, {
       startDate: startReportDate,
       endDate: endReportDate,
       doctorName

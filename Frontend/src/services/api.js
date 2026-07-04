@@ -419,6 +419,18 @@ export const centralDoctorApi = {
     const { data } = await api.delete(`/doctors/${id}/availability-override?date=${date}`);
     return data;
   },
+  getProfileMe: async () => {
+    const { data } = await api.get('/doctors/profile/me');
+    return data;
+  },
+  updateProfileMe: async (doctorData) => {
+    const { data } = await api.put('/doctors/profile/me', doctorData);
+    return data;
+  },
+  getPublicProfile: async (id) => {
+    const { data } = await api.get(`/doctors/public/profile/${id}`);
+    return data;
+  },
 };
 
 export const receptionistApi = {
@@ -763,8 +775,9 @@ export const superAdminApi = {
     const { data } = await api.patch(`/superadmin/organizations/${id}/trial`, { trialEndDate });
     return data;
   },
-  updateOrganizationPlan: async (id, plan) => {
-    const { data } = await api.patch(`/superadmin/organizations/${id}/plan`, { plan });
+  updateOrganizationPlan: async (id, planData) => {
+    const payload = typeof planData === 'string' ? { plan: planData } : planData;
+    const { data } = await api.patch(`/superadmin/organizations/${id}/plan`, payload);
     return data;
   },
   getOrganizationDoctors: async (orgId) => {

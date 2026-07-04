@@ -12,6 +12,7 @@ import Pharmacy from '../models/Pharmacy.js';
 import Notification from '../models/Notification.js';
 import { applyPlanWhatsappCredits } from '../services/whatsappCreditService.js';
 import { sendPharmacyRegistrationNotification } from '../services/emailService.js';
+import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 
 // Get super admin dashboard statistics
 export const getDashboard = async (req, res) => {
@@ -1044,12 +1045,17 @@ export const updateTrialPeriod = async (req, res) => {
  */
 export const manualUpgradePlan = async (req, res) => {
   try {
-    const { plan } = req.body;
+    const { plan, durationYears = 1, startDateOption = 'today', customStartDate } = req.body;
     if (!['basic', 'pro', 'enterprise'].includes(plan)) {
       return res.status(400).json({ message: 'Invalid plan type' });
     }
 
-    const organization = await Organization.findById(req.params.id);
+    const years = Number(durationYears);
+    if (![1, 2, 3, 5].includes(years)) {
+      return res.status(400).json({ message: 'Invalid duration. Must be 1, 2, 3, or 5 years.' });
+    }
+
+    const organization = await Organization.findById(req.params.id).populate('ownerId');
     if (!organization) {
       return res.status(404).json({ message: 'Organization not found' });
     }
@@ -1063,20 +1069,34 @@ export const manualUpgradePlan = async (req, res) => {
     const planLimits = Subscription.getPlanLimits(plan);
     const planName = plan === 'pro' ? 'Standard Plan' : (plan === 'enterprise' ? 'Premium Plan' : 'Basic Plan');
 
+    // Calculate start date
+    let calculatedStartDate = new Date();
+    if (startDateOption === 'current_end') {
+      if (subscription.endDate && new Date(subscription.endDate) > new Date()) {
+        calculatedStartDate = new Date(subscription.endDate);
+      }
+    } else if (startDateOption === 'custom' && customStartDate) {
+      const parsedCustom = new Date(customStartDate);
+      if (!isNaN(parsedCustom.getTime())) {
+        calculatedStartDate = parsedCustom;
+      }
+    }
+
+    // Calculate end date
+    const calculatedEndDate = new Date(calculatedStartDate);
+    calculatedEndDate.setFullYear(calculatedEndDate.getFullYear() + years);
+
     subscription.plan = plan;
     subscription.planName = planName;
     subscription.limits = planLimits;
     subscription.amount = 0; // Manual upgrade is free
     subscription.status = 'active';
     subscription.isManualOverride = true;
-    subscription.overrideNote = `Manual upgrade to ${planName} by Super Admin`;
-    
-    // Set expiry to 1 month from now
-    const endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + 1);
-    subscription.endDate = endDate;
-    subscription.nextBillingDate = endDate;
-    subscription.startDate = new Date();
+    subscription.overrideNote = `Manual upgrade to ${planName} (${years} year(s)) by Super Admin starting from ${calculatedStartDate.toISOString().split('T')[0]}`;
+    subscription.billingCycle = 'yearly';
+    subscription.startDate = calculatedStartDate;
+    subscription.endDate = calculatedEndDate;
+    subscription.nextBillingDate = calculatedEndDate;
 
     await subscription.save();
 
@@ -1092,7 +1112,7 @@ export const manualUpgradePlan = async (req, res) => {
       action: 'MANUAL_PLAN_UPGRADE',
       targetType: 'Organization',
       targetId: organization._id,
-      details: { plan, planName, expiry: endDate },
+      details: { plan, planName, expiry: calculatedEndDate, durationYears: years, startDate: calculatedStartDate },
       ipAddress: req.ip
     });
 
@@ -1104,6 +1124,70 @@ export const manualUpgradePlan = async (req, res) => {
       createdBy: req.user.id,
       description: `WhatsApp credits applied after manual upgrade to ${planName} by Super Admin`
     }).catch(err => console.error('[WhatsApp Credit Service] Manual upgrade apply failed:', err.message));
+
+    // 4. Create Notification for the organization
+    const upgradeMessage = `Your organization plan has been manually upgraded to ${planName} for ${years} year(s). It is now active until ${calculatedEndDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}.`;
+    await Notification.create({
+      organizationId: organization._id,
+      message: upgradeMessage,
+      type: 'success',
+      category: 'subscription'
+    });
+
+    // 5. Emit real-time Socket event
+    try {
+      const io = req.app.get("io");
+      if (io) {
+        io.to(organization._id.toString()).emit('subscription-upgraded', {
+          plan: plan,
+          planName: planName,
+          endDate: calculatedEndDate,
+          message: upgradeMessage
+        });
+      }
+    } catch (socketErr) {
+      console.error('[Socket] Failed to emit subscription upgrade notification:', socketErr);
+    }
+
+    // 6. Send WhatsApp Notification Template to Admin
+    const adminPhone = organization.ownerId?.mobile || organization.phone;
+    if (adminPhone) {
+      try {
+        const sanitizedPhone = adminPhone.replace(/\D/g, '');
+        const finalPhone = sanitizedPhone.length === 10 ? `91${sanitizedPhone}` : sanitizedPhone;
+        const adminName = organization.ownerId?.name || 'Administrator';
+        const formattedEndDate = calculatedEndDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        const durationText = `${years} year${years > 1 ? 's' : ''}`;
+
+        // Variables:
+        // {{1}} -> Admin Name
+        // {{2}} -> Clinic Name
+        // {{3}} -> Plan Name
+        // {{4}} -> Duration
+        // {{5}} -> Plan Level
+        // {{6}} -> Expiration Date
+        await sendWhatsAppTemplate(
+          finalPhone,
+          'admin_plan_upgrade_notification',
+          'en',
+          [
+            adminName,
+            organization.name,
+            planName,
+            durationText,
+            planName,
+            formattedEndDate
+          ]
+        );
+        console.log(`[WhatsApp Notification] Template 'admin_plan_upgrade_notification' successfully sent to ${finalPhone}`);
+      } catch (waErr) {
+        console.error('[WhatsApp Notification] Template send failed:', waErr.message);
+      }
+    }
 
     res.json({
       message: `Organization successfully upgraded to ${planName}`,

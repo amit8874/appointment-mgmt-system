@@ -72,6 +72,7 @@ const DoctorProfile = lazy(() => import("./Pages/Services/DoctorProfile"));
 const RayByOviaan = lazy(() => import("./Pages/Services/RayByOviaan"));
 const OviaanReach = lazy(() => import("./Pages/Services/OviaanReach"));
 const WhatsAppCredits = lazy(() => import("./Pages/WhatsAppCredits"));
+const DoctorPublicProfile = lazy(() => import("./Pages/DoctorPublicProfile"));
 
 // SaaS Components
 const RegisterOrganization = lazy(() => import("./Pages/RegisterOrganization"));
@@ -257,6 +258,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/find-doctors" element={<FindDoctors />} />
+            <Route path="/doctor/:id" element={<DoctorPublicProfile />} />
             <Route path="/booking/checkout/:doctorId" element={<BookingCheckout />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register-pharmacy" element={<PharmacyRegistration />} />
@@ -342,7 +344,7 @@ export default function App() {
               </ProtectedRoute>
             } />
             <Route path="/admin-profile-page" element={
-              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'orgadmin']}>
+              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'orgadmin', 'doctor']}>
                 <AdminProfilePage />
               </ProtectedRoute>
             } />
@@ -363,7 +365,7 @@ export default function App() {
             } />
 
             <Route path="/receptionist" element={
-              <ProtectedRoute allowedRoles={['receptionist']}>
+              <ProtectedRoute allowedRoles={['receptionist', 'doctor']}>
                 <ReceptionistDashboard />
               </ProtectedRoute>
             }>

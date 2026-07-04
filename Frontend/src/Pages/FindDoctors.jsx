@@ -902,30 +902,34 @@ const FindDoctors = () => {
                  </div>
               </motion.div>
             ) : (
-              filteredDoctors.map((doctor) => (
-                <div key={doctor._id} className="group/card animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className={`flex flex-col md:flex-row gap-4 border-b border-slate-100 last:border-0 ${
-                    (expandedDoctorId === doctor._id || expandedContactId === doctor._id) ? "pb-4" : "pb-6"
-                  }`}>
+              filteredDoctors.map((doctor) => {
+                const doctorSlug = doctor.name ? doctor.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') : doctor._id;
+                return (
+                  <div key={doctor._id} className="group/card animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className={`flex flex-col md:flex-row gap-4 border-b border-slate-100 last:border-0 ${
+                      (expandedDoctorId === doctor._id || expandedContactId === doctor._id) ? "pb-4" : "pb-6"
+                    }`}>
 
 
-                  {/* Doctor Image & Badge */}
-                  <div className="relative shrink-0 flex flex-col items-center">
-                    <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-slate-50 shadow-sm relative group">
-                      <img 
-                        src={doctor.photo || "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=200&h=200"} 
-                        alt={doctor.name} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                      <div className="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    </div>
-                  </div>
+                    {/* Doctor Image & Badge */}
+                    <Link to={`/doctor/${doctorSlug}`} className="relative shrink-0 flex flex-col items-center">
+                      <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-slate-50 shadow-sm relative group">
+                        <img 
+                          src={doctor.photo || "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=200&h=200"} 
+                          alt={doctor.name} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                        <div className="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      </div>
+                    </Link>
 
-                  {/* Doctor Info */}
-                  <div className="flex-1">
-                    <h2 className="text-[#14bef0] text-lg font-bold hover:underline cursor-pointer transition-all">
-                      {doctor.name}
-                    </h2>
+                    {/* Doctor Info */}
+                    <div className="flex-1">
+                      <h2 className="text-[#14bef0] text-lg font-bold hover:underline cursor-pointer transition-all">
+                        <Link to={`/doctor/${doctorSlug}`}>
+                          {doctor.name}
+                        </Link>
+                      </h2>
                     <p className="text-slate-500 font-medium text-sm mt-0.5">{doctor.specialization}</p>
                     <p className="text-slate-400 text-xs mt-0.5">{doctor.experience || 10} years experience overall</p>
                     
@@ -1013,10 +1017,9 @@ const FindDoctors = () => {
                   <ContactClinic phone={doctor.phone} />
                 </motion.div>
               </div>
-
-
-            ))
-          )}
+            );
+          })
+        )}
         </div>
       </div>
 

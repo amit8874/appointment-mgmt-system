@@ -70,6 +70,18 @@ const organizationSchema = new mongoose.Schema({
   specialist: {
     type: String,
   },
+  about: {
+    type: String,
+    default: '',
+  },
+  clinicImages: {
+    type: [String],
+    default: [],
+  },
+  facilities: {
+    type: [String],
+    default: [],
+  },
   enabledModules: {
     dentist: { type: Boolean, default: false },
     dermatologist: { type: Boolean, default: false },

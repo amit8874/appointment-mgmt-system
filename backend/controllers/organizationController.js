@@ -559,6 +559,9 @@ export const updateOrganization = async (req, res) => {
       gstNumber,
       consultationFee,
       doctorCapacity,
+      about,
+      clinicImages,
+      facilities,
     } = req.body;
 
     if (name) organization.name = name;
@@ -573,6 +576,9 @@ export const updateOrganization = async (req, res) => {
     if (gstNumber) organization.gstNumber = gstNumber;
     if (consultationFee !== undefined) organization.consultationFee = consultationFee;
     if (doctorCapacity !== undefined) organization.doctorCapacity = doctorCapacity;
+    if (about !== undefined) organization.about = about;
+    if (clinicImages !== undefined) organization.clinicImages = clinicImages;
+    if (facilities !== undefined) organization.facilities = facilities;
 
     await organization.save();
 

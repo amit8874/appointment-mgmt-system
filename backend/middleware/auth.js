@@ -192,6 +192,20 @@ export const requireAdminOrReceptionist = (req, res, next) => {
   next();
 };
 
+// Middleware to check if user has admin, receptionist or doctor role
+export const requireAdminOrReceptionistOrDoctor = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  const role = req.user.role?.toLowerCase();
+  if (role !== 'admin' && role !== 'superadmin' && role !== 'orgadmin' && role !== 'receptionist' && role !== 'doctor') {
+    return res.status(403).json({ message: 'Admin, Receptionist or Doctor access required' });
+  }
+
+  next();
+};
+
 // Middleware to check if user has superadmin role
 export const requireSuperAdmin = (req, res, next) => {
   if (!req.user) {

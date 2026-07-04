@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateToken, requireAdmin, requireAdminOrReceptionist } from '../middleware/auth.js';
+import { authenticateToken, requireAdmin, requireAdminOrReceptionist, requireAdminOrReceptionistOrDoctor } from '../middleware/auth.js';
 import { requireTenant } from '../middleware/tenant.js';
 import {
   getGlobalPublicDoctors,
@@ -19,7 +19,10 @@ import {
   updateAvailabilityOverride,
   removeAvailabilityOverride,
   getDoctorReviews,
-  addDoctorReview
+  addDoctorReview,
+  getDoctorProfileMe,
+  updateDoctorProfileMe,
+  getPublicDoctorProfile
 } from '../controllers/doctorController.js';
 
 
@@ -41,6 +44,9 @@ router.get('/:id/reviews', getDoctorReviews);
 
 // GET /api/doctors/public/checkout-details/:id - Get doctor & clinic info for checkout (Public)
 router.get('/public/checkout-details/:id', getPublicDoctorCheckoutDetails);
+
+// GET /api/doctors/public/profile/:id - Get a single doctor profile (Public)
+router.get('/public/profile/:id', getPublicDoctorProfile);
 
 
 
@@ -67,11 +73,17 @@ router.get('/count', getDoctorCount);
 // POST /api/doctors - Add a new doctor
 router.post('/', requireAdminOrReceptionist, createDoctor);
 
+// GET /api/doctors/profile/me - Get current doctor profile
+router.get('/profile/me', getDoctorProfileMe);
+
+// PUT /api/doctors/profile/me - Update current doctor profile
+router.put('/profile/me', updateDoctorProfileMe);
+
 // GET /api/doctors/:id - Get a single doctor by _id or doctorId
 router.get("/:id", getDoctor);
 
 // PUT /api/doctors/:id - Update a doctor
-router.put('/:id', requireAdminOrReceptionist, updateDoctor);
+router.put('/:id', requireAdminOrReceptionistOrDoctor, updateDoctor);
 
 // DELETE /api/doctors/:id - Delete a doctor
 router.delete('/:id', requireAdmin, deleteDoctor);

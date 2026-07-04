@@ -30,6 +30,18 @@ const SmartNotificationSystem = () => {
   const [realTimePopups, setRealTimePopups] = useState([]);
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [insufficientCreditError, setInsufficientCreditError] = useState(null);
+  const [subscriptionUpgradePopup, setSubscriptionUpgradePopup] = useState(null);
+
+  const triggerUpgradePopup = (msg) => {
+    setSubscriptionUpgradePopup(msg);
+    try {
+      new Audio('/notification.mp3').play().catch(() => {});
+    } catch (e) {}
+
+    setTimeout(() => {
+      setSubscriptionUpgradePopup(null);
+    }, 10000);
+  };
   const processedRef = useRef(new Set()); // Format: apptId_type (e.g. 123_reminder, 123_now, 123_late)
   const socketRef = useRef(null);
 
@@ -162,6 +174,10 @@ const SmartNotificationSystem = () => {
       } catch(e) {}
     });
 
+    socket.on('subscription-upgraded', (data) => {
+      triggerUpgradePopup(data.message);
+    });
+
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
     };
@@ -204,6 +220,30 @@ const SmartNotificationSystem = () => {
       window.removeEventListener('insufficient-whatsapp-credits', handleInsufficientCredits);
     };
   }, []);
+
+  // Check unread subscription notifications on mount
+  useEffect(() => {
+    if (!canSeeNotifications || !user) return;
+
+    const checkSubscriptionNotifications = async () => {
+      try {
+        const { data } = await api.get('/notifications?limit=20');
+        // Find first unread subscription notification
+        const unreadSubNotif = data.find(n => n.category === 'subscription' && !n.isRead);
+        if (unreadSubNotif) {
+          triggerUpgradePopup(unreadSubNotif.message);
+          // Mark it as read immediately so it shows only once
+          await api.put(`/notifications/${unreadSubNotif._id}/read`);
+        }
+      } catch (err) {
+        console.error('Failed to check subscription notifications:', err);
+      }
+    };
+
+    // Delay checking slightly to let dashboard mount smoothly
+    const timer = setTimeout(checkSubscriptionNotifications, 3000);
+    return () => clearTimeout(timer);
+  }, [user?.id || user?._id, canSeeNotifications]);
 
   if (!canSeeNotifications || (activePopups.length === 0 && realTimePopups.length === 0 && !insufficientCreditError)) return null;
 
@@ -291,6 +331,47 @@ const SmartNotificationSystem = () => {
               </motion.div>
             );
           })}
+
+          {/* Subscription Upgrade Popup */}
+          {subscriptionUpgradePopup && (
+            <motion.div
+              initial={{ opacity: 0, x: 200, scale: 0.9, y: -20 }}
+              animate={{ opacity: 1, x: 0, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, x: 100, transition: { duration: 0.2 } }}
+              className="p-6 w-96 rounded-3xl shadow-[0_20px_50px_rgba(245,158,11,0.25)] border border-amber-100 pointer-events-auto bg-gradient-to-br from-amber-50 to-white backdrop-blur-2xl relative overflow-hidden group text-left"
+            >
+              {/* Subtle animated background element */}
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-100/50 rounded-full blur-3xl group-hover:bg-amber-100 transition-colors duration-500" />
+              
+              {/* Header */}
+              <div className="flex justify-between items-start mb-4 relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-500 text-white rounded-2xl shadow-lg shadow-amber-200">
+                    <Zap size={20} className="animate-bounce" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-[0.15em] text-amber-600 leading-none mb-1">
+                      Plan Upgraded
+                    </h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Just Now • System</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setSubscriptionUpgradePopup(null)} 
+                  className="p-2 hover:bg-amber-100/50 rounded-full text-slate-400 hover:text-slate-600 transition-all pointer-events-auto"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Message Content */}
+              <div className="relative z-10">
+                <p className="text-slate-600 font-medium text-sm leading-relaxed">
+                  {subscriptionUpgradePopup}
+                </p>
+              </div>
+            </motion.div>
+          )}
 
           {/* Real-time Public Booking Popups */}
           {realTimePopups.map((popup) => (

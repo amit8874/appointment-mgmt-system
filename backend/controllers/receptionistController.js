@@ -2,12 +2,13 @@ import Receptionist from '../models/Receptionist.js';
 import Counter from '../models/Counter.js';
 import Subscription from '../models/Subscription.js';
 import { uploadToS3 } from '../utils/uploadToS3.js';
+import { resolveS3UrlIfNeeded } from '../services/s3Service.js';
 
 // GET /api/receptionists - Get all receptionists
 export const getAllReceptionists = async (req, res) => {
   try {
     const receptionists = await Receptionist.find({ organizationId: req.tenantId }).sort({ createdAt: -1 });
-    const formattedReceptionists = receptionists.map(receptionist => ({
+    const formattedReceptionists = await Promise.all(receptionists.map(async receptionist => ({
       id: receptionist.receptionistId,
       _id: receptionist._id,
       name: receptionist.name,
@@ -19,14 +20,14 @@ export const getAllReceptionists = async (req, res) => {
       joinDate: receptionist.joinDate,
       shift: receptionist.shift,
       status: receptionist.status,
-      profilePhoto: receptionist.profilePhoto,
+      profilePhoto: await resolveS3UrlIfNeeded(receptionist.profilePhoto),
       emergencyContact: receptionist.emergencyContact,
       emergencyPhone: receptionist.emergencyPhone,
       role: receptionist.role,
       salary: receptionist.salary,
       workingHours: receptionist.workingHours,
       availability: receptionist.availability,
-    }));
+    })));
     res.json(formattedReceptionists);
   } catch (error) {
     console.error('Error fetching receptionists:', error);
@@ -183,7 +184,7 @@ export const addReceptionist = async (req, res) => {
       joinDate: savedReceptionist.joinDate,
       shift: savedReceptionist.shift,
       status: savedReceptionist.status,
-      profilePhoto: savedReceptionist.profilePhoto,
+      profilePhoto: await resolveS3UrlIfNeeded(savedReceptionist.profilePhoto),
       emergencyContact: savedReceptionist.emergencyContact,
       emergencyPhone: savedReceptionist.emergencyPhone,
       role: savedReceptionist.role,
@@ -270,7 +271,7 @@ export const updateReceptionist = async (req, res) => {
       joinDate: receptionist.joinDate,
       shift: receptionist.shift,
       status: receptionist.status,
-      profilePhoto: receptionist.profilePhoto,
+      profilePhoto: await resolveS3UrlIfNeeded(receptionist.profilePhoto),
       emergencyContact: receptionist.emergencyContact,
       emergencyPhone: receptionist.emergencyPhone,
       role: receptionist.role,

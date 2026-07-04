@@ -10,7 +10,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { getUserById, updateUser as updateUserData, updatePassword } from '../../api/userApi';
 import organizationApi from '../../api/organizationApi';
 import subscriptionApi from '../../api/subscriptionApi';
-import { analyticsApi, commonApi } from '../../services/api';
+import { analyticsApi, commonApi, centralDoctorApi } from '../../services/api';
 
 // Sub-components
               
@@ -21,6 +21,9 @@ import BillingSubscriptionTab from './Profile/BillingSubscriptionTab';
 import ActivityLogsTab from './Profile/ActivityLogsTab';
 import WhatsAppCreditsTab from './Profile/WhatsAppCreditsTab';
 import PrescriptionTemplateTab from './Profile/PrescriptionTemplateTab';
+import DoctorPublicProfileTab from './Profile/DoctorPublicProfileTab';
+import ClinicProfileTab from './Profile/ClinicProfileTab';
+import { Stethoscope, Sparkles } from 'lucide-react';
 
 const ProfilePage = () => {
     const { user, logout, updateUser } = useAuth();
@@ -36,6 +39,7 @@ const ProfilePage = () => {
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
     const [notification, setNotification] = useState({ message: '', type: '', visible: false });
+    const [doctorProfile, setDoctorProfile] = useState({});
 
     const showNotification = (message, type = 'success') => {
         setNotification({ message, type, visible: true });
@@ -108,12 +112,23 @@ const ProfilePage = () => {
 
             if (orgData) setOrganization(orgData);
             
+            if (user?.role === 'doctor') {
+                try {
+                    const docProfile = await centralDoctorApi.getProfileMe();
+                    setDoctorProfile(docProfile || {});
+                } catch (err) {
+                    console.warn("Failed to fetch doctor profile:", err);
+                }
+            }
+
             // Clear timer and stop loading
             clearTimeout(safetyTimer);
             setLoading(false);
 
             // Fetch secondary data in background (non-blocking)
-            fetchBackgroundData(orgId);
+            if (user?.role !== 'doctor') {
+                fetchBackgroundData(orgId);
+            }
             
         } catch (error) {
             console.error('Profile fetch error:', error);
@@ -175,6 +190,19 @@ const ProfilePage = () => {
             showNotification('Personal information updated successfully');
         } catch (error) {
             showNotification('Failed to update profile', 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleUpdateDoctorProfile = async (formData) => {
+        setActionLoading(true);
+        try {
+            const updated = await centralDoctorApi.updateProfileMe(formData);
+            setDoctorProfile(updated || {});
+            showNotification('Public profile updated successfully');
+        } catch (error) {
+            showNotification(error.response?.data?.message || 'Failed to update public profile', 'error');
         } finally {
             setActionLoading(false);
         }
@@ -267,14 +295,28 @@ const ProfilePage = () => {
         return Math.round((completed / fields.length) * 100);
     }, [profile, organization]);
 
-    const tabs = [
-        { id: 'personal', label: 'Personal Info', icon: UserIcon },
-        { id: 'clinic', label: 'Clinic Info', icon: Building2 },
-        { id: 'prescription', label: 'Prescription Template', icon: Activity },
-        { id: 'billing', label: 'Billing & Subscription', icon: CreditCard },
-        { id: 'whatsapp', label: 'WhatsApp Credits', icon: MessageSquare },
-        { id: 'activity', label: 'Activity Logs', icon: Activity },
-    ];
+    const tabs = useMemo(() => {
+        const list = [
+            { id: 'personal', label: 'Personal Info', icon: UserIcon }
+        ];
+
+        if (user?.role === 'doctor') {
+            list.push({ id: 'public-profile', label: 'Public Profile', icon: Stethoscope });
+        }
+
+        if (['admin', 'orgadmin', 'superadmin'].includes(user?.role)) {
+            list.push({ id: 'clinic', label: 'Clinic Info', icon: Building2 });
+            list.push({ id: 'clinic-profile', label: 'Clinic Profile', icon: Sparkles });
+            list.push({ id: 'prescription', label: 'Prescription Template', icon: Activity });
+            list.push({ id: 'billing', label: 'Billing & Subscription', icon: CreditCard });
+            list.push({ id: 'whatsapp', label: 'WhatsApp Credits', icon: MessageSquare });
+            list.push({ id: 'activity', label: 'Activity Logs', icon: Activity });
+        } else if (user?.role === 'receptionist') {
+            list.push({ id: 'whatsapp', label: 'WhatsApp Credits', icon: MessageSquare });
+        }
+
+        return list;
+    }, [user?.role]);
 
     if (loading) {
         return (
@@ -395,8 +437,22 @@ const ProfilePage = () => {
                                         loading={actionLoading} 
                                     />
                                 )}
+                                {activeTab === 'public-profile' && (
+                                    <DoctorPublicProfileTab 
+                                        doctor={doctorProfile} 
+                                        onUpdate={handleUpdateDoctorProfile} 
+                                        loading={actionLoading} 
+                                    />
+                                )}
                                 {activeTab === 'clinic' && (
                                     <ClinicInfoTab 
+                                        organization={organization} 
+                                        onUpdate={handleUpdateOrganization} 
+                                        loading={actionLoading} 
+                                    />
+                                )}
+                                {activeTab === 'clinic-profile' && (
+                                    <ClinicProfileTab 
                                         organization={organization} 
                                         onUpdate={handleUpdateOrganization} 
                                         loading={actionLoading} 

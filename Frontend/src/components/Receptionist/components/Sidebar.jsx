@@ -182,7 +182,10 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
 
           {/* User Profile Section (Matching Admin Style) */}
           <div className="mt-auto pt-6 border-t border-gray-100 dark:border-gray-700">
-            <div className={`bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+            <div 
+              onClick={() => navigate('/receptionist/profile')}
+              className={`bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-all ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}
+            >
               <div className="flex items-center min-w-0">
                 <div className="relative flex-shrink-0">
                   <img
@@ -198,7 +201,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                       {user?.name || 'Receptionist'}
                     </p>
                     <p className="text-[10px] font-bold text-gray-400 truncate tracking-wide">
-                      RECEPTIONIST
+                      {user?.role?.toUpperCase() || 'RECEPTIONIST'}
                     </p>
                   </div>
                 )}
@@ -206,7 +209,10 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
               {!isSidebarCollapsed && (
                 <button
                   type="button"
-                  onClick={onLogout}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent navigation when clicking logout
+                    onLogout();
+                  }}
                   className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all"
                   title="Logout"
                 >

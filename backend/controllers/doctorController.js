@@ -6,6 +6,7 @@ import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import Review from '../models/Review.js';
 import Subscription from '../models/Subscription.js';
+import { resolveS3UrlIfNeeded } from '../services/s3Service.js';
 
 // Helper function to generate time slots with range format
 const generateTimeSlots = (workingHours, intervalMinutes = 30) => {
@@ -50,6 +51,15 @@ const generateTimeSlots = (workingHours, intervalMinutes = 30) => {
   });
 
   return slots;
+};
+
+const resolveDoctorPhoto = async (doctor) => {
+  if (!doctor) return null;
+  const docObj = typeof doctor.toObject === 'function' ? doctor.toObject() : doctor;
+  if (docObj.photo) {
+    docObj.photo = await resolveS3UrlIfNeeded(docObj.photo);
+  }
+  return docObj;
 };
 
 // Get all public doctors across all organizations with optional filtering
@@ -166,7 +176,7 @@ export const getGlobalPublicDoctors = async (req, res) => {
     });
     const uniqueDoctors = Array.from(uniqueDoctorsMap.values());
 
-    const formattedDoctors = uniqueDoctors.map(doctor => {
+    const formattedDoctors = await Promise.all(uniqueDoctors.map(async doctor => {
       let displayAddress = doctor.address || '';
       let displayClinic = doctor.serviceLocation?.type === 'other' ? "External Clinic" : "Own Clinic";
 
@@ -196,7 +206,7 @@ export const getGlobalPublicDoctors = async (req, res) => {
         qualification: doctor.qualification,
         workingHours: doctor.workingHours,
         availability: doctor.availability,
-        photo: doctor.photo,
+        photo: await resolveS3UrlIfNeeded(doctor.photo),
         address: displayAddress,
         clinicName: displayClinic,
         phone: doctor.phone,
@@ -205,7 +215,7 @@ export const getGlobalPublicDoctors = async (req, res) => {
         likesPercentage: doctor.likesPercentage || 0,
         totalStories: doctor.totalStories || 0
       };
-    });
+    }));
 
     res.json(formattedDoctors);
   } catch (error) {
@@ -266,7 +276,7 @@ export const getPublicDoctors = async (req, res) => {
       status: { $in: ['Active', 'Verified'] }
     }).populate('organizationId', 'name address phone').sort({ name: 1 });
 
-    const formattedDoctors = doctors.map(doctor => {
+    const formattedDoctors = await Promise.all(doctors.map(async doctor => {
       let displayAddress = doctor.address || '';
       let displayClinic = doctor.serviceLocation?.type === 'other' ? "External Clinic" : "Own Clinic";
 
@@ -298,13 +308,13 @@ export const getPublicDoctors = async (req, res) => {
         qualification: doctor.qualification,
         workingHours: doctor.workingHours,
         availability: doctor.availability,
-        photo: doctor.photo,
+        photo: await resolveS3UrlIfNeeded(doctor.photo),
         address: displayAddress,
         clinicName: displayClinic,
         phone: doctor.phone,
         status: doctor.status,
       };
-    });
+    }));
 
     res.json(formattedDoctors);
   } catch (error) {
@@ -622,7 +632,7 @@ export const getDoctor = async (req, res) => {
 
   if (!doctor) return res.status(404).json({ message: "Doctor not found" });
 
-  res.json(doctor);
+  res.json(await resolveDoctorPhoto(doctor));
 };
 
 // Get all doctors with pagination
@@ -650,7 +660,7 @@ export const getAllDoctors = async (req, res) => {
     });
     const uniqueDoctors = Array.from(uniqueDoctorsMap.values());
 
-    const formattedDoctors = uniqueDoctors.map(doctor => ({
+    const formattedDoctors = await Promise.all(uniqueDoctors.map(async doctor => ({
       id: doctor.doctorId,
       _id: doctor._id,
       name: doctor.name,
@@ -671,7 +681,7 @@ export const getAllDoctors = async (req, res) => {
       licenseNumber: doctor.licenseNumber,
       firstName: doctor.firstName,
       lastName: doctor.lastName,
-      photo: doctor.photo,
+      photo: await resolveS3UrlIfNeeded(doctor.photo),
       startDate: doctor.startDate,
       lastReviewDate: doctor.lastReviewDate,
       emergencyContact: doctor.emergencyContact,
@@ -695,7 +705,7 @@ export const getAllDoctors = async (req, res) => {
       idNumber: doctor.idNumber,
       idDocumentUrl: doctor.idDocumentUrl,
       serviceLocation: doctor.serviceLocation,
-    }));
+    })));
 
     res.json({
       doctors: formattedDoctors,
@@ -761,7 +771,7 @@ export const createDoctor = async (req, res) => {
     });
     const savedDoctor = await newDoctor.save();
 
-    res.status(201).json(savedDoctor);
+    res.status(201).json(await resolveDoctorPhoto(savedDoctor));
   } catch (error) {
     console.error('Error adding doctor:', error);
     if (error.code === 11000) {
@@ -782,19 +792,115 @@ export const updateDoctor = async (req, res) => {
     if (updateData.fee !== undefined) updateData.fee = parseFloat(updateData.fee) || 0;
     updateData.updatedAt = new Date();
 
+    if (updateData.clinicImages !== undefined) {
+      if (!Array.isArray(updateData.clinicImages)) {
+        return res.status(400).json({ message: 'Clinic images must be an array of image URLs' });
+      }
+      if (updateData.clinicImages.length > 5) {
+        return res.status(400).json({ message: 'Maximum 5 clinic images are allowed' });
+      }
+    }
+
+    let query = { organizationId: req.tenantId };
+    if (/^[0-9a-fA-F]{24}$/.test(id)) {
+      query._id = id;
+    } else {
+      query.doctorId = id;
+    }
+
     const doctor = await Doctor.findOneAndUpdate(
-      { organizationId: req.tenantId, doctorId: id },
+      query,
+      { $set: updateData },
+      { new: true }
+    );
+
+  if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    res.json(await resolveDoctorPhoto(doctor));
+  } catch (error) {
+    console.error('Error updating doctor:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get current logged-in doctor profile
+export const getDoctorProfileMe = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    let doctor = await Doctor.findOne({
+      organizationId: req.tenantId,
+      $or: [
+        { email: req.user.email },
+        { phone: req.user.mobile }
+      ]
+    });
+
+    if (!doctor) {
+      // Fallback: If no doctor is found for this tenant, try to search globally by email/phone
+      doctor = await Doctor.findOne({
+        $or: [
+          { email: req.user.email },
+          { phone: req.user.mobile }
+        ]
+      });
+    }
+
+  if (!doctor) {
+      return res.status(404).json({ message: 'Doctor profile not found for this user' });
+    }
+
+    res.json(await resolveDoctorPhoto(doctor));
+  } catch (error) {
+    console.error('Error fetching current doctor profile:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Update current logged-in doctor profile
+export const updateDoctorProfileMe = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const updateData = req.body;
+    if (updateData.experience !== undefined) updateData.experience = parseInt(updateData.experience) || 0;
+    if (updateData.fee !== undefined) updateData.fee = parseFloat(updateData.fee) || 0;
+    updateData.updatedAt = new Date();
+
+    if (updateData.clinicImages !== undefined) {
+      if (!Array.isArray(updateData.clinicImages)) {
+        return res.status(400).json({ message: 'Clinic images must be an array of image URLs' });
+      }
+      if (updateData.clinicImages.length > 5) {
+        return res.status(400).json({ message: 'Maximum 5 clinic images are allowed' });
+      }
+    }
+
+    const doctor = await Doctor.findOneAndUpdate(
+      {
+        organizationId: req.tenantId,
+        $or: [
+          { email: req.user.email },
+          { phone: req.user.mobile }
+        ]
+      },
       { $set: updateData },
       { new: true }
     );
 
     if (!doctor) {
-      return res.status(404).json({ message: 'Doctor not found' });
+      return res.status(404).json({ message: 'Doctor profile not found for this user' });
     }
 
-    res.json(doctor);
+    res.json(await resolveDoctorPhoto(doctor));
   } catch (error) {
-    console.error('Error updating doctor:', error);
+    console.error('Error updating current doctor profile:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1037,6 +1143,75 @@ export const addDoctorReview = async (req, res) => {
     res.status(201).json(newReview);
   } catch (error) {
     console.error('Error adding doctor review:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get single doctor profile publicly (no tenant isolation required for public landing pages)
+export const getPublicDoctorProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let doctor = await Doctor.findOne({ doctorId: id, status: { $in: ['Active', 'Verified'] } }).populate('organizationId', 'name address phone about clinicImages facilities');
+    if (!doctor && /^[0-9a-fA-F]{24}$/.test(id)) {
+      doctor = await Doctor.findOne({ _id: id, status: { $in: ['Active', 'Verified'] } }).populate('organizationId', 'name address phone about clinicImages facilities');
+    }
+    if (!doctor) {
+      doctor = await Doctor.findOne({ username: id, status: { $in: ['Active', 'Verified'] } }).populate('organizationId', 'name address phone about clinicImages facilities');
+    }
+    if (!doctor) {
+      const allDoctors = await Doctor.find({ status: { $in: ['Active', 'Verified'] } }).populate('organizationId', 'name address phone about clinicImages facilities');
+      doctor = allDoctors.find(d => {
+        const slug = d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        return slug === id.toLowerCase();
+      });
+    }
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found or inactive' });
+    }
+    
+    let displayAddress = doctor.address || '';
+    let displayClinic = doctor.serviceLocation?.type === 'other' ? "External Clinic" : "Own Clinic";
+
+    if (doctor.serviceLocation?.address?.city) {
+      const addr = doctor.serviceLocation.address;
+      displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
+      if (doctor.serviceLocation.practiceName) {
+        displayClinic = doctor.serviceLocation.practiceName;
+      }
+    } else if (doctor.organizationId && doctor.organizationId.address && doctor.organizationId.address.city) {
+      const addr = doctor.organizationId.address;
+      displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
+      displayClinic = doctor.organizationId.name || displayClinic;
+    } else if (doctor.organizationId && doctor.organizationId.name) {
+      displayClinic = doctor.organizationId.name;
+    }
+
+    const formattedDoctor = {
+      _id: doctor._id,
+      doctorId: doctor.doctorId,
+      name: doctor.name,
+      specialization: doctor.specialization,
+      experience: doctor.experience,
+      fee: doctor.fee,
+      qualification: doctor.qualification,
+      workingHours: doctor.workingHours,
+      availability: doctor.availability,
+      photo: doctor.photo,
+      address: displayAddress,
+      clinicName: displayClinic,
+      phone: doctor.phone,
+      status: doctor.status,
+      bio: doctor.bio || doctor.about || '',
+      about: doctor.about || doctor.bio || '',
+      clinicImages: doctor.clinicImages || [],
+      likesPercentage: doctor.likesPercentage || 0,
+      totalStories: doctor.totalStories || 0,
+      organizationId: doctor.organizationId
+    };
+
+    res.json(formattedDoctor);
+  } catch (error) {
+    console.error('Error fetching public doctor profile:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
