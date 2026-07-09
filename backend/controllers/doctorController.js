@@ -7,6 +7,7 @@ import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import Review from '../models/Review.js';
 import Subscription from '../models/Subscription.js';
 import { resolveS3UrlIfNeeded } from '../services/s3Service.js';
+import { resolveOrganizationUrls } from '../utils/fileUrlResolver.js';
 
 // Helper function to generate time slots with range format
 const generateTimeSlots = (workingHours, intervalMinutes = 30) => {
@@ -58,6 +59,15 @@ const resolveDoctorPhoto = async (doctor) => {
   const docObj = typeof doctor.toObject === 'function' ? doctor.toObject() : doctor;
   if (docObj.photo) {
     docObj.photo = await resolveS3UrlIfNeeded(docObj.photo);
+  }
+  if (docObj.clinicImages && Array.isArray(docObj.clinicImages)) {
+    try {
+      docObj.clinicImages = await Promise.all(
+        docObj.clinicImages.map(img => resolveS3UrlIfNeeded(img))
+      );
+    } catch (err) {
+      console.warn('[resolveDoctorPhoto] Failed to resolve clinic images:', err.message);
+    }
   }
   return docObj;
 };
@@ -1196,17 +1206,17 @@ export const getPublicDoctorProfile = async (req, res) => {
       qualification: doctor.qualification,
       workingHours: doctor.workingHours,
       availability: doctor.availability,
-      photo: doctor.photo,
+      photo: await resolveS3UrlIfNeeded(doctor.photo),
       address: displayAddress,
       clinicName: displayClinic,
       phone: doctor.phone,
       status: doctor.status,
       bio: doctor.bio || doctor.about || '',
       about: doctor.about || doctor.bio || '',
-      clinicImages: doctor.clinicImages || [],
+      clinicImages: doctor.clinicImages ? await Promise.all(doctor.clinicImages.map(img => resolveS3UrlIfNeeded(img))) : [],
       likesPercentage: doctor.likesPercentage || 0,
       totalStories: doctor.totalStories || 0,
-      organizationId: doctor.organizationId
+      organizationId: doctor.organizationId ? await resolveOrganizationUrls(doctor.organizationId) : null
     };
 
     res.json(formattedDoctor);

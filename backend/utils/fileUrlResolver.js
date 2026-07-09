@@ -72,5 +72,15 @@ export const resolveOrganizationUrls = async (org) => {
     }
   }
   
+  if (orgObj.clinicImages && Array.isArray(orgObj.clinicImages)) {
+    try {
+      orgObj.clinicImages = await Promise.all(
+        orgObj.clinicImages.map(img => resolveS3UrlIfNeeded(img))
+      );
+    } catch (err) {
+      console.warn('[resolveOrganizationUrls] Failed to resolve clinic images:', err.message);
+    }
+  }
+  
   return orgObj;
 };

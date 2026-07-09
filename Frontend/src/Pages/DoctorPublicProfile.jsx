@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { 
   MapPin, Star, Clock, Heart, Award, Languages, Calendar, Phone, 
-  ThumbsUp, Shield, X, Sparkles, ChevronLeft, ChevronRight, MessageSquare, BookOpen, Stethoscope, User
+  ThumbsUp, Shield, X, Sparkles, ChevronLeft, ChevronRight, MessageSquare, BookOpen, Stethoscope, User,
+  Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api";
