@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../../context/AuthContext';
 import HorizontalAppointmentForm from './HorizontalAppointmentForm';
 import DashboardPanel from './DashboardPanel.jsx';
 import ClinicAnalytics from './Analytics/ClinicAnalytics.jsx';
@@ -27,6 +28,12 @@ import PharmacyBilling from './Pharmacy/PharmacyBilling.jsx';
 import ExpiryLowStock from './Pharmacy/ExpiryLowStock.jsx';
 import Suppliers from './Pharmacy/Suppliers.jsx';
 import Reports from './Pharmacy/Reports.jsx';
+import DentalEquipment from './Expenses/DentalEquipment.jsx';
+import DentalConsumerProducts from './Expenses/DentalConsumerProducts.jsx';
+import DentalLabExpenses from './Expenses/DentalLabExpenses.jsx';
+import ExpenseDashboard from './Expenses/ExpenseDashboard.jsx';
+import ExpenseReports from './Expenses/ExpenseReports.jsx';
+import ExpenseAnalytics from './Expenses/ExpenseAnalytics.jsx';
 import FollowUpReminderPanel from './FollowUpReminderPanel.jsx';
 import DentistDashboard from './DentistDashboard.jsx';
 
@@ -89,6 +96,7 @@ const MainContent = ({
   preSelectedMedicine,
   recentAppointments = []
 }) => {
+  const { isDentistClinic } = useAuth();
   const content = useMemo(() => {
     if (selectedPatient) {
       return (
@@ -257,6 +265,24 @@ const MainContent = ({
         );
       case 'WhatsApp Credits':
         return <WhatsAppCredits />;
+      case 'Expense Dashboard':
+        if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
+        return <ExpenseDashboard setActiveTab={setActiveTab} />;
+      case 'Expense Reports':
+        if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
+        return <ExpenseReports />;
+      case 'Expense Analytics':
+        if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
+        return <ExpenseAnalytics />;
+      case 'Dental Equipment':
+        if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
+        return <DentalEquipment />;
+      case 'Dental Consumer Products':
+        if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
+        return <DentalConsumerProducts />;
+      case 'Dental Lab Expenses':
+        if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
+        return <DentalLabExpenses />;
       case 'Dentist Dashboard':
         return <DentistDashboard setActiveTab={setActiveTab} />;
       default:
@@ -296,6 +322,7 @@ const MainContent = ({
     recentAppointments,
     rebookData,
     preSelectedMedicine,
+    isDentistClinic,
   ]);
 
   return (

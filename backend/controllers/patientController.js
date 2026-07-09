@@ -11,6 +11,7 @@ import MedicalRecord from '../models/MedicalRecord.js';
 import { generatePatientId } from '../utils/idGenerator.js';
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
+import { syncPatientDataToDependents } from '../utils/patientSync.js';
 
 dotenv.config();
 
@@ -466,6 +467,9 @@ export const updatePatient = async (req, res) => {
     // Now update the patient with filtered data
     const updatedPatient = await Patient.findByIdAndUpdate(patient._id, filteredUpdateData, { new: true, runValidators: true });
     if (!updatedPatient) return res.status(404).json({ message: 'Patient not found' });
+
+    // Propagate changes to all dependent collections (Billing and Appointments)
+    await syncPatientDataToDependents(req.tenantId, updatedPatient.patientId, updatedPatient._id, filteredUpdateData);
 
     res.json(updatedPatient);
   } catch (error) {

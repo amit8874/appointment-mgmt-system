@@ -1478,4 +1478,95 @@ export const prescriptionContentTemplateApi = {
   }
 };
 
+export const expenseApi = {
+  getEquipment: async (params = {}) => {
+    const { data } = await api.get('/expenses/equipment', { params });
+    return data;
+  },
+  createEquipment: async (expenseData) => {
+    const { data } = await api.post('/expenses/equipment', expenseData);
+    return data;
+  },
+  updateEquipment: async (id, expenseData) => {
+    const { data } = await api.put(`/expenses/equipment/${id}`, expenseData);
+    return data;
+  },
+  deleteEquipment: async (id) => {
+    const { data } = await api.delete(`/expenses/equipment/${id}`);
+    return data;
+  },
+  downloadEquipmentPdf: async (params = {}) => {
+    return api.get('/expenses/equipment/export/pdf', { params, responseType: 'blob' });
+  },
+
+  getConsumerProducts: async (params = {}) => {
+    const { data } = await api.get('/expenses/consumer-products', { params });
+    return data;
+  },
+  createConsumerProduct: async (expenseData) => {
+    const { data } = await api.post('/expenses/consumer-products', expenseData);
+    return data;
+  },
+  updateConsumerProduct: async (id, expenseData) => {
+    const { data } = await api.put(`/expenses/consumer-products/${id}`, expenseData);
+    return data;
+  },
+  deleteConsumerProduct: async (id) => {
+    const { data } = await api.delete(`/expenses/consumer-products/${id}`);
+    return data;
+  },
+  downloadConsumerProductsPdf: async (params = {}) => {
+    return api.get('/expenses/consumer-products/export/pdf', { params, responseType: 'blob' });
+  },
+
+  getLabExpenses: async (params = {}) => {
+    const { data } = await api.get('/expenses/lab', { params });
+    return data;
+  },
+  createLabExpense: async (expenseData) => {
+    const { data } = await api.post('/expenses/lab', expenseData);
+    return data;
+  },
+  updateLabExpense: async (id, expenseData) => {
+    const { data } = await api.put(`/expenses/lab/${id}`, expenseData);
+    return data;
+  },
+  deleteLabExpense: async (id) => {
+    const { data } = await api.delete(`/expenses/lab/${id}`);
+    return data;
+  },
+  downloadLabPdf: async (params = {}) => {
+    return api.get('/expenses/lab/export/pdf', { params, responseType: 'blob' });
+  },
+
+  uploadRecord: async (recordData) => {
+    const { data } = await api.post('/expenses/records', recordData);
+    return data;
+  },
+  getRecords: async (params = {}) => {
+    const { data } = await api.get('/expenses/records', { params });
+    return data;
+  },
+  deleteRecord: async (id) => {
+    const { data } = await api.delete(`/expenses/records/${id}`);
+    return data;
+  },
+  getDashboardStats: async () => {
+    const { data } = await api.get('/expenses/dashboard/stats');
+    return data;
+  },
+  getUnifiedExpenses: async (params = {}) => {
+    const { data } = await api.get('/expenses/unified', { params });
+    return data;
+  },
+  downloadUnifiedPdf: async (params = {}) => {
+    return api.get('/expenses/unified/export/pdf', { params, responseType: 'blob' });
+  },
+  getExpenseAnalytics: async (params = {}) => {
+    const { data } = await api.get('/expenses/analytics', { params });
+    return data;
+  }
+};
+
+
 

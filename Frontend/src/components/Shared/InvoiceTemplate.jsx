@@ -420,6 +420,7 @@ const InvoiceTemplate = ({ invoiceData = {}, clinicInfo = {}, template = null })
                                             <h1 className="clinic-title">{info.name}</h1>
                                             {info.subtitle ? <p className="clinic-subtitle">{info.subtitle}</p> : null}
                                             {info.address ? <p className="clinic-detail">{info.address}</p> : null}
+                                            {info.website ? <p className="clinic-detail">Website: {info.website}</p> : null}
                                             <p className="clinic-detail">Phone: {info.phone}</p>
                                         </div>
                                     </div>

@@ -10,6 +10,8 @@ import AuditLog from '../models/AuditLog.js';
 import Session from '../models/Session.js';
 import { parseUA } from '../utils/uaParser.js';
 import { generatePatientId } from '../utils/idGenerator.js';
+import { syncPatientDataToDependents } from '../utils/patientSync.js';
+import { resolveOrganizationUrls } from '../utils/fileUrlResolver.js';
 
 // Update patient profile (requires auth)
 export const updatePatientProfile = async (req, res) => {
@@ -23,6 +25,9 @@ export const updatePatientProfile = async (req, res) => {
       { new: true, runValidators: true }
     );
     if (!updatePatient) return res.status(404).json({ message: 'Patient not found' });
+
+    // Propagate changes to dependent collections (Billing and Appointments)
+    await syncPatientDataToDependents(req.tenantId, updatePatient.patientId, updatePatient._id, updateData);
 
     res.json(updatePatient);
   } catch (error) {
@@ -84,7 +89,7 @@ export const checkSession = async (req, res) => {
 
     // Add standardized organization object for UI branding
     if (user.organizationId) {
-      const org = user.organizationId;
+      const org = await resolveOrganizationUrls(user.organizationId);
       const sub = org.subscriptionId;
       
       // Calculate Expiration
@@ -120,6 +125,7 @@ export const checkSession = async (req, res) => {
         branding: org.branding,
         phone: org.phone,
         email: org.email,
+        website: org.website || '',
         address: org.address,
         status: org.status,
         isSubscriptionExpired,
@@ -144,7 +150,7 @@ export const getUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .select('-password')
-      .populate('organizationId', 'phone email address name branding');
+      .populate('organizationId', 'phone email website address name branding prescriptionTemplate');
     
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -152,6 +158,10 @@ export const getUser = async (req, res) => {
     const userObj = user.toObject();
     if ((user.role === 'orgadmin' || user.role === 'admin') && !user.mobile && user.organizationId) {
       userObj.mobile = user.organizationId.phone || '';
+    }
+
+    if (userObj.organizationId) {
+      userObj.organizationId = await resolveOrganizationUrls(userObj.organizationId);
     }
 
     res.json(userObj);
@@ -431,6 +441,7 @@ export const login = async (req, res) => {
       }
     }
 
+    const resolvedOrg = user.organizationId ? await resolveOrganizationUrls(user.organizationId) : null;
     // Filter sensitive data
     const userResponse = {
       id: user._id,
@@ -441,17 +452,18 @@ export const login = async (req, res) => {
       patientId: patientId, // The PATXXXX string
       patientProfileId: patientProfileId, // The MongoDB ObjectId
       organizationId: user.organizationId?._id || user.organizationId,
-      organization: user.organizationId ? {
-        name: user.organizationId.name,
-        slug: user.organizationId.slug,
-        status: user.organizationId.status,
-        branding: user.organizationId.branding,
-        address: user.organizationId.address,
-        phone: user.organizationId.phone,
-        email: user.organizationId.email,
-        clinicType: user.organizationId.clinicType,
-        specialist: user.organizationId.specialist,
-        enabledModules: user.organizationId.enabledModules
+      organization: resolvedOrg ? {
+        name: resolvedOrg.name,
+        slug: resolvedOrg.slug,
+        status: resolvedOrg.status,
+        branding: resolvedOrg.branding,
+        address: resolvedOrg.address,
+        phone: resolvedOrg.phone,
+        email: resolvedOrg.email,
+        website: resolvedOrg.website || '',
+        clinicType: resolvedOrg.clinicType,
+        specialist: resolvedOrg.specialist,
+        enabledModules: resolvedOrg.enabledModules
       } : null
     };
 
@@ -546,6 +558,7 @@ export const adminLogin = async (req, res) => {
       // Don't block login if session tracking fails
     }
 
+    const resolvedOrg = user.organizationId ? await resolveOrganizationUrls(user.organizationId) : null;
     res.json({
       message: 'Admin login successful',
       token,
@@ -556,19 +569,20 @@ export const adminLogin = async (req, res) => {
         mobile: user.mobile || (user.organizationId?.phone) || null,
         role: user.role,
         organizationId: user.organizationId?._id || user.organizationId,
-        organization: user.organizationId ? {
-          name: user.organizationId.name,
-          slug: user.organizationId.slug,
-          subdomain: user.organizationId.subdomain,
-          branding: user.organizationId.branding,
-          address: user.organizationId.address,
-          phone: user.organizationId.phone,
-          email: user.organizationId.email,
-          plan: user.organizationId.subscriptionId?.plan || (user.organizationId.planType === 'PAID' ? 'basic' : 'free'),
-          planName: user.organizationId.subscriptionId?.planName || (user.organizationId.planType === 'PAID' ? 'Active Plan' : 'Free Trial'),
-          clinicType: user.organizationId.clinicType,
-          specialist: user.organizationId.specialist,
-          enabledModules: user.organizationId.enabledModules
+        organization: resolvedOrg ? {
+          name: resolvedOrg.name,
+          slug: resolvedOrg.slug,
+          subdomain: resolvedOrg.subdomain,
+          branding: resolvedOrg.branding,
+          address: resolvedOrg.address,
+          phone: resolvedOrg.phone,
+          email: resolvedOrg.email,
+          website: resolvedOrg.website || '',
+          plan: resolvedOrg.subscriptionId?.plan || (resolvedOrg.planType === 'PAID' ? 'basic' : 'free'),
+          planName: resolvedOrg.subscriptionId?.planName || (resolvedOrg.planType === 'PAID' ? 'Active Plan' : 'Free Trial'),
+          clinicType: resolvedOrg.clinicType,
+          specialist: resolvedOrg.specialist,
+          enabledModules: resolvedOrg.enabledModules
         } : null
       }
     });
@@ -685,7 +699,7 @@ export const updateUserProfile = async (req, res) => {
       req.params.id,
       filteredUpdateData,
       { new: true, runValidators: true }
-    ).populate('organizationId', 'phone email address name branding');
+    ).populate('organizationId', 'phone email website address name branding prescriptionTemplate');
     
     if (!updatedUser) return res.status(404).json({ message: 'User not found' });
 
@@ -693,6 +707,10 @@ export const updateUserProfile = async (req, res) => {
     const userObj = updatedUser.toObject();
     if ((updatedUser.role === 'orgadmin' || updatedUser.role === 'admin') && !updatedUser.mobile && updatedUser.organizationId) {
       userObj.mobile = updatedUser.organizationId.phone || '';
+    }
+
+    if (userObj.organizationId) {
+      userObj.organizationId = await resolveOrganizationUrls(userObj.organizationId);
     }
     
     // Log the update

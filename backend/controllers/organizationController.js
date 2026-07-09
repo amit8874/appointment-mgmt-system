@@ -9,6 +9,7 @@ import { sanitizePhone } from '../utils/phoneUtils.js';
 import { applyPlanWhatsappCredits } from '../services/whatsappCreditService.js';
 import { sendClinicRegistrationNotification } from '../services/emailService.js';
 import { resolveS3UrlIfNeeded } from '../services/s3Service.js';
+import { resolveOrganizationUrls } from '../utils/fileUrlResolver.js';
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -517,7 +518,8 @@ export const getOrganization = async (req, res) => {
         }
       }
 
-      return res.json(organization);
+      const resolvedOrg = await resolveOrganizationUrls(organization);
+      return res.json(resolvedOrg);
     }
 
     res.status(403).json({ message: 'Access denied. You do not have permission to view this organization.' });
@@ -549,6 +551,7 @@ export const updateOrganization = async (req, res) => {
     const {
       name,
       phone,
+      website,
       address,
       branding,
       settings,
@@ -566,6 +569,7 @@ export const updateOrganization = async (req, res) => {
 
     if (name) organization.name = name;
     if (phone) organization.phone = phone;
+    if (website !== undefined) organization.website = website;
     if (address) organization.address = address;
     if (branding) organization.branding = { ...organization.branding, ...branding };
     if (settings) organization.settings = { ...organization.settings, ...settings };
@@ -594,11 +598,8 @@ export const updateOrganization = async (req, res) => {
       ipAddress: req.ip
     });
 
-    if (organization.prescriptionTemplate && organization.prescriptionTemplate.templateUrl) {
-      organization.prescriptionTemplate.templateUrl = await resolveS3UrlIfNeeded(organization.prescriptionTemplate.templateUrl);
-    }
-
-    res.json({ message: 'Organization updated successfully', organization });
+    const resolvedOrg = await resolveOrganizationUrls(organization);
+    res.json({ message: 'Organization updated successfully', organization: resolvedOrg });
   } catch (error) {
     console.error('Update organization error:', error);
     res.status(500).json({ message: error.message });

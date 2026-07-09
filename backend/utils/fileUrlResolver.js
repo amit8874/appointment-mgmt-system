@@ -1,4 +1,4 @@
-import { getSignedDownloadUrl } from '../services/s3Service.js';
+import { getSignedDownloadUrl, resolveS3UrlIfNeeded } from '../services/s3Service.js';
 
 /**
  * Resolves the correct, accessible URL for a file record.
@@ -41,4 +41,36 @@ export const resolveFileUrl = async (fileRecord) => {
 
   // 3. Fallback
   return url || null;
+};
+
+/**
+ * Resolves both the clinic logo and prescription template URLs of an organization.
+ * Ensures signed URLs are fresh and do not expire.
+ * 
+ * @param {object} org - The organization object or document.
+ * @returns {Promise<object>} - The organization object with resolved URLs.
+ */
+export const resolveOrganizationUrls = async (org) => {
+  if (!org) return org;
+  
+  // Convert Mongoose document to plain object to allow modifying fields safely
+  const orgObj = typeof org.toObject === 'function' ? org.toObject() : org;
+  
+  if (orgObj.branding && orgObj.branding.logo) {
+    try {
+      orgObj.branding.logo = await resolveS3UrlIfNeeded(orgObj.branding.logo);
+    } catch (err) {
+      console.warn('[resolveOrganizationUrls] Failed to resolve branding logo:', err.message);
+    }
+  }
+  
+  if (orgObj.prescriptionTemplate && orgObj.prescriptionTemplate.templateUrl) {
+    try {
+      orgObj.prescriptionTemplate.templateUrl = await resolveS3UrlIfNeeded(orgObj.prescriptionTemplate.templateUrl);
+    } catch (err) {
+      console.warn('[resolveOrganizationUrls] Failed to resolve template URL:', err.message);
+    }
+  }
+  
+  return orgObj;
 };

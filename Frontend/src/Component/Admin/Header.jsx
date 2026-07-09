@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, UserCircle, Bell, Sun, Moon, Menu, ShieldCheck, MoreVertical, ChevronDown, User, CreditCard, Pill, CalendarCheck, Users, Stethoscope, Calendar, Activity } from 'lucide-react';
+import { LogOut, UserCircle, Bell, Sun, Moon, Menu, ShieldCheck, MoreVertical, ChevronDown, User, CreditCard, Pill, CalendarCheck, Users, Stethoscope, Calendar, Activity, Wallet } from 'lucide-react';
 import { getNotifications, markAllAsRead, markAsRead } from '../../api/notificationApi';
 import { organizationApi } from '../../services/api';
 
@@ -19,13 +19,14 @@ const Header = ({
   totalDoctors
 }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isDentistClinic } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
   const [showApptDropdown, setShowApptDropdown] = useState(false);
+  const [showExpensesDropdown, setShowExpensesDropdown] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const [planInfo, setPlanInfo] = useState({
     plan: user?.organization?.plan || 'free',
@@ -37,6 +38,7 @@ const Header = ({
   const profileMenuRef = useRef(null);
   const doctorDropdownRef = useRef(null);
   const apptDropdownRef = useRef(null);
+  const expensesDropdownRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -51,6 +53,9 @@ const Header = ({
       }
       if (apptDropdownRef.current && !apptDropdownRef.current.contains(event.target)) {
         setShowApptDropdown(false);
+      }
+      if (expensesDropdownRef.current && !expensesDropdownRef.current.contains(event.target)) {
+        setShowExpensesDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -256,6 +261,7 @@ const Header = ({
                 onClick={() => {
                   setShowDoctorDropdown(!showDoctorDropdown);
                   setShowApptDropdown(false);
+                  setShowExpensesDropdown(false);
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 ${
                   ['Doctor', 'Doctor Schedule'].includes(activeTab)
@@ -321,6 +327,7 @@ const Header = ({
                 onClick={() => {
                   setShowApptDropdown(!showApptDropdown);
                   setShowDoctorDropdown(false);
+                  setShowExpensesDropdown(false);
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 ${
                   ['Calendar View', 'Today Appointment'].includes(activeTab)
@@ -362,6 +369,105 @@ const Header = ({
                 </div>
               )}
             </div>
+
+            {/* Expenses Dropdown */}
+            {isDentistClinic && (
+              <div className="relative" ref={expensesDropdownRef}>
+                <button
+                  onClick={() => {
+                    setShowExpensesDropdown(!showExpensesDropdown);
+                    setShowDoctorDropdown(false);
+                    setShowApptDropdown(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 ${
+                    ['Expense Dashboard', 'Expense Reports', 'Expense Analytics', 'Dental Equipment', 'Dental Consumer Products', 'Dental Lab Expenses'].includes(activeTab)
+                      ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 font-extrabold'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>Expenses</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform ${showExpensesDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showExpensesDropdown && (
+                  <div className="absolute left-0 mt-1.5 w-60 bg-white dark:bg-gray-800 rounded-xl shadow-xl ring-1 ring-black/5 border border-gray-100 dark:border-gray-700 z-50 py-1">
+                    <button
+                      onClick={() => {
+                        setActiveTab('Expense Dashboard');
+                        setShowExpensesDropdown(false);
+                      }}
+                      className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
+                        activeTab === 'Expense Dashboard' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className="text-gray-400">📊</span>
+                      Expense Dashboard
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('Expense Reports');
+                        setShowExpensesDropdown(false);
+                      }}
+                      className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
+                        activeTab === 'Expense Reports' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className="text-gray-400">📂</span>
+                      Expense Reports
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('Expense Analytics');
+                        setShowExpensesDropdown(false);
+                      }}
+                      className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
+                        activeTab === 'Expense Analytics' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className="text-gray-400">📈</span>
+                      Expense Analytics
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('Dental Equipment');
+                        setShowExpensesDropdown(false);
+                      }}
+                      className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
+                        activeTab === 'Dental Equipment' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className="text-gray-400">🛠️</span>
+                      Dental Equipment
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('Dental Consumer Products');
+                        setShowExpensesDropdown(false);
+                      }}
+                      className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
+                        activeTab === 'Dental Consumer Products' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className="text-gray-400">📦</span>
+                      Dental Consumer Products
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('Dental Lab Expenses');
+                        setShowExpensesDropdown(false);
+                      }}
+                      className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
+                        activeTab === 'Dental Lab Expenses' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className="text-gray-400">🧪</span>
+                      Dental Lab Expenses
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

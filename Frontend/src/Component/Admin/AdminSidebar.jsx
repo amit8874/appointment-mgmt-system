@@ -116,6 +116,15 @@ const AdminSidebar = ({
     { name: 'Today Appointment', icon: Activity },
   ];
 
+  const expensesChildren = [
+    { name: 'Expense Dashboard', icon: LayoutDashboard },
+    { name: 'Expense Reports', icon: BarChart3 },
+    { name: 'Expense Analytics', icon: Activity },
+    { name: 'Dental Equipment', icon: Wallet },
+    { name: 'Dental Consumer Products', icon: Package },
+    { name: 'Dental Lab Expenses', icon: FileText },
+  ];
+
   return (
     <aside
       className={`${isSidebarCollapsed ? 'w-28' : 'w-64'} fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -176,6 +185,14 @@ const AdminSidebar = ({
                 icon={CalendarCheck}
                 children={appointmentChildren}
               />
+              {isDentistClinic && (
+                <ExpandableNavItem
+                  id="tour-admin-expenses"
+                  name="Expenses"
+                  icon={Wallet}
+                  children={expensesChildren}
+                />
+              )}
             </div>
           </>
         ) : (

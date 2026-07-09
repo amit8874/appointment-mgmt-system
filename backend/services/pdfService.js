@@ -898,6 +898,7 @@ async function getInvoiceHtml(bill, org, template) {
                     <h1 class="clinic-title">${clinicName}</h1>
                     ${clinicSubtitle ? `<p class="clinic-subtitle">${clinicSubtitle}</p>` : ''}
                     ${clinicAddress ? `<p class="clinic-detail">${clinicAddress}</p>` : ''}
+                    ${clinicWebsite ? `<p class="clinic-detail">Website: ${clinicWebsite}</p>` : ''}
                     <p class="clinic-detail">Phone: ${clinicPhone}</p>
                   </div>
                 </div>
@@ -1813,4 +1814,145 @@ function getDailyCaseRegisterHtml(bills, options, org) {
     </html>
   `;
 }
+
+export const generateExpenseReportPDF = async (expenses, typeLabel, org) => {
+  let browser = null;
+  let page = null;
+  try {
+    const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val || 0);
+    const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '-';
+    
+    // Logo loading
+    const logoBase64 = org.branding?.logo ? await getBase64Image(org.branding.logo) : null;
+    const clinicName = org.branding?.clinicName || org.clinicName || org.name || 'Clinic';
+    const clinicAddress = formatAddress(org.address || org.location);
+
+    let rowsHtml = expenses.map((exp, idx) => {
+      const name = exp.equipmentName || exp.productName || exp.labName || 'Expense';
+      const detail = exp.brand ? `${exp.brand} ${exp.modelNumber || ''}`.trim() : (exp.category || exp.workType || '-');
+      const vendorName = exp.vendor || exp.labName || '-';
+      const date = exp.purchaseDate || exp.sentDate;
+      const unitCost = exp.unitPrice || exp.cost || 0;
+      const qty = exp.quantity || 1;
+      const gst = exp.gstAmount || 0;
+      const total = exp.totalAmount;
+
+      return `
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 10px 8px; text-align: center;">${idx + 1}</td>
+          <td style="padding: 10px 8px; font-weight: bold; color: #1f2937;">${name}</td>
+          <td style="padding: 10px 8px; color: #4b5563;">${detail}</td>
+          <td style="padding: 10px 8px; color: #4b5563;">${vendorName}</td>
+          <td style="padding: 10px 8px; text-align: center; color: #4b5563;">${formatDate(date)}</td>
+          <td style="padding: 10px 8px; text-align: right; color: #4b5563;">${formatCurrency(unitCost)}</td>
+          <td style="padding: 10px 8px; text-align: center; color: #4b5563;">${qty}</td>
+          <td style="padding: 10px 8px; text-align: right; color: #4b5563;">${formatCurrency(gst)}</td>
+          <td style="padding: 10px 8px; text-align: right; font-weight: bold; color: #111827;">${formatCurrency(total)}</td>
+          <td style="padding: 10px 8px; text-align: center;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: bold; background-color: ${exp.paymentStatus === 'Paid' ? '#d1fae5' : exp.paymentStatus === 'Partially Paid' ? '#fef3c7' : '#fee2e2'}; color: ${exp.paymentStatus === 'Paid' ? '#065f46' : exp.paymentStatus === 'Partially Paid' ? '#d97706' : '#991b1b'}; text-transform: uppercase;">
+              ${exp.paymentStatus}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    if (expenses.length === 0) {
+      rowsHtml = `<tr><td colspan="10" style="text-align: center; padding: 20px; color: #9ca3af; font-style: italic;">No expenses found.</td></tr>`;
+    }
+
+    const totalQty = expenses.reduce((acc, curr) => acc + (curr.quantity || 1), 0);
+    const totalGst = expenses.reduce((acc, curr) => acc + (curr.gstAmount || 0), 0);
+    const totalExp = expenses.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0);
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 20px; color: #374151; background: #ffffff; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px; margin-bottom: 20px; }
+          .clinic-logo { height: 60px; max-width: 150px; object-fit: contain; }
+          .clinic-info { text-align: right; }
+          .clinic-name { font-size: 18px; font-weight: bold; color: #111827; margin: 0; text-transform: uppercase; }
+          .clinic-address { font-size: 11px; color: #6b7280; margin: 4px 0 0 0; max-width: 250px; line-height: 1.3; }
+          .report-title { font-size: 18px; font-weight: bold; color: #111827; text-transform: uppercase; margin-bottom: 5px; }
+          .report-meta { font-size: 11px; color: #6b7280; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+          th { background-color: #f9fafb; color: #374151; padding: 10px 8px; border-bottom: 2px solid #e5e7eb; font-weight: bold; text-align: left; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; }
+          td { padding: 10px 8px; border-bottom: 1px solid #f3f4f6; }
+          .summary-card { float: right; width: 250px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; background-color: #f9fafb; margin-top: 10px; font-size: 12px; }
+          .summary-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+          .summary-row:last-child { margin-bottom: 0; padding-top: 6px; border-top: 1px dashed #d1d5db; font-weight: bold; color: #111827; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            ${logoBase64 ? `<img src="${logoBase64}" class="clinic-logo" />` : `<h2 style="margin:0; color:#3b82f6;">${clinicName}</h2>`}
+          </div>
+          <div class="clinic-info">
+            <div class="clinic-name">${clinicName}</div>
+            <div class="clinic-address">${clinicAddress}</div>
+          </div>
+        </div>
+        <div class="report-title">${typeLabel} Report</div>
+        <div class="report-meta">Generated on: ${formatDate(new Date())}</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 5%; text-align: center;">Sr.No</th>
+              <th style="width: 20%;">Item Name</th>
+              <th style="width: 15%;">Details</th>
+              <th style="width: 15%;">Vendor/Lab</th>
+              <th style="width: 10%; text-align: center;">Date</th>
+              <th style="width: 10%; text-align: right;">Unit Price</th>
+              <th style="width: 5%; text-align: center;">Qty</th>
+              <th style="width: 10%; text-align: right;">GST</th>
+              <th style="width: 10%; text-align: right;">Total</th>
+              <th style="width: 10%; text-align: center;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+        <div style="width: 100%; display: flow-root;">
+          <div class="summary-card">
+            <div class="summary-row">
+              <span>Total Quantity:</span>
+              <span>${totalQty}</span>
+            </div>
+            <div class="summary-row">
+              <span>Total GST:</span>
+              <span>${formatCurrency(totalGst)}</span>
+            </div>
+            <div class="summary-row">
+              <span>Grand Total:</span>
+              <span>${formatCurrency(totalExp)}</span>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    browser = await getBrowser();
+    page = await browser.newPage();
+    await page.setViewport({ width: 794, height: 1123 });
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+    });
+    return pdfBuffer;
+  } catch (err) {
+    console.error("PDF generation failed in generateExpenseReportPDF:", err);
+    throw err;
+  } finally {
+    if (page) await page.close();
+  }
+};
 

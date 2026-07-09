@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, FileText, IndianRupee, Users, MapPin, Hash } from 'lucide-react';
+import { Building2, FileText, IndianRupee, Users, MapPin, Hash, Globe } from 'lucide-react';
 
 const ClinicInfoTab = ({ organization, onUpdate, loading }) => {
   const [formData, setFormData] = React.useState({
@@ -7,6 +7,7 @@ const ClinicInfoTab = ({ organization, onUpdate, loading }) => {
     clinicType: organization?.clinicType || 'General',
     registrationNumber: organization?.registrationNumber || '',
     gstNumber: organization?.gstNumber || '',
+    website: organization?.website || '',
     consultationFee: organization?.consultationFee || 0,
     workingHours: {
       start: organization?.settings?.workingHours?.start || '09:00',
@@ -42,6 +43,7 @@ const ClinicInfoTab = ({ organization, onUpdate, loading }) => {
         clinicType: formData.clinicType,
         registrationNumber: formData.registrationNumber,
         gstNumber: formData.gstNumber,
+        website: formData.website,
         consultationFee: Number(formData.consultationFee),
         doctorCapacity: Number(formData.doctorCapacity),
         settings: {
@@ -137,6 +139,21 @@ const ClinicInfoTab = ({ organization, onUpdate, loading }) => {
                 onChange={handleChange}
                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium text-slate-700"
                 placeholder="GSTIN"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Clinic Website <span className="text-slate-400 font-normal">(Optional)</span></label>
+            <div className="relative">
+              <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text" 
+                name="website"
+                value={formData.website}
+                onChange={handleChange}
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium text-slate-700"
+                placeholder="https://example.com"
               />
             </div>
           </div>

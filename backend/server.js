@@ -61,6 +61,7 @@ import internalPharmacyRoutes from "./routes/internalPharmacyRoutes.js";
 import followUpReminderRoutes from "./routes/followUpReminderRoutes.js";
 import dentistRoutes from "./routes/dentistRoutes.js";
 import { detectTenant } from "./middleware/tenant.js";
+import expenseRoutes from "./routes/expenseRoutes.js";
 
 // Load environment variables based on NODE_ENV (restarted)
 const nodeEnv = (process.env.NODE_ENV || 'development').toLowerCase();
@@ -221,6 +222,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/webhook", webhookRoutes);
+app.use("/api/expenses", expenseRoutes);
 
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);

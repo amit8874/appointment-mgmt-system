@@ -15,6 +15,7 @@ import Organization from '../models/Organization.js';
 import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
 import OTP from '../models/OTP.js';
+import { syncPatientDataToDependents } from '../utils/patientSync.js';
 
 export const getDoctorAppointments = async (req, res) => {
   try {
@@ -720,6 +721,7 @@ export const bookAppointment = async (req, res) => {
       
       if (Object.keys(updateData).length > 0) {
         await Patient.findByIdAndUpdate(existingPatient._id, updateData, { runValidators: true });
+        await syncPatientDataToDependents(req.tenantId, existingPatient.patientId, existingPatient._id, updateData);
       }
     }
 

@@ -32,6 +32,11 @@ const organizationSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  website: {
+    type: String,
+    trim: true,
+    default: '',
+  },
   address: {
     street: String,
     city: String,
