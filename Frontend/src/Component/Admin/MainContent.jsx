@@ -277,7 +277,7 @@ const MainContent = ({
       case 'Dental Equipment':
         if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
         return <DentalEquipment />;
-      case 'Dental Consumer Products':
+      case 'Dental Consumable Products':
         if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
         return <DentalConsumerProducts />;
       case 'Dental Lab Expenses':

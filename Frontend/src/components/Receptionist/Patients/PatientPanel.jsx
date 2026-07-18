@@ -11,8 +11,11 @@ import { TableSkeleton } from '../../Shared/DashboardSkeletons';
 import DailyCaseRegisterModal from '../../Shared/DailyCaseRegisterModal';
 
 import { usePatients } from '../../../hooks/usePatients';
+import { useAuth } from '../../../context/AuthContext';
+import DentalConsentFormModal from '../../../Component/Admin/Patient/DentalConsentFormModal';
 
 const PatientPanel = () => {
+  const { isDentistClinic } = useAuth();
   const {
     patients,
     patientsLoading: loading,
@@ -35,6 +38,7 @@ const PatientPanel = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [activeConsentPatient, setActiveConsentPatient] = useState(null);
   const itemsPerPage = 15;
   const menuRef = useRef(null);
   const navigate = useNavigate();
@@ -418,6 +422,18 @@ const PatientPanel = () => {
                               exit={{ opacity: 0, scale: 0.95, x: -20 }}
                               className="absolute right-full mr-2 top-0 w-52 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-50 overflow-hidden"
                             >
+                              {isDentistClinic && (
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    setActiveConsentPatient(p);
+                                  }}
+                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 transition-colors font-bold"
+                                >
+                                  <FileText className="h-4 w-4 text-indigo-650" />
+                                  Consent Form
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleViewProfile(p)}
                                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
@@ -529,6 +545,13 @@ const PatientPanel = () => {
       <DailyCaseRegisterModal
         isOpen={isRegisterModalOpen}
         onClose={() => setIsRegisterModalOpen(false)}
+      />
+
+      {/* Dental Consent Form Modal */}
+      <DentalConsentFormModal
+        isOpen={!!activeConsentPatient}
+        onClose={() => setActiveConsentPatient(null)}
+        patientData={activeConsentPatient}
       />
 
 

@@ -10,6 +10,8 @@ import PaymentModeModal from "../../../components/common/PaymentModeModal";
 import { TableSkeleton } from "../../../components/Shared/DashboardSkeletons";
 import BulkImportModal from "./BulkImportModal";
 import DailyCaseRegisterModal from "../../../components/Shared/DailyCaseRegisterModal";
+import { useAuth } from "../../../context/AuthContext";
+import DentalConsentFormModal from "./DentalConsentFormModal";
 
 const PatientPanel = ({
   onViewPatient,
@@ -28,6 +30,7 @@ const PatientPanel = ({
   searchTerm: globalSearchTerm,
   onSearchChange
 }) => {
+  const { isDentistClinic } = useAuth();
   const [localSearchTerm, setLocalSearchTerm] = useState(globalSearchTerm || "");
   const [deletingId, setDeletingId] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -38,6 +41,7 @@ const PatientPanel = ({
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [activeConsentPatient, setActiveConsentPatient] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
@@ -642,9 +646,21 @@ const PatientPanel = ({
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50"
+                                className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50"
                                 style={{ zIndex: 100 }}
                               >
+                                {isDentistClinic && (
+                                  <button
+                                    onClick={() => {
+                                      setOpenMenuId(null);
+                                      setActiveConsentPatient(p);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 font-bold"
+                                  >
+                                    <FileText className="h-4 w-4 text-indigo-650" />
+                                    Consent Form
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleViewProfile(p)}
                                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30"
@@ -826,6 +842,13 @@ const PatientPanel = ({
       <DailyCaseRegisterModal
         isOpen={isRegisterModalOpen}
         onClose={() => setIsRegisterModalOpen(false)}
+      />
+
+      {/* Dental Consent Form Modal */}
+      <DentalConsentFormModal
+        isOpen={!!activeConsentPatient}
+        onClose={() => setActiveConsentPatient(null)}
+        patientData={activeConsentPatient}
       />
 
     </motion.div>

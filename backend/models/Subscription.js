@@ -140,8 +140,8 @@ const subscriptionSchema = new mongoose.Schema({
 subscriptionSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   
-  // Calculate end date based on billing cycle (skip if it is a manual override)
-  if (!this.isManualOverride && (this.isModified('startDate') || this.isModified('billingCycle'))) {
+  // Calculate end date based on billing cycle (skip if it is a manual override or in trial status)
+  if (!this.isManualOverride && this.status !== 'trial' && (this.isModified('startDate') || this.isModified('billingCycle'))) {
     if (this.startDate && this.billingCycle) {
       const endDate = new Date(this.startDate);
       if (this.billingCycle === 'monthly') {

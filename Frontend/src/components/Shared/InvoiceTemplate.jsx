@@ -21,6 +21,8 @@ const InvoiceTemplate = ({ invoiceData = {}, clinicInfo = {}, template = null })
     const subtotal = Number(invoiceData.subtotal ?? invoiceData.grossAmount ?? total ?? 0);
     const paidAmount = Number(invoiceData.paidAmount ?? invoiceData.paid ?? total ?? 0);
     const dueAmount = Number(invoiceData.dueAmount ?? Math.max(0, total - paidAmount));
+    const discount = Number(invoiceData.discount ?? invoiceData.discountAmount ?? 0);
+    const taxAmount = Number(invoiceData.taxAmount ?? 0);
 
     const [doctorDetails, setDoctorDetails] = useState(null);
 
@@ -544,6 +546,18 @@ const InvoiceTemplate = ({ invoiceData = {}, clinicInfo = {}, template = null })
                                         <td className="summary-label">Total Cost:</td>
                                         <td className="summary-value">{formatCurrency(subtotal)} INR</td>
                                     </tr>
+                                    {discount > 0 && (
+                                        <tr style={{ color: '#e53e3e' }}>
+                                            <td className="summary-label" style={{ color: '#e53e3e' }}>Discount:</td>
+                                            <td className="summary-value">-{formatCurrency(discount)} INR</td>
+                                        </tr>
+                                    )}
+                                    {taxAmount > 0 && (
+                                        <tr>
+                                            <td className="summary-label">GST / Tax:</td>
+                                            <td className="summary-value">+{formatCurrency(taxAmount)} INR</td>
+                                        </tr>
+                                    )}
                                     <tr>
                                         <td className="summary-label">Grand Total:</td>
                                         <td className="summary-value">{formatCurrency(total)} INR</td>

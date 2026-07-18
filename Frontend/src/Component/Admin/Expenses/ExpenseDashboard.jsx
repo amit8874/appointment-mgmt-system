@@ -185,7 +185,7 @@ const ExpenseDashboard = ({ setActiveTab }) => {
         </div>
 
         {/* Dental Consumer Products Card */}
-        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-5 rounded-2xl shadow-sm flex items-center justify-between hover:border-cyan-500/50 transition-all cursor-pointer" onClick={() => setActiveTab('Dental Consumer Products')}>
+        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-5 rounded-2xl shadow-sm flex items-center justify-between hover:border-cyan-500/50 transition-all cursor-pointer" onClick={() => setActiveTab('Dental Consumable Products')}>
           <div className="flex items-center gap-3">
             <div className="p-3 bg-cyan-50 dark:bg-cyan-950/30 text-cyan-600 dark:text-cyan-400 rounded-xl">
               <Package size={20} />

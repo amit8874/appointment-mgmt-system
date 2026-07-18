@@ -335,7 +335,7 @@ const DentalConsumerProducts = () => {
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
           <h1 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-            📦 Dental Consumer Products
+            📦 Dental Consumable Products
           </h1>
           <p className="text-xs font-bold text-slate-400 dark:text-gray-400 uppercase tracking-widest mt-1">
             Track daily consumables, materials, and clinical supplies
@@ -887,7 +887,7 @@ const DentalConsumerProducts = () => {
           </div>
         )}
       </AnimatePresence>
-      <RecordVault expenseType="Dental Consumer Products" />
+      <RecordVault expenseType="Dental Consumable Products" />
     </div>
   );
 };

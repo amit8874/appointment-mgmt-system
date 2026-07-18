@@ -121,7 +121,7 @@ const AdminSidebar = ({
     { name: 'Expense Reports', icon: BarChart3 },
     { name: 'Expense Analytics', icon: Activity },
     { name: 'Dental Equipment', icon: Wallet },
-    { name: 'Dental Consumer Products', icon: Package },
+    { name: 'Dental Consumable Products', icon: Package },
     { name: 'Dental Lab Expenses', icon: FileText },
   ];
 

@@ -639,6 +639,8 @@ async function getInvoiceHtml(bill, org, template) {
   const amountReceived = bill.paidAmount || 0;
   const balanceAmount = bill.dueAmount !== undefined ? bill.dueAmount : Math.max(0, grandTotal - amountReceived);
   const generatedOnDate = formatDate(new Date());
+  const discount = bill.discountAmount || bill.discount || 0;
+  const taxAmount = bill.taxAmount || 0;
 
   return `
     <!DOCTYPE html>
@@ -979,6 +981,18 @@ async function getInvoiceHtml(bill, org, template) {
                   <td class="summary-label">Total Cost:</td>
                   <td class="summary-value">${formatCurrency(subtotal)} INR</td>
                 </tr>
+                ${discount > 0 ? `
+                <tr style="color: #e53e3e;">
+                  <td class="summary-label" style="color: #e53e3e;">Discount:</td>
+                  <td class="summary-value">-${formatCurrency(discount)} INR</td>
+                </tr>
+                ` : ''}
+                ${taxAmount > 0 ? `
+                <tr>
+                  <td class="summary-label">GST / Tax:</td>
+                  <td class="summary-value">+${formatCurrency(taxAmount)} INR</td>
+                </tr>
+                ` : ''}
                 <tr>
                   <td class="summary-label">Grand Total:</td>
                   <td class="summary-value">${formatCurrency(grandTotal)} INR</td>

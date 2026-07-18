@@ -163,6 +163,13 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
       setError('Please provide a description/procedure name for all items');
       return;
     }
+    if (items.some(item => {
+      const q = parseInt(item.qty);
+      return isNaN(q) || q <= 0;
+    })) {
+      setError('Quantity must be at least 1 for all items');
+      return;
+    }
     if (items.some(item => (parseFloat(item.price) || 0) < 0)) {
       setError('Prices cannot be negative');
       return;
@@ -217,17 +224,20 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
         transactionId: transactionId.trim() || '',
         notes: 'Initial payment / Installment'
       }] : [],
-      items: items.map(item => ({
-        description: item.description,
-        qty: item.qty,
-        quantity: item.qty,
-        unitPrice: item.price,
-        cost: item.price,
-        price: item.price,
-        discount: item.discount,
-        subtotal: item.subtotal,
-        total: item.subtotal
-      }))
+      items: items.map(item => {
+        const qtyVal = parseInt(item.qty) || 1;
+        return {
+          description: item.description,
+          qty: qtyVal,
+          quantity: qtyVal,
+          unitPrice: item.price,
+          cost: item.price,
+          price: item.price,
+          discount: item.discount,
+          subtotal: item.subtotal,
+          total: item.subtotal
+        };
+      })
     };
 
     try {
@@ -385,7 +395,7 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
                       required
                       min="1"
                       value={item.qty}
-                      onChange={(e) => handleItemChange(idx, 'qty', parseInt(e.target.value) || 1)}
+                      onChange={(e) => handleItemChange(idx, 'qty', e.target.value === '' ? '' : (parseInt(e.target.value) || 0))}
                       className="border border-slate-350 rounded-xl px-3 py-2 text-xs font-black text-black outline-none text-center bg-white w-full"
                     />
                   </div>

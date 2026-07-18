@@ -222,7 +222,7 @@ export const exportEquipmentExpensesPDF = async (req, res) => {
 };
 
 // ==========================================
-// 2. DENTAL CONSUMER PRODUCTS
+// 2. DENTAL CONSUMABLE PRODUCTS
 // ==========================================
 
 export const createConsumerProductExpense = async (req, res) => {

@@ -43,7 +43,7 @@ router.delete('/equipment/:id', authenticateToken, requireTenant, deleteEquipmen
 router.get('/equipment/export/pdf', authenticateToken, requireTenant, exportEquipmentExpensesPDF);
 
 // ==========================================
-// 2. DENTAL CONSUMER PRODUCTS
+// 2. DENTAL CONSUMABLE PRODUCTS
 // ==========================================
 router.post('/consumer-products', authenticateToken, requireTenant, createConsumerProductExpense);
 router.get('/consumer-products', authenticateToken, requireTenant, getConsumerProductExpenses);

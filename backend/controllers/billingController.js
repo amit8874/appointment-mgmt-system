@@ -287,6 +287,7 @@ export const createBill = async (req, res) => {
       amount,
       discountValue: discount,
       discountType: 'flat',
+      taxRate: req.body.taxRate || 0,
       items: items || [],
       status: status || 'Pending',
       paidAmount: paidAmount || 0,

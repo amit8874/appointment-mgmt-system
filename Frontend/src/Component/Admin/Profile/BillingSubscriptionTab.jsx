@@ -6,8 +6,14 @@ const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
   const planName = subscription?.planName || 'Free Trial';
   const isManual = subscription?.isManualOverride;
   
+  const status = subscription?.status || 'active';
+  const amount = subscription?.amount || 0;
+  
   // Calculate correct expiry date
-  const expiryDate = subscription?.endDate || subscription?.nextBillingDate || subscription?.trialEndDate;
+  const expiryDate = status === 'trial'
+    ? (subscription?.trialEndDate || subscription?.endDate)
+    : (subscription?.endDate || subscription?.nextBillingDate || subscription?.trialEndDate);
+
   const formattedExpiry = expiryDate 
     ? new Date(expiryDate).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -15,9 +21,6 @@ const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
         day: 'numeric'
       })
     : 'N/A';
-    
-  const status = subscription?.status || 'active';
-  const amount = subscription?.amount || 0;
   
   const features = {
     free: ['1 Doctor', '100 Appointments/mo', 'Basic Analytics'],
@@ -75,9 +78,9 @@ const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
                 <div>
                   <h4 className="text-3xl font-black text-slate-900">{planName}</h4>
                   <p className="text-slate-500 mt-1">
-                    {isManual ? 'Custom billing duration' : 'Your current monthly billing cycle'}
+                    {status === 'trial' ? 'Free trial period' : isManual ? 'Custom billing duration' : 'Your current monthly billing cycle'}
                   </p>
-                  {isManual && (
+                  {(isManual || status === 'trial') && (
                     <div className="mt-2.5 flex items-center gap-2 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl w-fit border border-indigo-100">
                       <Calendar size={14} className="text-indigo-500" />
                       <span>Expires on: {formattedExpiry}</span>
@@ -87,7 +90,7 @@ const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
                 <div className="text-right">
                   <h4 className="text-3xl font-black text-slate-900">₹{amount}</h4>
                   <p className="text-slate-500 mt-1">
-                    {isManual ? 'total cost (sponsored)' : 'per month'}
+                    {status === 'trial' ? 'for trial' : isManual ? 'total cost (sponsored)' : 'per month'}
                   </p>
                 </div>
               </div>
@@ -107,7 +110,7 @@ const BillingSubscriptionTab = ({ subscription, onUpgrade }) => {
                 <div className="flex items-center gap-2 text-sm text-slate-500">
                   <Calendar size={16} />
                   <span>
-                    {isManual ? 'Plan Expiration Date: ' : 'Next Billing: '}
+                    {status === 'trial' ? 'Trial Expiration Date: ' : isManual ? 'Plan Expiration Date: ' : 'Next Billing: '}
                     <span className="font-black text-slate-900">{formattedExpiry}</span>
                   </span>
                 </div>

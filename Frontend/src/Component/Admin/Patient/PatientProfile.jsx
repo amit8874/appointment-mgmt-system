@@ -72,6 +72,8 @@ import PrintablePrescription from './PrintablePrescription';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
 import OviaanDefaultPharmacyInvoiceTemplate from '../../../components/billing/templates/OviaanDefaultPharmacyInvoiceTemplate';
 import { useAuth } from '../../../context/AuthContext';
+import DentalConsentFormModal from './DentalConsentFormModal';
+import AddPharmacyMedicineBillModal from './AddPharmacyMedicineBillModal';
 import Pagination from '../../../components/common/Pagination';
 import AddFollowUpReminderModal from '../../../components/reminders/AddFollowUpReminderModal';
 import DentalChart from './DentalChart';
@@ -1731,7 +1733,8 @@ const TabBilling = ({
   selectedInvoiceTemplate = null,
   setSelectedInvoiceTemplate = () => {},
   onOpenTemplateModal,
-  isDentistClinic
+  isDentistClinic,
+  onNewPharmacyBill
 }) => {
   const [bills, setBills] = useState([]);
   const [summary, setSummary] = useState({ totalBilled: 0, totalPaid: 0, totalDue: 0, invoiceCount: 0 });
@@ -2053,7 +2056,7 @@ const TabBilling = ({
           const calculatedTotals = filteredBills.map(b => 
             b.billType === 'Pharmacy' ? normalizePharmacyInvoice(b) : calculateInvoiceTotals(b)
           );
-          const currentTotalBilled = calculatedTotals.reduce((sum, t) => sum + t.grossAmount, 0);
+          const currentTotalBilled = calculatedTotals.reduce((sum, t) => sum + t.grandTotal, 0);
           const currentTotalPaid = calculatedTotals.reduce((sum, t) => sum + t.paidAmount, 0);
           const currentTotalDue = calculatedTotals.reduce((sum, t) => sum + t.dueAmount, 0);
           
@@ -2130,13 +2133,22 @@ const TabBilling = ({
 
         <div className="flex items-center gap-2">
           {billingTab === 'Pharmacy' && (
-            <button 
-              className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm group"
-              onClick={onOpenTemplateModal}
-            >
-              <Layout size={16} className="text-indigo-500 group-hover:rotate-12 transition-transform" />
-              Choose Template
-            </button>
+            <>
+              <button 
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                onClick={onNewPharmacyBill}
+              >
+                <Plus size={16} className="text-indigo-500" />
+                Add Medicine
+              </button>
+              <button 
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm group"
+                onClick={onOpenTemplateModal}
+              >
+                <Layout size={16} className="text-indigo-500 group-hover:rotate-12 transition-transform" />
+                Choose Template
+              </button>
+            </>
           )}
           <button 
             onClick={handleSelectAll}
@@ -3844,6 +3856,9 @@ const PatientProfile = () => {
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showInvoiceTemplateModal, setShowInvoiceTemplateModal] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showAddMedicineModal, setShowAddMedicineModal] = useState(false);
+  const [billingRefreshKey, setBillingRefreshKey] = useState(0);
   const [selectedNotes, setSelectedNotes] = useState('');
   const [defaultTemplate, setDefaultTemplate] = useState(null);
   const [templates, setTemplates] = useState([]);
@@ -4941,6 +4956,15 @@ const PatientProfile = () => {
               <div className="h-10 w-[1px] bg-slate-200 hidden xl:block"></div>
 
               <div className="flex items-center gap-2 lg:gap-3">
+                {isDentistClinic && (
+                  <button
+                    onClick={() => setShowConsentModal(true)}
+                    className="flex items-center gap-2 px-3 py-2.5 lg:px-6 lg:py-3.5 bg-white border-2 border-slate-100 text-slate-700 rounded-[1.25rem] text-xs lg:text-sm font-bold hover:bg-slate-50 hover:border-indigo-200 transition-all shadow-sm active:scale-95"
+                  >
+                    <FileText size={16} className="text-indigo-600" />
+                    <span className="hidden sm:inline">Consent Form</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setShowFollowUpModal(true)}
                   className="flex items-center gap-2 px-3 py-2.5 lg:px-6 lg:py-3.5 bg-white border-2 border-slate-100 text-slate-700 rounded-[1.25rem] text-xs lg:text-sm font-bold hover:bg-slate-50 hover:border-indigo-200 transition-all shadow-sm active:scale-95"
@@ -4998,6 +5022,7 @@ const PatientProfile = () => {
                   {activeTab === 'appointments' && <TabAppointments appointments={appointments} onRebook={handleRebook} />}
                   {activeTab === 'billing' && (
                     <TabBilling
+                      key={billingRefreshKey}
                       patient={data}
                       onPrint={handleBillingPrint}
                       onDownload={handleBillingDownload}
@@ -5011,6 +5036,7 @@ const PatientProfile = () => {
                       setSelectedInvoiceTemplate={setSelectedInvoiceTemplate}
                       onOpenTemplateModal={() => setShowInvoiceTemplateModal(true)}
                       isDentistClinic={isDentistClinic}
+                      onNewPharmacyBill={() => setShowAddMedicineModal(true)}
                     />
                   )}
                   {activeTab === 'progress' && (
@@ -5046,6 +5072,16 @@ const PatientProfile = () => {
       </div>
 
         {showEditModal && <EditProfileModal data={data} onClose={() => setShowEditModal(false)} onSave={(updated) => setData(prev => ({ ...prev, ...updated }))} />}
+        <DentalConsentFormModal isOpen={showConsentModal} onClose={() => setShowConsentModal(false)} patientData={data} />
+        <AddPharmacyMedicineBillModal 
+          isOpen={showAddMedicineModal} 
+          onClose={() => setShowAddMedicineModal(false)} 
+          patientData={data} 
+          onComplete={() => setBillingRefreshKey(prev => prev + 1)} 
+          onPrint={handleBillingPrint} 
+          onDownload={handleBillingDownload} 
+          onWhatsApp={handleInvoiceWhatsApp} 
+        />
         <PrescriptionModal 
           isOpen={showPrescriptionModal} 
           onClose={() => { setShowPrescriptionModal(false); setEditingPrescription(null); }} 
@@ -5122,52 +5158,7 @@ const PatientProfile = () => {
               }
             }
 
-            return (printingInvoice.billType === 'Pharmacy') ? (
-              <OviaanDefaultPharmacyInvoiceTemplate 
-                clinicData={{
-                  headerType: selectedInvoiceTemplate?.headerType || 'default',
-                  headerImage: (selectedInvoiceTemplate?.headerType === 'custom' && selectedInvoiceTemplate?.headerImage) ? getImageUrl(selectedInvoiceTemplate.headerImage) : null,
-                  logo: (selectedInvoiceTemplate?.headerType === 'custom' && selectedInvoiceTemplate?.headerImage) 
-                    ? getImageUrl(selectedInvoiceTemplate.headerImage) 
-                    : getImageUrl(orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo),
-                  name: orgDetails?.name || clinicInfo?.name || user?.organization?.name || "Clinic Name",
-                  address: (() => {
-                    const addr = orgDetails?.address || user?.organization?.address || user?.organizationId?.address || {};
-                    if (typeof addr === 'string') return addr;
-                    const parts = [addr.street, addr.city, addr.state, addr.zipCode || addr.pincode || addr.zip].filter(p => p && String(p).trim() !== '');
-                    const finalAddr = parts.length > 0 ? parts.join(', ') : (clinicInfo?.address || user?.clinicAddress || null);
-                    return finalAddr && finalAddr.trim() !== '' ? finalAddr : null;
-                  })(),
-                  email: orgDetails?.email || clinicInfo?.email || user?.organization?.email || "Clinic Email",
-                  phone: orgDetails?.phone || clinicInfo?.phone || user?.organization?.phone || "Clinic Phone",
-                  gstNumber: (templateMetadata?.showGst !== false) ? (templateMetadata?.gstNumber || orgDetails?.gstNumber || user?.organization?.gstNumber || '') : '',
-                  showGst: templateMetadata?.showGst !== undefined ? templateMetadata.showGst : true,
-                  doctorSignature: (selectedInvoiceTemplate?.footerType === 'custom' && selectedInvoiceTemplate?.footerImage) 
-                    ? getImageUrl(selectedInvoiceTemplate.footerImage) 
-                    : getImageUrl(orgDetails?.doctorSignature || user?.organization?.doctorSignature)
-                }}
-                billData={{
-                  patientName: (data.fullName || `${data.firstName || ''} ${data.lastName || ''}`).trim().replace(/\b(MR|MS|MRS|DR|SHRI|SMT)\.?\s+\1\.?\b/gi, '$1.'),
-                  age: data.age || '',
-                  gender: data.gender || '',
-                  doctorName: printingInvoice.doctorName || 'N/A',
-                  patientAddress: data.address?.city || 'N/A',
-                  billDate: format(new Date(printingInvoice.date || printingInvoice.createdAt), 'dd/MM/yyyy'),
-                  billNo: printingInvoice.invoiceNumber || printingInvoice.billId,
-                  paymentMode: printingInvoice.paymentMethod || 'cash',
-                  cardNo: printingInvoice.transactionId || '',
-                  totalAmount: totals.grossAmount,
-                  discountAmount: totals.discountAmount,
-                  taxAmount: totals.taxAmount,
-                  taxValue: totals.taxValue,
-                  netAmount: totals.grandTotal,
-                  paidAmount: totals.paidAmount,
-                  balanceAmount: totals.dueAmount,
-                  amountInWords: printingInvoice.amountInWords || '',
-                  medicines: printingInvoice.items || []
-                }}
-              />
-            ) : (
+            return (
               <InvoiceTemplate 
                 clinicInfo={clinicInfo}
                 template={selectedInvoiceTemplate || invoiceTemplates.find(t => t.isDefault) || invoiceTemplates[0]}
@@ -5179,12 +5170,12 @@ const PatientProfile = () => {
                   doctorName: printingInvoice.doctorName || 'N/A',
                   items: (printingInvoice.items && printingInvoice.items.length > 0)
                     ? printingInvoice.items.map(i => ({ 
-                        description: i.description, 
-                        price: parseFloat(i.unitPrice || i.price || i.rate || 0),
+                        description: i.description || i.medicineName || i.name || i.procedureName || 'Medicine/Treatment', 
+                        price: parseFloat(i.unitPrice || i.price || i.rate || i.cost || 0),
                         quantity: parseInt(i.qty || i.quantity || 1)
                       }))
                     : [
-                        { description: 'Consultation Fee', price: totals.grossAmount, quantity: 1 }
+                        { description: printingInvoice.billType === 'Pharmacy' ? 'Medicines Charges' : 'Consultation Fee', price: totals.grossAmount, quantity: 1 }
                       ],
                   subtotal: totals.grossAmount,
                   discount: totals.discountAmount,
