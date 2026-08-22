@@ -1284,3 +1284,97 @@ export const rejectDoctorBySuperAdmin = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+/**
+ * @desc    Create a Public Doctor Profile by Super Admin
+ * @route   POST /api/superadmin/doctors/create-profile
+ * @access  Super Admin
+ */
+export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
+  try {
+    const {
+      name,
+      photo,
+      specialization,
+      qualification,
+      experience,
+      clinicName,
+      address,
+      city,
+      fee,
+      phone,
+      email,
+      about,
+      bio,
+      organizationId
+    } = req.body;
+
+    if (!name || !specialization) {
+      return res.status(400).json({ message: 'Doctor Name and Specialization are required' });
+    }
+
+    let targetOrgId = organizationId;
+    if (!targetOrgId) {
+      const defaultOrg = await Organization.findOne();
+      if (defaultOrg) {
+        targetOrgId = defaultOrg._id;
+      }
+    }
+
+    const count = await Doctor.countDocuments();
+    const doctorId = `DOC${String(count + 101).padStart(3, '0')}`;
+
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const fullAddress = address || (city ? `${city}, India` : 'India');
+
+    const newDoctor = new Doctor({
+      doctorId,
+      name,
+      photo: photo || "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=300&h=300",
+      specialization,
+      qualification: qualification || 'MBBS',
+      experience: parseInt(experience) || 5,
+      fee: parseFloat(fee) || 500,
+      clinicName: clinicName || 'Oviaan Partnered Healthcare',
+      address: fullAddress,
+      phone: phone || '',
+      email: email || '',
+      about: about || bio || `${name} is a dedicated healthcare practitioner specializing in ${specialization}.`,
+      bio: bio || about || `${name} is a dedicated healthcare practitioner specializing in ${specialization}.`,
+      status: 'Verified',
+      organizationId: targetOrgId,
+      availability: {
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: true,
+        sunday: false
+      },
+      workingHours: [{ start: '09:00', end: '18:00' }]
+    });
+
+    await newDoctor.save();
+
+    await AuditLog.create({
+      adminId: req.user.id,
+      action: 'DOCTOR_CREATE_PUBLIC_PROFILE_SUPERADMIN',
+      targetType: 'Doctor',
+      targetId: newDoctor._id,
+      details: { doctorName: name, slug, doctorId },
+      ipAddress: req.ip
+    });
+
+    res.status(201).json({
+      message: 'Public Doctor Profile created successfully!',
+      doctor: newDoctor,
+      publicUrl: `/doctor/${slug}`,
+      slug
+    });
+  } catch (error) {
+    console.error('Error creating public doctor profile by superadmin:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+};
+

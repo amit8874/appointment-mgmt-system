@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Organization from '../models/Organization.js';
 import User from '../models/User.js';
 import Subscription from '../models/Subscription.js';
@@ -684,10 +685,21 @@ export const getTrialStatus = async (req, res) => {
   try {
     const orgId = req.params.id;
 
-    // Check access
+    // Check access: Allow if superadmin, or if it matches user's primary organization, or if it matches req.tenantId (switched session), or if it is owned by the same owner
     const userOrgId = req.user.organizationId?._id ? req.user.organizationId._id.toString() : req.user.organizationId?.toString();
-    if (req.user.role !== 'superadmin' && 
-        userOrgId !== orgId) {
+    let hasAccess = req.user.role === 'superadmin' || userOrgId === orgId || req.tenantId?.toString() === orgId;
+    
+    if (!hasAccess && userOrgId) {
+      const currentOrg = await Organization.findById(userOrgId);
+      if (currentOrg && currentOrg.ownerId) {
+        const targetOrg = await Organization.findById(orgId);
+        if (targetOrg && targetOrg.ownerId && targetOrg.ownerId.toString() === currentOrg.ownerId.toString()) {
+          hasAccess = true;
+        }
+      }
+    }
+
+    if (!hasAccess) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -772,7 +784,18 @@ export const dismissResetNotification = async (req, res) => {
     const orgId = req.params.id;
     const userOrgId = req.user.organizationId?._id ? req.user.organizationId._id.toString() : req.user.organizationId?.toString();
     
-    if (req.user.role !== 'superadmin' && userOrgId !== orgId) {
+    let hasAccess = req.user.role === 'superadmin' || userOrgId === orgId || req.tenantId?.toString() === orgId;
+    if (!hasAccess && userOrgId) {
+      const currentOrg = await Organization.findById(userOrgId);
+      if (currentOrg && currentOrg.ownerId) {
+        const targetOrg = await Organization.findById(orgId);
+        if (targetOrg && targetOrg.ownerId && targetOrg.ownerId.toString() === currentOrg.ownerId.toString()) {
+          hasAccess = true;
+        }
+      }
+    }
+
+    if (!hasAccess) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -781,5 +804,200 @@ export const dismissResetNotification = async (req, res) => {
   } catch (error) {
     console.error('Dismiss notification error:', error);
     res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * Creates a new clinic branch organization owned by the logged-in admin.
+ */
+export const createBranchOrganization = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || !['admin', 'orgadmin', 'superadmin'].includes(user.role)) {
+      return res.status(403).json({ message: 'Only organization administrators can create branches' });
+    }
+
+    const {
+      name,
+      email,
+      phone,
+      address,
+      clinicType,
+      specialist,
+      subdomain
+    } = req.body;
+
+    if (!name || !name.trim() || !email || !email.trim()) {
+      return res.status(400).json({ message: 'Clinic Name and Business Email are required' });
+    }
+
+    // 1. Verify subdomain uniqueness for the organization
+    const existingOrg = await Organization.findOne({
+      subdomain: subdomain?.toLowerCase().trim()
+    });
+
+    if (existingOrg) {
+      return res.status(400).json({
+        message: 'Organization with this subdomain already exists'
+      });
+    }
+
+    // 2. Generate slug
+    let generatedSlug = subdomain?.toLowerCase().trim() || name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const existingSlug = await Organization.findOne({ slug: generatedSlug });
+    if (existingSlug) {
+      generatedSlug = `${generatedSlug}-${Date.now()}`;
+    }
+
+    // 3. Create the new Organization
+    const organization = new Organization({
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone?.trim() || user.mobile || '',
+      address: address || {},
+      ownerId: user._id, // Set the owner to the current logged-in user!
+      slug: generatedSlug,
+      subdomain: subdomain?.toLowerCase().trim() || generatedSlug,
+      status: 'trial',
+      trialStartDate: new Date(),
+      trialEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
+      trialDays: 14,
+      isTrialActive: true,
+      planType: 'FREE_TRIAL',
+      clinicType: clinicType || 'General',
+      specialist: specialist || '',
+    });
+
+    await organization.save();
+
+    // 4. Create the Subscription record
+    const subscription = new Subscription({
+      organizationId: organization._id,
+      plan: 'free',
+      planName: 'Free Trial',
+      status: 'trial',
+      startDate: new Date(),
+      trialEndDate: organization.trialEndDate,
+      limits: Subscription.getPlanLimits('free'),
+    });
+
+    await subscription.save();
+
+    organization.subscriptionId = subscription._id;
+    await organization.save();
+
+    // 5. Clone Doctors from the primary clinic (if any exist)
+    try {
+      const DoctorModel = mongoose.model('Doctor');
+      const sourceOrgId = user.organizationId?._id || user.organizationId;
+      const existingDoctors = await DoctorModel.find({ organizationId: sourceOrgId });
+      
+      for (const doc of existingDoctors) {
+        const docData = doc.toObject();
+        delete docData._id;
+        delete docData.id;
+        
+        const newDoc = new DoctorModel({
+          ...docData,
+          organizationId: organization._id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        await newDoc.save();
+        console.log(`[CreateBranch] Cloned doctor profile: ${newDoc.name} (${newDoc.doctorId})`);
+      }
+    } catch (docCloneError) {
+      console.error('[CreateBranch] Failed to clone doctor profiles:', docCloneError.message);
+    }
+
+    // 6. Clone Receptionists from the primary clinic (if any exist)
+    try {
+      const ReceptionistModel = mongoose.model('Receptionist');
+      const sourceOrgId = user.organizationId?._id || user.organizationId;
+      const existingReceptionists = await ReceptionistModel.find({ organizationId: sourceOrgId });
+      
+      for (const recep of existingReceptionists) {
+        const recepData = recep.toObject();
+        delete recepData._id;
+        delete recepData.id;
+        
+        const newRecep = new ReceptionistModel({
+          ...recepData,
+          organizationId: organization._id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        await newRecep.save();
+        console.log(`[CreateBranch] Cloned receptionist profile: ${newRecep.name} (${newRecep.receptionistId})`);
+      }
+    } catch (recepCloneError) {
+      console.error('[CreateBranch] Failed to clone receptionist profiles:', recepCloneError.message);
+    }
+
+    // 7. Clone Staff Users (doctors & receptionists) so they can log in to the new branch
+    try {
+      const sourceOrgId = user.organizationId?._id || user.organizationId;
+      const existingUsers = await User.find({
+        organizationId: sourceOrgId,
+        role: { $in: ['doctor', 'receptionist'] }
+      });
+      
+      for (const staffUser of existingUsers) {
+        const userExists = await User.findOne({
+          mobile: staffUser.mobile,
+          organizationId: organization._id
+        });
+        
+        if (userExists) continue;
+        
+        const staffUserData = staffUser.toObject();
+        delete staffUserData._id;
+        delete staffUserData.id;
+        
+        const newStaffUser = new User({
+          ...staffUserData,
+          organizationId: organization._id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        await newStaffUser.save();
+        console.log(`[CreateBranch] Cloned staff user: ${newStaffUser.name} (Role: ${newStaffUser.role})`);
+      }
+    } catch (userCloneError) {
+      console.error('[CreateBranch] Failed to clone staff users:', userCloneError.message);
+    }
+
+    // Apply plan WhatsApp credits
+    await applyPlanWhatsappCredits({
+      orgId: organization._id,
+      planName: 'Free Trial',
+      resetCycle: true,
+      description: 'Initial WhatsApp credits for new branch registration'
+    }).catch(err => console.error('[WhatsApp Credit] Branch credit init failed:', err.message));
+
+    // Audit log
+    await AuditLog.create({
+      adminId: user._id,
+      organizationId: user.organizationId,
+      action: 'CREATE_BRANCH',
+      targetType: 'Organization',
+      targetId: organization._id,
+      details: { branchName: organization.name },
+      ipAddress: req.ip
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Clinic branch registered successfully',
+      organization: {
+        id: organization._id,
+        name: organization.name,
+        slug: organization.slug
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating branch organization:', error);
+    res.status(500).json({ message: error.message || 'Failed to create branch clinic' });
   }
 };

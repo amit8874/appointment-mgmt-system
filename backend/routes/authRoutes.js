@@ -1,5 +1,5 @@
 import express from 'express';
-import { sendOtp, verifyOtp, quickLogin } from '../controllers/authController.js';
+import { sendOtp, verifyOtp, quickLogin, getAssociatedClinics, switchClinic } from '../controllers/authController.js';
 import { login, signup, superAdminLogin, createUser, deleteUser, updateUserProfile, updateUserPassword } from '../controllers/userController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -25,5 +25,9 @@ router.delete('/delete-user/:id', authenticateToken, deleteUser);
 // Alternative update paths to bypass IIS issues with /api/users/ 405 error
 router.put('/update-profile/:id', authenticateToken, updateUserProfile);
 router.put('/update-password/:id', authenticateToken, updateUserPassword);
+
+// Multi-clinic switching routes
+router.get('/my-clinics', authenticateToken, getAssociatedClinics);
+router.post('/switch-clinic', authenticateToken, switchClinic);
 
 export default router;

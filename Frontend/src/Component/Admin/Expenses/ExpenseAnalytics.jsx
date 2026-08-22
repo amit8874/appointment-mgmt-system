@@ -247,6 +247,26 @@ const ExpenseAnalytics = () => {
             </div>
           </div>
 
+          {/* Chart 5.1: More Expenses (Bar Chart) */}
+          <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-6 rounded-3xl shadow-sm space-y-4">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                💸 More Clinic Expenses
+              </h3>
+              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">General clinic payments, utilities, rent, and custom expenses</p>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 'bold' }} axisLine={false} tickLine={false} />
+                  <YAxis tickFormatter={(val) => `₹${val}`} tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="other" name="More Expenses" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
           {/* Chart 6: Monthly Net Profit (Area Chart) */}
           <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-6 rounded-3xl shadow-sm space-y-4">
             <div>

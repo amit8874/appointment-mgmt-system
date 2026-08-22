@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Menu, Search, Bell, X, Menu as MenuIcon, User } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import ClinicSwitcher from '../../common/ClinicSwitcher';
 
 const TopNav = ({ sidebarOpen, setSidebarOpen, notifications, unreadCount, onNotificationClick, onLogout }) => {
   const { user } = useAuth();
@@ -66,6 +67,9 @@ const TopNav = ({ sidebarOpen, setSidebarOpen, notifications, unreadCount, onNot
 
         {/* Right side icons */}
         <div className="flex items-center space-x-4">
+          {/* Clinic Switcher */}
+          <ClinicSwitcher />
+
           {/* Notifications */}
           <div className="relative" ref={notificationRef}>
             <button

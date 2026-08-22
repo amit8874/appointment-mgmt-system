@@ -23,6 +23,7 @@ import WhatsAppCreditsTab from './Profile/WhatsAppCreditsTab';
 import PrescriptionTemplateTab from './Profile/PrescriptionTemplateTab';
 import DoctorPublicProfileTab from './Profile/DoctorPublicProfileTab';
 import ClinicProfileTab from './Profile/ClinicProfileTab';
+import MyClinicsTab from './Profile/MyClinicsTab';
 import { Stethoscope, Sparkles } from 'lucide-react';
 
 const ProfilePage = () => {
@@ -306,6 +307,7 @@ const ProfilePage = () => {
 
         if (['admin', 'orgadmin', 'superadmin'].includes(user?.role)) {
             list.push({ id: 'clinic', label: 'Clinic Info', icon: Building2 });
+            list.push({ id: 'my-clinics', label: 'My Clinics', icon: Building2 });
             list.push({ id: 'clinic-profile', label: 'Clinic Profile', icon: Sparkles });
             list.push({ id: 'prescription', label: 'Prescription Template', icon: Activity });
             list.push({ id: 'billing', label: 'Billing & Subscription', icon: CreditCard });
@@ -449,6 +451,11 @@ const ProfilePage = () => {
                                         organization={organization} 
                                         onUpdate={handleUpdateOrganization} 
                                         loading={actionLoading} 
+                                    />
+                                )}
+                                {activeTab === 'my-clinics' && (
+                                    <MyClinicsTab 
+                                        user={user} 
                                     />
                                 )}
                                 {activeTab === 'clinic-profile' && (

@@ -3,6 +3,7 @@ import DentalConsumerProductExpense from '../models/DentalConsumerProductExpense
 import DentalLabExpense from '../models/DentalLabExpense.js';
 import ExpenseRecord from '../models/ExpenseRecord.js';
 import Organization from '../models/Organization.js';
+import OtherExpense from '../models/OtherExpense.js';
 import Billing from '../models/Billing.js';
 import { generateExpenseReportPDF } from '../services/pdfService.js';
 import { resolveS3UrlIfNeeded, deleteFileFromS3 } from '../services/s3Service.js';
@@ -580,6 +581,160 @@ export const exportLabExpensesPDF = async (req, res) => {
 };
 
 // ==========================================
+// 3.1 OTHER CLINIC EXPENSES
+// ==========================================
+
+export const createOtherExpense = async (req, res) => {
+  try {
+    const {
+      expenseName,
+      category,
+      vendor,
+      purchaseDate,
+      invoiceNumber,
+      quantity,
+      unitPrice,
+      gstAmount,
+      paymentMethod,
+      paymentStatus,
+      notes,
+      invoiceUrl,
+      invoicePublicId
+    } = req.body;
+
+    if (!expenseName || !purchaseDate || !quantity || unitPrice === undefined) {
+      return res.status(400).json({ message: 'Required fields are missing.' });
+    }
+
+    const calculatedTotal = (Number(quantity) * Number(unitPrice)) + Number(gstAmount || 0);
+
+    const expense = new OtherExpense({
+      organizationId: req.tenantId,
+      expenseName,
+      category: category || 'Other',
+      vendor,
+      purchaseDate,
+      invoiceNumber,
+      quantity,
+      unitPrice,
+      gstAmount,
+      totalAmount: calculatedTotal,
+      paymentMethod,
+      paymentStatus,
+      notes,
+      invoiceUrl,
+      invoicePublicId,
+      createdBy: req.user.id
+    });
+
+    await expense.save();
+    res.status(201).json(expense);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getOtherExpenses = async (req, res) => {
+  try {
+    const { search, filterType, startDate, endDate, page = 1, limit = 10 } = req.query;
+    const query = { organizationId: req.tenantId };
+
+    if (search) {
+      query.$or = [
+        { expenseName: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    Object.assign(query, dateFilter);
+
+    const expenses = await OtherExpense.find(query)
+      .sort({ purchaseDate: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit));
+
+    const total = await OtherExpense.countDocuments(query);
+
+    res.json({
+      expenses,
+      totalPages: Math.ceil(total / Number(limit)),
+      currentPage: Number(page),
+      total
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateOtherExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    if (updateData.quantity !== undefined && updateData.unitPrice !== undefined) {
+      updateData.totalAmount = (Number(updateData.quantity) * Number(updateData.unitPrice)) + Number(updateData.gstAmount || 0);
+    }
+
+    const expense = await OtherExpense.findOneAndUpdate(
+      { _id: id, organizationId: req.tenantId },
+      updateData,
+      { new: true }
+    );
+
+    if (!expense) {
+      return res.status(404).json({ message: 'Expense not found.' });
+    }
+
+    res.json(expense);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const deleteOtherExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const expense = await OtherExpense.findOneAndDelete({ _id: id, organizationId: req.tenantId });
+
+    if (!expense) {
+      return res.status(404).json({ message: 'Expense not found.' });
+    }
+
+    res.json({ message: 'Expense deleted successfully.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const exportOtherExpensesPDF = async (req, res) => {
+  try {
+    const { search, filterType, startDate, endDate } = req.query;
+    const query = { organizationId: req.tenantId };
+
+    if (search) {
+      query.$or = [
+        { expenseName: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    Object.assign(query, dateFilter);
+
+    const expenses = await OtherExpense.find(query).sort({ purchaseDate: -1 });
+    const org = await Organization.findById(req.tenantId);
+
+    const pdfBuffer = await generateExpenseReportPDF(expenses, 'More Expenses', org);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=More_Expenses_${Date.now()}.pdf`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ==========================================
 // 4. GENERAL EXPENSE FILE / IMAGE RECORDS
 // ==========================================
 
@@ -699,8 +854,15 @@ export const getExpenseDashboardStats = async (req, res) => {
     ]);
     const labExpenses = labResult[0]?.total || 0;
 
+    // 4.1 Other / More Expenses
+    const otherResult = await OtherExpense.aggregate([
+      { $match: { organizationId: orgId } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    const otherExpenses = otherResult[0]?.total || 0;
+
     // 5. Total Expenses & Net Profit
-    const totalExpenses = equipmentExpenses + consumerExpenses + labExpenses;
+    const totalExpenses = equipmentExpenses + consumerExpenses + labExpenses + otherExpenses;
     const netProfit = totalRevenue - totalExpenses;
 
     res.json({
@@ -708,6 +870,7 @@ export const getExpenseDashboardStats = async (req, res) => {
       equipmentExpenses,
       consumerExpenses,
       labExpenses,
+      otherExpenses,
       totalExpenses,
       netProfit
     });
@@ -725,17 +888,21 @@ export const getUnifiedExpenses = async (req, res) => {
     const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
     const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate');
 
-    const [eqRes, consRes, labRes] = await Promise.all([
+    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+
+    const [eqRes, consRes, labRes, otherRes] = await Promise.all([
       DentalEquipmentExpense.find({ ...query, ...eqFilter }).lean(),
       DentalConsumerProductExpense.find({ ...query, ...consFilter }).lean(),
-      DentalLabExpense.find({ ...query, ...labFilter }).lean()
+      DentalLabExpense.find({ ...query, ...labFilter }).lean(),
+      OtherExpense.find({ ...query, ...otherFilter }).lean()
     ]);
 
     const equipment = eqRes.map(e => ({ ...e, expenseType: 'Equipment' }));
     const consumer = consRes.map(e => ({ ...e, expenseType: 'Consumer Products' }));
     const lab = labRes.map(e => ({ ...e, expenseType: 'Lab Expenses' }));
+    const other = otherRes.map(e => ({ ...e, expenseType: 'More Expenses' }));
 
-    const allExpenses = [...equipment, ...consumer, ...lab];
+    const allExpenses = [...equipment, ...consumer, ...lab, ...other];
     // Sort descending by date
     allExpenses.sort((a, b) => {
       const dateA = new Date(a.purchaseDate || a.sentDate || a.createdAt);
@@ -747,6 +914,7 @@ export const getUnifiedExpenses = async (req, res) => {
       equipmentTotal: equipment.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0),
       consumerTotal: consumer.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0),
       labTotal: lab.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0),
+      otherTotal: other.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0),
       grandTotal: allExpenses.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0)
     };
 
@@ -768,17 +936,21 @@ export const exportUnifiedExpensesPDF = async (req, res) => {
     const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
     const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate');
 
-    const [eqRes, consRes, labRes] = await Promise.all([
+    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+
+    const [eqRes, consRes, labRes, otherRes] = await Promise.all([
       DentalEquipmentExpense.find({ ...query, ...eqFilter }).lean(),
       DentalConsumerProductExpense.find({ ...query, ...consFilter }).lean(),
-      DentalLabExpense.find({ ...query, ...labFilter }).lean()
+      DentalLabExpense.find({ ...query, ...labFilter }).lean(),
+      OtherExpense.find({ ...query, ...otherFilter }).lean()
     ]);
 
     const equipment = eqRes.map(e => ({ ...e, expenseType: 'Equipment' }));
     const consumer = consRes.map(e => ({ ...e, expenseType: 'Consumer Products' }));
     const lab = labRes.map(e => ({ ...e, expenseType: 'Lab Expenses' }));
+    const other = otherRes.map(e => ({ ...e, expenseType: 'More Expenses' }));
 
-    const allExpenses = [...equipment, ...consumer, ...lab];
+    const allExpenses = [...equipment, ...consumer, ...lab, ...other];
     // Sort descending by date
     allExpenses.sort((a, b) => {
       const dateA = new Date(a.purchaseDate || a.sentDate || a.createdAt);
@@ -819,6 +991,7 @@ export const getExpenseAnalytics = async (req, res) => {
     const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
     const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate');
     const billFilter = getDateFilter(filterType, startDate, endDate, 'date');
+    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
 
     const groupOid = interval === 'day' 
       ? {
@@ -877,6 +1050,12 @@ export const getExpenseAnalytics = async (req, res) => {
       { $group: { _id: labGroupOid, total: { $sum: '$totalAmount' } } }
     ]);
 
+    // Other Expenses
+    const otherData = await OtherExpense.aggregate([
+      { $match: { organizationId: orgId, ...otherFilter } },
+      { $group: { _id: eqGroupOid, total: { $sum: '$totalAmount' } } }
+    ]);
+
     const timelineMap = {};
 
     const addToMap = (year, month, day, field, amount) => {
@@ -898,6 +1077,7 @@ export const getExpenseAnalytics = async (req, res) => {
           equipment: 0,
           consumer: 0,
           lab: 0,
+          other: 0,
           totalExpenses: 0,
           netProfit: 0
         };
@@ -909,9 +1089,10 @@ export const getExpenseAnalytics = async (req, res) => {
     equipmentData.forEach(item => addToMap(item._id.year, item._id.month, item._id.day, 'equipment', item.total));
     consumerData.forEach(item => addToMap(item._id.year, item._id.month, item._id.day, 'consumer', item.total));
     labData.forEach(item => addToMap(item._id.year, item._id.month, item._id.day, 'lab', item.total));
+    otherData.forEach(item => addToMap(item._id.year, item._id.month, item._id.day, 'other', item.total));
 
     const result = Object.values(timelineMap).map(item => {
-      item.totalExpenses = item.equipment + item.consumer + item.lab;
+      item.totalExpenses = item.equipment + item.consumer + item.lab + item.other;
       item.netProfit = item.revenue - item.totalExpenses;
       return item;
     });

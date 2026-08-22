@@ -796,6 +796,10 @@ export const superAdminApi = {
     const { data } = await api.patch(`/superadmin/doctors/${doctorId}/reject`);
     return data;
   },
+  createPublicDoctorProfile: async (doctorData) => {
+    const { data } = await api.post('/superadmin/doctors/create-profile', doctorData);
+    return data;
+  },
 };
 
 export const contactApi = {
@@ -1565,6 +1569,25 @@ export const expenseApi = {
   getExpenseAnalytics: async (params = {}) => {
     const { data } = await api.get('/expenses/analytics', { params });
     return data;
+  },
+  getOtherExpenses: async (params = {}) => {
+    const { data } = await api.get('/expenses/other', { params });
+    return data;
+  },
+  createOtherExpense: async (expenseData) => {
+    const { data } = await api.post('/expenses/other', expenseData);
+    return data;
+  },
+  updateOtherExpense: async (id, expenseData) => {
+    const { data } = await api.put(`/expenses/other/${id}`, expenseData);
+    return data;
+  },
+  deleteOtherExpense: async (id) => {
+    const { data } = await api.delete(`/expenses/other/${id}`);
+    return data;
+  },
+  downloadOtherPdf: async (params = {}) => {
+    return api.get('/expenses/other/export/pdf', { params, responseType: 'blob' });
   }
 };
 

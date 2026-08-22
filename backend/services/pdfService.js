@@ -1842,7 +1842,7 @@ export const generateExpenseReportPDF = async (expenses, typeLabel, org) => {
     const clinicAddress = formatAddress(org.address || org.location);
 
     let rowsHtml = expenses.map((exp, idx) => {
-      const name = exp.equipmentName || exp.productName || exp.labName || 'Expense';
+      const name = exp.expenseName || exp.equipmentName || exp.productName || exp.labName || 'Expense';
       const detail = exp.brand ? `${exp.brand} ${exp.modelNumber || ''}`.trim() : (exp.category || exp.workType || '-');
       const vendorName = exp.vendor || exp.labName || '-';
       const date = exp.purchaseDate || exp.sentDate;

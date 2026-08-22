@@ -12,6 +12,7 @@ import BulkImportModal from "./BulkImportModal";
 import DailyCaseRegisterModal from "../../../components/Shared/DailyCaseRegisterModal";
 import { useAuth } from "../../../context/AuthContext";
 import DentalConsentFormModal from "./DentalConsentFormModal";
+import BulkMessageModal from "../../../components/Patient/BulkMessageModal";
 
 const PatientPanel = ({
   onViewPatient,
@@ -44,6 +45,13 @@ const PatientPanel = ({
   const [activeConsentPatient, setActiveConsentPatient] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
+  const [selectedPatientIds, setSelectedPatientIds] = useState([]);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+
+  // Clear selection on page change or filter change
+  useEffect(() => {
+    setSelectedPatientIds([]);
+  }, [serverCurrentPage, statusFilter]);
 
 
 
@@ -464,6 +472,17 @@ const PatientPanel = ({
               <FileText className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
               Form 25 Register
             </button>
+
+            {selectedPatientIds.length > 0 && (
+              <button
+                onClick={() => setIsBulkModalOpen(true)}
+                className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 font-bold text-xs sm:text-sm whitespace-nowrap"
+                title="Send Bulk WhatsApp Update"
+              >
+                <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+                Bulk Message ({selectedPatientIds.length})
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -554,6 +573,22 @@ const PatientPanel = ({
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-blue-50 dark:bg-blue-900/40">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider w-10">
+                      <input
+                        type="checkbox"
+                        checked={paginatedPatients.length > 0 && paginatedPatients.every(p => selectedPatientIds.includes(p._id))}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const newIds = [...new Set([...selectedPatientIds, ...paginatedPatients.map(p => p._id)])];
+                            setSelectedPatientIds(newIds);
+                          } else {
+                            const paginatedIds = paginatedPatients.map(p => p._id);
+                            setSelectedPatientIds(selectedPatientIds.filter(id => !paginatedIds.includes(id)));
+                          }
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                      />
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
                       Patient ID
                     </th>
@@ -586,6 +621,20 @@ const PatientPanel = ({
                       key={p._id}
                       className="hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
                     >
+                      <td className="px-6 py-4 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedPatientIds.includes(p._id)}
+                          onChange={() => {
+                            if (selectedPatientIds.includes(p._id)) {
+                              setSelectedPatientIds(selectedPatientIds.filter(id => id !== p._id));
+                            } else {
+                              setSelectedPatientIds([...selectedPatientIds, p._id]);
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                        />
+                      </td>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
                         {p.patientId || p.id || '-'}
                       </td>
@@ -850,6 +899,18 @@ const PatientPanel = ({
         onClose={() => setActiveConsentPatient(null)}
         patientData={activeConsentPatient}
       />
+
+      {/* Bulk WhatsApp Message Modal */}
+      {isBulkModalOpen && (
+        <BulkMessageModal
+          isOpen={isBulkModalOpen}
+          onClose={() => {
+            setIsBulkModalOpen(false);
+            setSelectedPatientIds([]);
+          }}
+          selectedPatients={patients.filter(p => selectedPatientIds.includes(p._id))}
+        />
+      )}
 
     </motion.div>
   );

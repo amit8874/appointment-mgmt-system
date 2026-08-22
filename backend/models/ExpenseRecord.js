@@ -8,7 +8,7 @@ const expenseRecordSchema = new mongoose.Schema({
   },
   expenseType: {
     type: String,
-    enum: ['Dental Equipment', 'Dental Consumable Products', 'Dental Lab Expenses'],
+    enum: ['Dental Equipment', 'Dental Consumable Products', 'Dental Lab Expenses', 'More Expenses'],
     required: true,
   },
   recordName: {

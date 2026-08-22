@@ -86,12 +86,13 @@ export const authenticateToken = async (req, res, next) => {
       }
     }
 
-    // For non-superadmin users, verify organization is active (only if they have an organizationId)
-    if (user.role !== 'superadmin' && user.organizationId) {
+    // For non-superadmin users, verify active organization is active (from token or user profile)
+    const activeOrgId = decoded.organizationId || user.organizationId?._id || user.organizationId;
+    if (user.role !== 'superadmin' && activeOrgId) {
       try {
-        const org = await Organization.findById(user.organizationId);
+        const org = await Organization.findById(activeOrgId);
         if (!org) {
-          console.log(`[AUTH] Organization ${user.organizationId} not found for user ${user.name}`);
+          console.log(`[AUTH] Organization ${activeOrgId} not found for user ${user.name}`);
           return res.status(403).json({ message: 'Your organization account is suspended or inactive' });
         }
         if (org.status === 'suspended') {
@@ -128,10 +129,8 @@ export const authenticateToken = async (req, res, next) => {
 
     req.user = user;
     
-    // Set tenantId from user's organization - ALWAYS take precedence over headers for authenticated requests
-    if (user.organizationId) {
-      req.tenantId = user.organizationId._id || user.organizationId;
-    }
+    // Set tenantId - decoded token organization takes precedence for dynamic switching support
+    req.tenantId = activeOrgId;
     
     next();
   } catch (error) {

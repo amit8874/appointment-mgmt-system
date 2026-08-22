@@ -226,6 +226,44 @@ const DoctorPublicProfile = () => {
     }
   };
 
+  useEffect(() => {
+    if (doctor) {
+      const pageTitle = `${doctor.name} - ${doctor.specialization} | ${doctor.clinicName || 'Oviaan Healthcare'}`;
+      document.title = pageTitle;
+
+      let metaDesc = document.querySelector('meta[name="description"]');
+      if (!metaDesc) {
+        metaDesc = document.createElement('meta');
+        metaDesc.name = 'description';
+        document.head.appendChild(metaDesc);
+      }
+      metaDesc.content = `Consult ${doctor.name} (${doctor.qualification || 'MBBS'}), ${doctor.specialization} with ${doctor.experience || 5}+ years experience at ${doctor.clinicName || 'Oviaan Clinic'}, ${doctor.address || ''}. Book appointment online on Oviaan.`;
+
+      let schemaScript = document.getElementById('doctor-schema-jsonld');
+      if (!schemaScript) {
+        schemaScript = document.createElement('script');
+        schemaScript.id = 'doctor-schema-jsonld';
+        schemaScript.type = 'application/ld+json';
+        document.head.appendChild(schemaScript);
+      }
+      schemaScript.text = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Physician",
+        "name": doctor.name,
+        "medicalSpecialty": doctor.specialization,
+        "description": doctor.about || doctor.bio || `${doctor.name} is a practitioner in ${doctor.specialization}.`,
+        "telephone": doctor.phone || "",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": doctor.address || "",
+          "addressCountry": "IN"
+        },
+        "priceRange": `₹${doctor.fee || 500}`,
+        "image": doctor.photo
+      });
+    }
+  }, [doctor]);
+
   const fetchReviews = async (docId) => {
     try {
       const targetId = docId || doctor?._id || id;

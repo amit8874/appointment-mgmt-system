@@ -14,6 +14,7 @@ const ExpenseReports = () => {
     equipmentTotal: 0,
     consumerTotal: 0,
     labTotal: 0,
+    otherTotal: 0,
     grandTotal: 0
   });
 
@@ -42,6 +43,7 @@ const ExpenseReports = () => {
         equipmentTotal: 0,
         consumerTotal: 0,
         labTotal: 0,
+        otherTotal: 0,
         grandTotal: 0
       });
     } catch (error) {
@@ -66,6 +68,7 @@ const ExpenseReports = () => {
       { 'Expense Category': 'Dental Equipment Expenses', 'Total Amount (INR)': summary.equipmentTotal },
       { 'Expense Category': 'Dental Consumer Product Expenses', 'Total Amount (INR)': summary.consumerTotal },
       { 'Expense Category': 'Dental Lab Expenses', 'Total Amount (INR)': summary.labTotal },
+      { 'Expense Category': 'More Expenses', 'Total Amount (INR)': summary.otherTotal },
       { 'Expense Category': 'Grand Total', 'Total Amount (INR)': summary.grandTotal }
     ];
     const summarySheet = XLSX.utils.json_to_sheet(summaryData);
@@ -104,6 +107,13 @@ const ExpenseReports = () => {
     if (labList.length > 0) {
       const labSheet = XLSX.utils.json_to_sheet(formatItemsForSheet(labList));
       XLSX.utils.book_append_sheet(workbook, labSheet, 'Lab Expenses');
+    }
+
+    // 5. More Expenses sheet
+    const otherList = expenses.filter(e => e.expenseType === 'More Expenses');
+    if (otherList.length > 0) {
+      const otherSheet = XLSX.utils.json_to_sheet(formatItemsForSheet(otherList));
+      XLSX.utils.book_append_sheet(workbook, otherSheet, 'More Expenses');
     }
 
     const dateStr = new Date().toISOString().split('T')[0];
@@ -240,7 +250,7 @@ const ExpenseReports = () => {
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         {/* Equipment Total */}
         <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-5 rounded-2xl shadow-sm flex items-center gap-4">
           <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
@@ -271,6 +281,17 @@ const ExpenseReports = () => {
           <div>
             <p className="text-[10px] font-black text-slate-400 dark:text-gray-400 uppercase tracking-widest">Lab case Expenses</p>
             <h3 className="text-lg font-bold text-slate-800 dark:text-white mt-0.5">₹{summary.labTotal.toLocaleString('en-IN')}</h3>
+          </div>
+        </div>
+
+        {/* More Expenses Total */}
+        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-5 rounded-2xl shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-xl">
+            <Tag size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 dark:text-gray-400 uppercase tracking-widest">More Expenses</p>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mt-0.5">₹{summary.otherTotal.toLocaleString('en-IN')}</h3>
           </div>
         </div>
 
@@ -326,6 +347,8 @@ const ExpenseReports = () => {
                             ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300'
                             : exp.expenseType === 'Consumer Products'
                             ? 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300'
+                            : exp.expenseType === 'More Expenses'
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
                             : 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300'
                         }`}>
                           {exp.expenseType}

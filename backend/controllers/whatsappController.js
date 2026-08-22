@@ -1,6 +1,7 @@
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 import { sendWhatsAppMessage, sendWhatsAppTemplate, sendWhatsAppMediaTemplate, uploadWhatsAppMediaFromFile } from '../services/whatsappService.js';
+import { ensureOrganizationHasCredits } from '../services/whatsappCreditService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
 import { generatePrescriptionPDF } from '../services/pdfService.js';
 import { uploadToS3 } from '../utils/uploadToS3.js';
@@ -324,5 +325,209 @@ export const sendPrescriptionPdfWhatsApp = async (req, res) => {
       message: "Failed to send Prescription PDF via WhatsApp.",
       error: error.message
     });
+  }
+};
+
+/**
+ * Sends a broadcast update using the approved template: clinic_broadcast_notification
+ */
+export const sendBroadcastWhatsApp = async (req, res) => {
+  try {
+    const { phone, patientName, messageText, clinicName } = req.body;
+
+    if (!phone || !patientName || !messageText) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone, patient name, and message text are required."
+      });
+    }
+
+    const sanitizedPhone = sanitizePhone(phone);
+    const templateName = 'clinic_broadcast_notification';
+    const finalClinicName = clinicName || "Oviaan Clinic";
+
+    console.log(`[WhatsApp Controller] Sending broadcast template to: ${sanitizedPhone}`);
+
+    // Template: Hello {{1}}, here is an update from the doctor: {{2}} Thank you, {{3}} team.
+    const bodyParameters = [patientName, messageText, finalClinicName];
+
+    const result = await sendWhatsAppTemplate(sanitizedPhone, templateName, 'en', bodyParameters, [], {
+      organizationId: req.tenantId || req.user?.organizationId,
+      chargeCredit: true,
+      messageType: 'BROADCAST_SENT',
+      relatedEntityType: 'Broadcast',
+      createdBy: req.user?._id,
+      metadata: {
+        source: 'whatsappController',
+        templateName
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Broadcast message sent successfully via WhatsApp template.",
+      data: result,
+    });
+  } catch (error) {
+    console.error(`[WhatsApp Controller] Error sending broadcast:`, error.response?.data || error.message);
+    
+    if (error.code === "INSUFFICIENT_WHATSAPP_CREDITS") {
+      return res.status(402).json({
+        success: false,
+        code: "INSUFFICIENT_WHATSAPP_CREDITS",
+        message: "Your WhatsApp communication credits are finished. Please recharge to continue sending patient messages."
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send broadcast WhatsApp message.",
+      error: error.response?.data || error.message,
+    });
+  }
+};
+
+/**
+ * Starts a background bulk broadcast campaign for an organization.
+ * Responds immediately to the client and executes sequential sends (1-minute gap) in the background.
+ */
+export const sendBroadcastCampaign = async (req, res) => {
+  try {
+    const { patients, messageText, clinicName } = req.body;
+
+    if (!patients || !Array.isArray(patients) || patients.length === 0) {
+      return res.status(400).json({ success: false, message: "Patients array is required." });
+    }
+    if (!messageText) {
+      return res.status(400).json({ success: false, message: "Message text is required." });
+    }
+
+    const orgId = req.tenantId || req.user?.organizationId;
+    const io = req.app.get("io");
+
+    // Respond early to the frontend
+    res.status(200).json({
+      success: true,
+      message: "Broadcast campaign started in background."
+    });
+
+    // Execute heavy task in the background
+    (async () => {
+      console.log(`[Campaign Background] Starting campaign for org ${orgId} to ${patients.length} patients.`);
+      
+      const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+      
+      let sentCount = 0;
+      let failedCount = 0;
+
+      for (let i = 0; i < patients.length; i++) {
+        const p = patients[i];
+        
+        // Sanitize phone
+        let sanitizedPhone;
+        try {
+          sanitizedPhone = sanitizePhone(p.mobile || p.phone);
+        } catch (phoneErr) {
+          console.error(`[Campaign Background] Invalid phone for ${p.name}:`, phoneErr.message);
+          failedCount++;
+          if (io && orgId) {
+            io.to(orgId.toString()).emit('broadcast-progress', {
+              status: 'progress',
+              sentCount,
+              failedCount,
+              total: patients.length,
+              currentPatientName: p.name
+            });
+          }
+          continue;
+        }
+
+        try {
+          // 1. Verify credits
+          const check = await ensureOrganizationHasCredits(orgId, 1);
+          if (!check.allowed) {
+            console.warn(`[Campaign Background] Insufficient credits for org ${orgId}. Stopping campaign.`);
+            if (io && orgId) {
+              io.to(orgId.toString()).emit('broadcast-progress', {
+                status: 'stopped_low_credits',
+                sentCount,
+                failedCount,
+                message: "Broadcast campaign stopped: Insufficient WhatsApp credits. Please recharge."
+              });
+            }
+            break;
+          }
+
+          // 2. Send WhatsApp Template
+          const templateName = 'clinic_broadcast_notification';
+          const finalClinicName = clinicName || "Smile Dental Care";
+          const bodyParameters = [p.name, messageText, finalClinicName];
+
+          await sendWhatsAppTemplate(
+            sanitizedPhone,
+            templateName,
+            'en',
+            bodyParameters,
+            [],
+            {
+              organizationId: orgId,
+              chargeCredit: true,
+              messageType: 'BROADCAST_SENT',
+              relatedEntityType: 'Broadcast',
+              createdBy: req.user?._id,
+              metadata: {
+                source: 'campaignBackground',
+                templateName
+              }
+            }
+          );
+
+          sentCount++;
+          
+          // Emit progress update
+          if (io && orgId) {
+            io.to(orgId.toString()).emit('broadcast-progress', {
+              status: 'progress',
+              sentCount,
+              failedCount,
+              total: patients.length,
+              currentPatientName: p.name
+            });
+          }
+
+        } catch (err) {
+          console.error(`[Campaign Background] Error sending to ${p.name}:`, err.message);
+          failedCount++;
+          if (io && orgId) {
+            io.to(orgId.toString()).emit('broadcast-progress', {
+              status: 'progress',
+              sentCount,
+              failedCount,
+              total: patients.length,
+              currentPatientName: p.name
+            });
+          }
+        }
+
+        // Wait 60 seconds (1 minute) if not the last patient
+        if (i < patients.length - 1) {
+          await sleep(60000);
+        }
+      }
+
+      // 3. Emit final completed update
+      console.log(`[Campaign Background] Completed campaign for org ${orgId}. Sent: ${sentCount}, Failed: ${failedCount}`);
+      if (io && orgId) {
+        io.to(orgId.toString()).emit('broadcast-completed', {
+          sentCount,
+          failedCount,
+          total: patients.length
+        });
+      }
+
+    })();
+
+  } catch (error) {
+    console.error(`[Campaign Error]`, error);
   }
 };

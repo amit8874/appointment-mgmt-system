@@ -22,7 +22,12 @@ import {
   FileText,
   Fingerprint,
   IndianRupee,
-  Briefcase
+  Briefcase,
+  Plus,
+  Copy,
+  ExternalLink,
+  Check,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StatCardSkeleton } from '../../components/Shared/DashboardSkeletons';
@@ -37,6 +42,7 @@ const Doctors = () => {
   const [doctorsLoading, setDoctorsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [orgSearchTerm, setOrgSearchTerm] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     fetchOrganizations();
@@ -322,6 +328,12 @@ const Doctors = () => {
           </div>
 
           <div className="flex items-center gap-3">
+             <button
+               onClick={() => setIsCreateModalOpen(true)}
+               className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-md shadow-indigo-600/20 shrink-0"
+             >
+               <Plus size={16} /> Create Doctor Profile
+             </button>
              <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
@@ -494,7 +506,317 @@ const Doctors = () => {
           )}
         </AnimatePresence>
 
+        {/* Create Public Doctor Profile Modal */}
+        <AnimatePresence>
+          {isCreateModalOpen && (
+            <CreateDoctorModal 
+              isOpen={isCreateModalOpen} 
+              onClose={() => setIsCreateModalOpen(false)} 
+              organizations={organizations}
+              onDoctorCreated={() => {
+                if (selectedOrg) handleSelectOrg(selectedOrg);
+              }}
+            />
+          )}
+        </AnimatePresence>
+
       </div>
+    </div>
+  );
+};
+
+const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) => {
+  const [createFormData, setCreateFormData] = useState({
+    name: '',
+    photo: '',
+    specialization: 'General Physician',
+    qualification: 'MBBS',
+    experience: 5,
+    clinicName: '',
+    address: '',
+    city: 'Lucknow',
+    fee: 500,
+    phone: '',
+    email: '',
+    about: '',
+    organizationId: ''
+  });
+
+  const [submitting, setSubmitting] = useState(false);
+  const [successProfile, setSuccessProfile] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!createFormData.name || !createFormData.specialization) {
+      alert('Doctor Name and Specialization are required.');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const res = await superAdminApi.createPublicDoctorProfile(createFormData);
+      const fullUrl = `${window.location.origin}${res.publicUrl}`;
+      setSuccessProfile({
+        name: res.doctor.name,
+        slug: res.slug,
+        fullUrl: fullUrl,
+        specialization: res.doctor.specialization,
+        clinicName: res.doctor.clinicName,
+        photo: res.doctor.photo
+      });
+      if (onDoctorCreated) onDoctorCreated();
+    } catch (err) {
+      console.error('Error creating public doctor profile:', err);
+      alert(err.response?.data?.message || 'Failed to create doctor profile');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+      >
+        {/* Modal Header */}
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-900 to-slate-900 text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-500/20 border border-indigo-400/30 rounded-xl flex items-center justify-center text-indigo-300">
+              <Plus size={22} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Create Public Doctor Profile</h2>
+              <p className="text-xs text-indigo-200">Visible on website & indexed by Google search</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-300">
+            <XCircle size={24} />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="flex-1 overflow-y-auto p-8 bg-white">
+          {successProfile ? (
+            <div className="text-center py-8 space-y-6 animate-in fade-in duration-300">
+              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle2 size={48} />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-slate-900">Doctor Profile Published!</h3>
+                <p className="text-slate-500 text-sm mt-1">Profile for <span className="font-bold text-indigo-600">{successProfile.name}</span> is live and searchable.</p>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl max-w-lg mx-auto space-y-3">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block text-left">Public Doctor Profile Link</span>
+                <div className="flex items-center gap-2 bg-white p-2 border border-slate-200 rounded-xl">
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value={successProfile.fullUrl} 
+                    className="flex-1 text-xs font-bold text-slate-700 outline-none bg-transparent"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(successProfile.fullUrl)}
+                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-indigo-100 transition-colors"
+                  >
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-4 pt-4">
+                <a 
+                  href={successProfile.fullUrl} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="px-6 py-3 bg-indigo-600 text-white font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20"
+                >
+                  <ExternalLink size={16} /> View Public Profile Page
+                </a>
+                <button
+                  onClick={() => {
+                    setSuccessProfile(null);
+                    onClose();
+                  }}
+                  className="px-6 py-3 border border-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-slate-50 transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Doctor Name *</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. Dr. Rajiv Sharma"
+                    value={createFormData.name}
+                    onChange={e => setCreateFormData({...createFormData, name: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Specialization *</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. Cardiologist, Dentist, Physician"
+                    value={createFormData.specialization}
+                    onChange={e => setCreateFormData({...createFormData, specialization: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Qualification</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. MBBS, MD, BDS, MDS"
+                    value={createFormData.qualification}
+                    onChange={e => setCreateFormData({...createFormData, qualification: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Years of Experience</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={createFormData.experience}
+                    onChange={e => setCreateFormData({...createFormData, experience: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Clinic / Hospital Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Aarogyam Medical Center"
+                    value={createFormData.clinicName}
+                    onChange={e => setCreateFormData({...createFormData, clinicName: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">City / Location</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Lucknow, Delhi, Mumbai"
+                    value={createFormData.city}
+                    onChange={e => setCreateFormData({...createFormData, city: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Full Clinic Address</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. 22 Brahmpuri, Near Jugauli Crossing, Indira Nagar, Lucknow"
+                    value={createFormData.address}
+                    onChange={e => setCreateFormData({...createFormData, address: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Consultation Fee (₹)</label>
+                  <input 
+                    type="number" 
+                    placeholder="500"
+                    value={createFormData.fee}
+                    onChange={e => setCreateFormData({...createFormData, fee: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Direct Phone / Mobile</label>
+                  <input 
+                    type="tel" 
+                    placeholder="e.g. 9876543210"
+                    value={createFormData.phone}
+                    onChange={e => setCreateFormData({...createFormData, phone: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Profile Photo URL</label>
+                  <input 
+                    type="url" 
+                    placeholder="https://... (Leave blank for default avatar)"
+                    value={createFormData.photo}
+                    onChange={e => setCreateFormData({...createFormData, photo: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">About Doctor / Biography</label>
+                  <textarea 
+                    rows="3"
+                    placeholder="Describe doctor background, achievements, treatment focus..."
+                    value={createFormData.about}
+                    onChange={e => setCreateFormData({...createFormData, about: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Associate Organization (Optional)</label>
+                  <select
+                    value={createFormData.organizationId}
+                    onChange={e => setCreateFormData({...createFormData, organizationId: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Default Oviaan Platform Doctor</option>
+                    {organizations.map(org => (
+                      <option key={org._id} value={org._id}>{org.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-indigo-600/20"
+                >
+                  {submitting && <Loader2 className="animate-spin" size={14} />}
+                  Publish Doctor Profile
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 };

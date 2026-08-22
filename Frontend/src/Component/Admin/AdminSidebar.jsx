@@ -123,6 +123,7 @@ const AdminSidebar = ({
     { name: 'Dental Equipment', icon: Wallet },
     { name: 'Dental Consumable Products', icon: Package },
     { name: 'Dental Lab Expenses', icon: FileText },
+    { name: 'More Expenses', icon: Wallet },
   ];
 
   return (

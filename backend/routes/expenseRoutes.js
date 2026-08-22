@@ -17,6 +17,11 @@ import {
   updateLabExpense,
   deleteLabExpense,
   exportLabExpensesPDF,
+  createOtherExpense,
+  getOtherExpenses,
+  updateOtherExpense,
+  deleteOtherExpense,
+  exportOtherExpensesPDF,
   uploadExpenseRecord,
   getExpenseRecords,
   deleteExpenseRecord,
@@ -59,6 +64,15 @@ router.get('/lab', authenticateToken, requireTenant, getLabExpenses);
 router.put('/lab/:id', authenticateToken, requireTenant, updateLabExpense);
 router.delete('/lab/:id', authenticateToken, requireTenant, deleteLabExpense);
 router.get('/lab/export/pdf', authenticateToken, requireTenant, exportLabExpensesPDF);
+
+// ==========================================
+// 3.1 OTHER / MORE CLINIC EXPENSES
+// ==========================================
+router.post('/other', authenticateToken, requireTenant, createOtherExpense);
+router.get('/other', authenticateToken, requireTenant, getOtherExpenses);
+router.put('/other/:id', authenticateToken, requireTenant, updateOtherExpense);
+router.delete('/other/:id', authenticateToken, requireTenant, deleteOtherExpense);
+router.get('/other/export/pdf', authenticateToken, requireTenant, exportOtherExpensesPDF);
 
 // ==========================================
 // 4. GENERAL EXPENSE FILE / IMAGE RECORDS

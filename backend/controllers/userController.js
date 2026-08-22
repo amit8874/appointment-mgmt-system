@@ -58,28 +58,34 @@ export const getAllUsers = async (req, res) => {
 // Check if session is valid
 export const checkSession = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id)
-      .select('-password')
-      .populate({
-        path: 'organizationId',
-        populate: [
-          { path: 'subscriptionId' },
-          { path: 'ownerId', select: 'name email' }
-        ]
-      });
-    
+    const user = await User.findById(req.user._id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Fallback for mobile
     const userObj = user.toObject();
-    if ((user.role === 'orgadmin' || user.role === 'admin') && !user.mobile && user.organizationId) {
-      userObj.mobile = user.organizationId.phone || '';
+
+    // Override organizationId dynamically with switched tenant context
+    const activeOrgId = req.tenantId || user.organizationId;
+    if (activeOrgId) {
+      const OrganizationModel = mongoose.model('Organization');
+      let activeOrg = await OrganizationModel.findById(activeOrgId).populate([
+        { path: 'subscriptionId' },
+        { path: 'ownerId', select: 'name email' }
+      ]);
+      if (activeOrg) {
+        activeOrg = await resolveOrganizationUrls(activeOrg);
+        userObj.organizationId = activeOrg;
+      }
+    }
+    
+    // Fallback for mobile
+    if ((user.role === 'orgadmin' || user.role === 'admin') && !user.mobile && userObj.organizationId) {
+      userObj.mobile = userObj.organizationId.phone || '';
     }
 
     if (user.role === 'patient') {
       const patientProfile = await Patient.findOne({ 
         mobile: user.mobile, 
-        organizationId: user.organizationId?._id || user.organizationId 
+        organizationId: userObj.organizationId?._id || userObj.organizationId 
       });
       if (patientProfile) {
         userObj.patientProfileId = patientProfile._id;
@@ -88,8 +94,8 @@ export const checkSession = async (req, res) => {
     }
 
     // Add standardized organization object for UI branding
-    if (user.organizationId) {
-      const org = await resolveOrganizationUrls(user.organizationId);
+    if (userObj.organizationId) {
+      const org = userObj.organizationId;
       const sub = org.subscriptionId;
       
       // Calculate Expiration
@@ -148,20 +154,25 @@ export const checkSession = async (req, res) => {
 // Get single user (requires auth)
 export const getUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-      .select('-password')
-      .populate('organizationId', 'phone email website address name branding prescriptionTemplate');
-    
+    const user = await User.findById(req.params.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Fallback for mobile if it's an orgadmin/admin and mobile is missing
     const userObj = user.toObject();
-    if ((user.role === 'orgadmin' || user.role === 'admin') && !user.mobile && user.organizationId) {
-      userObj.mobile = user.organizationId.phone || '';
+
+    // Override organizationId dynamically with switched tenant context
+    const activeOrgId = req.tenantId || user.organizationId;
+    if (activeOrgId) {
+      const OrganizationModel = mongoose.model('Organization');
+      let activeOrg = await OrganizationModel.findById(activeOrgId).select('phone email website address name branding prescriptionTemplate');
+      if (activeOrg) {
+        activeOrg = await resolveOrganizationUrls(activeOrg);
+        userObj.organizationId = activeOrg;
+      }
     }
 
-    if (userObj.organizationId) {
-      userObj.organizationId = await resolveOrganizationUrls(userObj.organizationId);
+    // Fallback for mobile if it's an orgadmin/admin and mobile is missing
+    if ((user.role === 'orgadmin' || user.role === 'admin') && !user.mobile && userObj.organizationId) {
+      userObj.mobile = userObj.organizationId.phone || '';
     }
 
     res.json(userObj);
@@ -882,10 +893,30 @@ export const createUser = async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
-    // 4. Check for conflicts
+    // 4. Check for conflicts and auto-heal orphans
     const existingUser = await User.findOne({ mobile: normalizedMobile, organizationId });
     if (existingUser) {
-      return res.status(400).json({ message: 'A user with this mobile number is already registered in this organization.' });
+      if (targetRole === 'receptionist') {
+        const ReceptionistModel = mongoose.model('Receptionist');
+        const recepExists = await ReceptionistModel.findOne({ phone: normalizedMobile, organizationId });
+        if (!recepExists) {
+          await User.deleteOne({ _id: existingUser._id });
+          console.log(`[AutoHeal] Deleted orphaned receptionist User record for mobile: ${normalizedMobile}`);
+        } else {
+          return res.status(400).json({ message: 'A user with this mobile number is already registered in this organization.' });
+        }
+      } else if (targetRole === 'doctor') {
+        const DoctorModel = mongoose.model('Doctor');
+        const docExists = await DoctorModel.findOne({ phone: normalizedMobile, organizationId });
+        if (!docExists) {
+          await User.deleteOne({ _id: existingUser._id });
+          console.log(`[AutoHeal] Deleted orphaned doctor User record for mobile: ${normalizedMobile}`);
+        } else {
+          return res.status(400).json({ message: 'A user with this mobile number is already registered in this organization.' });
+        }
+      } else {
+        return res.status(400).json({ message: 'A user with this mobile number is already registered in this organization.' });
+      }
     }
 
     // 5. Atomic Creation

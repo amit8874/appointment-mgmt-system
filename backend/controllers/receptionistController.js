@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Receptionist from '../models/Receptionist.js';
 import Counter from '../models/Counter.js';
 import Subscription from '../models/Subscription.js';
@@ -295,6 +296,21 @@ export const deleteReceptionist = async (req, res) => {
 
     if (!receptionist) {
       return res.status(404).json({ message: 'Receptionist not found' });
+    }
+
+    // Delete corresponding staff User login account if exists
+    try {
+      const UserModel = mongoose.model('User');
+      if (receptionist.phone) {
+        await UserModel.findOneAndDelete({
+          mobile: receptionist.phone,
+          organizationId: receptionist.organizationId,
+          role: 'receptionist'
+        });
+        console.log(`[DeleteReceptionist] Deleted login user for mobile: ${receptionist.phone}`);
+      }
+    } catch (userDeleteError) {
+      console.error('[DeleteReceptionist] Failed to delete user login record:', userDeleteError.message);
     }
 
     res.json({ message: 'Receptionist deleted successfully' });

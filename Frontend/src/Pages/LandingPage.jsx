@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
   MapPin, 
   ChevronRight, 
+  ChevronLeft,
   Zap,
   Activity,
   Shield,
@@ -23,7 +24,14 @@ import {
   Plus,
   Crown,
   Sparkles,
-  Store
+  Store,
+  Calendar,
+  BarChart3,
+  LayoutDashboard,
+  Play,
+  Pause,
+  Monitor,
+  CheckCircle2
 } from 'lucide-react';
 
 import api from '../services/api';
@@ -93,6 +101,624 @@ const PricingFeature = ({ text, isPlus = false }) => (
     <span className={`text-sm font-medium ${isPlus ? 'text-slate-900 font-bold' : 'text-slate-600'}`}>{text}</span>
   </li>
 );
+
+const PANELS_SHOWCASE = [
+  {
+    id: 'admin',
+    tag: 'ADMIN PANEL',
+    title: 'Real-Time Financial & Expense Dashboard',
+    subtitle: 'Track total revenue, expenses, net profit, and financial ratios instantly.',
+    role: 'Admin & Operations',
+    icon: LayoutDashboard,
+    badgeColor: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
+    accentColor: '#6366f1',
+    image: '/landing/panel_admin_expense.png',
+    highlights: [
+      { label: 'Total Revenue Tracking', val: '₹74,220' },
+      { label: 'Expense Channel Analytics', val: 'Real-time' },
+      { label: 'Profitability Metric', val: 'Net Profit' }
+    ],
+    features: [
+      'Real-time financial reconciliation & gross patient invoice tracking',
+      'Expense breakdowns for equipment, consumable products & lab cases',
+      'Visual financial ratio charts (Revenue vs Expenses comparison)',
+      'One-click data refresh & monthly profitability reporting'
+    ]
+  },
+  {
+    id: 'patient-profile',
+    tag: 'PATIENT PROFILE PANEL',
+    title: '360° Comprehensive Patient Directory & Profile',
+    subtitle: 'Access complete medical records, vitals, visit history, and emergency notes.',
+    role: 'Doctors & Staff',
+    icon: User,
+    badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    accentColor: '#10b981',
+    image: '/landing/panel_patient_profile.png',
+    highlights: [
+      { label: 'Patient History', val: '100% Digital' },
+      { label: 'Vitals & Metrics', val: 'Live BP/BMI' },
+      { label: 'Visit Timelines', val: 'Auto Synced' }
+    ],
+    features: [
+      'Interactive patient directory with search & queue list',
+      'Past visit timeline with confirmed appointment badges',
+      'Vitals recording (BMI, Weight, Height, Blood Pressure)',
+      'Emergency contacts, conditions & allergy alert logs'
+    ]
+  },
+  {
+    id: 'appointment-booking',
+    tag: 'BOOKING PANEL',
+    title: 'Smart Patient Registration & Slot Selector',
+    subtitle: 'Streamlined appointment booking with morning, afternoon & evening slots.',
+    role: 'Receptionist & Patient Panel',
+    icon: Calendar,
+    badgeColor: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    accentColor: '#3b82f6',
+    image: '/landing/panel_appointment_booking.png',
+    highlights: [
+      { label: 'Slot Intervals', val: '15 Min Slots' },
+      { label: 'WhatsApp Alerts', val: 'Instant Send' },
+      { label: 'Payment Status', val: 'Paid/Pending' }
+    ],
+    features: [
+      'Smart time-slot grid across Morning, Afternoon & Evening slots',
+      'Instant patient registration & auto patient ID generation',
+      'Direct WhatsApp confirmation message dispatch',
+      'Flexible payment modes (Pending/Unpaid, Cash, Online) & free visit toggle'
+    ]
+  },
+  {
+    id: 'clinic-analysis',
+    tag: 'ANALYTICS PANEL',
+    title: 'Clinic Analytics & Patient Demographics Insights',
+    subtitle: 'Visualize performance metrics, patient age groups, and gender ratios.',
+    role: 'Clinic Management',
+    icon: BarChart3,
+    badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    accentColor: '#a855f7',
+    image: '/landing/panel_clinic_analysis.png',
+    highlights: [
+      { label: 'Age Demographics', val: 'Structured' },
+      { label: 'Gender Breakdown', val: 'Pie Analytics' },
+      { label: 'Filterable Insights', val: 'Doctor-wise' }
+    ],
+    features: [
+      'Interactive gender distribution pie charts',
+      'Patient age group categorization (18-34, 35-49, 50+)',
+      'Comprehensive tabs: Overview, Revenue, Appointments, Patients, Doctors & Pharmacy',
+      'Customizable date ranges & export options for deep analytics'
+    ]
+  }
+];
+
+const SoftwareShowcaseSection = () => {
+  const [activeTab, setActiveTab] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [hovered, setHovered] = useState(false);
+  const currentPanel = PANELS_SHOWCASE[activeTab];
+  const IconComponent = currentPanel.icon;
+
+  useEffect(() => {
+    if (!isPlaying || hovered) return;
+    const interval = setInterval(() => {
+      setActiveTab((prev) => (prev + 1) % PANELS_SHOWCASE.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isPlaying, hovered]);
+
+  const handleNext = () => {
+    setActiveTab((prev) => (prev + 1) % PANELS_SHOWCASE.length);
+  };
+
+  const handlePrev = () => {
+    setActiveTab((prev) => (prev - 1 + PANELS_SHOWCASE.length) % PANELS_SHOWCASE.length);
+  };
+
+  return (
+    <section className="py-24 px-4 bg-[#0a0f1d] text-white overflow-hidden relative border-t border-b border-slate-800">
+      {/* Dynamic Background Glows */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/10 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
+      
+      <div className="max-w-7xl mx-auto relative z-10">
+        
+        {/* Header */}
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 border border-blue-500/30 rounded-full text-blue-400 font-bold text-xs uppercase tracking-widest mb-6"
+          >
+            <Sparkles size={14} className="text-blue-400" />
+            <span>Interactive Software Showcase</span>
+          </motion.div>
+
+          <motion.h2 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-4xl md:text-5xl font-black tracking-tight mb-4 leading-tight text-slate-100"
+          >
+            Explore What’s Inside <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">Oviaan Software</span>
+          </motion.h2>
+
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="text-slate-400 text-base md:text-lg font-medium"
+          >
+            Take a tour through our actual clinic management panels — engineered for seamless clinical workflows and complete financial transparency.
+          </motion.p>
+        </div>
+
+        {/* Panel Tabs Navigation Bar */}
+        <div className="flex justify-center mb-12">
+          <div className="flex flex-wrap justify-center items-center gap-2 bg-slate-900/80 p-2 rounded-2xl border border-slate-800 backdrop-blur-xl shadow-2xl">
+            {PANELS_SHOWCASE.map((panel, idx) => {
+              const TabIcon = panel.icon;
+              const isActive = activeTab === idx;
+              return (
+                <button
+                  key={panel.id}
+                  onClick={() => setActiveTab(idx)}
+                  className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all duration-300 relative ${
+                    isActive 
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-[1.02]' 
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <TabIcon size={18} className={isActive ? 'text-white' : 'text-slate-400'} />
+                  <span>{panel.tag}</span>
+                  {isActive && (
+                    <motion.div 
+                      layoutId="activeTabIndicator"
+                      className="absolute inset-0 bg-blue-600 rounded-xl -z-10"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Main Panel Showcase Stage */}
+        <div 
+          className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+        >
+          {/* Left Column: Panel Information & Key Features */}
+          <div className="lg:col-span-5 space-y-6">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentPanel.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                <div className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-black uppercase tracking-wider ${currentPanel.badgeColor}`}>
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-ping" />
+                  <span>{currentPanel.role}</span>
+                </div>
+
+                <h3 className="text-2xl md:text-3xl font-black text-slate-100 leading-tight">
+                  {currentPanel.title}
+                </h3>
+
+                <p className="text-slate-400 font-medium leading-relaxed">
+                  {currentPanel.subtitle}
+                </p>
+
+                {/* Highlights Grid */}
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  {currentPanel.highlights.map((h, i) => (
+                    <div key={i} className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl">
+                      <div className="text-xs font-black text-blue-400 uppercase tracking-wider">{h.val}</div>
+                      <div className="text-[11px] font-bold text-slate-400 leading-tight mt-0.5">{h.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Feature Bullet Points */}
+                <div className="space-y-3 pt-2">
+                  {currentPanel.features.map((feat, i) => (
+                    <div key={i} className="flex items-start gap-3 text-sm font-medium text-slate-300">
+                      <div className="mt-0.5 w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
+                        <CheckCircle2 size={12} className="stroke-[3]" />
+                      </div>
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Slider Controls Bar */}
+            <div className="flex items-center justify-between pt-6 border-t border-slate-800">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="p-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-700 transition-colors"
+                  title={isPlaying ? "Pause auto-slide" : "Play auto-slide"}
+                >
+                  {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+                </button>
+                
+                {/* Progress Indicators */}
+                <div className="flex items-center gap-2">
+                  {PANELS_SHOWCASE.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveTab(idx)}
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        activeTab === idx ? 'w-8 bg-blue-500' : 'w-2 bg-slate-700 hover:bg-slate-600'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Prev / Next Arrows */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrev}
+                  className="p-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-700 transition-colors hover:text-white"
+                  aria-label="Previous slide"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  onClick={handleNext}
+                  className="p-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-700 transition-colors hover:text-white"
+                  aria-label="Next slide"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Mac OS Style Browser Display Frame */}
+          <div className="lg:col-span-7">
+            <div className="relative rounded-2xl bg-slate-950 border border-slate-800 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] overflow-hidden group">
+              
+              {/* Window Titlebar */}
+              <div className="bg-slate-900/90 border-b border-slate-800 px-4 py-3 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+                  <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
+                </div>
+                
+                <div className="flex-1 max-w-sm bg-slate-950 border border-slate-800/80 rounded-lg px-3 py-1 text-center text-xs text-slate-400 font-mono tracking-tight truncate flex items-center justify-center gap-2">
+                  <Monitor size={12} className="text-slate-500 shrink-0" />
+                  <span>oviaan-cms.app/dashboard/{currentPanel.id}</span>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <span className="hidden sm:inline">LIVE INTERFACE</span>
+                </div>
+              </div>
+
+              {/* Window Main Image Container with AnimatePresence */}
+              <div className="relative bg-slate-950 p-2 md:p-4 min-h-[360px] md:min-h-[440px] flex items-center justify-center overflow-hidden">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentPanel.id}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.02 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                    className="w-full relative"
+                  >
+                    <img 
+                      src={currentPanel.image} 
+                      alt={currentPanel.title}
+                      className="w-full h-auto rounded-xl border border-slate-800/80 shadow-2xl object-cover"
+                    />
+
+                    {/* Floating Accent Badge on Screenshot */}
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="absolute bottom-4 right-4 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 p-3 rounded-xl shadow-2xl hidden sm:flex items-center gap-3"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center">
+                        <IconComponent size={18} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-slate-100">{currentPanel.tag}</div>
+                        <div className="text-[10px] text-slate-400 font-bold">{currentPanel.role}</div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+
+              {/* Progress Line Bar at Bottom of Window */}
+              {isPlaying && !hovered && (
+                <motion.div 
+                  key={activeTab}
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ duration: 5, ease: "linear" }}
+                  className="h-1 bg-gradient-to-r from-blue-500 to-indigo-500 origin-left w-full"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Integrated CTA Banner at Bottom of Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="mt-20 bg-gradient-to-r from-slate-900 via-blue-950/60 to-slate-900 border border-blue-500/20 rounded-3xl p-8 md:p-12 text-center relative overflow-hidden shadow-2xl"
+        >
+          <div className="max-w-3xl mx-auto relative z-10 space-y-6">
+            <h3 className="text-3xl md:text-4xl font-black text-white tracking-tight">
+              Ready to Upgrade Your Clinic Operations?
+            </h3>
+            <p className="text-slate-300 text-base md:text-lg font-medium leading-relaxed">
+              Empower your practice with complete digital records, automated scheduling, and real-time financial tracking.
+            </p>
+            <div className="flex flex-wrap justify-center items-center gap-4 pt-2">
+              <Link 
+                to="/register-organization" 
+                className="px-8 py-4 bg-blue-600 text-white font-bold text-lg rounded-2xl hover:bg-blue-500 transition-all shadow-xl shadow-blue-600/30 flex items-center gap-2 group"
+              >
+                <span>Start 14 Days Free Trial</span>
+                <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link 
+                to="/register-organization" 
+                className="px-8 py-4 bg-white/10 text-white font-bold text-lg rounded-2xl hover:bg-white/20 border border-white/20 transition-all flex items-center gap-2"
+              >
+                <span>Partner with Oviaan</span>
+              </Link>
+            </div>
+          </div>
+        </motion.div>
+
+      </div>
+    </section>
+  );
+};
+
+const DOCTORS_REVIEWS = [
+  {
+    name: "Dr. Aisha Fatma",
+    specialty: "Dental Specialist",
+    experience: "4 years overall",
+    clinic: "Dentique Optimal Dental Care",
+    address: "Chitrahar Building, Naval Kishore Road, Lucknow, UP",
+    fee: "₹300",
+    rating: "89%",
+    quote: "Oviaan's digital dental chart and instant slot booking revolutionized our daily operations. Patient wait times dropped significantly!",
+    avatarBg: "bg-emerald-500",
+    accentColor: "emerald"
+  },
+  {
+    name: "Dr. A.K. Upadhyay",
+    specialty: "Senior Consultant Physician & Diabetologist",
+    experience: "15 years overall",
+    clinic: "Aarogyam Medical Center",
+    address: "22, Brahmpuri, Near Jugauli Crossing, Indira Nagar, Lucknow, UP",
+    fee: "₹600",
+    rating: "89%",
+    quote: "Managing chronic diabetes patients requires clear vitals tracking and automated alerts. Oviaan handles our entire clinical workflow effortlessly.",
+    avatarBg: "bg-blue-600",
+    accentColor: "blue"
+  },
+  {
+    name: "Parimal Anand",
+    specialty: "Dental & Implant Specialist",
+    experience: "16 years overall",
+    clinic: "Manomay Dental Care & Implant Centre",
+    address: "4/275, Vineet Khand 4, Gomti Nagar, Lucknow, UP",
+    fee: "₹300",
+    rating: "89%",
+    quote: "For a high-volume dental implant center, Oviaan's lab case tracking and digital billing streamlined our entire practice.",
+    avatarBg: "bg-teal-600",
+    accentColor: "teal"
+  },
+  {
+    name: "Priyanka Rai",
+    specialty: "Dental Surgeon",
+    experience: "8 years overall",
+    clinic: "Family Dental Clinic",
+    address: "Yadav Market, Brahampuri, Indira Nagar, Lucknow, UP",
+    fee: "₹300",
+    rating: "89%",
+    quote: "Super easy to generate digital e-prescriptions and send them directly to patients. Practice efficiency has improved remarkably!",
+    avatarBg: "bg-indigo-600",
+    accentColor: "indigo"
+  },
+  {
+    name: "Saket Kashyap",
+    specialty: "Dental, Implants & Invisalign Specialist",
+    experience: "10 years overall",
+    clinic: "Sanjay Usha Dental & Invisalign Centre",
+    address: "3/207 Vijyant Khand, Gomti Nagar, Lucknow, UP",
+    fee: "₹300",
+    rating: "89%",
+    quote: "The real-time financial dashboard and stock analytics give me complete visibility into clinic revenue every single day.",
+    avatarBg: "bg-cyan-600",
+    accentColor: "cyan"
+  },
+  {
+    name: "V. Tyagi",
+    specialty: "General Physician",
+    experience: "10 years overall",
+    clinic: "HP Clinic",
+    address: "HP Clinic, Azamgarh, Uttar Pradesh",
+    fee: "₹600",
+    rating: "89%",
+    quote: "Best OPD management software for doctors. Quick patient check-ins, instant prescription printing, and zero administrative clutter.",
+    avatarBg: "bg-sky-600",
+    accentColor: "sky"
+  },
+  {
+    name: "Vandana Aditya Pant",
+    specialty: "Senior Dental Specialist",
+    experience: "23 years overall",
+    clinic: "Vajradanti Dental Clinic",
+    address: "Shop 254, Shopping Sq 2, Sushant Golf City, Lucknow, UP",
+    fee: "₹600",
+    rating: "89%",
+    quote: "With 23 years in healthcare, adopting Oviaan was the single best digital upgrade for our clinic. Highly recommended to all practitioners!",
+    avatarBg: "bg-rose-600",
+    accentColor: "rose"
+  },
+  {
+    name: "Vineet Shrivastav",
+    specialty: "Dental Specialist",
+    experience: "10 years overall",
+    clinic: "Smile Clinic",
+    address: "633/3 Panchavati Colony, Kamta, Lucknow, UP",
+    fee: "₹600",
+    rating: "89%",
+    quote: "Oviaan's queue management system and financial reporting turned our busy clinic schedule into a perfectly organized operation.",
+    avatarBg: "bg-amber-600",
+    accentColor: "amber"
+  },
+  {
+    name: "Dr. Anuj Bajpai",
+    specialty: "Senior Dental Surgeon",
+    experience: "22 years overall",
+    clinic: "Sewa Dental Clinic",
+    address: "Shanti Complex, Faizabad Road, Indira Nagar, Lucknow, UP",
+    fee: "₹300",
+    rating: "89%",
+    quote: "Trusted software with outstanding reliability. Managing appointments, lab cases, and patient follow-ups has never been smoother.",
+    avatarBg: "bg-emerald-600",
+    accentColor: "emerald"
+  }
+];
+
+const DoctorReviewsSection = () => {
+  const [isPaused, setIsPaused] = useState(false);
+
+  return (
+    <section className="py-20 bg-gradient-to-b from-[#f8fafc] via-emerald-50/20 to-[#f8fafc] overflow-hidden relative border-t border-b border-slate-200/60">
+      
+      {/* Healthcare & Botanical Floating Decorative SVGs */}
+      <div className="absolute top-6 left-10 opacity-20 pointer-events-none text-emerald-600">
+        <svg width="120" height="120" viewBox="0 0 100 100" fill="currentColor">
+          <path d="M50 10 C30 30 10 50 50 90 C90 50 70 30 50 10 Z M50 25 C60 40 70 50 50 75 C30 50 40 40 50 25 Z" />
+        </svg>
+      </div>
+      <div className="absolute bottom-6 right-10 opacity-20 pointer-events-none text-blue-600">
+        <svg width="140" height="140" viewBox="0 0 100 100" fill="currentColor">
+          <path d="M10 50 Q 25 20, 50 50 T 90 50" stroke="currentColor" strokeWidth="6" fill="none" />
+        </svg>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 mb-12 text-center relative z-10">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-100/80 border border-emerald-200 rounded-full text-emerald-800 font-extrabold text-xs uppercase tracking-widest mb-4 shadow-sm">
+          <span className="text-emerald-600">🌿</span>
+          <span>DOCTOR TESTIMONIALS & REVIEWS</span>
+        </div>
+        
+        <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">
+          Trusted by Leading Healthcare Professionals
+        </h2>
+        <p className="text-slate-600 text-base md:text-lg font-medium max-w-2xl mx-auto">
+          See what doctors across top clinics and hospitals say about managing their practice with Oviaan CMS.
+        </p>
+      </div>
+
+      {/* Auto-looping Marquee Track with Framer Motion */}
+      <div 
+        className="relative overflow-hidden py-4"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+      >
+        {/* Faded edge gradients for smooth marquee appearance */}
+        <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-[#f8fafc] to-transparent z-20 pointer-events-none" />
+        <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-[#f8fafc] to-transparent z-20 pointer-events-none" />
+
+        <motion.div
+          className="flex gap-6 whitespace-nowrap"
+          animate={{ x: isPaused ? undefined : ["0%", "-50%"] }}
+          transition={{
+            duration: 40,
+            repeat: Infinity,
+            ease: "linear"
+          }}
+        >
+          {/* Double array iteration to make infinite loop seamless */}
+          {[...DOCTORS_REVIEWS, ...DOCTORS_REVIEWS].map((doc, idx) => (
+            <div
+              key={idx}
+              className="w-[360px] md:w-[420px] shrink-0 bg-white rounded-3xl p-6 border-2 border-emerald-500/20 hover:border-emerald-500/60 shadow-lg hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-300 relative group flex flex-col justify-between whitespace-normal"
+            >
+              {/* Botanical Floral Corner SVG Badges */}
+              <div className="absolute top-0 right-0 p-3 pointer-events-none opacity-40 group-hover:opacity-100 transition-opacity">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  <circle cx="20" cy="20" r="18" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3 3" />
+                  <path d="M12 20 Q 20 8, 28 20 T 12 20" stroke="#059669" strokeWidth="1.5" fill="none" />
+                </svg>
+              </div>
+              <div className="absolute bottom-0 left-0 p-3 pointer-events-none opacity-30 group-hover:opacity-80 transition-opacity">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                  <path d="M6 16 C 6 8, 24 8, 24 16 C 24 24, 6 24, 6 16 Z" stroke="#3b82f6" strokeWidth="1.2" fill="none" />
+                </svg>
+              </div>
+
+              <div>
+                {/* Doctor Profile Header */}
+                <div className="flex items-center gap-3.5 mb-4">
+                  <div className={`w-12 h-12 rounded-2xl ${doc.avatarBg} text-white font-black text-lg flex items-center justify-center shadow-md shrink-0 border-2 border-white ring-2 ring-emerald-100`}>
+                    {doc.name.replace('Dr. ', '').charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-black text-slate-900 text-base truncate">{doc.name}</h4>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] shrink-0">
+                        ✓ Verified
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-blue-600 truncate">{doc.specialty}</p>
+                    <p className="text-[11px] font-medium text-slate-400">{doc.experience}</p>
+                  </div>
+                </div>
+
+                {/* Testimonial Quote */}
+                <p className="text-sm font-medium text-slate-700 italic leading-relaxed mb-5 relative pl-3 border-l-2 border-emerald-400">
+                  "{doc.quote}"
+                </p>
+              </div>
+
+              {/* Clinic & Location Details */}
+              <div className="pt-4 border-t border-slate-100 space-y-2 text-xs">
+                <div className="flex items-center gap-2 font-black text-slate-800 truncate">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="truncate">{doc.clinic}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-500 font-medium text-[11px] truncate">
+                  <MapPin size={12} className="text-slate-400 shrink-0" />
+                  <span className="truncate">{doc.address}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </motion.div>
+      </div>
+    </section>
+  );
+};
 
 const LandingPage = () => {
   const [locationName, setLocationName] = useState("");
@@ -755,6 +1381,9 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Doctor Reviews & Testimonials Carousel */}
+      <DoctorReviewsSection />
+
       {/* Pharmacy Partner Section */}
       <section className="pt-8 pb-24 px-4 bg-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
@@ -1019,34 +1648,8 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Are you a Doctor? Section */}
-      <section className="py-16 px-4 bg-slate-900 overflow-hidden relative">
-
-        {/* Background decorative blobs */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] -mr-48 -mt-48" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-[100px] -ml-48 -mb-48" />
-        
-        <div className="max-w-4xl mx-auto text-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mb-8"
-          >
-            <h2 className="text-4xl md:text-5xl font-black text-white mb-6 tracking-tight">Are you a Doctor?</h2>
-            <p className="text-slate-400 text-lg md:text-xl mb-10 leading-relaxed font-medium max-w-2xl mx-auto">
-              Join the future of healthcare. Empower your practice with our AI-driven management tools and reach thousands of patients seamlessly.
-            </p>
-            <Link 
-              to="/register-organization" 
-              className="inline-flex items-center gap-2 px-10 py-4 bg-white text-blue-600 font-bold text-lg rounded-2xl hover:bg-slate-50 transition-all shadow-xl shadow-black/20"
-            >
-              Partner with Oviaan
-              <ChevronRight size={20} />
-            </Link>
-          </motion.div>
-        </div>
-      </section>
+      {/* Interactive Software Panel Showcase Section */}
+      <SoftwareShowcaseSection />
 
       {/* Logo Slider / Ticker Section */}
       <section className="py-12 bg-white border-b border-slate-100 overflow-hidden">

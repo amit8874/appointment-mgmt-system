@@ -14,6 +14,7 @@ const ExpenseDashboard = ({ setActiveTab }) => {
     equipmentExpenses: 0,
     consumerExpenses: 0,
     labExpenses: 0,
+    otherExpenses: 0,
     totalExpenses: 0,
     netProfit: 0
   });
@@ -33,10 +34,11 @@ const ExpenseDashboard = ({ setActiveTab }) => {
       setStats(dashboardStats);
 
       // 2. Fetch recent expenses to display a unified recent feed
-      const [eqRes, consRes, labRes] = await Promise.all([
+      const [eqRes, consRes, labRes, otherRes] = await Promise.all([
         expenseApi.getEquipment({ page: 1, limit: 3 }).catch(() => ({ expenses: [] })),
         expenseApi.getConsumerProducts({ page: 1, limit: 3 }).catch(() => ({ expenses: [] })),
-        expenseApi.getLabExpenses({ page: 1, limit: 3 }).catch(() => ({ expenses: [] }))
+        expenseApi.getLabExpenses({ page: 1, limit: 3 }).catch(() => ({ expenses: [] })),
+        expenseApi.getOtherExpenses({ page: 1, limit: 3 }).catch(() => ({ expenses: [] }))
       ]);
 
       const formatted = [
@@ -63,6 +65,14 @@ const ExpenseDashboard = ({ setActiveTab }) => {
           amount: e.totalAmount,
           date: e.sentDate ? new Date(e.sentDate) : new Date(e.createdAt),
           badgeColor: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300'
+        })),
+        ...(otherRes.expenses || []).map(e => ({
+          id: e._id,
+          name: `${e.expenseName} (${e.category || 'Other'})`,
+          category: 'More Expenses',
+          amount: e.totalAmount,
+          date: e.purchaseDate ? new Date(e.purchaseDate) : new Date(e.createdAt),
+          badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
         }))
       ];
 
@@ -81,7 +91,8 @@ const ExpenseDashboard = ({ setActiveTab }) => {
   const pieData = [
     { name: 'Equipment', value: stats.equipmentExpenses, color: '#6366f1' },
     { name: 'Consumer Products', value: stats.consumerExpenses, color: '#06b6d4' },
-    { name: 'Lab Expenses', value: stats.labExpenses, color: '#a855f7' }
+    { name: 'Lab Expenses', value: stats.labExpenses, color: '#a855f7' },
+    { name: 'More Expenses', value: stats.otherExpenses, color: '#f59e0b' }
   ].filter(item => item.value > 0);
 
   const barData = [
@@ -169,7 +180,7 @@ const ExpenseDashboard = ({ setActiveTab }) => {
       </div>
 
       {/* Sub-Expenses Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Dental Equipment Card */}
         <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-5 rounded-2xl shadow-sm flex items-center justify-between hover:border-indigo-500/50 transition-all cursor-pointer" onClick={() => setActiveTab('Dental Equipment')}>
           <div className="flex items-center gap-3">
@@ -207,6 +218,20 @@ const ExpenseDashboard = ({ setActiveTab }) => {
             <div>
               <p className="text-[9px] font-black text-slate-400 dark:text-gray-400 uppercase tracking-widest">Lab case Expenses</p>
               <h4 className="text-lg font-bold text-slate-800 dark:text-white mt-0.5">₹{stats.labExpenses.toLocaleString('en-IN')}</h4>
+            </div>
+          </div>
+          <ArrowRight size={16} className="text-slate-400" />
+        </div>
+
+        {/* More Expenses Card */}
+        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-5 rounded-2xl shadow-sm flex items-center justify-between hover:border-amber-500/50 transition-all cursor-pointer" onClick={() => setActiveTab('More Expenses')}>
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-xl">
+              <IndianRupee size={20} />
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-slate-400 dark:text-gray-400 uppercase tracking-widest">More Expenses</p>
+              <h4 className="text-lg font-bold text-slate-800 dark:text-white mt-0.5">₹{stats.otherExpenses.toLocaleString('en-IN')}</h4>
             </div>
           </div>
           <ArrowRight size={16} className="text-slate-400" />

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Doctor from '../models/Doctor.js';
 import Organization from '../models/Organization.js';
 import Counter from '../models/Counter.js';
@@ -923,6 +924,21 @@ export const deleteDoctor = async (req, res) => {
 
     if (!doctor) {
       return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    // Delete corresponding staff User login account if exists
+    try {
+      const UserModel = mongoose.model('User');
+      if (doctor.phone) {
+        await UserModel.findOneAndDelete({
+          mobile: doctor.phone,
+          organizationId: doctor.organizationId,
+          role: 'doctor'
+        });
+        console.log(`[DeleteDoctor] Deleted login user for mobile: ${doctor.phone}`);
+      }
+    } catch (userDeleteError) {
+      console.error('[DeleteDoctor] Failed to delete user login record:', userDeleteError.message);
     }
 
     res.json({ message: 'Doctor deleted successfully' });

@@ -15,7 +15,8 @@ import {
   Zap,
   Phone,
   Mail,
-  Info
+  Info,
+  MessageSquare
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { format, isSameDay, parse, subMinutes, addMinutes, isAfter, isBefore } from 'date-fns';
@@ -31,6 +32,7 @@ const SmartNotificationSystem = () => {
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [insufficientCreditError, setInsufficientCreditError] = useState(null);
   const [subscriptionUpgradePopup, setSubscriptionUpgradePopup] = useState(null);
+  const [broadcastCampaign, setBroadcastCampaign] = useState(null);
 
   const triggerUpgradePopup = (msg) => {
     setSubscriptionUpgradePopup(msg);
@@ -176,6 +178,23 @@ const SmartNotificationSystem = () => {
 
     socket.on('subscription-upgraded', (data) => {
       triggerUpgradePopup(data.message);
+    });
+
+    socket.on('broadcast-progress', (data) => {
+      setBroadcastCampaign(data);
+      if (data.status === 'stopped_low_credits') {
+        setTimeout(() => setBroadcastCampaign(null), 10000);
+      }
+    });
+
+    socket.on('broadcast-completed', (data) => {
+      setBroadcastCampaign({ ...data, status: 'completed' });
+      try { 
+        new Audio('/notification.mp3').play().catch(() => {}); 
+      } catch(e) {}
+      setTimeout(() => {
+        setBroadcastCampaign(null);
+      }, 10000);
     });
 
     return () => {
@@ -426,6 +445,78 @@ const SmartNotificationSystem = () => {
               </button>
             </motion.div>
           ))}
+
+          {/* WhatsApp Broadcast Campaign Progress */}
+          {broadcastCampaign && (
+            <motion.div
+              key="broadcast_campaign"
+              initial={{ opacity: 0, x: 200, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8, x: 100, transition: { duration: 0.2 } }}
+              className="p-6 w-96 rounded-[2rem] shadow-2xl border border-indigo-100 pointer-events-auto bg-white/95 backdrop-blur-2xl relative overflow-hidden text-left"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200">
+                    <MessageSquare size={18} className={broadcastCampaign.status !== 'completed' ? "animate-pulse" : ""} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-[0.1em] text-indigo-600 leading-none mb-1">
+                      {broadcastCampaign.status === 'completed' ? 'Broadcast Complete' : 'Sending Broadcast'}
+                    </h3>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                      {broadcastCampaign.status === 'completed' ? 'All messages sent' : `Sending queue in background`}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setBroadcastCampaign(null)} 
+                  className="p-1 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex justify-between text-xs font-bold text-slate-650">
+                  <span>Progress ({broadcastCampaign.sentCount + broadcastCampaign.failedCount} / {broadcastCampaign.total})</span>
+                  <span className="text-indigo-600">
+                    {Math.round(((broadcastCampaign.sentCount + broadcastCampaign.failedCount) / broadcastCampaign.total) * 100)}%
+                  </span>
+                </div>
+                
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${((broadcastCampaign.sentCount + broadcastCampaign.failedCount) / broadcastCampaign.total) * 100}%` }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-center text-[10px] font-bold uppercase tracking-wider bg-slate-50 p-2.5 rounded-xl border border-slate-100/50">
+                  <div>
+                    <p className="text-slate-400">Sent</p>
+                    <p className="text-emerald-600 text-sm font-black">{broadcastCampaign.sentCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Failed</p>
+                    <p className="text-rose-500 text-sm font-black">{broadcastCampaign.failedCount}</p>
+                  </div>
+                </div>
+
+                {broadcastCampaign.status !== 'completed' && broadcastCampaign.status !== 'stopped_low_credits' && broadcastCampaign.currentPatientName && (
+                  <p className="text-[9px] font-black text-indigo-500 bg-indigo-50/50 px-3 py-1.5 rounded-xl border border-indigo-100/50 text-center animate-pulse uppercase tracking-wider">
+                    Next in 60s: {broadcastCampaign.currentPatientName}
+                  </p>
+                )}
+
+                {broadcastCampaign.status === 'stopped_low_credits' && (
+                  <p className="text-[9px] font-black text-red-500 bg-red-50 px-3 py-1.5 rounded-xl border border-red-100 text-center uppercase tracking-wider">
+                    Credits Empty! Recharge soon.
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 

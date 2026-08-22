@@ -20,6 +20,7 @@ import {
   verifyDoctorBySuperAdmin,
   rejectDoctorBySuperAdmin,
   getOrganizationStats,
+  createPublicDoctorProfileBySuperAdmin,
 } from '../controllers/superAdminController.js';
 
 const router = express.Router();
@@ -173,5 +174,12 @@ router.patch('/doctors/:id/verify', verifyDoctorBySuperAdmin);
  * @access  Super Admin
  */
 router.patch('/doctors/:id/reject', rejectDoctorBySuperAdmin);
+
+/**
+ * @route   POST /api/superadmin/doctors/create-profile
+ * @desc    Create a Public Doctor Profile by Super Admin
+ * @access  Super Admin
+ */
+router.post('/doctors/create-profile', createPublicDoctorProfileBySuperAdmin);
 
 export default router;

@@ -12,7 +12,8 @@ import {
   getTrialStatus,
   dismissResetNotification,
   verifyRegistrationOTP,
-  resendRegistrationOTP
+  resendRegistrationOTP,
+  createBranchOrganization
 } from '../controllers/organizationController.js';
 
 const router = express.Router();
@@ -25,6 +26,7 @@ const router = express.Router();
 router.post('/', registerOrganization);
 router.post('/verify-otp', verifyRegistrationOTP);
 router.post('/resend-otp', resendRegistrationOTP);
+router.post('/create-branch', authenticateToken, createBranchOrganization);
 
 /**
  * @route   GET /api/organizations/public

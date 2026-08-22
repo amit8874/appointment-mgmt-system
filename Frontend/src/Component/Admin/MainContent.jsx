@@ -31,6 +31,7 @@ import Reports from './Pharmacy/Reports.jsx';
 import DentalEquipment from './Expenses/DentalEquipment.jsx';
 import DentalConsumerProducts from './Expenses/DentalConsumerProducts.jsx';
 import DentalLabExpenses from './Expenses/DentalLabExpenses.jsx';
+import MoreExpenses from './Expenses/MoreExpenses.jsx';
 import ExpenseDashboard from './Expenses/ExpenseDashboard.jsx';
 import ExpenseReports from './Expenses/ExpenseReports.jsx';
 import ExpenseAnalytics from './Expenses/ExpenseAnalytics.jsx';
@@ -283,6 +284,9 @@ const MainContent = ({
       case 'Dental Lab Expenses':
         if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
         return <DentalLabExpenses />;
+      case 'More Expenses':
+        if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
+        return <MoreExpenses />;
       case 'Dentist Dashboard':
         return <DentistDashboard setActiveTab={setActiveTab} />;
       default:

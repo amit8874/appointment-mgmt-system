@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { LogOut, UserCircle, Bell, Sun, Moon, Menu, ShieldCheck, MoreVertical, ChevronDown, User, CreditCard, Pill, CalendarCheck, Users, Stethoscope, Calendar, Activity, Wallet } from 'lucide-react';
 import { getNotifications, markAllAsRead, markAsRead } from '../../api/notificationApi';
 import { organizationApi } from '../../services/api';
+import ClinicSwitcher from '../../components/common/ClinicSwitcher';
 
 const Header = ({ 
   toggleSidebar, 
@@ -380,7 +381,7 @@ const Header = ({
                     setShowApptDropdown(false);
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 ${
-                    ['Expense Dashboard', 'Expense Reports', 'Expense Analytics', 'Dental Equipment', 'Dental Consumable Products', 'Dental Lab Expenses'].includes(activeTab)
+                    ['Expense Dashboard', 'Expense Reports', 'Expense Analytics', 'Dental Equipment', 'Dental Consumable Products', 'Dental Lab Expenses', 'More Expenses'].includes(activeTab)
                       ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 font-extrabold'
                       : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
@@ -464,6 +465,18 @@ const Header = ({
                       <span className="text-gray-400">🧪</span>
                       Dental Lab Expenses
                     </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('More Expenses');
+                        setShowExpensesDropdown(false);
+                      }}
+                      className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
+                        activeTab === 'More Expenses' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className="text-gray-400">💸</span>
+                      More Expenses
+                    </button>
                   </div>
                 )}
               </div>
@@ -474,6 +487,9 @@ const Header = ({
 
       {/* Right: Compact action icons + Profile avatar */}
       <div className="flex items-center gap-2">
+        
+        {/* Clinic Switcher */}
+        <ClinicSwitcher />
 
         {/* Theme Toggle */}
         <button
