@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, ChevronLeft, User, Calendar, ShieldCheck, Grid, Activity, PlusSquare, Upload, Package, ShoppingCart, AlertTriangle, Truck, FileText, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, BarChart3, ChevronDown, ChevronRight, ChevronLeft, User, Calendar, ShieldCheck, Grid, Activity, PlusSquare, Upload, Package, ShoppingCart, AlertTriangle, Truck, FileText, Bell, FlaskConical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NavItem from './NavItem.jsx';
 import { useAuth } from '../../context/AuthContext';
@@ -146,6 +146,9 @@ const AdminSidebar = ({
             {isDentistClinic && (
               <NavItem id="tour-admin-dentist-dashboard" name="Dentist Dashboard" icon={LayoutDashboard} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             )}
+            {isDentistClinic && (
+              <NavItem id="tour-admin-lab-work" name="Lab Work" icon={FlaskConical} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
+            )}
             <NavItem id="tour-admin-analysis" name="Analysis" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             <NavItem id="tour-admin-billing" name="Billing & Payments" icon={Wallet} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             {(user?.role === 'superadmin' || user?.role === 'orgadmin' || user?.role === 'admin') && (
@@ -193,6 +196,9 @@ const AdminSidebar = ({
                   icon={Wallet}
                   children={expensesChildren}
                 />
+              )}
+              {isDentistClinic && (
+                <NavItem id="tour-admin-lab-work" name="Lab Work" icon={FlaskConical} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
               )}
             </div>
           </>

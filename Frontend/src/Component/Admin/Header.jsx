@@ -233,10 +233,10 @@ const Header = ({
             {/* New Appointment */}
             <button
               onClick={() => setActiveTab('New Appointment')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
                 activeTab === 'New Appointment'
-                  ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 font-extrabold'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  ? 'bg-indigo-100 border-indigo-400 text-indigo-955 dark:bg-indigo-950/20 dark:border-indigo-800 dark:text-indigo-200'
+                  : 'border-indigo-300 bg-indigo-50/45 text-indigo-950 dark:text-indigo-200 hover:bg-indigo-100/50 hover:border-indigo-400'
               }`}
             >
               <CalendarCheck className="w-3.5 h-3.5" />
@@ -246,10 +246,10 @@ const Header = ({
             {/* Patients */}
             <button
               onClick={() => setActiveTab('Patients')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
                 activeTab === 'Patients'
-                  ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 font-extrabold'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  ? 'bg-emerald-100 border-emerald-400 text-emerald-955 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-200'
+                  : 'border-emerald-300 bg-emerald-50/45 text-emerald-950 dark:text-emerald-200 hover:bg-emerald-100/50 hover:border-emerald-400'
               }`}
             >
               <Users className="w-3.5 h-3.5" />
@@ -264,10 +264,10 @@ const Header = ({
                   setShowApptDropdown(false);
                   setShowExpensesDropdown(false);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
                   ['Doctor', 'Doctor Schedule'].includes(activeTab)
-                    ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 font-extrabold'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    ? 'bg-amber-100 border-amber-400 text-amber-955 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-200'
+                    : 'border-amber-300 bg-amber-50/45 text-amber-955 dark:text-amber-200 hover:bg-amber-100/50 hover:border-amber-400'
                 }`}
               >
                 <Stethoscope className="w-3.5 h-3.5" />
@@ -283,7 +283,7 @@ const Header = ({
                       setShowDoctorDropdown(false);
                     }}
                     className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
-                      activeTab === 'Doctor' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      activeTab === 'Doctor' ? 'text-indigo-650 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     <Stethoscope className="w-3.5 h-3.5 text-gray-400" />
@@ -312,7 +312,7 @@ const Header = ({
                       setShowDoctorDropdown(false);
                     }}
                     className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
-                      activeTab === 'Doctor Schedule' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      activeTab === 'Doctor Schedule' ? 'text-indigo-650 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -330,10 +330,10 @@ const Header = ({
                   setShowDoctorDropdown(false);
                   setShowExpensesDropdown(false);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
                   ['Calendar View', 'Today Appointment'].includes(activeTab)
-                    ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 font-extrabold'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    ? 'bg-violet-100 border-violet-400 text-violet-955 dark:bg-violet-950/20 dark:border-violet-800 dark:text-violet-200'
+                    : 'border-violet-300 bg-violet-50/45 text-violet-955 dark:text-violet-200 hover:bg-violet-100/50 hover:border-violet-400'
                 }`}
               >
                 <CalendarCheck className="w-3.5 h-3.5" />
@@ -349,7 +349,7 @@ const Header = ({
                       setShowApptDropdown(false);
                     }}
                     className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
-                      activeTab === 'Calendar View' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      activeTab === 'Calendar View' ? 'text-indigo-650 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -361,7 +361,7 @@ const Header = ({
                       setShowApptDropdown(false);
                     }}
                     className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
-                      activeTab === 'Today Appointment' ? 'text-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      activeTab === 'Today Appointment' ? 'text-indigo-650 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     <Activity className="w-3.5 h-3.5 text-gray-400" />
@@ -370,7 +370,7 @@ const Header = ({
                 </div>
               )}
             </div>
-
+  
             {/* Expenses Dropdown */}
             {isDentistClinic && (
               <div className="relative" ref={expensesDropdownRef}>
@@ -380,10 +380,10 @@ const Header = ({
                     setShowDoctorDropdown(false);
                     setShowApptDropdown(false);
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
                     ['Expense Dashboard', 'Expense Reports', 'Expense Analytics', 'Dental Equipment', 'Dental Consumable Products', 'Dental Lab Expenses', 'More Expenses'].includes(activeTab)
-                      ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 font-extrabold'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      ? 'bg-rose-100 border-rose-400 text-rose-955 dark:bg-rose-950/20 dark:border-rose-800 dark:text-rose-200'
+                      : 'border-rose-300 bg-rose-50/45 text-rose-955 dark:text-rose-200 hover:bg-rose-100/50 hover:border-rose-400'
                   }`}
                 >
                   <Wallet className="w-3.5 h-3.5" />

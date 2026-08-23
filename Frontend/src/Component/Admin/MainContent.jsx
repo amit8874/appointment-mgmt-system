@@ -37,6 +37,7 @@ import ExpenseReports from './Expenses/ExpenseReports.jsx';
 import ExpenseAnalytics from './Expenses/ExpenseAnalytics.jsx';
 import FollowUpReminderPanel from './FollowUpReminderPanel.jsx';
 import DentistDashboard from './DentistDashboard.jsx';
+import LabWorkDashboard from './LabWork/LabWorkDashboard.jsx';
 
 const MainContent = ({
   activeTab,
@@ -289,6 +290,9 @@ const MainContent = ({
         return <MoreExpenses />;
       case 'Dentist Dashboard':
         return <DentistDashboard setActiveTab={setActiveTab} />;
+      case 'Lab Work':
+        if (!isDentistClinic) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
+        return <LabWorkDashboard />;
       default:
         return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Select a section from the sidebar.</div>;
     }

@@ -80,6 +80,7 @@ import DentalChart from './DentalChart';
 import DentalTreatmentTab from './DentalTreatmentTab';
 import DentalImagesTab from './DentalImagesTab';
 import ToothHistoryTab from './ToothHistoryTab';
+import LabWorkTab from './LabWorkTab';
 import MobileAppNavigation from '../../../components/common/MobileAppNavigation';
 
 // --- Utility Components ---
@@ -4358,8 +4359,8 @@ const PatientProfile = () => {
     { key: 'treatment-plan', name: 'Treatment Plan', icon: ClipboardList },
     { key: 'dental-images', name: 'Dental Images', icon: Image },
     { key: 'tooth-history', name: 'Tooth History', icon: History },
-    { key: 'progress', name: 'Progress Gallery', icon: Camera },
     { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
+    { key: 'lab-work', name: 'Lab Work', icon: FlaskConical },
     { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote }
   ] : [
     { key: 'personal', name: 'Personal Info', icon: User },
@@ -4903,19 +4904,110 @@ const PatientProfile = () => {
 
           {/* Navigation Tabs */}
           <nav className="flex-row overflow-x-auto lg:overflow-y-auto lg:flex-col flex lg:flex-1 custom-scrollbar w-full">
-            {tabs.map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex-none lg:w-full flex items-center gap-2 lg:gap-3 px-4 py-3 text-[10px] font-medium transition-all duration-200 border-b-2 lg:border-b lg:border-r-0 border-slate-50 group relative ${activeTab === tab.key
-                  ? 'bg-indigo-50/50 text-indigo-700 lg:border-l-4 lg:border-l-indigo-600 border-b-indigo-600 lg:border-b-transparent'
-                  : 'text-slate-500 hover:bg-slate-50 lg:border-l-4 lg:border-l-transparent border-b-transparent'
-                  }`}
-              >
-                <tab.icon size={14} className={`${activeTab === tab.key ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-400'} transition-colors`} />
-                <span className="text-left uppercase tracking-wider whitespace-nowrap">{tab.name}</span>
-              </button>
-            ))}
+            {(() => {
+              const tabColors = {
+                personal: {
+                  bg: 'bg-slate-100 dark:bg-slate-900',
+                  text: 'text-slate-950 dark:text-slate-100',
+                  border: 'lg:border-l-slate-700 border-b-slate-700',
+                  icon: 'text-slate-800 dark:text-slate-200'
+                },
+                prescriptions: {
+                  bg: 'bg-emerald-50 dark:bg-emerald-950/20',
+                  text: 'text-emerald-950 dark:text-emerald-250',
+                  border: 'lg:border-l-emerald-600 border-b-emerald-600',
+                  icon: 'text-emerald-600'
+                },
+                appointments: {
+                  bg: 'bg-amber-50 dark:bg-amber-950/20',
+                  text: 'text-amber-950 dark:text-amber-250',
+                  border: 'lg:border-l-amber-600 border-b-amber-600',
+                  icon: 'text-amber-600'
+                },
+                billing: {
+                  bg: 'bg-rose-50 dark:bg-rose-950/20',
+                  text: 'text-rose-950 dark:text-rose-250',
+                  border: 'lg:border-l-rose-600 border-b-rose-600',
+                  icon: 'text-rose-600'
+                },
+                'dental-chart': {
+                  bg: 'bg-sky-50 dark:bg-sky-950/20',
+                  text: 'text-sky-950 dark:text-sky-250',
+                  border: 'lg:border-l-sky-600 border-b-sky-600',
+                  icon: 'text-sky-600'
+                },
+                'treatment-plan': {
+                  bg: 'bg-violet-50 dark:bg-violet-950/20',
+                  text: 'text-violet-950 dark:text-violet-250',
+                  border: 'lg:border-l-violet-600 border-b-violet-600',
+                  icon: 'text-violet-600'
+                },
+                'dental-images': {
+                  bg: 'bg-purple-50 dark:bg-purple-950/20',
+                  text: 'text-purple-950 dark:text-purple-250',
+                  border: 'lg:border-l-purple-600 border-b-purple-600',
+                  icon: 'text-purple-600'
+                },
+                'tooth-history': {
+                  bg: 'bg-cyan-50 dark:bg-cyan-950/20',
+                  text: 'text-cyan-950 dark:text-cyan-250',
+                  border: 'lg:border-l-cyan-600 border-b-cyan-600',
+                  icon: 'text-cyan-600'
+                },
+                progress: {
+                  bg: 'bg-orange-50 dark:bg-orange-950/20',
+                  text: 'text-orange-950 dark:text-orange-250',
+                  border: 'lg:border-l-orange-650 border-b-orange-650',
+                  icon: 'text-orange-600'
+                },
+                'follow-ups': {
+                  bg: 'bg-fuchsia-50 dark:bg-fuchsia-950/20',
+                  text: 'text-fuchsia-950 dark:text-fuchsia-250',
+                  border: 'lg:border-l-fuchsia-600 border-b-fuchsia-600',
+                  icon: 'text-fuchsia-600'
+                },
+                'lab-work': {
+                  bg: 'bg-indigo-50 dark:bg-indigo-950/20',
+                  text: 'text-indigo-950 dark:text-indigo-250',
+                  border: 'lg:border-l-indigo-600 border-b-indigo-600',
+                  icon: 'text-indigo-600'
+                },
+                'clinical-notes': {
+                  bg: 'bg-teal-50 dark:bg-teal-950/20',
+                  text: 'text-teal-950 dark:text-teal-250',
+                  border: 'lg:border-l-teal-600 border-b-teal-600',
+                  icon: 'text-teal-600'
+                }
+              };
+
+              return tabs.map(tab => {
+                const colors = tabColors[tab.key] || {
+                  bg: 'bg-indigo-50 dark:bg-indigo-950/20',
+                  text: 'text-indigo-950 dark:text-indigo-250',
+                  border: 'lg:border-l-indigo-600 border-b-indigo-600',
+                  icon: 'text-indigo-600'
+                };
+                const isActive = activeTab === tab.key;
+
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`flex-none lg:w-full flex items-center gap-2 lg:gap-3 px-4 py-3 text-[10px] font-black uppercase tracking-wider transition-all duration-200 border-b-2 lg:border-b lg:border-r-0 border-slate-100 group relative ${
+                      isActive
+                        ? `${colors.bg} ${colors.text} lg:border-l-4 ${colors.border}`
+                        : 'text-slate-950 dark:text-slate-200 hover:bg-slate-50 lg:border-l-4 lg:border-l-transparent border-b-transparent'
+                    }`}
+                  >
+                    <tab.icon 
+                      size={14} 
+                      className={`${isActive ? colors.icon : 'text-slate-900 dark:text-slate-350 group-hover:text-indigo-600'} transition-colors`} 
+                    />
+                    <span className="text-left whitespace-nowrap">{tab.name}</span>
+                  </button>
+                );
+              });
+            })()}
           </nav>
 
           {/* Sidebar Footer */}
@@ -5052,6 +5144,7 @@ const PatientProfile = () => {
                   {activeTab === 'treatment-plan' && <DentalTreatmentTab patientId={id} patientData={data} appointments={appointments} />}
                   {activeTab === 'dental-images' && <DentalImagesTab patientId={id} />}
                   {activeTab === 'tooth-history' && <ToothHistoryTab patientId={id} />}
+                  {activeTab === 'lab-work' && <LabWorkTab patientId={id} patientData={data} appointments={appointments} />}
                   {activeTab === 'follow-ups' && (
                     <TabFollowUps 
                        patient={data}

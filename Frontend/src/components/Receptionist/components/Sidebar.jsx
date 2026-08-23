@@ -56,128 +56,205 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
           </div>
 
           {/* Navigation */}
-          <nav className={`flex-1 space-y-3 overflow-y-auto ${isSidebarCollapsed ? 'px-0' : ''}`}>
-            {!isSidebarCollapsed && <h2 className="text-[10px] font-black uppercase text-gray-400 mb-5 ml-4 tracking-[0.2em] mt-2">MAIN</h2>}
-            {navigation.map((item) => (
-              <div key={item.name}>
-                {item.children ? (
-                  // Parent menu with children (expandable)
-                  <div>
-                    <button
-                      id={item.id}
-                      onClick={() => toggleExpand(item.name)}
-                      className={`group flex items-center justify-between w-full px-4 py-3 text-sm rounded-2xl transition-all duration-300 transform hover:translate-x-1 ${
-                        item.children.some(child => window.location.pathname === child.href)
-                        ? 'bg-blue-700 text-white shadow-lg shadow-blue-700/50 font-bold'
-                        : 'bg-slate-100/80 text-slate-700 hover:bg-blue-50 hover:text-blue-700 dark:bg-gray-700/50 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-blue-400 font-bold'
-                      }`}
-                    >
-                      <div className="flex items-center">
-                        <item.icon
-                          className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} h-5 w-5 flex-shrink-0 z-10 ${
-                            item.children.some(child => window.location.pathname === child.href) 
-                            ? 'text-white' 
-                            : 'text-blue-500 dark:text-blue-400'
-                          }`}
-                          aria-hidden="true"
-                        />
-                        {!isSidebarCollapsed && <span className="z-10">{item.name}</span>}
-                      </div>
-                      {!isSidebarCollapsed && (
-                        expandedItems[item.name] ? (
-                          <ChevronDown className={`h-5 w-5 ${item.children.some(child => window.location.pathname === child.href) ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
+          <nav className={`flex-1 space-y-2 overflow-y-auto ${isSidebarCollapsed ? 'px-0' : ''}`}>
+            {(() => {
+              const getSidebarItemStyles = (name, isActive) => {
+                const sidebarColors = {
+                  'Follow up & Reminder': {
+                    active: 'bg-slate-200 dark:bg-slate-800 border-slate-500 text-slate-950 dark:text-slate-100',
+                    inactive: 'border-slate-350 bg-slate-100/60 text-slate-950 dark:text-slate-200 hover:bg-slate-200 hover:border-slate-500',
+                    iconActive: 'text-slate-800 dark:text-slate-200',
+                    iconInactive: 'text-slate-700 dark:text-slate-350'
+                  },
+                  'New Appointment': {
+                    active: 'bg-indigo-100 dark:bg-indigo-950/40 border-indigo-400 text-indigo-955 dark:text-indigo-250',
+                    inactive: 'border-indigo-300 bg-indigo-50/40 text-indigo-955 dark:text-indigo-200 hover:bg-indigo-100/50 hover:border-indigo-400',
+                    iconActive: 'text-indigo-700',
+                    iconInactive: 'text-indigo-500'
+                  },
+                  'Appointment Mgmt': {
+                    active: 'bg-violet-100 dark:bg-violet-950/40 border-violet-400 text-violet-955 dark:text-violet-250',
+                    inactive: 'border-violet-300 bg-violet-50/40 text-violet-955 dark:text-violet-200 hover:bg-violet-100/50 hover:border-violet-400',
+                    iconActive: 'text-violet-700',
+                    iconInactive: 'text-violet-550'
+                  },
+                  'Patients': {
+                    active: 'bg-emerald-100 dark:bg-emerald-950/20 border-emerald-400 text-emerald-955 dark:text-emerald-250',
+                    inactive: 'border-emerald-300 bg-emerald-50/40 text-emerald-955 dark:text-emerald-200 hover:bg-emerald-100/50 hover:border-emerald-400',
+                    iconActive: 'text-emerald-700',
+                    iconInactive: 'text-emerald-500'
+                  },
+                  'Billing': {
+                    active: 'bg-rose-100 dark:bg-rose-950/20 border-rose-400 text-rose-955 dark:text-rose-250',
+                    inactive: 'border-rose-300 bg-rose-50/40 text-rose-955 dark:text-rose-200 hover:bg-rose-100/50 hover:border-rose-400',
+                    iconActive: 'text-rose-700',
+                    iconInactive: 'text-rose-550'
+                  },
+                  'Doctor': {
+                    active: 'bg-amber-100 dark:bg-amber-950/20 border-amber-400 text-amber-955 dark:text-amber-250',
+                    inactive: 'border-amber-300 bg-amber-50/40 text-amber-955 dark:text-amber-200 hover:bg-amber-100/50 hover:border-amber-400',
+                    iconActive: 'text-amber-700',
+                    iconInactive: 'text-amber-550'
+                  }
+                };
+
+                return sidebarColors[name] || {
+                  active: 'bg-blue-100 border-blue-400 text-blue-955',
+                  inactive: 'border-slate-200 bg-slate-50/20 text-slate-900 hover:bg-slate-100',
+                  iconActive: 'text-blue-700',
+                  iconInactive: 'text-blue-500'
+                };
+              };
+
+              return (
+                <>
+                  {!isSidebarCollapsed && <h2 className="text-[10px] font-black uppercase text-gray-400 mb-4 ml-4 tracking-[0.2em] mt-2">MAIN</h2>}
+                  {navigation.map((item) => {
+                    const isParentActive = item.children ? item.children.some(child => window.location.pathname === child.href) : false;
+                    const colors = getSidebarItemStyles(item.name, isParentActive);
+
+                    return (
+                      <div key={item.name}>
+                        {item.children ? (
+                          // Parent menu with children (expandable)
+                          <div>
+                            <button
+                              id={item.id}
+                              onClick={() => toggleExpand(item.name)}
+                              className={`group flex items-center justify-between w-full rounded-xl border m-1.5 transition-all duration-300 shadow-sm ${
+                                isSidebarCollapsed 
+                                  ? 'justify-center flex-col px-1.5 py-3 gap-1.5 text-center' 
+                                  : 'px-4 py-2.5 gap-3'
+                              } ${
+                                isParentActive ? colors.active : colors.inactive
+                              }`}
+                            >
+                              <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col gap-1.5' : 'gap-3'}`}>
+                                <item.icon
+                                  className={`h-5 w-5 flex-shrink-0 z-10 ${
+                                    isParentActive ? colors.iconActive : colors.iconInactive
+                                  }`}
+                                  aria-hidden="true"
+                                />
+                                {isSidebarCollapsed ? (
+                                  <span className="text-[9px] font-black uppercase tracking-wider leading-tight truncate w-full px-0.5 z-10">
+                                    {item.name.length > 10 ? item.name.substring(0, 9) + '…' : item.name}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs font-black uppercase tracking-wider text-left z-10">{item.name}</span>
+                                )}
+                              </div>
+                              {!isSidebarCollapsed && (
+                                expandedItems[item.name] ? (
+                                  <ChevronDown className={`h-4.5 w-4.5 ${isParentActive ? 'text-slate-950 dark:text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
+                                ) : (
+                                  <ChevronRight className={`h-4.5 w-4.5 ${isParentActive ? 'text-slate-950 dark:text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
+                                )
+                              )}
+                            </button>
+                            {/* Sub-menu items */}
+                            {expandedItems[item.name] && !isSidebarCollapsed && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="ml-6 mt-1.5 space-y-1"
+                              >
+                                {item.children.map((child) => (
+                                  <NavLink
+                                    key={child.name}
+                                    to={child.disabled ? '#' : child.href}
+                                    onClick={(e) => {
+                                      if (child.disabled) {
+                                        e.preventDefault();
+                                        return;
+                                      }
+                                      if (window.innerWidth <= 1024) setSidebarOpen(false);
+                                    }}
+                                    className={({ isActive }) =>
+                                      `group flex items-center px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 ${
+                                        child.disabled
+                                        ? 'text-gray-300 cursor-not-allowed opacity-50 border-transparent'
+                                        : isActive
+                                        ? 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm font-black'
+                                        : 'text-slate-900 dark:text-slate-350 hover:bg-blue-50/50 hover:text-blue-700 border-transparent'
+                                      }`
+                                    }
+                                    title={child.disabled ? "UPGRADE TO ADD MORE DOCTORS" : ""}
+                                  >
+                                    {({ isActive }) => (
+                                      <>
+                                        <child.icon
+                                          className={`mr-3 h-4 w-4 flex-shrink-0 ${isActive && !child.disabled
+                                            ? 'text-blue-700'
+                                            : 'text-blue-400 group-hover:text-blue-500'
+                                            }`}
+                                          aria-hidden="true"
+                                        />
+                                        {child.name}
+                                      </>
+                                    )}
+                                  </NavLink>
+                                ))}
+                              </motion.div>
+                            )}
+                          </div>
                         ) : (
-                          <ChevronRight className={`h-5 w-5 ${item.children.some(child => window.location.pathname === child.href) ? 'text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
-                        )
-                      )}
-                    </button>
-                    {/* Sub-menu items */}
-                    {expandedItems[item.name] && !isSidebarCollapsed && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="ml-6 mt-2 space-y-1.5"
-                      >
-                        {item.children.map((child) => (
+                          // Regular menu item without children
                           <NavLink
-                            key={child.name}
-                            to={child.disabled ? '#' : child.href}
+                            id={item.id}
+                            to={item.disabled ? '#' : item.href}
                             onClick={(e) => {
-                              if (child.disabled) {
+                              if (item.disabled) {
                                 e.preventDefault();
-                                return;
+                                  return;
                               }
                               if (window.innerWidth <= 1024) setSidebarOpen(false);
                             }}
-                            className={({ isActive }) =>
-                              `group flex items-center px-4 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 transform hover:translate-x-1 ${
-                                child.disabled
-                                ? 'text-gray-300 cursor-not-allowed opacity-50'
+                            className={({ isActive }) => {
+                              const itemColors = getSidebarItemStyles(item.name, isActive);
+                              return `group flex items-center rounded-xl border m-1.5 transition-all duration-300 shadow-sm ${
+                                isSidebarCollapsed 
+                                  ? 'justify-center flex-col px-1.5 py-3 gap-1.5 text-center' 
+                                  : 'px-4 py-2.5 gap-3'
+                              } ${
+                                item.disabled
+                                ? 'text-gray-400 cursor-not-allowed opacity-50'
                                 : isActive
-                                ? 'bg-blue-500 text-white shadow-md font-black'
-                                : 'text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-blue-400'
-                              }`
-                            }
-                            title={child.disabled ? "UPGRADE TO ADD MORE DOCTORS" : ""}
+                                ? itemColors.active
+                                : itemColors.inactive
+                              }`;
+                            }}
+                            title={item.disabled ? "UPGRADE TO ADD MORE DOCTORS" : ""}
                           >
-                            {({ isActive }) => (
-                              <>
-                                <child.icon
-                                  className={`mr-3 h-4 w-4 flex-shrink-0 ${isActive && !child.disabled
-                                    ? 'text-white'
-                                    : 'text-blue-400 group-hover:text-blue-500'
+                            {({ isActive }) => {
+                              const itemColors = getSidebarItemStyles(item.name, isActive);
+                              return (
+                                <>
+                                  <item.icon
+                                    className={`h-5 w-5 flex-shrink-0 z-10 ${
+                                      isActive && !item.disabled ? itemColors.iconActive : itemColors.iconInactive
                                     }`}
-                                  aria-hidden="true"
-                                />
-                                {child.name}
-                              </>
-                            )}
+                                    aria-hidden="true"
+                                  />
+                                  {isSidebarCollapsed ? (
+                                    <span className="text-[9px] font-black uppercase tracking-wider leading-tight truncate w-full px-0.5 z-10">
+                                      {item.name.length > 10 ? item.name.substring(0, 9) + '…' : item.name}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs font-black uppercase tracking-wider text-left z-10">{item.name}</span>
+                                  )}
+                                </>
+                              );
+                            }}
                           </NavLink>
-                        ))}
-                      </motion.div>
-                    )}
-                  </div>
-                ) : (
-                  // Regular menu item without children
-                  <NavLink
-                    id={item.id}
-                    to={item.disabled ? '#' : item.href}
-                    onClick={(e) => {
-                      if (item.disabled) {
-                        e.preventDefault();
-                        return;
-                      }
-                      if (window.innerWidth <= 1024) setSidebarOpen(false);
-                    }}
-                    className={({ isActive }) =>
-                      `group flex items-center px-4 py-3 text-sm rounded-2xl transition-all duration-300 transform hover:translate-x-1 ${
-                        item.disabled
-                        ? 'text-gray-400 cursor-not-allowed opacity-50'
-                        : isActive
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/50 font-bold'
-                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-blue-400 font-medium'
-                      }`
-                    }
-                    title={item.disabled ? "UPGRADE TO ADD MORE DOCTORS" : ""}
-                  >
-                    {({ isActive }) => (
-                      <>
-                        {isActive && !item.disabled && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-3/4 w-1 bg-white rounded-full"></div>}
-                        <item.icon
-                          className={`${isSidebarCollapsed ? 'mx-auto' : 'mr-3'} h-5 w-5 flex-shrink-0 z-10 ${isActive && !item.disabled
-                            ? 'text-white'
-                            : 'text-blue-500 dark:text-blue-400'
-                            }`}
-                          aria-hidden="true"
-                        />
-                        {!isSidebarCollapsed && <span className="z-10">{item.name}</span>}
-                      </>
-                    )}
-                  </NavLink>
-                )}
-              </div>
-            ))}
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
           </nav>
 
           {/* User Profile Section (Matching Admin Style) */}

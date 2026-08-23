@@ -1591,5 +1591,52 @@ export const expenseApi = {
   }
 };
 
+export const dentalLabApi = {
+  // Laboratories CRUD
+  getLabs: async () => {
+    const { data } = await api.get('/dental-labs');
+    return data?.laboratories || [];
+  },
+  createLab: async (labData) => {
+    const { data } = await api.post('/dental-labs', labData);
+    return data?.laboratory;
+  },
+  updateLab: async (id, labData) => {
+    const { data } = await api.put(`/dental-labs/${id}`, labData);
+    return data?.laboratory;
+  },
+  deleteLab: async (id) => {
+    const { data } = await api.delete(`/dental-labs/${id}`);
+    return data;
+  },
+
+  // Lab Cases CRUD
+  getCases: async (params = {}) => {
+    const { data } = await api.get('/dental-labs/cases', { params });
+    return data;
+  },
+  getPatientCases: async (patientId) => {
+    const { data } = await api.get(`/dental-labs/cases/patient/${patientId}`);
+    return data?.cases || [];
+  },
+  createCase: async (caseData) => {
+    const { data } = await api.post('/dental-labs/cases', caseData);
+    return data?.labCase;
+  },
+  updateCase: async (id, caseData) => {
+    const { data } = await api.put(`/dental-labs/cases/${id}`, caseData);
+    return data?.labCase;
+  },
+  deleteCase: async (id) => {
+    const { data } = await api.delete(`/dental-labs/cases/${id}`);
+    return data;
+  },
+  updateStatus: async (id, status, receivedDate = null) => {
+    const { data } = await api.patch(`/dental-labs/cases/${id}/status`, { status, receivedDate });
+    return data?.labCase;
+  }
+};
+
+
 
 
