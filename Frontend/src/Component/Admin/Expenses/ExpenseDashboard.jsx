@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   TrendingUp, TrendingDown, DollarSign, Wallet, Package, FileText,
-  ArrowRight, Shield, Award, Sparkles, RefreshCw, BarChart2, PlusCircle
+  ArrowRight, Shield, Award, Sparkles, RefreshCw, BarChart2, PlusCircle,
+  IndianRupee
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
