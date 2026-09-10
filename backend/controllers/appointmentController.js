@@ -16,6 +16,7 @@ import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
 import OTP from '../models/OTP.js';
 import { syncPatientDataToDependents } from '../utils/patientSync.js';
+import { formatPatientFullName, cleanPatientName } from '../utils/nameUtils.js';
 
 export const getDoctorAppointments = async (req, res) => {
   try {
@@ -185,7 +186,7 @@ export const bookPatientAppointment = async (req, res) => {
         designation: patientDetails.designation || '',
         firstName: patientDetails.firstName || '',
         lastName: patientDetails.lastName || '',
-        fullName: `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName || ''} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient',
+        fullName: formatPatientFullName(patientDetails.designation, patientDetails.firstName, patientDetails.lastName) || 'Unknown Patient',
         mobile: patientDetails.phone || '',
         email: patientDetails.email || '',
         address: patientDetails.address || '',
@@ -229,7 +230,7 @@ export const bookPatientAppointment = async (req, res) => {
     await existingPatient.save();
     
     const patientIdToUse = existingPatient.patientId || existingPatient._id.toString();
-    const patientName = `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient';
+    const patientName = formatPatientFullName(patientDetails.designation, patientDetails.firstName, patientDetails.lastName) || 'Unknown Patient';
 
     // Look up doctor fee
     let docObj = null;
@@ -685,7 +686,7 @@ export const bookAppointment = async (req, res) => {
         designation: patientDetails.designation || '',
         firstName: patientDetails.firstName || '',
         lastName: patientDetails.lastName || '',
-        fullName: `${patientDetails.designation ? patientDetails.designation + ' ' : ''}${patientDetails.firstName || ''} ${patientDetails.lastName || ''}`.trim() || 'Unknown Patient',
+        fullName: formatPatientFullName(patientDetails.designation, patientDetails.firstName, patientDetails.lastName) || 'Unknown Patient',
         mobile: patientDetails.phone || '',
         email: patientDetails.email || '',
         address: patientDetails.address || '',
@@ -702,9 +703,12 @@ export const bookAppointment = async (req, res) => {
       if (patientDetails.firstName) updateData.firstName = patientDetails.firstName;
       if (patientDetails.lastName) updateData.lastName = patientDetails.lastName;
       if (patientDetails.firstName || patientDetails.lastName) {
-        updateData.fullName = `${patientDetails.designation || existingPatient.designation || ''} ${patientDetails.firstName || existingPatient.firstName || ''} ${patientDetails.lastName || existingPatient.lastName || ''}`.trim();
-        updateData.firstName = patientDetails.firstName || existingPatient.firstName;
-        updateData.lastName = patientDetails.lastName || existingPatient.lastName;
+        const des = patientDetails.designation || existingPatient.designation;
+        const first = patientDetails.firstName || existingPatient.firstName;
+        const last = patientDetails.lastName || existingPatient.lastName;
+        updateData.fullName = formatPatientFullName(des, first, last);
+        updateData.firstName = first;
+        updateData.lastName = last;
         if (patientDetails.designation) updateData.designation = patientDetails.designation;
       }
       if (patientDetails.email) updateData.email = patientDetails.email;
@@ -743,7 +747,7 @@ export const bookAppointment = async (req, res) => {
     }
     const fee = docObj?.fee || 500;
 
-    const appointment = new PendingAppointment({
+    const appointment = new ConfirmedAppointment({
       shortId,
       organizationId: req.tenantId,
       patientId: patientIdToUse,
@@ -759,7 +763,8 @@ export const bookAppointment = async (req, res) => {
       patientEmail,
       patientAge: patientDetails.age,
       amount: fee,
-      paymentStatus: 'pending'
+      paymentStatus: 'pending',
+      status: 'confirmed'
     });
 
     await appointment.save();
@@ -2086,7 +2091,7 @@ export const bookWalkInAppointment = async (req, res) => {
         designation: designation || '',
         firstName: firstName || '',
         lastName: lastName || '',
-        fullName: `${designation ? designation + ' ' : ''}${firstName || ''} ${lastName || ''}`.trim(),
+        fullName: formatPatientFullName(designation, firstName, lastName),
         mobile: mobileNumber || '',
         age: age,
         ageType: ageType || 'Year',

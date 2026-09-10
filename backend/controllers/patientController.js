@@ -12,6 +12,7 @@ import { generatePatientId } from '../utils/idGenerator.js';
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 import { syncPatientDataToDependents } from '../utils/patientSync.js';
+import { formatPatientFullName, cleanPatientName } from '../utils/nameUtils.js';
 
 dotenv.config();
 
@@ -256,7 +257,7 @@ export const createPatient = async (req, res) => {
       organizationId: req.tenantId,
       patientId,
       designation: designation || '',
-      fullName: `${designation ? designation + ' ' : ''}${firstName.trim()} ${lastName ? lastName.trim() : ''}`.trim(),
+      fullName: formatPatientFullName(designation, firstName, lastName),
       firstName: firstName.trim(),
       lastName: lastName ? lastName.trim() : '',
       age: age ? parseInt(age) : undefined,

@@ -4,6 +4,8 @@ import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import CancelledAppointment from '../models/CancelledAppointment.js';
 
+import { cleanPatientName } from './nameUtils.js';
+
 /**
  * Synchronizes updated patient data to billing records and all appointment records.
  * @param {string} tenantId - The organization/tenant ID
@@ -18,16 +20,17 @@ export const syncPatientDataToDependents = async (tenantId, patientIdStr, patien
 
     // Sync Patient Name
     if (updateFields.fullName) {
-      billingUpdate.patientName = updateFields.fullName;
-      appointmentUpdate.patientName = updateFields.fullName;
+      const cleanName = cleanPatientName(updateFields.fullName);
+      billingUpdate.patientName = cleanName;
+      appointmentUpdate.patientName = cleanName;
       
-      const nameParts = updateFields.fullName.trim().split(' ');
+      const nameParts = cleanName.trim().split(' ');
       appointmentUpdate.firstName = nameParts[0] || 'Patient';
       appointmentUpdate.lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
     } else if (updateFields.firstName || updateFields.lastName) {
       const first = updateFields.firstName || '';
       const last = updateFields.lastName || '';
-      const constructedName = `${first} ${last}`.trim();
+      const constructedName = cleanPatientName(`${first} ${last}`);
       billingUpdate.patientName = constructedName;
       appointmentUpdate.patientName = constructedName;
       appointmentUpdate.firstName = first;

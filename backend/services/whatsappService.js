@@ -11,13 +11,31 @@ dotenv.config();
  * - Replaces newlines/tabs with spaces
  * - Limits consecutive spaces to 4
  */
-const sanitizeTemplateParam = (val) => {
+const sanitizeTemplateParam = (val, minLength = 0) => {
   if (val === undefined || val === null) return "N/A";
-  const str = val.toString()
-    .replace(/[\r\t]/g, ' ')
-    .replace(/\s{5,}/g, '    ')
+  let str = val.toString()
+    .replace(/[\r\t\n]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
     .trim();
-  return str === "" ? "N/A" : str;
+  if (str === "") str = "N/A";
+
+  // Clean duplicate titles like "MR. MR.", "MR MR.", "DR. DR."
+  str = str.replace(/\b(MR|MRS|MS|MISS|DR|PROF)\.?(?:\s+|\.+)+(MR|MRS|MS|MISS|DR|PROF)\.?/gi, (match, t1) => {
+    const canonical = t1.toUpperCase();
+    return canonical.endsWith('.') ? canonical : canonical + '.';
+  });
+  
+  if (minLength > 0 && str.length < minLength) {
+    const lower = str.toLowerCase();
+    const hasTitle = ['patient', 'dear', 'dr', 'admin', 'mr', 'mrs', 'ms', 'miss', 'prof'].some(t => lower.startsWith(t));
+    if (!hasTitle) {
+      str = `Patient ${str}`;
+    }
+    if (str.length < minLength) {
+      str = str.padEnd(minLength, ' ');
+    }
+  }
+  return str;
 };
 
 /**
@@ -171,9 +189,9 @@ export const sendWhatsAppTemplate = async (phone, templateName, languageCode = '
 
   const url = `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`;
 
-  const parameters = bodyParameters.map(val => ({
+  const parameters = bodyParameters.map((val, idx) => ({
     type: "text",
-    text: sanitizeTemplateParam(val)
+    text: sanitizeTemplateParam(val, idx === 0 ? 13 : 0)
   }));
 
   const components = [
@@ -191,7 +209,7 @@ export const sendWhatsAppTemplate = async (phone, templateName, languageCode = '
       index: "0",
       parameters: buttonParameters.map(val => ({
         type: "text",
-        text: sanitizeTemplateParam(val)
+        text: sanitizeTemplateParam(val, 1)
       }))
     });
   }
@@ -306,9 +324,9 @@ export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, m
 
   const url = `https://graph.facebook.com/v22.0/${PHONE_NUMBER_ID}/messages`;
 
-  const bodyParams = bodyParameters.map(val => ({
+  const bodyParams = bodyParameters.map((val, idx) => ({
     type: 'text',
-    text: sanitizeTemplateParam(val)
+    text: sanitizeTemplateParam(val, idx === 0 ? 13 : 0)
   }));
 
   const data = {
@@ -328,7 +346,7 @@ export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, m
               type: mediaType,
               [mediaType]: {
                 ...(options.mediaId ? { id: options.mediaId } : { link: mediaUrl }),
-                ...(mediaType === 'document' ? { filename } : {})
+                ...(mediaType === 'document' && options.includeFilename ? { filename } : {})
               }
             }
           ]
@@ -377,9 +395,15 @@ export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, m
       });
     }
 
-    return response.data;
   } catch (error) {
     console.error('[WhatsApp Service] Media Error:', error.response?.data || error.message);
+
+    // Fallback: If template does not support media header component (Error 100), retry as standard template
+    const errObj = error.response?.data?.error;
+    if (errObj && errObj.code === 100 && (errObj.message?.includes("components'][0]") || errObj.message?.includes("header"))) {
+      console.warn(`[WhatsApp Service] Template '${templateName}' does not accept media header component. Retrying as standard template...`);
+      return sendWhatsAppTemplate(phone, templateName, languageCode, bodyParameters, [], options);
+    }
 
     // If it's a pre-check credit error, rethrow it
     if (error.code === "INSUFFICIENT_WHATSAPP_CREDITS") {

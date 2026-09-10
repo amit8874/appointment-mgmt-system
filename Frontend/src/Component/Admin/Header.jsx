@@ -199,27 +199,27 @@ const Header = ({
     : planInfo.planName.replace(' Plan', '').toUpperCase();
 
   return (
-    <header className="flex items-center justify-between py-3 px-5 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 shadow-sm sticky top-0 z-20 transition-colors">
+    <header className="flex items-center justify-between py-4 px-6 min-h-[76px] bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-md sticky top-0 z-20 transition-all duration-300">
       {/* Left: Hamburger + Logo */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <button
           onClick={toggleSidebar}
-          className="p-1.5 rounded-none text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors md:hidden"
+          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors md:hidden"
           aria-label="Open Menu"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-6 h-6" />
         </button>
 
         {(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) ? (
           <img
             src={user?.organization?.branding?.logo || user?.organizationId?.branding?.logo}
             alt="Organization Logo"
-            className="h-8 max-w-[150px] object-contain"
+            className="h-10 max-w-[170px] object-contain"
           />
         ) : (user?.organization?.name || user?.organizationId?.name) ? (
-          <div className="flex items-center space-x-2 bg-blue-100 dark:bg-blue-900/30 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm">
-            <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse"></span>
-            <span className="text-blue-800 dark:text-blue-300 font-black text-xs uppercase tracking-widest truncate max-w-[150px]">
+          <div className="flex items-center space-x-2.5 bg-slate-900 dark:bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 shadow-sm">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-white font-black text-sm uppercase tracking-wider truncate max-w-[170px]">
               {user?.organization?.name || user?.organizationId?.name || 'ADMIN'}
             </span>
           </div>
@@ -229,30 +229,30 @@ const Header = ({
 
         {/* Middle: Header Navigation Tabs */}
         {dashboardMode === 'admin' && (
-          <div className="hidden md:flex items-center gap-1.5 mx-4 border-l border-gray-200 dark:border-gray-700 pl-4">
+          <div className="hidden md:flex items-center gap-2.5 mx-4 border-l border-gray-200 dark:border-gray-700 pl-4">
             {/* New Appointment */}
             <button
               onClick={() => setActiveTab('New Appointment')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
+              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 border shadow-sm ${
                 activeTab === 'New Appointment'
-                  ? 'bg-indigo-100 border-indigo-400 text-indigo-955 dark:bg-indigo-950/20 dark:border-indigo-800 dark:text-indigo-200'
-                  : 'border-indigo-300 bg-indigo-50/45 text-indigo-950 dark:text-indigo-200 hover:bg-indigo-100/50 hover:border-indigo-400'
+                  ? 'bg-indigo-900 border-indigo-700 text-white ring-2 ring-indigo-400 shadow-md scale-[1.02]'
+                  : 'bg-indigo-900/90 border-indigo-800 text-white hover:bg-indigo-900 hover:scale-[1.02]'
               }`}
             >
-              <CalendarCheck className="w-3.5 h-3.5" />
+              <CalendarCheck className="w-4 h-4 text-white" />
               <span>New Appointment</span>
             </button>
   
             {/* Patients */}
             <button
               onClick={() => setActiveTab('Patients')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
+              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 border shadow-sm ${
                 activeTab === 'Patients'
-                  ? 'bg-emerald-100 border-emerald-400 text-emerald-955 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-200'
-                  : 'border-emerald-300 bg-emerald-50/45 text-emerald-950 dark:text-emerald-200 hover:bg-emerald-100/50 hover:border-emerald-400'
+                  ? 'bg-emerald-900 border-emerald-700 text-white ring-2 ring-emerald-400 shadow-md scale-[1.02]'
+                  : 'bg-emerald-900/90 border-emerald-800 text-white hover:bg-emerald-900 hover:scale-[1.02]'
               }`}
             >
-              <Users className="w-3.5 h-3.5" />
+              <Users className="w-4 h-4 text-white" />
               <span>Patients</span>
             </button>
   
@@ -264,29 +264,29 @@ const Header = ({
                   setShowApptDropdown(false);
                   setShowExpensesDropdown(false);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
+                className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 border shadow-sm ${
                   ['Doctor', 'Doctor Schedule'].includes(activeTab)
-                    ? 'bg-amber-100 border-amber-400 text-amber-955 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-200'
-                    : 'border-amber-300 bg-amber-50/45 text-amber-955 dark:text-amber-200 hover:bg-amber-100/50 hover:border-amber-400'
+                    ? 'bg-amber-900 border-amber-700 text-white ring-2 ring-amber-400 shadow-md scale-[1.02]'
+                    : 'bg-amber-900/90 border-amber-800 text-white hover:bg-amber-900 hover:scale-[1.02]'
                 }`}
               >
-                <Stethoscope className="w-3.5 h-3.5" />
+                <Stethoscope className="w-4 h-4 text-white" />
                 <span>Doctor</span>
-                <ChevronDown className={`w-3 h-3 transition-transform ${showDoctorDropdown ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-white transition-transform duration-300 ${showDoctorDropdown ? 'rotate-180' : ''}`} />
               </button>
   
               {showDoctorDropdown && (
-                <div className="absolute left-0 mt-1.5 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl ring-1 ring-black/5 border border-gray-100 dark:border-gray-700 z-50 py-1">
+                <div className="absolute left-0 mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-2xl ring-1 ring-black/5 border border-gray-100 dark:border-gray-700 z-50 py-1.5">
                   <button
                     onClick={() => {
                       setActiveTab('Doctor');
                       setShowDoctorDropdown(false);
                     }}
-                    className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
-                      activeTab === 'Doctor' ? 'text-indigo-650 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-xs font-black text-left uppercase tracking-wider ${
+                      activeTab === 'Doctor' ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/30' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
-                    <Stethoscope className="w-3.5 h-3.5 text-gray-400" />
+                    <Stethoscope className="w-4 h-4 text-amber-600" />
                     List Doctors
                   </button>
                   <button
@@ -296,14 +296,14 @@ const Header = ({
                       setShowDoctorDropdown(false);
                     }}
                     disabled={limits?.doctors !== -1 && totalDoctors >= limits?.doctors}
-                    className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
+                    className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-xs font-black text-left uppercase tracking-wider ${
                       limits?.doctors !== -1 && totalDoctors >= limits?.doctors
                         ? 'text-gray-400 cursor-not-allowed opacity-50'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                     title={limits?.doctors !== -1 && totalDoctors >= limits?.doctors ? "UPGRADE TO ADD MORE DOCTORS" : ""}
                   >
-                    <User className="w-3.5 h-3.5 text-gray-400" />
+                    <User className="w-4 h-4 text-gray-400" />
                     Add Doctor
                   </button>
                   <button
@@ -311,11 +311,11 @@ const Header = ({
                       setActiveTab('Doctor Schedule');
                       setShowDoctorDropdown(false);
                     }}
-                    className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
-                      activeTab === 'Doctor Schedule' ? 'text-indigo-650 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-xs font-black text-left uppercase tracking-wider ${
+                      activeTab === 'Doctor Schedule' ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/30' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
-                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                    <Calendar className="w-4 h-4 text-amber-600" />
                     Schedule
                   </button>
                 </div>
@@ -330,29 +330,29 @@ const Header = ({
                   setShowDoctorDropdown(false);
                   setShowExpensesDropdown(false);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
+                className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 border shadow-sm ${
                   ['Calendar View', 'Today Appointment'].includes(activeTab)
-                    ? 'bg-violet-100 border-violet-400 text-violet-955 dark:bg-violet-950/20 dark:border-violet-800 dark:text-violet-200'
-                    : 'border-violet-300 bg-violet-50/45 text-violet-955 dark:text-violet-200 hover:bg-violet-100/50 hover:border-violet-400'
+                    ? 'bg-purple-900 border-purple-700 text-white ring-2 ring-purple-400 shadow-md scale-[1.02]'
+                    : 'bg-purple-900/90 border-purple-800 text-white hover:bg-purple-900 hover:scale-[1.02]'
                 }`}
               >
-                <CalendarCheck className="w-3.5 h-3.5" />
+                <CalendarCheck className="w-4 h-4 text-white" />
                 <span>Appointments</span>
-                <ChevronDown className={`w-3 h-3 transition-transform ${showApptDropdown ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-white transition-transform duration-300 ${showApptDropdown ? 'rotate-180' : ''}`} />
               </button>
   
               {showApptDropdown && (
-                <div className="absolute left-0 mt-1.5 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl ring-1 ring-black/5 border border-gray-100 dark:border-gray-700 z-50 py-1">
+                <div className="absolute left-0 mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-2xl ring-1 ring-black/5 border border-gray-100 dark:border-gray-700 z-50 py-1.5">
                   <button
                     onClick={() => {
                       setActiveTab('Calendar View');
                       setShowApptDropdown(false);
                     }}
-                    className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
-                      activeTab === 'Calendar View' ? 'text-indigo-650 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-xs font-black text-left uppercase tracking-wider ${
+                      activeTab === 'Calendar View' ? 'text-purple-600 bg-purple-50 dark:bg-purple-950/30' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
-                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                    <Calendar className="w-4 h-4 text-purple-600" />
                     Calendar View
                   </button>
                   <button
@@ -360,11 +360,11 @@ const Header = ({
                       setActiveTab('Today Appointment');
                       setShowApptDropdown(false);
                     }}
-                    className={`flex items-center gap-2 w-full px-4 py-2 text-xs font-bold text-left uppercase tracking-wider ${
-                      activeTab === 'Today Appointment' ? 'text-indigo-650 bg-indigo-50/50 dark:bg-indigo-950/20 font-extrabold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-xs font-black text-left uppercase tracking-wider ${
+                      activeTab === 'Today Appointment' ? 'text-purple-600 bg-purple-50 dark:bg-purple-950/30' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
-                    <Activity className="w-3.5 h-3.5 text-gray-400" />
+                    <Activity className="w-4 h-4 text-purple-600" />
                     Today's Appts
                   </button>
                 </div>
@@ -380,15 +380,15 @@ const Header = ({
                     setShowDoctorDropdown(false);
                     setShowApptDropdown(false);
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-250 flex items-center gap-1.5 border ${
+                  className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 border shadow-sm ${
                     ['Expense Dashboard', 'Expense Reports', 'Expense Analytics', 'Dental Equipment', 'Dental Consumable Products', 'Dental Lab Expenses', 'More Expenses'].includes(activeTab)
-                      ? 'bg-rose-100 border-rose-400 text-rose-955 dark:bg-rose-950/20 dark:border-rose-800 dark:text-rose-200'
-                      : 'border-rose-300 bg-rose-50/45 text-rose-955 dark:text-rose-200 hover:bg-rose-100/50 hover:border-rose-400'
+                      ? 'bg-rose-900 border-rose-700 text-white ring-2 ring-rose-400 shadow-md scale-[1.02]'
+                      : 'bg-rose-900/90 border-rose-800 text-white hover:bg-rose-900 hover:scale-[1.02]'
                   }`}
                 >
-                  <Wallet className="w-3.5 h-3.5" />
+                  <Wallet className="w-4 h-4 text-white" />
                   <span>Expenses</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform ${showExpensesDropdown ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-white transition-transform duration-300 ${showExpensesDropdown ? 'rotate-180' : ''}`} />
                 </button>
 
                 {showExpensesDropdown && (

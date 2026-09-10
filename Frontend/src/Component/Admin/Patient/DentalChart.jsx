@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dentistApi } from '../../../services/api';
-import { Smile, AlertCircle, Plus, Info, Trash2, Award, Pencil, Check, X, IndianRupee } from 'lucide-react';
+import { Smile, AlertCircle, Plus, Info, Trash2, Award, Pencil, Check, X, IndianRupee, CheckSquare, Square } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,7 +16,8 @@ import DentalBillingCreatorModal from './DentalBillingCreatorModal';
 
 const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   const [chartData, setChartData] = useState({});
-  const [selectedTooth, setSelectedTooth] = useState(null);
+  const [selectedTeeth, setSelectedTeeth] = useState([]);
+  const [isProcedureModalOpen, setIsProcedureModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [customProcedures, setCustomProcedures] = useState([]);
   const [selectedProceduresList, setSelectedProceduresList] = useState([]);
@@ -90,8 +91,58 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     };
   }, []);
 
-  const handleToothClick = (tooth) => {
-    setSelectedTooth(tooth);
+  // Multi-tooth selection toggle logic
+  const handleToothClick = (toothId) => {
+    setSelectedTeeth(prev => {
+      if (prev.includes(toothId)) {
+        return prev.filter(id => id !== toothId);
+      } else {
+        return [...prev, toothId];
+      }
+    });
+  };
+
+  const handleSelectUpperArch = () => {
+    const upperIds = getUpperArchTeeth(chartType).map(t => t.id);
+    setSelectedTeeth(prev => {
+      const allSelected = upperIds.every(id => prev.includes(id));
+      if (allSelected) {
+        return prev.filter(id => !upperIds.includes(id));
+      } else {
+        return Array.from(new Set([...prev, ...upperIds]));
+      }
+    });
+  };
+
+  const handleSelectLowerArch = () => {
+    const lowerIds = getLowerArchTeeth(chartType).map(t => t.id);
+    setSelectedTeeth(prev => {
+      const allSelected = lowerIds.every(id => prev.includes(id));
+      if (allSelected) {
+        return prev.filter(id => !lowerIds.includes(id));
+      } else {
+        return Array.from(new Set([...prev, ...lowerIds]));
+      }
+    });
+  };
+
+  const handleSelectAllTeeth = () => {
+    const allIds = [
+      ...getUpperArchTeeth(chartType).map(t => t.id),
+      ...getLowerArchTeeth(chartType).map(t => t.id)
+    ];
+    if (selectedTeeth.length === allIds.length) {
+      setSelectedTeeth([]);
+    } else {
+      setSelectedTeeth(allIds);
+    }
+  };
+
+  const handleOpenPlannerModal = () => {
+    if (selectedTeeth.length === 0) {
+      toast.error('Please select at least one tooth from the chart first');
+      return;
+    }
     setProcedure('');
     setEstimatedCost('');
     setNotes('');
@@ -100,6 +151,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     setEditingIndex(null);
     setEditingName('');
     setEditingCost('');
+    setIsProcedureModalOpen(true);
   };
 
   const handleAddProcedureToList = () => {
@@ -113,7 +165,6 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       return;
     }
 
-    // Check if duplicate name is already added in the queue
     const nameTrimmed = procedure.trim();
     if (selectedProceduresList.some(p => p.name.toLowerCase() === nameTrimmed.toLowerCase())) {
       toast.error('This procedure is already added to the list');
@@ -121,8 +172,6 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     }
 
     setSelectedProceduresList(prev => [...prev, { name: nameTrimmed, cost: costNum }]);
-    
-    // Clear the active inputs so the user can type/select another
     setProcedure('');
     setEstimatedCost('');
   };
@@ -134,7 +183,6 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       setEditingName('');
       setEditingCost('');
     } else if (editingIndex > index) {
-      // Adjust editingIndex if it shifted
       setEditingIndex(prev => prev - 1);
     }
   };
@@ -191,8 +239,6 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   const handleSaveProcedure = async (e) => {
     e.preventDefault();
     
-    // Fallback: if they typed something in the input fields but didn't click "Add",
-    // we can auto-add it if the list is currently empty, or just prompt them to add it.
     let listToSave = [...selectedProceduresList];
     if (listToSave.length === 0) {
       if (procedure.trim()) {
@@ -204,41 +250,44 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       }
     }
 
+    if (selectedTeeth.length === 0) {
+      toast.error('No teeth selected');
+      return;
+    }
+
     setSaving(true);
     try {
-      // Loop through the list and create treatments in the database
-      const savePromises = listToSave.map(async (item) => {
-        await dentistApi.createTreatment(patientId, {
-          toothNumber: selectedTooth,
-          procedure: item.name,
-          estimatedCost: item.cost,
-          paidAmount: item.cost,
-          notes: notes.trim(),
-          priority,
-          status: 'Planned'
-        });
+      const savePromises = [];
+      selectedTeeth.forEach((toothId) => {
+        listToSave.forEach((item) => {
+          savePromises.push(
+            dentistApi.createTreatment(patientId, {
+              toothNumber: toothId,
+              procedure: item.name,
+              estimatedCost: item.cost,
+              paidAmount: item.cost,
+              notes: notes.trim(),
+              priority,
+              status: 'Planned'
+            })
+          );
 
-        // Auto-save procedure to custom masters list if it's not known
-        const isKnown = mergedPresets.some(p => p.name.toLowerCase() === item.name.toLowerCase());
-        if (!isKnown) {
-          try {
-            await dentistApi.createCustomProcedure({
+          const isKnown = mergedPresets.some(p => p.name.toLowerCase() === item.name.toLowerCase());
+          if (!isKnown) {
+            dentistApi.createCustomProcedure({
               name: item.name,
               defaultCost: item.cost
-            });
-          } catch (apiErr) {
-            console.warn('Could not auto-save custom procedure master:', apiErr.message);
+            }).catch(apiErr => console.warn('Could not auto-save custom procedure master:', apiErr.message));
           }
-        }
+        });
       });
 
       await Promise.all(savePromises);
-      
-      // Refresh custom procedures list
       fetchCustomProcedures();
 
-      toast.success(`Procedures planned successfully for ${getToothDisplayName(selectedTooth, numberingSystem)}`);
-      setSelectedTooth(null);
+      toast.success(`Planned ${listToSave.length} procedure(s) successfully for ${selectedTeeth.length} selected ${selectedTeeth.length === 1 ? 'tooth' : 'teeth'}!`);
+      setIsProcedureModalOpen(false);
+      setSelectedTeeth([]);
       fetchChart();
     } catch (err) {
       console.error('Error planning tooth procedures:', err);
@@ -252,31 +301,27 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     const treatments = chartData[tooth] || [];
     if (treatments.length === 0) return 'border-slate-200 bg-white text-slate-700 hover:border-indigo-400 hover:bg-indigo-50/50';
     
-    // Check if there is an in-progress treatment
     const hasInProgress = treatments.some(t => t.status === 'In Progress');
     if (hasInProgress) return 'border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:text-amber-300';
 
-    // Check if there is planned
     const hasPlanned = treatments.some(t => t.status === 'Planned');
     if (hasPlanned) return 'border-cyan-400 bg-cyan-50 text-cyan-800 dark:bg-cyan-950/20 dark:text-cyan-300';
 
-    // Check if completed
     const hasCompleted = treatments.some(t => t.status === 'Completed');
     if (hasCompleted) return 'border-emerald-400 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300';
 
     return 'border-slate-200 bg-white text-slate-700';
   };
 
-  // Returns the SVG icon tint color matching the tooth's current status
   const getToothIconColor = (tooth) => {
     const treatments = chartData[tooth] || [];
-    if (treatments.length === 0) return '#4f46e5'; // indigo-600 — rich dark for healthy
+    if (treatments.length === 0) return '#4f46e5';
     const hasInProgress = treatments.some(t => t.status === 'In Progress');
-    if (hasInProgress) return '#b45309'; // amber-700 — dark warm
+    if (hasInProgress) return '#b45309';
     const hasPlanned = treatments.some(t => t.status === 'Planned');
-    if (hasPlanned) return '#0e7490'; // cyan-700 — deep teal
+    if (hasPlanned) return '#0e7490';
     const hasCompleted = treatments.some(t => t.status === 'Completed');
-    if (hasCompleted) return '#047857'; // emerald-700 — deep green
+    if (hasCompleted) return '#047857';
     return '#4f46e5';
   };
 
@@ -336,7 +381,10 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
               <button
                 key={type.id}
                 type="button"
-                onClick={() => setChartType(type.id)}
+                onClick={() => {
+                  setChartType(type.id);
+                  setSelectedTeeth([]);
+                }}
                 className={`flex-1 sm:flex-initial text-center px-2.5 sm:px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
                   chartType === type.id
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
@@ -373,26 +421,90 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
         </div>
       </div>
 
-      {/* Guide/Legend */}
-      <div className="flex flex-wrap items-center gap-4 sm:gap-6 mb-8 p-4 bg-slate-50/50 rounded-2xl border border-slate-100 shadow-sm">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-2 select-none">Legend:</span>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-lg bg-white border border-slate-200"></div>
-          <span className="text-xs font-black text-slate-600">Healthy / Untreated</span>
+      {/* Guide/Legend & Selection Helpers */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 p-4 bg-slate-50/70 rounded-2xl border border-slate-100 shadow-sm">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-1 select-none">Legend:</span>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-lg bg-white border border-slate-200"></div>
+            <span className="text-xs font-black text-slate-600">Healthy / Untreated</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-lg bg-cyan-50 border border-cyan-400"></div>
+            <span className="text-xs font-black text-cyan-800">Planned / Diagnosed</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-lg bg-amber-50 border border-amber-400 animate-pulse"></div>
+            <span className="text-xs font-black text-amber-800">In Progress</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-lg bg-emerald-50 border border-emerald-400"></div>
+            <span className="text-xs font-black text-emerald-800">Completed</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-lg bg-cyan-50 border border-cyan-400"></div>
-          <span className="text-xs font-black text-cyan-800">Planned / Diagnosed</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-lg bg-amber-50 border border-amber-400 animate-pulse"></div>
-          <span className="text-xs font-black text-amber-800">In Progress</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded-lg bg-emerald-50 border border-emerald-400"></div>
-          <span className="text-xs font-black text-emerald-800">Completed</span>
+
+        {/* Quick Selection Shortcuts */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSelectUpperArch}
+            className="px-3 py-1.5 bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-[10px] font-black uppercase rounded-lg transition-all shadow-sm cursor-pointer"
+          >
+            Upper Arch
+          </button>
+          <button
+            type="button"
+            onClick={handleSelectLowerArch}
+            className="px-3 py-1.5 bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-[10px] font-black uppercase rounded-lg transition-all shadow-sm cursor-pointer"
+          >
+            Lower Arch
+          </button>
+          <button
+            type="button"
+            onClick={handleSelectAllTeeth}
+            className="px-3 py-1.5 bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-[10px] font-black uppercase rounded-lg transition-all shadow-sm cursor-pointer"
+          >
+            {selectedTeeth.length > 0 && selectedTeeth.length === (getUpperArchTeeth(chartType).length + getLowerArchTeeth(chartType).length) ? 'Deselect All' : 'Select All'}
+          </button>
         </div>
       </div>
+
+      {/* Multi-Tooth Active Selection Action Banner */}
+      <AnimatePresence>
+        {selectedTeeth.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl border border-indigo-700/50 mb-6"
+          >
+            <div className="flex items-center gap-3">
+              <span className="bg-indigo-600 text-white px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm">
+                {selectedTeeth.length} {selectedTeeth.length === 1 ? 'Tooth Selected' : 'Teeth Selected'}
+              </span>
+              <span className="text-xs font-bold text-slate-200 truncate max-w-xl">
+                Teeth: {selectedTeeth.map(id => getToothDisplayName(id, numberingSystem)).join(', ')}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenPlannerModal}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase rounded-xl shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Plan Treatment for {selectedTeeth.length} {selectedTeeth.length === 1 ? 'Tooth' : 'Teeth'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTeeth([])}
+                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="space-y-12 select-none">
         {/* Upper Jaw Arch */}
@@ -405,16 +517,28 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
               const label = getToothLabel(tooth.id, numberingSystem);
               const iconColor = getToothIconColor(tooth.id);
               const isMidline = index === (chartType === 'adult' ? 7 : 4);
+              const isSelected = selectedTeeth.includes(tooth.id);
               return (
                 <React.Fragment key={tooth.id}>
                   <button
+                    type="button"
                     onClick={() => handleToothClick(tooth.id)}
-                    className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${getToothStatusColor(tooth.id)}`}
-                    title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
+                    className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${
+                      isSelected
+                        ? 'ring-4 ring-indigo-500 border-indigo-600 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-100 font-black scale-105 z-10 shadow-xl'
+                        : getToothStatusColor(tooth.id)
+                    }`}
+                    title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)}) — ${isSelected ? 'Click to deselect' : 'Click to select'}`}
                   >
+                    {/* Selected checkmark badge */}
+                    {isSelected && (
+                      <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-md z-20">
+                        ✓
+                      </span>
+                    )}
                     {/* Tooth shape SVG icon */}
                     <span className="leading-none flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8">
-                      {getToothSVG(tooth.id, iconColor, '100%')}
+                      {getToothSVG(tooth.id, isSelected ? '#3730a3' : iconColor, '100%')}
                     </span>
                     <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none">{label}</span>
                     <span className="text-[5px] sm:text-[6px] md:text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
@@ -438,13 +562,25 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
               const label = getToothLabel(tooth.id, numberingSystem);
               const iconColor = getToothIconColor(tooth.id);
               const isMidline = index === (chartType === 'adult' ? 7 : 4);
+              const isSelected = selectedTeeth.includes(tooth.id);
               return (
                 <React.Fragment key={tooth.id}>
                   <button
+                    type="button"
                     onClick={() => handleToothClick(tooth.id)}
-                    className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${getToothStatusColor(tooth.id)}`}
-                    title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)})`}
+                    className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${
+                      isSelected
+                        ? 'ring-4 ring-indigo-500 border-indigo-600 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-100 font-black scale-105 z-10 shadow-xl'
+                        : getToothStatusColor(tooth.id)
+                    }`}
+                    title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)}) — ${isSelected ? 'Click to deselect' : 'Click to select'}`}
                   >
+                    {/* Selected checkmark badge */}
+                    {isSelected && (
+                      <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-md z-20">
+                        ✓
+                      </span>
+                    )}
                     {getToothIndicator(tooth.id)}
                     <span className="text-[5px] sm:text-[6px] md:text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
                       {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
@@ -452,7 +588,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                     <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none">{label}</span>
                     {/* Tooth shape SVG icon — flipped for lower arch */}
                     <span className="leading-none flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8">
-                      {getToothSVG(tooth.id, iconColor, '100%')}
+                      {getToothSVG(tooth.id, isSelected ? '#3730a3' : iconColor, '100%')}
                     </span>
                   </button>
                   {isMidline && (
@@ -468,9 +604,9 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
         </div>
       </div>
 
-      {/* Selected Tooth Info & Procedure planner */}
+      {/* Selected Teeth Info & Multi-Treatment Procedure Planner Modal */}
       <AnimatePresence>
-        {selectedTooth && (
+        {isProcedureModalOpen && selectedTeeth.length > 0 && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -478,15 +614,20 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
               exit={{ scale: 0.95, opacity: 0 }}
               className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl border border-slate-200 overflow-hidden"
             >
-              <div className="bg-indigo-600 p-6 text-white flex justify-between items-center">
+              <div className="bg-gradient-to-r from-indigo-700 to-indigo-900 p-6 text-white flex justify-between items-center">
                 <div>
                   <h4 className="text-base font-black uppercase tracking-tight">
-                    {getToothDisplayName(selectedTooth, numberingSystem)}
+                    {selectedTeeth.length === 1
+                      ? getToothDisplayName(selectedTeeth[0], numberingSystem)
+                      : `${selectedTeeth.length} Teeth Selected (${selectedTeeth.map(id => getToothDisplayName(id, numberingSystem)).join(', ')})`}
                   </h4>
-                  <p className="text-xs opacity-80 font-semibold">Assign new clinical procedures or view history</p>
+                  <p className="text-xs opacity-80 font-semibold">
+                    Assign clinical procedures to {selectedTeeth.length} selected {selectedTeeth.length === 1 ? 'tooth' : 'teeth'} at once
+                  </p>
                 </div>
                 <button 
-                  onClick={() => setSelectedTooth(null)}
+                  type="button"
+                  onClick={() => setIsProcedureModalOpen(false)}
                   className="p-2 hover:bg-white/10 rounded-xl transition-all font-bold cursor-pointer"
                 >
                   ✕
@@ -495,28 +636,33 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
 
               <form onSubmit={handleSaveProcedure} className="p-6 space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-                  {/* Left Column - Preview & Past Logs */}
+                  {/* Left Column - Preview & Combined Past Logs */}
                   <div className="space-y-4 flex flex-col h-full">
-                    {/* Past Treatment logs on this tooth */}
-                    {chartData[selectedTooth]?.length > 0 && (
+                    {/* Past Treatment logs for selected teeth */}
+                    {selectedTeeth.some(id => chartData[id]?.length > 0) && (
                       <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 max-h-[140px] overflow-y-auto space-y-3">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 select-none">
                           <Info className="w-3.5 h-3.5 text-slate-400" /> Past Treatment History
                         </p>
-                        {chartData[selectedTooth].map((t) => (
-                          <div key={t._id} className="text-xs flex justify-between items-start border-b border-dashed border-slate-200 pb-2 last:border-0 last:pb-0">
-                            <div>
-                              <p className="font-black text-slate-700">{t.procedure}</p>
-                              <p className="text-[10px] text-slate-400">{t.notes || 'No description notes.'}</p>
+                        {selectedTeeth.map(toothId => (
+                          (chartData[toothId] || []).map((t) => (
+                            <div key={t._id} className="text-xs flex justify-between items-start border-b border-dashed border-slate-200 pb-2 last:border-0 last:pb-0">
+                              <div>
+                                <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded mr-1.5 uppercase">
+                                  {getToothDisplayName(toothId, numberingSystem)}
+                                </span>
+                                <span className="font-black text-slate-700">{t.procedure}</span>
+                                <p className="text-[10px] text-slate-400">{t.notes || 'No description notes.'}</p>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
+                                t.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' :
+                                t.status === 'In Progress' ? 'bg-amber-50 text-amber-600' :
+                                'bg-cyan-50 text-cyan-600'
+                              }`}>
+                                {t.status}
+                              </span>
                             </div>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
-                              t.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' :
-                              t.status === 'In Progress' ? 'bg-amber-50 text-amber-600' :
-                              'bg-cyan-50 text-cyan-600'
-                            }`}>
-                              {t.status}
-                            </span>
-                          </div>
+                          ))
                         ))}
                       </div>
                     )}
@@ -524,9 +670,14 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                     {/* Queued Procedures Preview */}
                     <div className="bg-indigo-50/20 rounded-2xl p-5 border border-indigo-100/50 flex-1 flex flex-col justify-between min-h-[260px]">
                       <div>
-                        <p className="text-[10px] font-bold text-indigo-900/60 uppercase tracking-wider mb-3 select-none">
-                          Queued Procedures for Tooth
-                        </p>
+                        <div className="flex justify-between items-center mb-3 select-none">
+                          <p className="text-[10px] font-bold text-indigo-900/60 uppercase tracking-wider">
+                            Queued Procedures (Applied per tooth)
+                          </p>
+                          <span className="text-[10px] font-black text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                            x{selectedTeeth.length} Teeth
+                          </span>
+                        </div>
                         {selectedProceduresList.length === 0 ? (
                           <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
                             <Smile className="w-8 h-8 mb-2 opacity-30 text-indigo-500" />
@@ -555,7 +706,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                                       <div className="flex items-end gap-2.5">
                                         <div className="flex flex-col gap-1 flex-1">
                                           <label className="text-[9px] font-bold text-indigo-900/60 uppercase tracking-widest">
-                                            Edit Cost (₹)
+                                            Edit Cost per Tooth (₹)
                                           </label>
                                           <input
                                             type="number"
@@ -588,7 +739,9 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                                     <div className="flex justify-between items-center gap-2">
                                       <div className="min-w-0 flex-1">
                                         <p className="font-black text-slate-800 text-xs truncate" title={item.name}>{item.name}</p>
-                                        <p className="text-[10px] text-indigo-600 font-bold">Estimated Cost: ₹{item.cost}</p>
+                                        <p className="text-[10px] text-indigo-600 font-bold">
+                                          Cost per tooth: ₹{item.cost} {selectedTeeth.length > 1 && `(Total for ${selectedTeeth.length} teeth: ₹${item.cost * selectedTeeth.length})`}
+                                        </p>
                                       </div>
                                       <div className="flex gap-1 shrink-0">
                                         <button
@@ -619,9 +772,11 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
 
                       <div className="border-t border-indigo-100 pt-4 mt-4">
                         <div className="flex justify-between items-center">
-                          <span className="text-xs font-black text-indigo-900 uppercase tracking-wider">Total Cost</span>
+                          <span className="text-xs font-black text-indigo-900 uppercase tracking-wider">
+                            Grand Total ({selectedTeeth.length} {selectedTeeth.length === 1 ? 'Tooth' : 'Teeth'})
+                          </span>
                           <span className="text-xl font-black text-indigo-900">
-                            ₹{selectedProceduresList.reduce((acc, p) => acc + p.cost, 0)}
+                            ₹{selectedProceduresList.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0)}
                           </span>
                         </div>
                       </div>
@@ -679,7 +834,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                       <div className="grid grid-cols-2 gap-3 items-end">
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                            Cost (₹)
+                            Cost per tooth (₹)
                           </label>
                           <input
                             type="number"
@@ -735,7 +890,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
                   <button
                     type="button"
-                    onClick={() => setSelectedTooth(null)}
+                    onClick={() => setIsProcedureModalOpen(false)}
                     className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-50 cursor-pointer"
                   >
                     Cancel
@@ -745,7 +900,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                     disabled={saving}
                     className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-60 shadow-lg shadow-indigo-600/10 animate-fade cursor-pointer"
                   >
-                    {saving ? 'Saving...' : 'Plan Procedure'}
+                    {saving ? 'Saving...' : `Plan Procedure for ${selectedTeeth.length} ${selectedTeeth.length === 1 ? 'Tooth' : 'Teeth'}`}
                   </button>
                 </div>
 

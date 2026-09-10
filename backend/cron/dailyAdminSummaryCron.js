@@ -1,6 +1,8 @@
 import cron from 'node-cron';
 import Organization from '../models/Organization.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
+import PendingAppointment from '../models/PendingAppointment.js';
+import Appointment from '../models/Appointment.js';
 import User from '../models/User.js';
 import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 import { sendDailyAppointmentSummaryEmail } from '../services/emailService.js';
@@ -14,13 +16,17 @@ export const runDailyAdminSummaryJob = async () => {
     try {
         // Get today's date in YYYY-MM-DD in Asia/Kolkata timezone
         const d = new Date();
-        // Adjust to Asia/Kolkata offset (+5:30 = 330 minutes)
-        const kolkataTime = new Date(d.getTime() + (330 + d.getTimezoneOffset()) * 60000);
-        const todayStr = kolkataTime.toISOString().split('T')[0]; // "YYYY-MM-DD"
+        const kolkataDateStr = d.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' });
+        const [month, day, year] = kolkataDateStr.split('/');
+        const todayStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         
         // Format nice human readable date (e.g. 19 May 2026)
-        const options = { day: 'numeric', month: 'short', year: 'numeric' };
-        const humanDateStr = kolkataTime.toLocaleDateString('en-IN', options);
+        const humanDateStr = d.toLocaleDateString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
 
         console.log(`[Cron] Fetching appointments for today: ${todayStr} (${humanDateStr})`);
 
@@ -40,15 +46,34 @@ export const runDailyAdminSummaryJob = async () => {
             try {
                 const orgId = org._id;
 
-                // Fetch today's confirmed appointments for this organization
-                const appointments = await ConfirmedAppointment.find({
+                // Fetch today's appointments across pending, confirmed, and old collections (excluding cancelled)
+                const query = {
                     organizationId: orgId,
-                    status: 'confirmed',
                     $or: [
                         { date: todayStr },
                         { appointmentDate: todayStr }
                     ]
-                }).sort({ time: 1 }); // Sort by time
+                };
+
+                const [pendingAppts, confirmedAppts, oldAppts] = await Promise.all([
+                    PendingAppointment.find(query),
+                    ConfirmedAppointment.find(query),
+                    Appointment.find({
+                        ...query,
+                        status: { $ne: 'cancelled' }
+                    })
+                ]);
+
+                // Combine and sort by time
+                const appointments = [
+                    ...pendingAppts.map(a => ({ ...a.toObject(), status: 'pending' })),
+                    ...confirmedAppts.map(a => ({ ...a.toObject(), status: a.status || 'confirmed' })),
+                    ...oldAppts.map(a => ({ ...a.toObject(), status: a.status || 'completed' }))
+                ].sort((a, b) => {
+                    const timeA = a.time || a.appointmentTime || '';
+                    const timeB = b.time || b.appointmentTime || '';
+                    return timeA.localeCompare(timeB);
+                });
 
                 const appointmentsCount = appointments.length;
 
@@ -102,8 +127,10 @@ export const runDailyAdminSummaryJob = async () => {
                         appointmentDetailsStr = ` (${details})`;
                     }
 
+                    const safeAdminName = adminName && adminName.length >= 11 ? adminName : (adminName ? adminName.padEnd(11, ' ') : 'Administrator');
+
                     const templateParams = [
-                        adminName,
+                        safeAdminName,
                         humanDateStr,
                         org.name,
                         `${appointmentsCount}${appointmentDetailsStr}`
