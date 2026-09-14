@@ -139,6 +139,8 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
 
     const patientLocation = billData.patientAddress || patientDetails?.address || '';
 
+    const receiptNumber = billData.receiptNumber || billData.transactionId || (installments && installments.length > 0 ? (installments[installments.length - 1].receiptNumber || installments[installments.length - 1].transactionId) : null) || `RCPT-${(String(billId || '').replace(/\D/g, '') || '118')}`;
+
     const getReceiptNumber = (index, inst) => {
         if (inst.transactionId) return inst.transactionId;
         const invNum = (billId || '').replace(/\D/g, '');
@@ -431,6 +433,7 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
                         </div>
                         <div className="meta-details text-right">
                             <div>Date: <span className="meta-bold">{formatDate(date)}</span></div>
+                            <div>Receipt Number: <span className="meta-bold">{receiptNumber}</span></div>
                             <div>Invoice Number: <span className="meta-bold">{billId}</span></div>
                         </div>
                     </div>

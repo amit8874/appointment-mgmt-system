@@ -10,6 +10,7 @@ const OviaanDefaultPharmacyInvoiceTemplate = ({ billData = {}, clinicData = {} }
     patientAddress = '',
     billDate = '',
     billNo = '',
+    receiptNumber: rawReceiptNumber = '',
     paymentMode = 'cash',
     cardNo = '',
     grandTotal = 0,
@@ -27,6 +28,8 @@ const OviaanDefaultPharmacyInvoiceTemplate = ({ billData = {}, clinicData = {} }
     amountInWords = '',
     medicines = []
   } = billData;
+
+  const receiptNo = rawReceiptNumber || billData.receiptNo || cardNo || (billData.installments && billData.installments.length > 0 ? (billData.installments[billData.installments.length - 1].receiptNumber || billData.installments[billData.installments.length - 1].transactionId) : null) || `RCPT-${(String(billNo || '').replace(/\D/g, '') || '001')}`;
 
   // STRICT MAPPING: For Pharmacy, grandTotal/netAmount IS the Final Net Payable.
   // We use multiple fallbacks to ensure compatibility with both internal and standard billing objects.
@@ -173,6 +176,10 @@ const OviaanDefaultPharmacyInvoiceTemplate = ({ billData = {}, clinicData = {} }
           <div className="oviaan-detail-row">
             <span className="oviaan-detail-label">Bill Date :</span>
             <span className="oviaan-detail-value">{billDate}</span>
+          </div>
+          <div className="oviaan-detail-row">
+            <span className="oviaan-detail-label">Receipt No :</span>
+            <span className="oviaan-detail-value">{receiptNo}</span>
           </div>
           <div className="oviaan-detail-row">
             <span className="oviaan-detail-label">Bill No :</span>

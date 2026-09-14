@@ -32,7 +32,7 @@ const PLAN_CONFIG = {
   },
   basic: {
     name: 'Basic Plan',
-    price: { monthly: 499, yearly: 4990 },
+    price: { monthly: 599, yearly: 5999 },
     features: {
       doctors: 1,
       receptionists: 1,
@@ -45,7 +45,7 @@ const PLAN_CONFIG = {
   },
   pro: {
     name: 'Standard Plan',
-    price: { monthly: 699, yearly: 6990 },
+    price: { monthly: 799, yearly: 7999 },
     features: {
       doctors: 3,
       receptionists: 3,
@@ -59,7 +59,7 @@ const PLAN_CONFIG = {
   },
   enterprise: {
     name: 'Premium Plan',
-    price: { monthly: 999, yearly: 9990 },
+    price: { monthly: 1999, yearly: 19999 },
     features: {
       doctors: -1, // Unlimited
       receptionists: -1,

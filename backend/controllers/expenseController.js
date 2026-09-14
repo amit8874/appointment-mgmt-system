@@ -10,64 +10,94 @@ import { resolveS3UrlIfNeeded, deleteFileFromS3 } from '../services/s3Service.js
 import mongoose from 'mongoose';
 
 // Helper to construct date filters
-const getDateFilter = (filterType, startDate, endDate, dateField) => {
-  const query = {};
-  if (!filterType || filterType === 'all') return query;
+const getDateFilter = (filterType, startDate, endDate, dateField, month, year) => {
+  if (!filterType || filterType === 'all') return {};
 
   const now = new Date();
-  let start = new Date();
-  let end = new Date();
+  let start;
+  let end;
 
   switch (filterType) {
     case 'today':
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      query[dateField] = { $gte: start, $lte: end };
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
       break;
-    case 'yesterday':
-      const yesterday = new Date();
-      yesterday.setDate(now.getDate() - 1);
-      const yStart = new Date(yesterday);
-      yStart.setHours(0, 0, 0, 0);
-      const yEnd = new Date(yesterday);
-      yEnd.setHours(23, 59, 59, 999);
-      query[dateField] = { $gte: yStart, $lte: yEnd };
+    case 'yesterday': {
+      const yest = new Date(now);
+      yest.setDate(now.getDate() - 1);
+      start = new Date(yest.getFullYear(), yest.getMonth(), yest.getDate(), 0, 0, 0, 0);
+      end = new Date(yest.getFullYear(), yest.getMonth(), yest.getDate(), 23, 59, 59, 999);
       break;
-    case 'week':
+    }
+    case 'week': {
       const day = now.getDay();
-      start.setDate(now.getDate() - day);
-      start.setHours(0, 0, 0, 0);
-      end = new Date(start);
-      end.setDate(start.getDate() + 6);
-      end.setHours(23, 59, 59, 999);
-      query[dateField] = { $gte: start, $lte: end };
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day, 0, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (6 - day), 23, 59, 59, 999);
       break;
+    }
     case 'month':
       start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      query[dateField] = { $gte: start, $lte: end };
       break;
     case 'lastMonth':
-      const lmStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-      const lmEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-      query[dateField] = { $gte: lmStart, $lte: lmEnd };
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
       break;
-    case 'year':
-      start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-      query[dateField] = { $gte: start, $lte: end };
+    case 'specificMonth': {
+      const m = month ? parseInt(month, 10) : (now.getMonth() + 1);
+      const y = year ? parseInt(year, 10) : now.getFullYear();
+      start = new Date(y, m - 1, 1, 0, 0, 0, 0);
+      end = new Date(y, m, 0, 23, 59, 59, 999);
       break;
+    }
+    case 'year': {
+      const y = year ? parseInt(year, 10) : now.getFullYear();
+      start = new Date(y, 0, 1, 0, 0, 0, 0);
+      end = new Date(y, 11, 31, 23, 59, 59, 999);
+      break;
+    }
+    case 'lastYear': {
+      const y = year ? parseInt(year, 10) : (now.getFullYear() - 1);
+      start = new Date(y, 0, 1, 0, 0, 0, 0);
+      end = new Date(y, 11, 31, 23, 59, 59, 999);
+      break;
+    }
+    case 'specificYear': {
+      const y = year ? parseInt(year, 10) : now.getFullYear();
+      start = new Date(y, 0, 1, 0, 0, 0, 0);
+      end = new Date(y, 11, 31, 23, 59, 59, 999);
+      break;
+    }
     case 'custom':
       if (startDate && endDate) {
-        const s = new Date(startDate);
-        s.setHours(0, 0, 0, 0);
-        const e = new Date(endDate);
-        e.setHours(23, 59, 59, 999);
-        query[dateField] = { $gte: s, $lte: e };
+        start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
       }
       break;
   }
-  return query;
+
+  if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return {};
+  }
+
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
+
+  const dateConditions = [
+    { [dateField]: { $gte: start, $lte: end } },
+    { [dateField]: { $gte: startIso, $lte: endIso } }
+  ];
+
+  if (dateField !== 'createdAt') {
+    dateConditions.push(
+      { [dateField]: { $exists: false }, createdAt: { $gte: start, $lte: end } },
+      { [dateField]: null, createdAt: { $gte: start, $lte: end } }
+    );
+  }
+
+  return { $or: dateConditions };
 };
 
 // ==========================================
@@ -130,14 +160,14 @@ export const createEquipmentExpense = async (req, res) => {
 
 export const getEquipmentExpenses = async (req, res) => {
   try {
-    const { search, filterType, startDate, endDate, page = 1, limit = 10 } = req.query;
+    const { search, filterType, startDate, endDate, month, year, page = 1, limit = 10 } = req.query;
     const query = { organizationId: req.tenantId };
 
     if (search) {
       query.equipmentName = { $regex: search, $options: 'i' };
     }
 
-    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
     Object.assign(query, dateFilter);
 
     const expenses = await DentalEquipmentExpense.find(query)
@@ -200,14 +230,14 @@ export const deleteEquipmentExpense = async (req, res) => {
 
 export const exportEquipmentExpensesPDF = async (req, res) => {
   try {
-    const { search, filterType, startDate, endDate } = req.query;
+    const { search, filterType, startDate, endDate, month, year } = req.query;
     const query = { organizationId: req.tenantId };
 
     if (search) {
       query.equipmentName = { $regex: search, $options: 'i' };
     }
 
-    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
     Object.assign(query, dateFilter);
 
     const expenses = await DentalEquipmentExpense.find(query).sort({ purchaseDate: -1 });
@@ -291,14 +321,14 @@ export const createConsumerProductExpense = async (req, res) => {
 
 export const getConsumerProductExpenses = async (req, res) => {
   try {
-    const { search, filterType, startDate, endDate, page = 1, limit = 10 } = req.query;
+    const { search, filterType, startDate, endDate, month, year, page = 1, limit = 10 } = req.query;
     const query = { organizationId: req.tenantId };
 
     if (search) {
       query.productName = { $regex: search, $options: 'i' };
     }
 
-    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
     Object.assign(query, dateFilter);
 
     const expenses = await DentalConsumerProductExpense.find(query)
@@ -372,14 +402,14 @@ export const deleteConsumerProductExpense = async (req, res) => {
 
 export const exportConsumerProductExpensesPDF = async (req, res) => {
   try {
-    const { search, filterType, startDate, endDate } = req.query;
+    const { search, filterType, startDate, endDate, month, year } = req.query;
     const query = { organizationId: req.tenantId };
 
     if (search) {
       query.productName = { $regex: search, $options: 'i' };
     }
 
-    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
     Object.assign(query, dateFilter);
 
     const expenses = await DentalConsumerProductExpense.find(query).sort({ purchaseDate: -1 });
@@ -471,7 +501,7 @@ export const createLabExpense = async (req, res) => {
 
 export const getLabExpenses = async (req, res) => {
   try {
-    const { search, filterType, startDate, endDate, page = 1, limit = 10 } = req.query;
+    const { search, filterType, startDate, endDate, month, year, page = 1, limit = 10 } = req.query;
     const query = { organizationId: req.tenantId };
 
     if (search) {
@@ -481,7 +511,7 @@ export const getLabExpenses = async (req, res) => {
       ];
     }
 
-    const dateFilter = getDateFilter(filterType, startDate, endDate, 'sentDate');
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'sentDate', month, year);
     Object.assign(query, dateFilter);
 
     const expenses = await DentalLabExpense.find(query)
@@ -555,7 +585,7 @@ export const deleteLabExpense = async (req, res) => {
 
 export const exportLabExpensesPDF = async (req, res) => {
   try {
-    const { search, filterType, startDate, endDate } = req.query;
+    const { search, filterType, startDate, endDate, month, year } = req.query;
     const query = { organizationId: req.tenantId };
 
     if (search) {
@@ -565,7 +595,7 @@ export const exportLabExpensesPDF = async (req, res) => {
       ];
     }
 
-    const dateFilter = getDateFilter(filterType, startDate, endDate, 'sentDate');
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'sentDate', month, year);
     Object.assign(query, dateFilter);
 
     const expenses = await DentalLabExpense.find(query).sort({ sentDate: -1 });
@@ -636,7 +666,7 @@ export const createOtherExpense = async (req, res) => {
 
 export const getOtherExpenses = async (req, res) => {
   try {
-    const { search, filterType, startDate, endDate, page = 1, limit = 10 } = req.query;
+    const { search, filterType, startDate, endDate, month, year, page = 1, limit = 10 } = req.query;
     const query = { organizationId: req.tenantId };
 
     if (search) {
@@ -646,7 +676,7 @@ export const getOtherExpenses = async (req, res) => {
       ];
     }
 
-    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
     Object.assign(query, dateFilter);
 
     const expenses = await OtherExpense.find(query)
@@ -709,7 +739,7 @@ export const deleteOtherExpense = async (req, res) => {
 
 export const exportOtherExpensesPDF = async (req, res) => {
   try {
-    const { search, filterType, startDate, endDate } = req.query;
+    const { search, filterType, startDate, endDate, month, year } = req.query;
     const query = { organizationId: req.tenantId };
 
     if (search) {
@@ -719,7 +749,7 @@ export const exportOtherExpensesPDF = async (req, res) => {
       ];
     }
 
-    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    const dateFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
     Object.assign(query, dateFilter);
 
     const expenses = await OtherExpense.find(query).sort({ purchaseDate: -1 });
@@ -825,38 +855,45 @@ export const deleteExpenseRecord = async (req, res) => {
 export const getExpenseDashboardStats = async (req, res) => {
   try {
     const orgId = new mongoose.Types.ObjectId(req.tenantId);
+    const { filterType, startDate, endDate, month, year } = req.query;
+
+    const billFilter = getDateFilter(filterType, startDate, endDate, 'date', month, year);
+    const eqFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
+    const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
+    const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate', month, year);
+    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
 
     // 1. Total Revenue (sum of paidAmount in Bills)
     const revenueResult = await Billing.aggregate([
-      { $match: { organizationId: orgId } },
+      { $match: { organizationId: orgId, ...billFilter } },
       { $group: { _id: null, total: { $sum: '$paidAmount' } } }
     ]);
     const totalRevenue = revenueResult[0]?.total || 0;
 
     // 2. Dental Equipment Expenses
     const equipmentResult = await DentalEquipmentExpense.aggregate([
-      { $match: { organizationId: orgId } },
+      { $match: { organizationId: orgId, ...eqFilter } },
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]);
     const equipmentExpenses = equipmentResult[0]?.total || 0;
 
     // 3. Dental Consumer Product Expenses
     const consumerResult = await DentalConsumerProductExpense.aggregate([
-      { $match: { organizationId: orgId } },
+      { $match: { organizationId: orgId, ...consFilter } },
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]);
     const consumerExpenses = consumerResult[0]?.total || 0;
 
     // 4. Dental Lab Expenses
     const labResult = await DentalLabExpense.aggregate([
-      { $match: { organizationId: orgId } },
+      { $match: { organizationId: orgId, ...labFilter } },
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]);
     const labExpenses = labResult[0]?.total || 0;
 
     // 4.1 Other / More Expenses
     const otherResult = await OtherExpense.aggregate([
-      { $match: { organizationId: orgId } },
+      { $match: { organizationId: orgId, ...otherFilter } },
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ]);
     const otherExpenses = otherResult[0]?.total || 0;
@@ -881,14 +918,13 @@ export const getExpenseDashboardStats = async (req, res) => {
 
 export const getUnifiedExpenses = async (req, res) => {
   try {
-    const { filterType, startDate, endDate } = req.query;
+    const { filterType, startDate, endDate, month, year } = req.query;
     const query = { organizationId: req.tenantId };
 
-    const eqFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
-    const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
-    const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate');
-
-    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    const eqFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
+    const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
+    const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate', month, year);
+    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
 
     const [eqRes, consRes, labRes, otherRes] = await Promise.all([
       DentalEquipmentExpense.find({ ...query, ...eqFilter }).lean(),
@@ -929,14 +965,13 @@ export const getUnifiedExpenses = async (req, res) => {
 
 export const exportUnifiedExpensesPDF = async (req, res) => {
   try {
-    const { filterType, startDate, endDate } = req.query;
+    const { filterType, startDate, endDate, month, year } = req.query;
     const query = { organizationId: req.tenantId };
 
-    const eqFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
-    const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
-    const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate');
-
-    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    const eqFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
+    const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
+    const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate', month, year);
+    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
 
     const [eqRes, consRes, labRes, otherRes] = await Promise.all([
       DentalEquipmentExpense.find({ ...query, ...eqFilter }).lean(),
@@ -971,7 +1006,7 @@ export const exportUnifiedExpensesPDF = async (req, res) => {
 
 export const getExpenseAnalytics = async (req, res) => {
   try {
-    const { filterType, startDate, endDate } = req.query;
+    const { filterType, startDate, endDate, month, year } = req.query;
     const orgId = new mongoose.Types.ObjectId(req.tenantId);
 
     // Determine interval: 'day' or 'month'
@@ -987,43 +1022,43 @@ export const getExpenseAnalytics = async (req, res) => {
     }
 
     // Get matching date filters
-    const eqFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
-    const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
-    const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate');
-    const billFilter = getDateFilter(filterType, startDate, endDate, 'date');
-    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate');
+    const eqFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
+    const consFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
+    const labFilter = getDateFilter(filterType, startDate, endDate, 'sentDate', month, year);
+    const billFilter = getDateFilter(filterType, startDate, endDate, 'date', month, year);
+    const otherFilter = getDateFilter(filterType, startDate, endDate, 'purchaseDate', month, year);
 
     const groupOid = interval === 'day' 
       ? {
-          year: { $year: { $ifNull: ['$date', '$createdAt'] } },
-          month: { $month: { $ifNull: ['$date', '$createdAt'] } },
-          day: { $dayOfMonth: { $ifNull: ['$date', '$createdAt'] } }
+          year: { $year: { $toDate: { $ifNull: ['$date', '$createdAt'] } } },
+          month: { $month: { $toDate: { $ifNull: ['$date', '$createdAt'] } } },
+          day: { $dayOfMonth: { $toDate: { $ifNull: ['$date', '$createdAt'] } } }
         }
       : {
-          year: { $year: { $ifNull: ['$date', '$createdAt'] } },
-          month: { $month: { $ifNull: ['$date', '$createdAt'] } }
+          year: { $year: { $toDate: { $ifNull: ['$date', '$createdAt'] } } },
+          month: { $month: { $toDate: { $ifNull: ['$date', '$createdAt'] } } }
         };
 
     const eqGroupOid = interval === 'day'
       ? {
-          year: { $year: { $ifNull: ['$purchaseDate', '$createdAt'] } },
-          month: { $month: { $ifNull: ['$purchaseDate', '$createdAt'] } },
-          day: { $dayOfMonth: { $ifNull: ['$purchaseDate', '$createdAt'] } }
+          year: { $year: { $toDate: { $ifNull: ['$purchaseDate', '$createdAt'] } } },
+          month: { $month: { $toDate: { $ifNull: ['$purchaseDate', '$createdAt'] } } },
+          day: { $dayOfMonth: { $toDate: { $ifNull: ['$purchaseDate', '$createdAt'] } } }
         }
       : {
-          year: { $year: { $ifNull: ['$purchaseDate', '$createdAt'] } },
-          month: { $month: { $ifNull: ['$purchaseDate', '$createdAt'] } }
+          year: { $year: { $toDate: { $ifNull: ['$purchaseDate', '$createdAt'] } } },
+          month: { $month: { $toDate: { $ifNull: ['$purchaseDate', '$createdAt'] } } }
         };
 
     const labGroupOid = interval === 'day'
       ? {
-          year: { $year: { $ifNull: ['$sentDate', '$createdAt'] } },
-          month: { $month: { $ifNull: ['$sentDate', '$createdAt'] } },
-          day: { $dayOfMonth: { $ifNull: ['$sentDate', '$createdAt'] } }
+          year: { $year: { $toDate: { $ifNull: ['$sentDate', '$createdAt'] } } },
+          month: { $month: { $toDate: { $ifNull: ['$sentDate', '$createdAt'] } } },
+          day: { $dayOfMonth: { $toDate: { $ifNull: ['$sentDate', '$createdAt'] } } }
         }
       : {
-          year: { $year: { $ifNull: ['$sentDate', '$createdAt'] } },
-          month: { $month: { $ifNull: ['$sentDate', '$createdAt'] } }
+          year: { $year: { $toDate: { $ifNull: ['$sentDate', '$createdAt'] } } },
+          month: { $month: { $toDate: { $ifNull: ['$sentDate', '$createdAt'] } } }
         };
 
     // Revenue

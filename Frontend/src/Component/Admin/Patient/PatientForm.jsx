@@ -10,6 +10,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
     gender: '',
     bloodGroup: '',
     contactNumber: '',
+    alternateMobile: '',
     email: '',
     address: '',
     city: '',
@@ -41,6 +42,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
         gender: patient.gender || '',
         bloodGroup: patient.bloodGroup || '',
         contactNumber: patient.contact || patient.contactNumber || '',
+        alternateMobile: patient.alternateMobile || patient.alternatePhone || '',
         email: patient.email || '',
         address: patient.address || '',
         city: patient.city || '',
@@ -60,6 +62,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
         gender: '',
         bloodGroup: '',
         contactNumber: '',
+        alternateMobile: '',
         email: '',
         address: '',
         city: '',
@@ -111,9 +114,9 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
     const { name, value } = e.target;
 
     // For phone numbers, only allow digits and limit to 10 digits
-    if (name === 'contactNumber' || name === 'emergencyPhone') {
+    if (name === 'contactNumber' || name === 'emergencyPhone' || name === 'alternateMobile') {
       const digitsOnly = value.replace(/\D/g, '');
-      const limitedValue = name === 'contactNumber' ? digitsOnly.slice(0, 10) : digitsOnly.slice(0, 10);
+      const limitedValue = digitsOnly.slice(0, 10);
       setFormData(prev => ({
         ...prev,
         [name]: limitedValue
@@ -352,10 +355,16 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
               </div>
 
               <div className="w-28">
-                <label className="block text-xs font-medium text-gray-700">Phone</label>
+                <label className="block text-xs font-medium text-gray-700">Phone (Main)</label>
                 <input type="tel" name="contactNumber" value={formData.contactNumber} onChange={handleChange}
                   className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500"
                   placeholder="10 digits" maxLength="10" />
+              </div>
+              <div className="w-28">
+                <label className="block text-xs font-medium text-gray-700">Alt. Phone</label>
+                <input type="tel" name="alternateMobile" value={formData.alternateMobile} onChange={handleChange}
+                  className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Record only" maxLength="10" />
               </div>
               <div className="w-40">
                 <label className="block text-xs font-medium text-gray-700">Email</label>

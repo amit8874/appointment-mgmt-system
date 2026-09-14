@@ -1726,7 +1726,7 @@ const LandingPage = () => {
               
               <div className="border-t border-dashed border-slate-200 pt-8 mb-8">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">₹499</span>
+                  <span className="text-4xl font-black text-slate-900">₹599</span>
                   <span className="text-slate-400 font-medium font-sm">per month + GST</span>
                 </div>
               </div>
@@ -1766,7 +1766,7 @@ const LandingPage = () => {
               
               <div className="border-t border-dashed border-blue-200 pt-8 mb-8">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">₹699</span>
+                  <span className="text-4xl font-black text-slate-900">₹799</span>
                   <span className="text-slate-400 font-medium font-sm">per month + GST</span>
                 </div>
               </div>
@@ -1808,7 +1808,7 @@ const LandingPage = () => {
               
               <div className="border-t border-dashed border-slate-200 pt-8 mb-8">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-slate-900">₹999</span>
+                  <span className="text-4xl font-black text-slate-900">₹1,999</span>
                   <span className="text-slate-400 font-medium font-sm">per month + GST</span>
                 </div>
               </div>

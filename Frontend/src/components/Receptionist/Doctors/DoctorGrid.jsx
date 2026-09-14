@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import { centralDoctorApi } from '../../../services/api';
 import Pagination from '../../common/Pagination';
 import { DoctorCardSkeleton } from '../../Shared/DoctorSkeletons';
+import { getDoctorPhoto } from '../../../utils/doctorUtils';
 
 // Sub-components (Copied from Admin for identical UI)
 const StatusBadge = ({ status }) => {
@@ -144,13 +145,7 @@ const DoctorGrid = () => {
               <div className="flex items-start gap-4">
                 {/* Doctor Image */}
                 <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 border border-gray-50">
-                  {doctor.photo || doctor.profilePhoto ? (
-                    <img src={doctor.photo || doctor.profilePhoto} alt={doctor.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <Stethoscope size={40} />
-                    </div>
-                  )}
+                  <img src={getDoctorPhoto(doctor)} alt={doctor.name} className="w-full h-full object-cover" />
                 </div>
 
                 {/* Doctor Info */}

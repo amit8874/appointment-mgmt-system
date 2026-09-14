@@ -1306,6 +1306,7 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
       email,
       about,
       bio,
+      gender,
       organizationId
     } = req.body;
 
@@ -1327,10 +1328,18 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
     const fullAddress = address || (city ? `${city}, India` : 'India');
 
+    const isFemale = (gender || '').toLowerCase() === 'female' ||
+      /\b(mrs|ms|miss|smt|female|woman|women|vandana|anita|sunita|pooja|priya|neha|swati|shweta|meena|seema|reena|rekha|archana|sita|geeta|rita|nisha|divya|monika|renu|sarita|sangita|radha|laxmi|deepa|deepika|preeti|priti|aarti|arti|alisha|anusha|ananya|aditi|ishita|sneha|tanvi|richa|khushboo|payal|kajal|sonam|bhavna|rashmi|shruthi|shruti|priyanka|roshni|smita|sonia|suman|sushma|upasana|vidya)\b/i.test(`${name} ${specialization}`);
+    const resolvedGender = gender || (isFemale ? 'Female' : 'Male');
+    const defaultPhoto = isFemale
+      ? "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300&h=300"
+      : "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=300&h=300";
+
     const newDoctor = new Doctor({
       doctorId,
       name,
-      photo: photo || "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=300&h=300",
+      gender: resolvedGender,
+      photo: photo || defaultPhoto,
       specialization,
       qualification: qualification || 'MBBS',
       experience: parseInt(experience) || 5,

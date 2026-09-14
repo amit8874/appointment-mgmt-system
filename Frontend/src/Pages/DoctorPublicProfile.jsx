@@ -11,6 +11,7 @@ import { useAuth } from "../context/AuthContext";
 import PublicHeader from "../components/Shared/PublicHeader";
 import PublicFooter from "../components/Shared/PublicFooter";
 import { SlotSelectorSkeleton } from "../components/Shared/DoctorSkeletons";
+import { getDoctorPhoto } from "../utils/doctorUtils";
 
 // Sub-component: SlotSelector (replicated from FindDoctors for standalone page use)
 const SlotSelector = ({ doctorId, onSelect }) => {
@@ -386,7 +387,7 @@ const DoctorPublicProfile = () => {
 
               <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-50 shadow shrink-0 relative group">
                 <img 
-                  src={doctor.photo || "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=300&h=300"} 
+                  src={getDoctorPhoto(doctor)} 
                   alt={doctor.name} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
                 />

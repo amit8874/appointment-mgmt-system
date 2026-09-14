@@ -11,6 +11,10 @@ const billingSchema = new mongoose.Schema({
     type: String,
     sparse: true
   },
+  receiptNumber: {
+    type: String,
+    sparse: true
+  },
   billType: {
     type: String,
     enum: ['General', 'Pharmacy', 'Lab', 'Dental'],
@@ -164,6 +168,7 @@ const billingSchema = new mongoose.Schema({
     amount: { type: Number, required: true },
     paymentMethod: { type: String, enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Insurance', 'N/A'], required: true },
     transactionId: { type: String, default: '' },
+    receiptNumber: { type: String, default: '' },
     notes: { type: String, default: '' }
   }]
 }, {

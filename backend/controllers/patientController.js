@@ -222,6 +222,7 @@ export const createPatient = async (req, res) => {
       gender,
       bloodGroup,
       contactNumber,
+      alternateMobile,
       email,
       address,
       city,
@@ -265,6 +266,7 @@ export const createPatient = async (req, res) => {
       gender: gender && gender.trim() ? gender.trim() : undefined,
       bloodGroup: bloodGroup && bloodGroup.trim() ? bloodGroup.trim() : undefined,
       mobile: contactNumber ? contactNumber.trim() : '',
+      alternateMobile: alternateMobile ? alternateMobile.trim() : '',
       email: email ? email.trim().toLowerCase() : '',
       address: address ? address.trim() : '',
       city: city ? city.trim() : '',
@@ -400,6 +402,10 @@ export const updatePatient = async (req, res) => {
       const nameParts = filteredUpdateData.fullName.trim().split(' ');
       filteredUpdateData.firstName = nameParts[0] || 'Patient';
       filteredUpdateData.lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+    }
+
+    if (updateData.alternateMobile !== undefined) {
+      filteredUpdateData.alternateMobile = updateData.alternateMobile;
     }
 
     let patient = await Patient.findOne({ organizationId: req.tenantId, _id: paramId });

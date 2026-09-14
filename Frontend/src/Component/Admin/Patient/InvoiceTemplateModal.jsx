@@ -583,8 +583,10 @@ const InvoiceTemplateModal = ({ isOpen, onClose, onSaveSuccess, onApply }) => {
                             <div className="inline-block px-3 py-1 bg-slate-900 text-white rounded-none text-[10px] font-bold uppercase tracking-widest mb-2">
                               Pharmacy Bill
                             </div>
+                            <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-tighter">Receipt #</p>
+                            <p className="text-xs font-bold text-indigo-600 tracking-tighter mb-1">RCPT-2024-001</p>
                             <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">Invoice #</p>
-                            <p className="text-base font-bold text-slate-800 tracking-tighter">PH-2024-001</p>
+                            <p className="text-sm font-bold text-slate-800 tracking-tighter">PH-2024-001</p>
                           </div>
                         </div>
                       )}

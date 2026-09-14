@@ -679,9 +679,9 @@ const Organizations = () => {
                     </label>
                     <div className="grid grid-cols-3 gap-3">
                       {[
-                        { id: 'basic', name: 'Basic', price: '₹299/mo', color: 'border-emerald-500 text-emerald-700 bg-emerald-50/50', activeColor: 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50' },
-                        { id: 'pro', name: 'Standard', price: '₹499/mo', color: 'border-blue-500 text-blue-700 bg-blue-50/50', activeColor: 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50' },
-                        { id: 'enterprise', name: 'Premium', price: '₹699/mo', color: 'border-purple-500 text-purple-700 bg-purple-50/50', activeColor: 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50' }
+                        { id: 'basic', name: 'Basic', price: '₹599/mo', color: 'border-emerald-500 text-emerald-700 bg-emerald-50/50', activeColor: 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50' },
+                        { id: 'pro', name: 'Standard', price: '₹799/mo', color: 'border-blue-500 text-blue-700 bg-blue-50/50', activeColor: 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50' },
+                        { id: 'enterprise', name: 'Premium', price: '₹1999/mo', color: 'border-purple-500 text-purple-700 bg-purple-50/50', activeColor: 'border-purple-500 ring-2 ring-purple-500/20 bg-purple-50' }
                       ].map((plan) => {
                         const isActive = selectedPlan === plan.id;
                         return (

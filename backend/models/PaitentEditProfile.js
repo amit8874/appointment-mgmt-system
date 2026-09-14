@@ -58,6 +58,11 @@ const patientSchema = new mongoose.Schema({
     required: false,
     trim: true
   },
+  alternateMobile: {
+    type: String,
+    required: false,
+    trim: true
+  },
   email: {
     type: String,
     trim: true,

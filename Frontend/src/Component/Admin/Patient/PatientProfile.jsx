@@ -333,7 +333,8 @@ const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user }) =>
           </h3>
         </div>
         <div className="space-y-4">
-          <InfoItem label="Contact Number" value={data.contactNumber || data.mobile} icon={Phone} />
+          <InfoItem label="Main Contact Number" value={data.contactNumber || data.mobile} icon={Phone} />
+          <InfoItem label="Alternate Mobile Number" value={data.alternateMobile || data.alternatePhone} icon={Phone} />
           <InfoItem label="Email Address" value={data.email} icon={Mail} />
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Residential Address</span>
@@ -528,6 +529,7 @@ const EditProfileModal = ({ data, onClose, onSave }) => {
     gender: data.gender || '',
     bloodGroup: data.bloodGroup || '',
     mobile: data.mobile || data.contactNumber || '',
+    alternateMobile: data.alternateMobile || data.alternatePhone || '',
     email: data.email || '',
     address: data.address || '',
     city: data.city || '',
@@ -563,6 +565,7 @@ const EditProfileModal = ({ data, onClose, onSave }) => {
           return `${designation ? designation + ' ' : ''}${firstName} ${lastName}`.trim();
         })(),
         contactNumber: form.mobile,
+        alternateMobile: form.alternateMobile,
         medicalHistory: form.pastMedicalHistory,
         vitals: { bloodPressure: form.bloodPressure, weight: form.weight, height: form.height }
       });
@@ -610,7 +613,8 @@ const EditProfileModal = ({ data, onClose, onSave }) => {
               <Phone size={14} /> Contact Information
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Mobile Number" value={form.mobile} onChange={set('mobile')} type="tel" />
+              <Field label="Mobile Number (Primary)" value={form.mobile} onChange={set('mobile')} type="tel" />
+              <Field label="Alternate Mobile Number (Record Only)" value={form.alternateMobile} onChange={set('alternateMobile')} type="tel" />
               <Field label="Email Address" value={form.email} onChange={set('email')} type="email" />
               <Field label="Address" value={form.address} onChange={set('address')} />
               <Field label="City" value={form.city} onChange={set('city')} />

@@ -11,7 +11,16 @@ import { useAuth } from '../context/AuthContext';
 import "./Register.css";
 import signupHero from "../assets/img/signup-hero.png";
 
-const InputField = ({ icon: Icon, label, name, ...props }) => (
+const InputField = ({ 
+  icon: Icon, 
+  label, 
+  name, 
+  isPassword = false, 
+  showPassword = false, 
+  onTogglePassword = null, 
+  helperText = null,
+  ...props 
+}) => (
   <div className="signup-input-group">
     <label className="signup-label">{label}</label>
     <div className="signup-input-wrapper">
@@ -21,9 +30,21 @@ const InputField = ({ icon: Icon, label, name, ...props }) => (
       <input
         {...props}
         name={name}
-        className="signup-input"
+        className={`signup-input ${isPassword ? 'has-eye-btn' : ''}`}
       />
+      {isPassword && onTogglePassword && (
+        <button
+          type="button"
+          onClick={onTogglePassword}
+          className="signup-eye-btn"
+          tabIndex={-1}
+          title={showPassword ? "Hide Password" : "Show Password"}
+        >
+          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      )}
     </div>
+    {helperText}
   </div>
 );
 
@@ -33,6 +54,7 @@ const RegisterOrganization = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [step, setStep] = useState('form');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -305,17 +327,36 @@ const RegisterOrganization = () => {
                   value={formData.ownerPassword}
                   onChange={handleChange}
                   required
+                  isPassword={true}
+                  showPassword={showPassword}
+                  onTogglePassword={() => setShowPassword(!showPassword)}
                 />
                 
                 <InputField
                   icon={Lock}
-                  label="Confirm"
-                  type="password"
+                  label="Confirm Password"
+                  type={showConfirmPassword ? "text" : "password"}
                   placeholder="Repeat password"
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   required
+                  isPassword={true}
+                  showPassword={showConfirmPassword}
+                  onTogglePassword={() => setShowConfirmPassword(!showConfirmPassword)}
+                  helperText={
+                    formData.confirmPassword ? (
+                      isPasswordMatch ? (
+                        <div className="flex items-center gap-1 mt-1 text-[11px] font-bold text-emerald-600 animate-in fade-in">
+                          <Check size={14} /> Passwords match
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 mt-1 text-[11px] font-bold text-rose-500 animate-in fade-in">
+                          <X size={14} /> Passwords do not match
+                        </div>
+                      )
+                    ) : null
+                  }
                 />
 
                 <div className="signup-input-group">

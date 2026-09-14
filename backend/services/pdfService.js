@@ -259,6 +259,7 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
   const patientAddress = bill.patientAddress || 'N/A';
   const billDate = new Date(bill.date || bill.createdAt).toLocaleDateString('en-GB'); 
   const billNo = bill.invoiceNumber || bill.billId || 'N/A';
+  const receiptNumber = bill.receiptNumber || bill.transactionId || (bill.installments && bill.installments.length > 0 ? bill.installments[bill.installments.length - 1].receiptNumber : null) || `RCPT-${(String(billNo || '').replace(/\D/g, '') || '001')}`;
   const paymentMode = (bill.paymentMethod || 'cash').toLowerCase();
   const cardNo = bill.transactionId || ''; 
 
@@ -365,6 +366,7 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
           </div>
           <div class="details-right">
             <div class="row"><span class="label">Bill Date :</span><span class="value">${billDate}</span></div>
+            <div class="row"><span class="label">Receipt No :</span><span class="value">${receiptNumber}</span></div>
             <div class="row"><span class="label">Bill No :</span><span class="value">${billNo}</span></div>
           </div>
         </div>
@@ -559,6 +561,7 @@ async function getInvoiceHtml(bill, org, template) {
   // Metadata
   const invoiceDate = formatDate(bill.date || bill.createdAt);
   const invoiceNumber = bill.invoiceNumber || bill.billId || 'INV118';
+  const receiptNumber = bill.receiptNumber || bill.transactionId || (bill.installments && bill.installments.length > 0 ? bill.installments[bill.installments.length - 1].receiptNumber : null) || `RCPT-${(String(invoiceNumber || '').replace(/\D/g, '') || '118')}`;
 
   // Itemized Table Rows
   const items = bill.items || [];
@@ -938,6 +941,7 @@ async function getInvoiceHtml(bill, org, template) {
             </div>
             <div class="meta-details">
               <div>Date: <span class="meta-bold">${invoiceDate}</span></div>
+              <div>Receipt Number: <span class="meta-bold">${receiptNumber}</span></div>
               <div>Invoice Number: <span class="meta-bold">${invoiceNumber}</span></div>
             </div>
           </div>

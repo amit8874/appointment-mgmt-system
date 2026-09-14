@@ -14,6 +14,7 @@ import PublicFooter from "../components/Shared/PublicFooter";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { DoctorCardSkeleton, SlotSelectorSkeleton, ReviewSkeleton } from "../components/Shared/DoctorSkeletons";
 import Skeleton from "../components/Shared/Skeleton";
+import { getDoctorPhoto } from "../utils/doctorUtils";
 
 const SlotSelector = ({ doctorId, onSelect }) => {
   const [availabilitySummary, setAvailabilitySummary] = useState([]);
@@ -915,7 +916,7 @@ const FindDoctors = () => {
                     <Link to={`/doctor/${doctorSlug}`} className="relative shrink-0 flex flex-col items-center">
                       <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-slate-50 shadow-sm relative group">
                         <img 
-                          src={doctor.photo || "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=200&h=200"} 
+                          src={getDoctorPhoto(doctor)} 
                           alt={doctor.name} 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         />

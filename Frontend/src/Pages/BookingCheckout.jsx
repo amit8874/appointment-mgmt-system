@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { CheckoutSkeleton } from '../components/Shared/CheckoutSkeletons';
+import { getDoctorPhoto } from '../utils/doctorUtils';
 
 const STEPS = {
   MOBILE_ENTRY: 'MOBILE_ENTRY',
@@ -262,13 +263,7 @@ const BookingCheckout = () => {
             {/* Doctor Info */}
             <div className="p-5 flex gap-4 border-b border-slate-100">
               <div className="w-20 h-20 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-100">
-                {bookingData.doctor.photo ? (
-                  <img src={bookingData.doctor.photo} alt={bookingData.doctor.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-300 bg-slate-50">
-                    <CheckCircle size={32} />
-                  </div>
-                )}
+                <img src={getDoctorPhoto(bookingData.doctor)} alt={bookingData.doctor.name} className="w-full h-full object-cover" />
               </div>
               <div className="flex-1">
                 <h3 className="font-bold text-slate-800 text-base leading-tight">Dr. {bookingData.doctor.name}</h3>

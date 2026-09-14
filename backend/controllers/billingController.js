@@ -331,6 +331,11 @@ export const createBill = async (req, res) => {
       bill.discount = totals.discountAmount;
       bill.installments = installments || [];
 
+      if (!bill.receiptNumber) {
+        const rcptNum = (bill.billId || '').replace(/\D/g, '') || String(Date.now()).slice(-4);
+        bill.receiptNumber = `RCPT-${rcptNum}`;
+      }
+
       await bill.save();
     } else {
       isNew = true;
@@ -340,9 +345,13 @@ export const createBill = async (req, res) => {
         { new: true, upsert: true }
       );
       const billId = `BIL${String(counter.value).padStart(6, '0')}`;
+      const rcptNum = String(counter.value).padStart(6, '0');
+      const receiptNumber = req.body.receiptNumber || `RCPT-${rcptNum}`;
 
       bill = new Billing({
         billId,
+        invoiceNumber: req.body.invoiceNumber || billId,
+        receiptNumber,
         organizationId: req.tenantId,
         patientId,
         patientName,
@@ -566,9 +575,12 @@ export const createPOSBill = async (req, res) => {
       discountType: 'flat'
     });
 
+    const receiptNumber = `RCPT-${year}-${String(counter.value).padStart(4, '0')}`;
+
     const newBill = new Billing({
       organizationId: req.tenantId,
       invoiceNumber,
+      receiptNumber,
       billId: `POS-${Date.now()}`, // Temporary internal ID
       patientId: patientId || 'WALKIN',
       patientName: patientName || 'Walk-in Patient',

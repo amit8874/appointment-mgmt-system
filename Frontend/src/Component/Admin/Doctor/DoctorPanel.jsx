@@ -12,6 +12,7 @@ import {
 import { motion } from 'framer-motion';
 import Pagination from "../../../components/common/Pagination";
 import { DoctorCardSkeleton } from "../../../components/Shared/DoctorSkeletons";
+import { getDoctorPhoto } from "../../../utils/doctorUtils";
 
 // Sub-components
 const InfoCard = ({ title, children, icon: Icon, className = "" }) => (
@@ -297,13 +298,7 @@ const DoctorPanel = ({
               <div className="flex items-start gap-4">
                 {/* Doctor Image */}
                 <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 border border-gray-50">
-                  {doctor.photo || doctor.profilePhoto ? (
-                    <img src={doctor.photo || doctor.profilePhoto} alt={doctor.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <Stethoscope size={40} />
-                    </div>
-                  )}
+                  <img src={getDoctorPhoto(doctor)} alt={doctor.name} className="w-full h-full object-cover" />
                 </div>
 
                 {/* Doctor Info */}
@@ -423,13 +418,7 @@ const DoctorPanel = ({
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                   <div className="flex flex-col md:flex-row items-start md:items-center">
                     <div className="flex-shrink-0 mb-4 md:mb-0 md:mr-6">
-                      {selectedDoctor.photo ? (
-                        <img className="h-24 w-24 rounded-full" src={selectedDoctor.photo} alt={selectedDoctor.name} />
-                      ) : (
-                        <div className="h-24 w-24 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                          <User className="h-12 w-12 text-blue-600 dark:text-blue-300" />
-                        </div>
-                      )}
+                      <img className="h-24 w-24 rounded-full object-cover border-2 border-white shadow" src={getDoctorPhoto(selectedDoctor)} alt={selectedDoctor.name} />
                     </div>
                     <div className="flex-1">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">

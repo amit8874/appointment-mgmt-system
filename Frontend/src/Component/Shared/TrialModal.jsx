@@ -610,7 +610,7 @@ const TrialModal = ({ isOpen, onClose }) => {
                       <PlanCard 
                         id="basic"
                         title="Basic"
-                        price="499/mo"
+                        price="599/mo"
                         desc="Perfect for solo doctors & small practices"
                         features={["1 Doctor Login", "500 Appointments/mo", "1,000 Patient Records", "Cloud Storage"]}
                         onSelect={handleSelectPlan}
@@ -620,7 +620,7 @@ const TrialModal = ({ isOpen, onClose }) => {
                       <PlanCard 
                         id="pro"
                         title="Standard"
-                        price="699/mo"
+                        price="799/mo"
                         desc="Enhanced features for growing clinics"
                         features={["Up to 3 Doctors", "2 Receptionists", "2,000 Appointments/mo", "Advanced Analytics"]}
                         onSelect={handleSelectPlan}
@@ -630,7 +630,7 @@ const TrialModal = ({ isOpen, onClose }) => {
                       <PlanCard 
                         id="enterprise"
                         title="Premium"
-                        price="999/mo"
+                        price="1999/mo"
                         desc="Full hospital & multi-doctor management"
                         features={["Unlimited Everything", "SMS Reminders", "Professional Reports", "Custom Branding"]}
                         onSelect={handleSelectPlan}

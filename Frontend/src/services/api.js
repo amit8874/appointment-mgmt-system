@@ -1555,8 +1555,8 @@ export const expenseApi = {
     const { data } = await api.delete(`/expenses/records/${id}`);
     return data;
   },
-  getDashboardStats: async () => {
-    const { data } = await api.get('/expenses/dashboard/stats');
+  getDashboardStats: async (params = {}) => {
+    const { data } = await api.get('/expenses/dashboard/stats', { params });
     return data;
   },
   getUnifiedExpenses: async (params = {}) => {

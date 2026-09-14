@@ -32,6 +32,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { StatCardSkeleton } from '../../components/Shared/DashboardSkeletons';
 import { DoctorCardSkeleton } from '../../components/Shared/DoctorSkeletons';
+import { getDoctorPhoto } from '../../utils/doctorUtils';
 
 const Doctors = () => {
   const [organizations, setOrganizations] = useState([]);
@@ -170,13 +171,7 @@ const Doctors = () => {
               <div className="lg:col-span-1 space-y-6">
                 <div className="text-center p-6 bg-indigo-50/30 rounded-3xl border border-indigo-100/50">
                   <div className="w-32 h-32 mx-auto rounded-3xl overflow-hidden border-4 border-white shadow-xl mb-4 bg-gray-100">
-                    {doctor.photo ? (
-                      <img src={doctor.photo} alt={doctor.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-300">
-                        <User size={64} />
-                      </div>
-                    )}
+                    <img src={getDoctorPhoto(doctor)} alt={doctor.name} className="w-full h-full object-cover" />
                   </div>
                   <h3 className="text-xl font-bold text-gray-900">{doctor.name}</h3>
                   <p className="text-sm font-semibold text-indigo-600 mb-2">{doctor.specialization}</p>
@@ -424,13 +419,7 @@ const Doctors = () => {
                       <div className="p-6">
                         <div className="flex items-start gap-4">
                           <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-md border-2 border-white bg-slate-50 flex-shrink-0">
-                            {doctor.photo ? (
-                              <img src={doctor.photo} alt={doctor.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                <User size={40} />
-                              </div>
-                            )}
+                            <img src={getDoctorPhoto(doctor)} alt={doctor.name} className="w-full h-full object-cover" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
@@ -529,6 +518,7 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
   const [createFormData, setCreateFormData] = useState({
     name: '',
     photo: '',
+    gender: 'Male',
     specialization: 'General Physician',
     qualification: 'MBBS',
     experience: 5,
@@ -671,15 +661,16 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Specialization *</label>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="e.g. Cardiologist, Dentist, Physician"
-                    value={createFormData.specialization}
-                    onChange={e => setCreateFormData({...createFormData, specialization: e.target.value})}
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Gender *</label>
+                  <select
+                    value={createFormData.gender}
+                    onChange={e => setCreateFormData({...createFormData, gender: e.target.value})}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  >
+                    <option value="Male">Male Doctor</option>
+                    <option value="Female">Female Doctor</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
 
                 <div>
