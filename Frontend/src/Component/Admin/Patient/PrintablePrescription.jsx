@@ -140,12 +140,16 @@ const PrintablePrescription = ({
                   <h1 className="text-3xl font-black text-blue-800 leading-tight">
                     {prescription.doctorName?.toLowerCase().startsWith('dr') ? '' : 'Dr. '}{prescription.doctorName}
                   </h1>
-                  <div className="text-[11px] font-black text-blue-600/80 mt-1 uppercase tracking-wider">
-                    {prescription.doctorQualification || prescription.qualification || "MBBS, MD"}
-                  </div>
-                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mt-0.5">
-                    {prescription.doctorSpecialization || prescription.specialty || "Specialist"}
-                  </p>
+                  {(prescription.doctorQualification || prescription.qualification) && (
+                    <div className="text-[11px] font-black text-blue-600/80 mt-1 uppercase tracking-wider">
+                      {prescription.doctorQualification || prescription.qualification}
+                    </div>
+                  )}
+                  {(prescription.doctorSpecialization || prescription.specialty) && (
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-tight mt-0.5">
+                      {prescription.doctorSpecialization || prescription.specialty}
+                    </p>
+                  )}
                   <div className="text-[10px] text-slate-400 mt-2 space-y-0.5 font-bold uppercase tracking-widest">
                     {prescription.doctorEmail && <p>E-Mail: {prescription.doctorEmail}</p>}
                     {clinicContact && <p>Contact: {clinicContact}</p>}

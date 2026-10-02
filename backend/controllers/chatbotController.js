@@ -1,13 +1,9 @@
-import Groq from "groq-sdk";
 import dotenv from "dotenv";
 import Doctor from "../models/Doctor.js";
 import Organization from "../models/Organization.js";
+import { createGroqChatCompletion } from "../utils/groqHelper.js";
 
 dotenv.config();
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
 
 // Utility for fuzzy matching doctor names
 const findSimilarDoctors = (inputName, doctors) => {
@@ -153,8 +149,8 @@ export const chatWithMaya = async (req, res) => {
       { role: "user", content: message }
     ];
 
-    const response = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+    const response = await createGroqChatCompletion({
+      model: "openai/gpt-oss-120b",
       messages: apiMessages,
       max_tokens: 1000,
       temperature: 0.3,

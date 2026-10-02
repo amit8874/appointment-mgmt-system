@@ -4,6 +4,7 @@ import { LayoutDashboard, Users, Stethoscope, HandHeart, CalendarCheck, Wallet, 
 import { useNavigate } from 'react-router-dom';
 import NavItem from './NavItem.jsx';
 import { useAuth } from '../../context/AuthContext';
+import ClinicSwitcher from '../../components/common/ClinicSwitcher';
 
 const AdminSidebar = ({
   isSidebarOpen,
@@ -45,19 +46,22 @@ const AdminSidebar = ({
           className={`flex items-center justify-between w-full px-3 py-2.5 rounded-none transition-all duration-200 ${hasActiveChild
             ? 'bg-indigo-100/50 text-indigo-800 font-bold'
             : 'bg-gray-100/40 text-gray-700 hover:bg-gray-200/50 hover:text-gray-900 dark:bg-gray-700/30 dark:text-gray-300 dark:hover:bg-gray-700 font-bold border-y border-gray-100/50 dark:border-gray-700/50'
-            } ${isSidebarCollapsed ? 'justify-center flex-col px-0 py-2' : ''}`}
+            } ${isSidebarCollapsed ? 'md:justify-center md:flex-col md:px-0 md:py-2' : ''}`}
         >
-          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center w-full' : ''}`}>
-            <Icon className={`w-6 h-6 ${isSidebarCollapsed ? 'mb-1' : 'mr-3'} ${hasActiveChild ? 'text-indigo-600' : 'text-gray-400 dark:text-gray-500'}`} />
+          <div className={`flex items-center ${isSidebarCollapsed ? 'md:justify-center md:w-full' : ''}`}>
+            <Icon className={`w-6 h-6 ${isSidebarCollapsed ? 'md:mb-1 mr-3 md:mr-0' : 'mr-3'} ${hasActiveChild ? 'text-indigo-600' : 'text-gray-400 dark:text-gray-500'}`} />
             {isSidebarCollapsed ? (
-              <span className="text-[11px] font-semibold leading-tight text-center truncate w-full px-0.5 uppercase tracking-wide">
-                {name.length > 10 ? name.substring(0, 9) + '…' : name}
-              </span>
+              <>
+                <span className="hidden md:inline-block text-[11px] font-semibold leading-tight text-center truncate w-full px-0.5 uppercase tracking-wide">
+                  {name.length > 10 ? name.substring(0, 9) + '…' : name}
+                </span>
+                <span className="md:hidden text-base">{name}</span>
+              </>
             ) : (
               <span className="text-base">{name}</span>
             )}
           </div>
-          {!isSidebarCollapsed && (
+          {(!isSidebarCollapsed || window.innerWidth < 768) && (
             expandedItems[name] ? (
               <ChevronDown className={`w-5 h-5 ${hasActiveChild ? 'text-indigo-800' : 'text-gray-700 dark:text-gray-400'}`} />
             ) : (
@@ -66,7 +70,7 @@ const AdminSidebar = ({
           )}
         </button>
         {/* Sub-menu items */}
-        {expandedItems[name] && !isSidebarCollapsed && (
+        {expandedItems[name] && (!isSidebarCollapsed || window.innerWidth < 768) && (
           <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-100 dark:border-gray-700">
             {children.map((child) => (
               <button
@@ -128,15 +132,22 @@ const AdminSidebar = ({
 
   return (
     <aside
-      className={`${isSidebarCollapsed ? 'w-28' : 'w-64'} fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        md:relative md:translate-x-0 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 px-2 py-4 border-r border-gray-400 dark:border-gray-600
-        h-full overflow-y-auto overflow-x-hidden z-50 transition-all duration-300 ease-in-out`}
+      className={`w-80 max-w-[85vw] ${isSidebarCollapsed ? 'md:w-28' : 'md:w-64'} fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:relative md:translate-x-0 flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 px-3 py-4 border-r border-gray-400 dark:border-gray-600
+        h-full overflow-y-auto overflow-x-hidden z-[9999] transition-all duration-300 ease-in-out pb-24 md:pb-4`}
     >
-      <div className={`flex ${isSidebarCollapsed ? 'justify-center' : 'justify-end'} items-center mb-2 px-2`}>
-        {/* Logo/Branding removed as per user request (already in header) */}
+      <div className={`flex ${isSidebarCollapsed ? 'justify-between' : 'justify-between'} items-center mb-2 px-2 md:justify-end`}>
+        <div className="md:hidden flex items-center">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Clinic Branch</span>
+        </div>
         <button onClick={toggleSidebar} className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-none md:hidden">
           <X className="w-5 h-5" />
         </button>
+      </div>
+
+      {/* Mobile Clinic Branch Switcher */}
+      <div className="md:hidden mb-3 px-1 pb-2 border-b border-gray-200 dark:border-gray-700">
+        <ClinicSwitcher />
       </div>
 
       <nav className="space-y-1">

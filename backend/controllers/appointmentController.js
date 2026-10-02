@@ -123,7 +123,33 @@ export const getPatientSummary = async (req, res) => {
       ...oldAppointments.map(app => formatAppt(app))
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    res.json(allAppointments);
+    // Enrich appointments with Doctor qualification & specialization
+    const doctorIds = [...new Set(allAppointments.map(a => a.doctorId).filter(Boolean))];
+    let docMap = {};
+    if (doctorIds.length > 0) {
+      const doctors = await Doctor.find({
+        $or: [
+          { doctorId: { $in: doctorIds } },
+          { _id: { $in: doctorIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } }
+        ]
+      }).select('doctorId qualification specialization department name').lean();
+
+      doctors.forEach(d => {
+        if (d.doctorId) docMap[d.doctorId] = d;
+        if (d._id) docMap[d._id.toString()] = d;
+      });
+    }
+
+    const enrichedAppointments = allAppointments.map(app => {
+      const doc = docMap[app.doctorId];
+      return {
+        ...app,
+        doctorQualification: app.doctorQualification || doc?.qualification || '',
+        doctorSpecialization: app.doctorSpecialization || app.specialty || doc?.specialization || doc?.department || ''
+      };
+    });
+
+    res.json(enrichedAppointments);
   } catch (error) {
     console.error('Error fetching global appointments:', error);
     res.status(500).json({ message: error.message });

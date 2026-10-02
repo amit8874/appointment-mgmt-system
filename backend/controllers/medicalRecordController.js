@@ -19,7 +19,32 @@ export const getPatientRecords = async (req, res) => {
       mongoId = patient._id;
     }
 
-    const records = await MedicalRecord.find({ patientId: mongoId }).sort({ date: -1 });
+    const records = await MedicalRecord.find({ patientId: mongoId }).sort({ date: -1 }).lean();
+
+    const doctorIds = [...new Set(records.map(r => r.doctorId).filter(Boolean))];
+    if (doctorIds.length > 0) {
+      const Doctor = (await import('../models/Doctor.js')).default;
+      const doctors = await Doctor.find({
+        $or: [
+          { doctorId: { $in: doctorIds } },
+          { _id: { $in: doctorIds.filter(id => mongoose.Types.ObjectId.isValid(id)) } }
+        ]
+      }).select('doctorId qualification specialization department name').lean();
+
+      const docMap = {};
+      doctors.forEach(d => {
+        if (d.doctorId) docMap[d.doctorId] = d;
+        if (d._id) docMap[d._id.toString()] = d;
+      });
+
+      records.forEach(r => {
+        if (r.doctorId && docMap[r.doctorId]) {
+          r.doctorQualification = r.doctorQualification || docMap[r.doctorId].qualification || '';
+          r.doctorSpecialization = r.doctorSpecialization || docMap[r.doctorId].specialization || docMap[r.doctorId].department || '';
+        }
+      });
+    }
+
     res.status(200).json(records);
   } catch (error) {
     console.error('Error fetching medical records:', error);

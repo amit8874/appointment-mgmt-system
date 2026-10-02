@@ -78,34 +78,40 @@ const ClinicSwitcher = () => {
     }
   };
 
-  if (!canSwitch || clinics.length <= 1) return null;
+  if (!canSwitch) return null;
 
   const currentClinic = clinics.find(c => c.id?.toString() === activeOrgIdStr) || {
-    name: user?.organization?.name || user?.organizationId?.name || 'Smile Clinic',
+    name: user?.organization?.name || user?.organizationId?.name || user?.clinicName || 'Smile Clinic',
     branding: user?.organization?.branding || user?.organizationId?.branding
   };
+
+  const hasMultipleClinics = clinics.length > 1;
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={loading}
-        className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700/80 rounded-xl transition-all border border-slate-200 dark:border-gray-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm shadow-sm"
-        title="Switch Clinic Branch"
+        onClick={() => hasMultipleClinics && setIsOpen(!isOpen)}
+        disabled={loading || !hasMultipleClinics}
+        className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700/80 rounded-xl transition-all border border-slate-200 dark:border-gray-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm shadow-sm ${!hasMultipleClinics ? 'cursor-default' : 'cursor-pointer'}`}
+        title={hasMultipleClinics ? "Switch Clinic Branch" : "Current Clinic Branch"}
       >
-        {loading ? (
-          <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin" />
-        ) : (
-          <Building className="w-4 h-4 text-indigo-600" />
+        <div className="flex items-center gap-2 truncate min-w-0">
+          {loading ? (
+            <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
+          ) : (
+            <Building className="w-4 h-4 text-indigo-600 shrink-0" />
+          )}
+          <span className="truncate">
+            {currentClinic.name}
+          </span>
+        </div>
+        {hasMultipleClinics && (
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         )}
-        <span className="max-w-[120px] sm:max-w-[200px] truncate">
-          {currentClinic.name}
-        </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-gray-700 py-2 z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+      {isOpen && hasMultipleClinics && (
+        <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-full min-w-[240px] sm:w-64 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-gray-700 py-2 z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="px-4 py-1.5 border-b border-slate-50 dark:border-gray-700/50 mb-1">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
               My Clinic Branches

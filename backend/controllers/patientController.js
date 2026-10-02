@@ -6,6 +6,7 @@ import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import CancelledAppointment from '../models/CancelledAppointment.js';
 import Billing from '../models/Billing.js';
+import DentalTreatment from '../models/DentalTreatment.js';
 import Notification from '../models/Notification.js';
 import MedicalRecord from '../models/MedicalRecord.js';
 import { generatePatientId } from '../utils/idGenerator.js';
@@ -87,52 +88,128 @@ export const getAllPatients = async (req, res) => {
       .limit(limit)
       .lean();
 
-    // Fetch billing data to calculate totals and status for this page of patients
+    // Fetch billing data, dental treatment plans, and appointment data for this page of patients
     const patientIds = patients.map(p => p.patientId).filter(Boolean);
     const patientObjectIds = patients.map(p => p._id.toString()).filter(Boolean);
-    const allQueryIds = [...patientIds, ...patientObjectIds];
+    const allQueryIds = [...new Set([...patientIds, ...patientObjectIds])];
+    const validObjectIds = [...new Set([...patientObjectIds, ...patientIds])].filter(id => mongoose.Types.ObjectId.isValid(id) && String(id).length === 24);
 
-    const bills = await Billing.find({ 
-      organizationId: req.tenantId, 
-      patientId: { $in: allQueryIds } 
-    }).lean();
+    const [bills, treatments, appointments] = await Promise.all([
+      Billing.find({ 
+        organizationId: req.tenantId, 
+        patientId: { $in: allQueryIds },
+        status: { $ne: 'Cancelled' }
+      }).lean(),
+      validObjectIds.length > 0 ? DentalTreatment.find({
+        organizationId: req.tenantId,
+        patientId: { $in: validObjectIds },
+        status: { $ne: 'Cancelled' }
+      }).lean() : [],
+      Appointment.find({
+        organizationId: req.tenantId,
+        patientId: { $in: allQueryIds }
+      }).sort({ date: -1 }).lean()
+    ]);
 
-    // Fetch latest appointment for each patient to get lastVisit date and doctor
-    const appointments = await Appointment.find({
-      organizationId: req.tenantId,
-      patientId: { $in: allQueryIds }
-    }).sort({ date: -1 }).lean();
-
-    // Map billing and appointment data to patients
+    // Map billing, treatment, and appointment data to patients
     const patientsWithData = patients.map(p => {
-      const patientBills = bills.filter(b => b.patientId === p.patientId || b.patientId === p._id.toString());
-      
-      const paidAmount = patientBills
-        .filter(b => b.status === 'Paid')
-        .reduce((sum, b) => sum + (b.amount || 0), 0);
-        
-      const pendingAmount = patientBills
-        .filter(b => b.status === 'Pending' || b.status === 'Due')
-        .reduce((sum, b) => sum + (b.amount || 0), 0);
-      
-      const hasPending = patientBills.some(b => b.status === 'Pending' || b.status === 'Due');
-      const hasPaid = patientBills.some(b => b.status === 'Paid');
+      const pIdStr = p.patientId ? String(p.patientId) : '';
+      const pObjIdStr = p._id ? String(p._id) : '';
+
+      // 1. Find all non-cancelled bills for this patient
+      const patientBills = bills.filter(b => {
+        const bPid = String(b.patientId || '');
+        return (pIdStr && bPid === pIdStr) || (pObjIdStr && bPid === pObjIdStr);
+      });
+
+      let billingPaid = 0;
+      let billingDue = 0;
+      const billedTreatmentIds = new Set();
+
+      for (const b of patientBills) {
+        const grandTotal = Number(b.grandTotal || b.netAmount || b.amount || 0);
+        let paid = 0;
+        let due = 0;
+
+        if (b.status === 'Paid') {
+          paid = Number(b.paidAmount !== undefined && b.paidAmount !== null && b.paidAmount > 0 ? b.paidAmount : grandTotal);
+          due = 0;
+        } else {
+          paid = Number(b.paidAmount || 0);
+          if (b.dueAmount !== undefined && b.dueAmount !== null) {
+            due = Math.max(0, Number(b.dueAmount));
+          } else {
+            due = Math.max(0, grandTotal - paid);
+          }
+        }
+
+        billingPaid += paid;
+        billingDue += due;
+
+        if (Array.isArray(b.items)) {
+          for (const item of b.items) {
+            if (item.treatmentId) {
+              billedTreatmentIds.add(String(item.treatmentId));
+            }
+          }
+        }
+      }
+
+      // 2. Find dental treatment plans for this patient
+      const patientTreatments = treatments.filter(t => {
+        const tPid = t.patientId ? String(t.patientId) : '';
+        return (pObjIdStr && tPid === pObjIdStr) || (pIdStr && tPid === pIdStr);
+      });
+
+      let unbilledTreatmentPaid = 0;
+      let unbilledTreatmentDue = 0;
+
+      for (const t of patientTreatments) {
+        // Skip if this procedure was already billed in a Billing record to prevent double counting
+        if (billedTreatmentIds.has(String(t._id))) {
+          continue;
+        }
+
+        const tNet = Number(t.netAmount !== undefined && t.netAmount !== null ? t.netAmount : Math.max(0, Number(t.estimatedCost || 0) - Number(t.discount || 0)));
+        const tPaid = Number(t.paidAmount || 0);
+        const tDue = Number(t.dueAmount !== undefined && t.dueAmount !== null ? t.dueAmount : Math.max(0, tNet - tPaid));
+
+        unbilledTreatmentPaid += tPaid;
+        unbilledTreatmentDue += tDue;
+      }
+
+      const totalPaidAmount = billingPaid + unbilledTreatmentPaid;
+      const totalPendingAmount = billingDue + unbilledTreatmentDue;
+      const totalAmount = totalPaidAmount + totalPendingAmount;
+
       const isDead = p.status === 'dead' || p.isDead || patientBills.some(b => b.status === 'Dead');
-      
-      // Get latest appointment
-      const patientAppointments = appointments.filter(a => a.patientId === p.patientId || a.patientId === p._id.toString());
+      const patientAppointments = appointments.filter(a => {
+        const aPid = String(a.patientId || '');
+        return (pIdStr && aPid === pIdStr) || (pObjIdStr && aPid === pObjIdStr);
+      });
       const latestAppt = patientAppointments[0];
-      
+
+      let paymentStatus = 'paid';
+      if (isDead) {
+        paymentStatus = 'dead';
+      } else if (totalPendingAmount > 0) {
+        paymentStatus = 'pending';
+      } else if (totalPaidAmount > 0 || totalAmount === 0) {
+        paymentStatus = 'paid';
+      } else {
+        paymentStatus = p.paymentStatus || 'pending';
+      }
+
       return {
         ...p,
         name: p.fullName || `${p.firstName} ${p.lastName || ''}`.trim(),
         status: p.status || 'active',
-        paidAmount,
-        pendingAmount,
+        paidAmount: totalPaidAmount,
+        pendingAmount: totalPendingAmount,
+        totalAmount: totalAmount,
         lastVisit: latestAppt ? latestAppt.date : (p.lastVisit || p.date || 'No Visit'),
         assignedDoctor: p.assignedDoctor || latestAppt?.doctorName || 'Unassigned',
-        // paymentStatus logic matched with PatientPanel.jsx requirements
-        paymentStatus: isDead ? 'dead' : (hasPending ? 'pending' : (hasPaid ? 'paid' : (p.paymentStatus === 'paid' ? 'paid' : 'pending')))
+        paymentStatus
       };
     });
 

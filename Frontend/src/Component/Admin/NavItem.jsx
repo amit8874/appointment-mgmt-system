@@ -69,15 +69,18 @@ const NavItem = ({ id, name, icon: Icon, currentTab, onClick, toggleSidebar, isS
         isActive ? colors.active : colors.inactive
       } ${
         isSidebarCollapsed 
-          ? 'justify-center flex-col px-1.5 py-3 gap-1.5 text-center' 
+          ? 'md:justify-center md:flex-col md:px-1.5 md:py-3 md:gap-1.5 md:text-center px-4 py-2.5 gap-3' 
           : 'px-4 py-2.5 gap-3'
       }`}
     >
       <Icon className={`w-5 h-5 shrink-0 ${isActive ? colors.icon : 'text-slate-800 dark:text-slate-350'}`} />
       {isSidebarCollapsed ? (
-        <span className="text-[9px] font-black uppercase tracking-wider leading-tight truncate w-full px-0.5">
-          {name.length > 10 ? name.substring(0, 9) + '…' : name}
-        </span>
+        <>
+          <span className="hidden md:inline-block text-[9px] font-black uppercase tracking-wider leading-tight truncate w-full px-0.5">
+            {name.length > 10 ? name.substring(0, 9) + '…' : name}
+          </span>
+          <span className="md:hidden text-xs font-black uppercase tracking-wider text-left whitespace-nowrap">{name}</span>
+        </>
       ) : (
         <span className="text-xs font-black uppercase tracking-wider text-left whitespace-nowrap">{name}</span>
       )}

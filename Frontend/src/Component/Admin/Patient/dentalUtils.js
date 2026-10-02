@@ -127,8 +127,21 @@ export const getLowerArchTeeth = (chartType = 'adult') => {
   return [...rightQuadrant, ...leftQuadrant];
 };
 // Key dental clinical procedures for quick dropdown selection
+export const RCT_SUB_OPTIONS = [
+  { name: 'Full RCT', fullName: 'Root Canal Treatment (RCT) - Full RCT', defaultCost: 5000 },
+  { name: 'BMP - With Medication', fullName: 'Root Canal Treatment (RCT) - BMP - With Medication', defaultCost: 5000 },
+  { name: 'BMP - With Ca. draning', fullName: 'Root Canal Treatment (RCT) - BMP - With Ca. draning', defaultCost: 5000 },
+  { name: 'Obturation', fullName: 'Root Canal Treatment (RCT) - Obturation', defaultCost: 5000 },
+  { name: 'Post-Obturation', fullName: 'Root Canal Treatment (RCT) - Post-Obturation', defaultCost: 5000 }
+];
+
 export const STANDARD_DENTAL_PROCEDURES = [
-  { name: 'Root Canal Treatment (RCT)', defaultCost: 4500, category: 'Endodontics' },
+  { name: 'Root Canal Treatment (RCT)', defaultCost: 5000, category: 'Endodontics' },
+  { name: 'RCT - Full RCT', defaultCost: 5000, category: 'Endodontics' },
+  { name: 'RCT - BMP - With Medication', defaultCost: 5000, category: 'Endodontics' },
+  { name: 'RCT - BMP - With Ca. draning', defaultCost: 5000, category: 'Endodontics' },
+  { name: 'RCT - Obturation', defaultCost: 5000, category: 'Endodontics' },
+  { name: 'RCT - Post-Obturation', defaultCost: 5000, category: 'Endodontics' },
   { name: 'Composite Dental Filling', defaultCost: 1500, category: 'Restorative' },
   { name: 'Tooth Extraction (Simple)', defaultCost: 1200, category: 'Surgery' },
   { name: 'Surgical Tooth Extraction', defaultCost: 3500, category: 'Surgery' },

@@ -1,11 +1,7 @@
-import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
+import { createGroqChatCompletion } from '../utils/groqHelper.js';
 
 dotenv.config();
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
 
 export const parseIntakeTranscript = async (req, res) => {
   try {
@@ -34,13 +30,13 @@ The expected JSON output schema must correspond exactly to these fields:
 If any field is completely absent from the dictation, leave it as an empty string ("").
 `;
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile', // Specifically use the agile text processing model
+    const completion = await createGroqChatCompletion({
+      model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Extract the details into JSON from this raw receptionist dictation transcript:\n\n"${transcript}"` }
       ],
-      temperature: 0.1, // Low temp for highly reproducible data extraction
+      temperature: 0.1,
       response_format: { type: "json_object" }
     });
 
@@ -111,8 +107,8 @@ CRITICAL RULES FOR UPDATING STATE:
 4. If the user's transcript gives multiple pieces of data at once (e.g. "Rahul Sharma 45 years male 9876543210"), extract all of them securely so you can skip asking for them!
 `;
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+    const completion = await createGroqChatCompletion({
+      model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `The receptionist just said: "${transcript}"\nGenerate the updated state and the next reply.` }

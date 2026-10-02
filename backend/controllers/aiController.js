@@ -1,11 +1,7 @@
-import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
+import { createGroqChatCompletion } from '../utils/groqHelper.js';
 
 dotenv.config();
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
 
 /**
  * Translates clinical advice into a target language while preserving medical accuracy.
@@ -46,8 +42,8 @@ Return the response as a JSON object:
 }
 `;
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
+    const completion = await createGroqChatCompletion({
+      model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `${contextStr}\nOriginal Advice: "${originalAdvice}"\nTranslate to: ${targetLanguage}` }
@@ -112,8 +108,8 @@ Return the response as a JSON object:
 }
 `;
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
+    const completion = await createGroqChatCompletion({
+      model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `${contextStr}\nRough Notes: "${originalAdvice}"` }

@@ -210,22 +210,12 @@ const Header = ({
           <Menu className="w-6 h-6" />
         </button>
 
-        {(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) ? (
-          <img
-            src={user?.organization?.branding?.logo || user?.organizationId?.branding?.logo}
-            alt="Organization Logo"
-            className="h-10 max-w-[170px] object-contain"
-          />
-        ) : (user?.organization?.name || user?.organizationId?.name) ? (
-          <div className="flex items-center space-x-2.5 bg-slate-900 dark:bg-slate-900 px-4 py-2 rounded-xl border border-slate-800 shadow-sm">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="text-white font-black text-sm uppercase tracking-wider truncate max-w-[170px]">
-              {user?.organization?.name || user?.organizationId?.name || 'ADMIN'}
-            </span>
-          </div>
-        ) : (
-          <img src="/logo.png" alt="Oviaan Logo" className="h-20 w-auto" />
-        )}
+        <div className="flex flex-col items-center justify-center select-none py-0.5 px-1">
+          <img src="/logo.png" alt="Oviaan Logo" className="h-8 sm:h-9 w-auto object-contain" />
+          <span className="text-[10px] sm:text-[11px] font-black tracking-[0.25em] text-indigo-950 dark:text-indigo-300 uppercase leading-none mt-0.5">
+            OVIAAN
+          </span>
+        </div>
 
         {/* Middle: Header Navigation Tabs */}
         {dashboardMode === 'admin' && (
@@ -488,18 +478,10 @@ const Header = ({
       {/* Right: Compact action icons + Profile avatar */}
       <div className="flex items-center gap-2">
         
-        {/* Clinic Switcher */}
-        <ClinicSwitcher />
-
-        {/* Theme Toggle */}
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-xl border border-gray-200 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 transition-all shadow-sm"
-          aria-label="Toggle Theme"
-          title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-        >
-          {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-        </button>
+        {/* Clinic Switcher (Desktop view only, shown in sidebar on mobile) */}
+        <div className="hidden md:block">
+          <ClinicSwitcher />
+        </div>
 
         {/* Notifications Bell */}
         <div className="relative" ref={notificationRef}>

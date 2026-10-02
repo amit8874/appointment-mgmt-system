@@ -1,11 +1,7 @@
-import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
+import { createGroqChatCompletion } from '../utils/groqHelper.js';
 
 dotenv.config();
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
 
 /**
  * Translate clinical text between languages while preserving medical context
@@ -39,14 +35,14 @@ export const translateText = async (req, res) => {
       ${text}
     `;
 
-    const chatCompletion = await groq.chat.completions.create({
+    const chatCompletion = await createGroqChatCompletion({
       messages: [
         {
           role: 'user',
           content: prompt,
         },
       ],
-      model: 'llama-3.1-8b-instant', // Current high-speed model
+      model: 'openai/gpt-oss-120b',
       temperature: 0.1,
     });
 
@@ -115,9 +111,9 @@ export const translatePrescription = async (req, res) => {
       Return ONLY a valid JSON object with keys "medications" and "complaints". No markdown, no explanations.
     `;
 
-    const chatCompletion = await groq.chat.completions.create({
+    const chatCompletion = await createGroqChatCompletion({
       messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.1-8b-instant',
+      model: 'openai/gpt-oss-120b',
       temperature: 0,
       response_format: { type: "json_object" }
     });

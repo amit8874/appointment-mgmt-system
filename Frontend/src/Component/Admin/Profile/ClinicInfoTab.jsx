@@ -57,26 +57,26 @@ const ClinicInfoTab = ({ organization, onUpdate, loading }) => {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+            <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg shrink-0">
               <Building2 size={20} />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900">Clinic Details</h3>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">Clinic Details</h3>
               <p className="text-xs text-slate-500">Manage your business information and operational settings.</p>
             </div>
           </div>
           <button 
             onClick={handleSubmit}
             disabled={loading}
-            className="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+            className="w-full sm:w-auto px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
           >
             {loading ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
 
-        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+        <div className="p-4 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Clinic Name</label>
             <div className="relative">

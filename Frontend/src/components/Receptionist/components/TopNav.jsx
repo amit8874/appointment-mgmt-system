@@ -67,8 +67,10 @@ const TopNav = ({ sidebarOpen, setSidebarOpen, notifications, unreadCount, onNot
 
         {/* Right side icons */}
         <div className="flex items-center space-x-4">
-          {/* Clinic Switcher */}
-          <ClinicSwitcher />
+          {/* Clinic Switcher (Desktop view only, shown in sidebar on mobile) */}
+          <div className="hidden md:block">
+            <ClinicSwitcher />
+          </div>
 
           {/* Notifications */}
           <div className="relative" ref={notificationRef}>

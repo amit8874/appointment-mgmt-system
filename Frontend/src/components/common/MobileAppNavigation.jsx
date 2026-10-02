@@ -92,7 +92,7 @@ const MobileAppNavigation = () => {
       </button>
 
       {/* Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900 text-white border-t-2 border-blue-900 flex items-center z-50 pb-safe shadow-lg">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900 text-white border-t-2 border-blue-900 flex items-center z-40 pb-safe shadow-lg">
         {/* Grid View */}
         <button
           onClick={handleGridClick}

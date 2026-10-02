@@ -9,7 +9,8 @@ import {
   getToothById,
   getToothLabel,
   getToothDisplayName,
-  STANDARD_DENTAL_PROCEDURES
+  STANDARD_DENTAL_PROCEDURES,
+  RCT_SUB_OPTIONS
 } from './dentalUtils';
 import { getToothSVG } from './ToothIcons';
 import DentalBillingCreatorModal from './DentalBillingCreatorModal';
@@ -34,9 +35,13 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   // Modal/Popup inputs
   const [procedure, setProcedure] = useState('');
   const [estimatedCost, setEstimatedCost] = useState('');
+  const [initialPaidAmount, setInitialPaidAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [saving, setSaving] = useState(false);
+
+  // RCT sub-options state
+  const [showRctOptions, setShowRctOptions] = useState(false);
 
   // Editing state for queued procedures
   const [editingIndex, setEditingIndex] = useState(null);
@@ -145,9 +150,11 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     }
     setProcedure('');
     setEstimatedCost('');
+    setInitialPaidAmount('');
     setNotes('');
     setPriority('Medium');
     setSelectedProceduresList([]);
+    setShowRctOptions(false);
     setEditingIndex(null);
     setEditingName('');
     setEditingCost('');
@@ -174,6 +181,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     setSelectedProceduresList(prev => [...prev, { name: nameTrimmed, cost: costNum }]);
     setProcedure('');
     setEstimatedCost('');
+    setShowRctOptions(false);
   };
 
   const handleRemoveProcedureFromList = (index) => {
@@ -228,12 +236,36 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   };
 
   const handleQuickProcedureSelect = (proc) => {
+    const isRct = proc.name.toLowerCase().includes('rct') || proc.name.toLowerCase().includes('root canal');
+    if (isRct) {
+      setShowRctOptions(true);
+      setProcedure('Root Canal Treatment (RCT)');
+      setEstimatedCost(proc.defaultCost.toString());
+      return;
+    }
+
     const exists = selectedProceduresList.some(p => p.name.toLowerCase() === proc.name.toLowerCase());
     if (exists) {
       toast.error(`${proc.name} is already added to the list`);
       return;
     }
     setSelectedProceduresList(prev => [...prev, { name: proc.name, cost: proc.defaultCost }]);
+  };
+
+  const handleSelectRctOption = (opt) => {
+    const rctCost = Number(estimatedCost) || 5000;
+    const procName = opt.fullName;
+
+    const exists = selectedProceduresList.some(p => p.name.toLowerCase() === procName.toLowerCase());
+    if (exists) {
+      toast.error(`${procName} is already added to the list`);
+      return;
+    }
+
+    setSelectedProceduresList(prev => [...prev, { name: procName, cost: rctCost }]);
+    setProcedure('');
+    setEstimatedCost('');
+    setShowRctOptions(false);
   };
 
   const handleSaveProcedure = async (e) => {
@@ -255,20 +287,41 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       return;
     }
 
+    const totalCostSum = listToSave.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0);
+    const parsedPaidInput = Number(initialPaidAmount) || 0;
+
+    if (parsedPaidInput < 0) {
+      toast.error('Paid amount cannot be negative');
+      return;
+    }
+
+    if (parsedPaidInput > totalCostSum && totalCostSum > 0) {
+      toast.error(`Paid amount (₹${parsedPaidInput}) cannot exceed total estimated cost (₹${totalCostSum})`);
+      return;
+    }
+
     setSaving(true);
     try {
       const savePromises = [];
       selectedTeeth.forEach((toothId) => {
         listToSave.forEach((item) => {
+          const itemCost = item.cost;
+          let itemPaid = 0;
+          if (totalCostSum > 0) {
+            const ratio = (itemCost * selectedTeeth.length) / totalCostSum;
+            const allocatedForItem = parsedPaidInput * ratio;
+            itemPaid = Math.min(itemCost, Math.round((allocatedForItem / selectedTeeth.length) * 100) / 100);
+          }
+
           savePromises.push(
             dentistApi.createTreatment(patientId, {
               toothNumber: toothId,
               procedure: item.name,
               estimatedCost: item.cost,
-              paidAmount: item.cost,
+              paidAmount: itemPaid,
               notes: notes.trim(),
               priority,
-              status: 'Planned'
+              status: itemPaid >= itemCost && itemCost > 0 ? 'Completed' : 'Planned'
             })
           );
 
@@ -612,9 +665,9 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl border border-slate-200 overflow-hidden"
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col"
             >
-              <div className="bg-gradient-to-r from-indigo-700 to-indigo-900 p-6 text-white flex justify-between items-center">
+              <div className="bg-gradient-to-r from-indigo-700 to-indigo-900 p-5 text-white flex justify-between items-center shrink-0">
                 <div>
                   <h4 className="text-base font-black uppercase tracking-tight">
                     {selectedTeeth.length === 1
@@ -634,30 +687,33 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveProcedure} className="p-6 space-y-5">
+              <form onSubmit={handleSaveProcedure} className="p-6 flex-1 overflow-y-auto space-y-5 flex flex-col justify-between">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
                   {/* Left Column - Preview & Combined Past Logs */}
                   <div className="space-y-4 flex flex-col h-full">
                     {/* Past Treatment logs for selected teeth */}
                     {selectedTeeth.some(id => chartData[id]?.length > 0) && (
-                      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 max-h-[140px] overflow-y-auto space-y-3">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 select-none">
-                          <Info className="w-3.5 h-3.5 text-slate-400" /> Past Treatment History
+                      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 max-h-[150px] overflow-y-auto space-y-3">
+                        <p className="text-[10px] font-black text-slate-950 uppercase tracking-wider mb-2 flex items-center gap-1.5 select-none">
+                          <Info className="w-3.5 h-3.5 text-slate-950" /> Past Treatment History & Billing
                         </p>
                         {selectedTeeth.map(toothId => (
                           (chartData[toothId] || []).map((t) => (
-                            <div key={t._id} className="text-xs flex justify-between items-start border-b border-dashed border-slate-200 pb-2 last:border-0 last:pb-0">
+                            <div key={t._id} className="text-xs flex justify-between items-start border-b border-dashed border-slate-300 pb-2 last:border-0 last:pb-0">
                               <div>
-                                <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded mr-1.5 uppercase">
+                                <span className="text-[9px] font-black text-indigo-950 bg-indigo-100 px-1.5 py-0.5 rounded mr-1.5 uppercase border border-indigo-200">
                                   {getToothDisplayName(toothId, numberingSystem)}
                                 </span>
-                                <span className="font-black text-slate-700">{t.procedure}</span>
-                                <p className="text-[10px] text-slate-400">{t.notes || 'No description notes.'}</p>
+                                <span className="font-black text-slate-950">{t.procedure}</span>
+                                <p className="text-[10px] font-bold text-slate-900">{t.notes || 'No description notes.'}</p>
+                                <p className="text-[10px] font-black text-slate-800 mt-0.5">
+                                  Est: ₹{t.estimatedCost || 0} • Paid: <span className="text-emerald-700">₹{t.paidAmount || 0}</span> • Due: <span className="text-rose-700">₹{t.dueAmount || 0}</span>
+                                </p>
                               </div>
                               <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
-                                t.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' :
-                                t.status === 'In Progress' ? 'bg-amber-50 text-amber-600' :
-                                'bg-cyan-50 text-cyan-600'
+                                t.status === 'Completed' ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' :
+                                t.status === 'In Progress' ? 'bg-amber-100 text-amber-950 border border-amber-300' :
+                                'bg-cyan-100 text-cyan-950 border border-cyan-300'
                               }`}>
                                 {t.status}
                               </span>
@@ -667,59 +723,59 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                       </div>
                     )}
 
-                    {/* Queued Procedures Preview */}
-                    <div className="bg-indigo-50/20 rounded-2xl p-5 border border-indigo-100/50 flex-1 flex flex-col justify-between min-h-[260px]">
+                    {/* Queued Procedures Preview & Financial Entry */}
+                    <div className="bg-indigo-50/40 rounded-2xl p-5 border border-indigo-200 flex-1 flex flex-col justify-between min-h-[260px]">
                       <div>
                         <div className="flex justify-between items-center mb-3 select-none">
-                          <p className="text-[10px] font-bold text-indigo-900/60 uppercase tracking-wider">
+                          <p className="text-[10px] font-black text-slate-950 uppercase tracking-wider">
                             Queued Procedures (Applied per tooth)
                           </p>
-                          <span className="text-[10px] font-black text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-black text-slate-950 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-300">
                             x{selectedTeeth.length} Teeth
                           </span>
                         </div>
                         {selectedProceduresList.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-center">
-                            <Smile className="w-8 h-8 mb-2 opacity-30 text-indigo-500" />
-                            <p className="text-xs font-semibold">No procedures selected yet.</p>
-                            <p className="text-[10px] opacity-70">Click presets on the right or type a custom one to add to queue.</p>
+                          <div className="flex flex-col items-center justify-center py-8 text-slate-950 text-center">
+                            <Smile className="w-8 h-8 mb-2 text-indigo-700" />
+                            <p className="text-xs font-black text-slate-950">No procedures selected yet.</p>
+                            <p className="text-[10px] font-bold text-slate-900">Click presets on the right or type a custom one to add to queue.</p>
                           </div>
                         ) : (
-                          <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                          <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                             {selectedProceduresList.map((item, idx) => {
                               const isEditing = editingIndex === idx;
                               return (
-                                <div key={idx} className="bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
+                                <div key={idx} className="bg-white border border-slate-300 p-3 rounded-xl shadow-sm">
                                   {isEditing ? (
                                     <div className="space-y-2.5">
                                       <div className="flex flex-col gap-1">
-                                        <label className="text-[9px] font-bold text-indigo-900/60 uppercase tracking-widest">
+                                        <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
                                           Edit Procedure Name
                                         </label>
                                         <input
                                           type="text"
                                           value={editingName}
                                           onChange={(e) => setEditingName(e.target.value)}
-                                          className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 w-full font-sans"
+                                          className="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-950 outline-none focus:ring-2 focus:ring-indigo-500 bg-white w-full font-sans"
                                         />
                                       </div>
                                       <div className="flex items-end gap-2.5">
                                         <div className="flex flex-col gap-1 flex-1">
-                                          <label className="text-[9px] font-bold text-indigo-900/60 uppercase tracking-widest">
+                                          <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
                                             Edit Cost per Tooth (₹)
                                           </label>
                                           <input
                                             type="number"
                                             value={editingCost}
                                             onChange={(e) => setEditingCost(e.target.value)}
-                                            className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50 w-full font-sans"
+                                            className="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-950 outline-none focus:ring-2 focus:ring-indigo-500 bg-white w-full font-sans"
                                           />
                                         </div>
                                         <div className="flex gap-1.5 pb-0.5">
                                           <button
                                             type="button"
                                             onClick={() => handleSaveEdit(idx)}
-                                            className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors cursor-pointer border border-emerald-100 flex items-center justify-center"
+                                            className="p-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-950 rounded-lg transition-colors cursor-pointer border border-emerald-300 flex items-center justify-center font-black"
                                             title="Save changes"
                                           >
                                             <Check className="w-3.5 h-3.5" />
@@ -727,7 +783,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                                           <button
                                             type="button"
                                             onClick={handleCancelEdit}
-                                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg transition-colors cursor-pointer border border-slate-200 flex items-center justify-center"
+                                            className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-950 rounded-lg transition-colors cursor-pointer border border-slate-400 flex items-center justify-center font-black"
                                             title="Cancel edit"
                                           >
                                             <X className="w-3.5 h-3.5" />
@@ -738,8 +794,8 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                                   ) : (
                                     <div className="flex justify-between items-center gap-2">
                                       <div className="min-w-0 flex-1">
-                                        <p className="font-black text-slate-800 text-xs truncate" title={item.name}>{item.name}</p>
-                                        <p className="text-[10px] text-indigo-600 font-bold">
+                                        <p className="font-black text-slate-950 text-xs truncate" title={item.name}>{item.name}</p>
+                                        <p className="text-[11px] text-indigo-950 font-black">
                                           Cost per tooth: ₹{item.cost} {selectedTeeth.length > 1 && `(Total for ${selectedTeeth.length} teeth: ₹${item.cost * selectedTeeth.length})`}
                                         </p>
                                       </div>
@@ -747,7 +803,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                                         <button
                                           type="button"
                                           onClick={() => handleStartEdit(idx, item)}
-                                          className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer"
+                                          className="p-1.5 hover:bg-indigo-100 text-slate-800 hover:text-indigo-950 rounded-lg transition-colors cursor-pointer font-bold"
                                           title="Edit procedure"
                                         >
                                           <Pencil className="w-3.5 h-3.5" />
@@ -755,7 +811,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                                         <button
                                           type="button"
                                           onClick={() => handleRemoveProcedureFromList(idx)}
-                                          className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                                          className="p-1.5 hover:bg-rose-100 text-slate-800 hover:text-rose-700 rounded-lg transition-colors cursor-pointer font-bold"
                                           title="Remove procedure"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
@@ -770,14 +826,61 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                         )}
                       </div>
 
-                      <div className="border-t border-indigo-100 pt-4 mt-4">
+                      {/* Financial Payment & Advance Entry Card */}
+                      <div className="border-t border-indigo-200 pt-3 mt-3 space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-xs font-black text-indigo-900 uppercase tracking-wider">
+                          <span className="text-xs font-black text-slate-950 uppercase tracking-wider">
                             Grand Total ({selectedTeeth.length} {selectedTeeth.length === 1 ? 'Tooth' : 'Teeth'})
                           </span>
-                          <span className="text-xl font-black text-indigo-900">
+                          <span className="text-xl font-black text-slate-950">
                             ₹{selectedProceduresList.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0)}
                           </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-dashed border-indigo-200">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
+                              Amount Paid Today (₹)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={initialPaidAmount}
+                              onChange={(e) => setInitialPaidAmount(e.target.value)}
+                              className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-black text-emerald-950 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
+                              Remaining Due (₹)
+                            </label>
+                            <div className={`px-3 py-1.5 rounded-xl border text-xs font-black text-right ${
+                              Math.max(0, selectedProceduresList.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0) - (Number(initialPaidAmount) || 0)) > 0
+                                ? 'bg-rose-50 border-rose-300 text-rose-700'
+                                : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                            }`}>
+                              ₹{Math.max(0, selectedProceduresList.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0) - (Number(initialPaidAmount) || 0))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Payment Status Indicator Tag */}
+                        <div className="flex justify-between items-center pt-1">
+                          <span className="text-[9px] font-black text-slate-950 uppercase tracking-wider">Payment Status Tag:</span>
+                          {(() => {
+                            const grandTotal = selectedProceduresList.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0);
+                            const paid = Number(initialPaidAmount) || 0;
+                            const due = Math.max(0, grandTotal - paid);
+                            if (paid >= grandTotal && grandTotal > 0) {
+                              return <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-950 border border-emerald-300">✓ Full Paid</span>;
+                            } else if (paid > 0 && due > 0) {
+                              return <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-950 border border-amber-300">⏳ Partially Paid (Due ₹{due})</span>;
+                            } else {
+                              return <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-100 text-rose-950 border border-rose-300">⚠️ Unpaid (Overdue ₹{due})</span>;
+                            }
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -786,15 +889,15 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                   {/* Right Column - Selection & Input */}
                   <div className="space-y-4">
                     {/* Quick presets */}
-                    <div className="flex flex-col gap-2 bg-slate-50 border border-slate-100 p-3.5 rounded-2xl shadow-sm">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider select-none">Quick Presets (Tap to add to queue):</span>
-                      <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto">
+                    <div className="flex flex-col gap-2 bg-slate-50 border border-slate-300 p-3.5 rounded-2xl shadow-sm">
+                      <span className="text-[10px] font-black text-slate-950 uppercase tracking-wider select-none">Quick Presets (Tap to add to queue):</span>
+                      <div className="flex flex-wrap gap-1.5 max-h-[160px] overflow-y-auto pr-1">
                         {mergedPresets.map((proc) => (
                           <button
                             key={proc.name}
                             type="button"
                             onClick={() => handleQuickProcedureSelect(proc)}
-                            className="px-2.5 py-1.5 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-slate-600 hover:text-indigo-600 text-[10px] font-black rounded-lg transition-colors cursor-pointer select-none"
+                            className="px-2.5 py-1.5 bg-white hover:bg-indigo-100 border border-slate-300 hover:border-indigo-400 text-slate-950 hover:text-indigo-950 text-[10px] font-black rounded-lg transition-colors cursor-pointer select-none"
                           >
                             + {proc.name.replace(/ Treatment| Placement| Surgery/g, '')} (₹{proc.defaultCost})
                           </button>
@@ -802,12 +905,50 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                       </div>
                     </div>
 
+                    {/* Dedicated RCT Stage / Sub-Options Card */}
+                    {showRctOptions && (
+                      <div className="bg-gradient-to-r from-indigo-100 via-purple-100 to-indigo-100 border-2 border-indigo-400 p-3.5 rounded-2xl space-y-2 shadow-md animate-fade">
+                        <div className="flex justify-between items-center select-none">
+                          <span className="text-[10px] font-black text-slate-950 uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-indigo-700 animate-ping" />
+                            Select RCT Sub-Option / Stage:
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowRctOptions(false);
+                              if (procedure.toLowerCase().includes('rct') || procedure.toLowerCase().includes('root canal')) {
+                                setProcedure('');
+                              }
+                            }}
+                            className="text-[10px] text-slate-950 hover:text-black font-black cursor-pointer bg-white/60 px-2 py-0.5 rounded-lg border border-slate-300 hover:bg-white transition-all active:scale-95"
+                          >
+                            ✕ Dismiss
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {RCT_SUB_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.name}
+                              type="button"
+                              onClick={() => handleSelectRctOption(opt)}
+                              className="px-2.5 py-1.5 bg-white hover:bg-indigo-700 text-slate-950 hover:text-white border border-slate-300 hover:border-indigo-700 text-[11px] font-black rounded-xl transition-all shadow-sm hover:shadow-md cursor-pointer flex items-center gap-1 active:scale-95 select-none"
+                            >
+                              + {opt.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Manual Custom Add Form */}
-                    <div className="bg-slate-50/50 border border-slate-200/60 p-4 rounded-2xl space-y-3 shadow-sm">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider select-none">Or Add Custom Procedure:</p>
+                    <div className="bg-slate-100/70 border border-slate-300 p-3.5 rounded-2xl space-y-2.5 shadow-sm">
+                      <p className="text-[10px] font-black text-slate-950 uppercase tracking-wider select-none">Or Add Custom Procedure:</p>
                       
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
                           Procedure Name
                         </label>
                         <input
@@ -815,14 +956,20 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                           placeholder="e.g. Root Canal (RCT), Extraction..."
                           value={procedure}
                           onChange={(e) => {
-                            setProcedure(e.target.value);
-                            const match = mergedPresets.find(p => p.name.toLowerCase() === e.target.value.toLowerCase());
+                            const val = e.target.value;
+                            setProcedure(val);
+                            if (val.toLowerCase().includes('rct') || val.toLowerCase().includes('root canal')) {
+                              setShowRctOptions(true);
+                            } else {
+                              setShowRctOptions(false);
+                            }
+                            const match = mergedPresets.find(p => p.name.toLowerCase() === val.toLowerCase());
                             if (match) {
                               setEstimatedCost(match.defaultCost.toString());
                             }
                           }}
                           list="dental-procedure-suggestions"
-                          className="border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                          className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-black text-slate-950 placeholder:text-slate-500 placeholder:font-normal outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                         />
                         <datalist id="dental-procedure-suggestions">
                           {mergedPresets.map((proc, idx) => (
@@ -832,8 +979,8 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                       </div>
 
                       <div className="grid grid-cols-2 gap-3 items-end">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
                             Cost per tooth (₹)
                           </label>
                           <input
@@ -841,13 +988,13 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                             placeholder="e.g. 4500"
                             value={estimatedCost}
                             onChange={(e) => setEstimatedCost(e.target.value)}
-                            className="border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                            className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-black text-slate-950 placeholder:text-slate-500 placeholder:font-normal outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                           />
                         </div>
                         <button
                           type="button"
                           onClick={handleAddProcedureToList}
-                          className="px-4 py-2 border-2 border-indigo-600 hover:bg-indigo-50 text-indigo-600 text-xs font-black rounded-xl uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1 h-[34px]"
+                          className="px-4 py-1.5 border-2 border-indigo-700 hover:bg-indigo-50 text-indigo-950 text-xs font-black rounded-xl uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1 h-[32px]"
                         >
                           <Plus className="w-3.5 h-3.5" /> Add
                         </button>
@@ -856,24 +1003,24 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
 
                     {/* priority and clinical diagnosis notes */}
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
                           Priority
                         </label>
                         <select
                           value={priority}
                           onChange={(e) => setPriority(e.target.value)}
-                          className="border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                          className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-black text-slate-950 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                         >
-                          <option value="Low">Low</option>
-                          <option value="Medium">Medium</option>
-                          <option value="High">High</option>
+                          <option value="Low" className="font-bold text-slate-950">Low</option>
+                          <option value="Medium" className="font-bold text-slate-950">Medium</option>
+                          <option value="High" className="font-bold text-slate-950">High</option>
                         </select>
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
                         Clinical Diagnosis Notes (Applies to all selected)
                       </label>
                       <textarea
@@ -881,17 +1028,17 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                         placeholder="Describe diagnosis details, tooth decay type, composite shade, etc..."
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        className="border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white"
+                        className="border border-slate-300 rounded-xl px-3 py-2 text-xs font-black text-slate-950 placeholder:text-slate-500 placeholder:font-normal outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
+                <div className="sticky bottom-0 bg-white pt-4 pb-1 border-t border-slate-200 mt-4 flex justify-end gap-3 shrink-0 z-10">
                   <button
                     type="button"
                     onClick={() => setIsProcedureModalOpen(false)}
-                    className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-50 cursor-pointer"
+                    className="px-5 py-2.5 border border-slate-300 text-slate-950 hover:bg-slate-100 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer"
                   >
                     Cancel
                   </button>

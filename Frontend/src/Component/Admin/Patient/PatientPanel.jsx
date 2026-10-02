@@ -423,7 +423,7 @@ const PatientPanel = ({
       animate={{ x: 0, opacity: 1 }}           // Slide in
       exit={{ x: "100%", opacity: 0 }}         // Slide out (if using route transitions)
       transition={{ duration: 1.0, ease: "easeInOut" }}  // Smooth and slow
-      className="space-y-6 sm:space-y-8 p-4 sm:p-8 w-full max-w-full overflow-x-hidden"
+      className="space-y-6 sm:space-y-8 p-4 sm:p-8 pb-24 sm:pb-8 w-full max-w-full overflow-x-hidden"
     >
       {/*Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -660,10 +660,10 @@ const PatientPanel = ({
                         {p.lastVisit || '-'}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-700 dark:text-gray-200">
-                        ₹{(p.paidAmount || p.pendingAmount || 0).toLocaleString('en-US')}
+                        ₹{(p.totalAmount !== undefined && p.totalAmount !== null ? p.totalAmount : ((p.paidAmount || 0) + (p.pendingAmount || 0))).toLocaleString('en-US')}
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        {p.paymentStatus === 'paid' ? (
+                        {p.paymentStatus === 'paid' || (p.pendingAmount === 0 && (p.paidAmount > 0 || (p.totalAmount || 0) === 0)) ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
                             <CheckCircle className="w-3 h-3" /> Paid
                           </span>

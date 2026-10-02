@@ -57,7 +57,8 @@ import {
   Bell,
   Tag,
   Calendar as CalendarIcon,
-  Smile
+  Smile,
+  ChevronDown
 } from 'lucide-react';
 import { patientApi, appointmentApi, medicalRecordApi, emailApi, whatsappApi, prescriptionTemplateApi, invoiceTemplateApi, organizationApi, centralDoctorApi, billingApi, authApi, patientProgressImageApi, patientProgressComparisonApi, translationApi, clinicalNoteApi, progressNoteApi, followUpReminderApi } from '../../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -306,8 +307,25 @@ const InfoItem = ({ label, value, icon: Icon }) => (
 
 // --- Tab Content Renderers ---
 
-const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user }) => {
-  const past = appointments.filter(a => a.status?.toLowerCase() === 'completed' || a.status?.toLowerCase() === 'cancelled' || a.status?.toLowerCase() === 'pending' || a.status?.toLowerCase() === 'confirmed');
+const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user, onNavigateTab, availableTabs = [] }) => {
+  const [activeVisitDropdown, setActiveVisitDropdown] = useState(null);
+
+  const defaultNavSections = [
+    { key: 'prescriptions', name: 'Prescriptions', icon: Pill },
+    { key: 'appointments', name: 'Appointments', icon: CalendarIcon },
+    { key: 'billing', name: 'Billing', icon: IndianRupee },
+    { key: 'dental-chart', name: 'Dental Chart', icon: Smile },
+    { key: 'treatment-plan', name: 'Treatment Plan', icon: ClipboardList },
+    { key: 'dental-images', name: 'Dental Images', icon: Image },
+    { key: 'tooth-history', name: 'Tooth History', icon: History },
+    { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
+    { key: 'lab-work', name: 'Lab Work', icon: FlaskConical },
+    { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote }
+  ];
+
+  const visitNavSections = availableTabs.length > 0
+    ? availableTabs.filter(t => t.key !== 'personal')
+    : defaultNavSections;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border-t border-slate-200 mt-4 bg-white/50 rounded-b-3xl">
@@ -365,37 +383,135 @@ const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user }) =>
                 </div>
               );
             }
-            return activeAppts.map(appt => (
-              <div key={appt._id} className="relative flex items-center">
-                <div className="absolute -left-[11px] w-5 h-5 bg-emerald-500 rounded-full border-4 border-white"></div>
-                <div className="w-8 border-b-2 border-black"></div>
-                <div className="ml-2 flex items-center gap-3">
-                  <span className="font-bold text-slate-800 text-sm tracking-tight">
-                    {new Date(appt.date).toLocaleDateString()} at {appt.time}
-                  </span>
-                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-600 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
-                    {appt.status || 'Upcoming'}
-                  </span>
+            return activeAppts.map(appt => {
+              const isDropdownOpen = activeVisitDropdown === appt._id;
+              const formattedDate = appt.date ? new Date(appt.date).toLocaleDateString() : 'N/A';
+
+              return (
+                <div key={appt._id} className="relative flex items-center">
+                  <div className="absolute -left-[11px] w-5 h-5 bg-emerald-500 rounded-full border-4 border-white shadow-sm"></div>
+                  <div className="w-8 border-b-2 border-black"></div>
+                  
+                  <div className="ml-2 relative flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveVisitDropdown(isDropdownOpen ? null : appt._id)}
+                      className="group flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                      title="Click to jump to a patient section for this visit date"
+                    >
+                      <span className="font-extrabold text-slate-800 group-hover:text-indigo-900 text-xs tracking-tight">
+                        {formattedDate} {appt.time ? `at ${appt.time}` : ''}
+                      </span>
+                      <ChevronDown size={14} className={`text-slate-400 group-hover:text-indigo-600 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-600 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
+                      {appt.status || 'Upcoming'}
+                    </span>
+
+                    {/* Dropdown Menu */}
+                    {isDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setActiveVisitDropdown(null)} />
+                        <div className="absolute left-0 top-full mt-2 z-50 bg-white border border-slate-200/90 rounded-2xl shadow-2xl p-2 w-64 animate-fade space-y-1">
+                          <div className="px-3 py-2 border-b border-slate-100 flex justify-between items-center bg-slate-50/70 rounded-t-xl">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Go to section for visit:</span>
+                            <span className="text-[9px] font-black text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md border border-indigo-200">
+                              {formattedDate}
+                            </span>
+                          </div>
+
+                          <div className="max-h-64 overflow-y-auto custom-scrollbar py-1 space-y-0.5">
+                            {visitNavSections.map(sec => (
+                              <button
+                                key={sec.key}
+                                type="button"
+                                onClick={() => {
+                                  setActiveVisitDropdown(null);
+                                  if (onNavigateTab) {
+                                    onNavigateTab(sec.key, appt.date);
+                                  }
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-xs font-black uppercase tracking-wider text-slate-700 hover:text-indigo-950 hover:bg-indigo-50/80 transition-colors group cursor-pointer"
+                              >
+                                <sec.icon size={15} className="text-slate-400 group-hover:text-indigo-600 shrink-0" />
+                                <span>{sec.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ));
+              );
+            });
           })()}
 
           {/* Past appts */}
-          {appointments.filter(a => !['confirmed', 'pending', 'scheduled'].includes(a.status?.toLowerCase())).slice(0, 5).map(appt => (
-            <div key={appt._id} className="relative flex items-center">
-              <div className="absolute -left-[11px] w-5 h-5 bg-indigo-600 rounded-full border-4 border-white"></div>
-              <div className="w-8 border-b-2 border-black"></div>
-              <div className="ml-2 flex items-center gap-3">
-                <span className="font-bold text-slate-800 text-sm tracking-tight">
-                  {new Date(appt.date).toLocaleDateString()} at {appt.time}
-                </span>
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
-                  {appt.status || 'Completed'}
-                </span>
+          {appointments.filter(a => !['confirmed', 'pending', 'scheduled'].includes(a.status?.toLowerCase())).slice(0, 5).map(appt => {
+            const isDropdownOpen = activeVisitDropdown === appt._id;
+            const formattedDate = appt.date ? new Date(appt.date).toLocaleDateString() : 'N/A';
+
+            return (
+              <div key={appt._id} className="relative flex items-center">
+                <div className="absolute -left-[11px] w-5 h-5 bg-indigo-600 rounded-full border-4 border-white shadow-sm"></div>
+                <div className="w-8 border-b-2 border-black"></div>
+                
+                <div className="ml-2 relative flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActiveVisitDropdown(isDropdownOpen ? null : appt._id)}
+                    className="group flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Click to jump to a patient section for this visit date"
+                  >
+                    <span className="font-extrabold text-slate-800 group-hover:text-indigo-900 text-xs tracking-tight">
+                      {formattedDate} {appt.time ? `at ${appt.time}` : ''}
+                    </span>
+                    <ChevronDown size={14} className={`text-slate-400 group-hover:text-indigo-600 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
+                    {appt.status || 'Completed'}
+                  </span>
+
+                  {/* Dropdown Menu */}
+                  {isDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setActiveVisitDropdown(null)} />
+                      <div className="absolute left-0 top-full mt-2 z-50 bg-white border border-slate-200/90 rounded-2xl shadow-2xl p-2 w-64 animate-fade space-y-1">
+                        <div className="px-3 py-2 border-b border-slate-100 flex justify-between items-center bg-slate-50/70 rounded-t-xl">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Go to section for visit:</span>
+                          <span className="text-[9px] font-black text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md border border-indigo-200">
+                            {formattedDate}
+                          </span>
+                        </div>
+
+                        <div className="max-h-64 overflow-y-auto custom-scrollbar py-1 space-y-0.5">
+                          {visitNavSections.map(sec => (
+                            <button
+                              key={sec.key}
+                              type="button"
+                              onClick={() => {
+                                setActiveVisitDropdown(null);
+                                if (onNavigateTab) {
+                                  onNavigateTab(sec.key, appt.date);
+                                }
+                              }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-xs font-black uppercase tracking-wider text-slate-700 hover:text-indigo-950 hover:bg-indigo-50/80 transition-colors group cursor-pointer"
+                            >
+                              <sec.icon size={15} className="text-slate-400 group-hover:text-indigo-600 shrink-0" />
+                              <span>{sec.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -3876,6 +3992,17 @@ const PatientProfile = () => {
   const [pdfProgress, setPdfProgress] = useState({ isGenerating: false, percent: 0, prescriptionId: null });
   const [printingClinicalReport, setPrintingClinicalReport] = useState(null);
   const [editingPrescription, setEditingPrescription] = useState(null);
+  const [selectedVisitDate, setSelectedVisitDate] = useState(null);
+
+  const handleVisitNavigation = (tabKey, visitDate) => {
+    setActiveTab(tabKey);
+    setSelectedVisitDate(visitDate);
+    const targetTab = tabs.find(t => t.key === tabKey);
+    if (visitDate) {
+      const dateStr = new Date(visitDate).toLocaleDateString();
+      toast.info(`Navigated to ${targetTab?.name || tabKey} for visit on ${dateStr}`);
+    }
+  };
 
   // Today's appointments states for the far-left navigation sidebar
   const [todayAppointments, setTodayAppointments] = useState([]);
@@ -4134,6 +4261,23 @@ const PatientProfile = () => {
       }
 
       setPdfProgress({ isGenerating: true, percent: 0, prescriptionId: prescription.id });
+
+      let doctorQual = prescription.qualification || prescription.doctorQualification;
+      let doctorSpec = prescription.specialty || prescription.doctorSpecialization;
+      let doctorName = prescription.doctorName;
+
+      if (prescription.doctorId && (!doctorQual || !doctorSpec)) {
+        try {
+          const doc = await centralDoctorApi.getById(prescription.doctorId);
+          if (doc) {
+            doctorQual = doc.qualification || doctorQual;
+            doctorSpec = doc.specialization || doctorSpec || doc.department;
+            if (doc.name) doctorName = doc.name;
+          }
+        } catch (docErr) {
+          console.error("Failed to fetch doctor details for PDF download:", docErr);
+        }
+      }
       
       const progressInterval = setInterval(() => {
         setPdfProgress(prev => {
@@ -4145,7 +4289,12 @@ const PatientProfile = () => {
 
       const pdfData = {
         organizationId: orgId,
-        prescriptionData: prescription,
+        prescriptionData: {
+          ...prescription,
+          doctorName,
+          doctorQualification: doctorQual,
+          doctorSpecialization: doctorSpec
+        },
         patientData: {
           name: (() => {
             let name = data?.fullName || `${data?.firstName || ''} ${data?.lastName || ''}`.trim();
@@ -4218,13 +4367,31 @@ const PatientProfile = () => {
     try {
       const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null);
       
+      let doctorQual = prescription.qualification || prescription.doctorQualification;
+      let doctorSpec = prescription.specialty || prescription.doctorSpecialization;
+      let doctorName = prescription.doctorName;
+
+      if (prescription.doctorId && (!doctorQual || !doctorSpec)) {
+        try {
+          const doc = await centralDoctorApi.getById(prescription.doctorId);
+          if (doc) {
+            doctorQual = doc.qualification || doctorQual;
+            doctorSpec = doc.specialization || doctorSpec || doc.department;
+            if (doc.name) doctorName = doc.name;
+          }
+        } catch (docErr) {
+          console.error("Failed to fetch doctor details for WhatsApp prescription:", docErr);
+        }
+      }
+
       await whatsappApi.sendPrescriptionPdf({
         phone: data.mobile || data.phone,
         patientId: data.patientId,
         prescriptionData: prescription.notes,
-        doctorName: prescription.doctorName,
-        doctorQualification: prescription.qualification,
-        doctorSpecialization: prescription.specialty,
+        doctorId: prescription.doctorId,
+        doctorName: doctorName,
+        doctorQualification: doctorQual,
+        doctorSpecialization: doctorSpec,
         templateId: selectedTemplate?._id || 'default',
         organizationId: orgId
       });
@@ -4256,14 +4423,31 @@ const PatientProfile = () => {
       toast.info("Sending email...");
       const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null);
       
+      let doctorQual = p.qualification || p.doctorQualification;
+      let doctorSpec = p.specialty || p.doctorSpecialization;
+      let doctorName = p.doctorName;
+
+      if (p.doctorId && (!doctorQual || !doctorSpec)) {
+        try {
+          const doc = await centralDoctorApi.getById(p.doctorId);
+          if (doc) {
+            doctorQual = doc.qualification || doctorQual;
+            doctorSpec = doc.specialization || doctorSpec || doc.department;
+            if (doc.name) doctorName = doc.name;
+          }
+        } catch (docErr) {
+          console.error("Failed to fetch doctor details for email prescription:", docErr);
+        }
+      }
+
       await emailApi.sendPrescription({
         email: data.email,
         patientName: data.fullName || `${data.firstName} ${data.lastName}`,
         patientId: data.patientId,
         notes: p.notes,
-        doctorName: p.doctorName,
-        doctorQualification: p.qualification,
-        doctorSpecialization: p.specialty,
+        doctorName: doctorName,
+        doctorQualification: doctorQual,
+        doctorSpecialization: doctorSpec,
         clinicName: orgDetails?.name || user?.organization?.name || user?.clinicName || "Oviaan Clinic",
         organizationId: orgId,
         useTemplate: true,
@@ -5096,7 +5280,17 @@ const PatientProfile = () => {
                   transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                   className="max-w-[1400px] mx-auto pb-20"
                 >
-                  {activeTab === 'personal' && <TabPersonalInfo data={data} appointments={appointments} onEdit={() => setShowEditModal(true)} onRebook={() => handleRebook({ doctorId: data.assignedDoctorId, doctorName: data.assignedDoctor, specialty: 'General' })} user={user} />}
+                  {activeTab === 'personal' && (
+                    <TabPersonalInfo 
+                      data={data} 
+                      appointments={appointments} 
+                      onEdit={() => setShowEditModal(true)} 
+                      onRebook={() => handleRebook({ doctorId: data.assignedDoctorId, doctorName: data.assignedDoctor, specialty: 'General' })} 
+                      user={user} 
+                      onNavigateTab={handleVisitNavigation} 
+                      availableTabs={tabs} 
+                    />
+                  )}
 
                   {activeTab === 'prescriptions' && (
                     <TabPrescriptions
@@ -5113,9 +5307,10 @@ const PatientProfile = () => {
                       selectedTemplate={selectedTemplate}
                       setSelectedTemplate={setSelectedTemplate}
                       pdfProgress={pdfProgress}
+                      selectedVisitDate={selectedVisitDate}
                     />
                   )}
-                  {activeTab === 'appointments' && <TabAppointments appointments={appointments} onRebook={handleRebook} />}
+                  {activeTab === 'appointments' && <TabAppointments appointments={appointments} onRebook={handleRebook} selectedVisitDate={selectedVisitDate} />}
                   {activeTab === 'billing' && (
                     <TabBilling
                       key={billingRefreshKey}
@@ -5133,6 +5328,7 @@ const PatientProfile = () => {
                       onOpenTemplateModal={() => setShowInvoiceTemplateModal(true)}
                       isDentistClinic={isDentistClinic}
                       onNewPharmacyBill={() => setShowAddMedicineModal(true)}
+                      selectedVisitDate={selectedVisitDate}
                     />
                   )}
                   {activeTab === 'progress' && (
@@ -5144,21 +5340,23 @@ const PatientProfile = () => {
                       onPrintReport={(comp) => setPrintingClinicalReport(comp)}
                     />
                   )}
-                  {activeTab === 'dental-chart' && <DentalChart patientId={id} patientData={data} appointments={appointments} />}
-                  {activeTab === 'treatment-plan' && <DentalTreatmentTab patientId={id} patientData={data} appointments={appointments} />}
-                  {activeTab === 'dental-images' && <DentalImagesTab patientId={id} />}
-                  {activeTab === 'tooth-history' && <ToothHistoryTab patientId={id} />}
-                  {activeTab === 'lab-work' && <LabWorkTab patientId={id} patientData={data} appointments={appointments} />}
+                  {activeTab === 'dental-chart' && <DentalChart patientId={id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'treatment-plan' && <DentalTreatmentTab patientId={id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'dental-images' && <DentalImagesTab patientId={id} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'tooth-history' && <ToothHistoryTab patientId={id} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'lab-work' && <LabWorkTab patientId={id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
                   {activeTab === 'follow-ups' && (
                     <TabFollowUps 
                        patient={data}
                        user={user}
+                       selectedVisitDate={selectedVisitDate}
                     />
                   )}
                   {activeTab === 'clinical-notes' && (
                     <TabClinicalNotes
                       patientId={id}
                       user={user}
+                      selectedVisitDate={selectedVisitDate}
                     />
                   )}
                 </motion.div>

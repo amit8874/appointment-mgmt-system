@@ -1432,8 +1432,8 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
 
   // 3. Fallback for doctor name and credentials
   const doctorName = doctorDetails.doctorName || prescriptionData?.doctorName || parsedData?.doctorName || 'Doctor';
-  const doctorQualification = doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || 'MBBS, MD';
-  const doctorSpecialization = doctorDetails.doctorSpecialization || prescriptionData?.doctorSpecialization || parsedData?.doctorSpecialization || 'Specialist';
+  const doctorQualification = doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || '';
+  const doctorSpecialization = doctorDetails.doctorSpecialization || doctorDetails.specialty || prescriptionData?.doctorSpecialization || prescriptionData?.specialty || parsedData?.doctorSpecialization || parsedData?.specialty || '';
 
   const isDefaultV2 = template?._id === 'default_v2';
 
@@ -1466,8 +1466,8 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
         </div>
         <div style="text-align: right;">
           <h2 style="margin: 0; color: #4338ca; font-size: 22px; font-weight: 900; text-transform: uppercase;">Dr. ${doctorName}</h2>
-          <p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #6366f1; text-transform: uppercase; border-bottom: 2px solid #eef2ff; padding-bottom: 2px; display: inline-block;">${doctorQualification}</p>
-          <p style="margin: 2px 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">${doctorSpecialization}</p>
+          ${doctorQualification ? `<p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #6366f1; text-transform: uppercase; border-bottom: 2px solid #eef2ff; padding-bottom: 2px; display: inline-block;">${doctorQualification}</p>` : ''}
+          ${doctorSpecialization ? `<p style="margin: 2px 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">${doctorSpecialization}</p>` : ''}
         </div>
       </div>
     `;

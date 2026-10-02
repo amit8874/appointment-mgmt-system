@@ -8,6 +8,7 @@ import { uploadToS3 } from '../utils/uploadToS3.js';
 import Organization from '../models/Organization.js';
 import PrescriptionTemplate from '../models/PrescriptionTemplate.js';
 import Patient from '../models/PaitentEditProfile.js';
+import Doctor from '../models/Doctor.js';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -203,6 +204,7 @@ export const sendPrescriptionPdfWhatsApp = async (req, res) => {
       prescriptionData, 
       templateId,
       organizationId,
+      doctorId,
       doctorName,
       doctorQualification,
       doctorSpecialization
@@ -241,6 +243,29 @@ export const sendPrescriptionPdfWhatsApp = async (req, res) => {
     // 4. Dispatch Heavy Tasks in Background
     (async () => {
       try {
+        let finalDocName = doctorName;
+        let finalDocQual = doctorQualification;
+        let finalDocSpec = doctorSpecialization;
+
+        // Fetch Doctor model details if qualification or specialization are missing
+        if (!finalDocQual || !finalDocSpec || !finalDocName) {
+          const docIdToSearch = doctorId || (typeof prescriptionData === 'object' ? prescriptionData?.doctorId : null);
+          if (docIdToSearch) {
+            const docObj = await Doctor.findOne({
+              $or: [
+                { doctorId: docIdToSearch },
+                { _id: mongoose.Types.ObjectId.isValid(docIdToSearch) ? docIdToSearch : null },
+                { name: docIdToSearch }
+              ]
+            });
+            if (docObj) {
+              if (!finalDocName) finalDocName = docObj.name;
+              if (!finalDocQual) finalDocQual = docObj.qualification || '';
+              if (!finalDocSpec) finalDocSpec = docObj.specialization || docObj.department || '';
+            }
+          }
+        }
+
         // Generate PDF Buffer
         console.log(`[WhatsApp Background Dispatch] Generating PDF for ${patient?.fullName || 'Patient'}...`);
         const pdfBuffer = await generatePrescriptionPDF(
@@ -248,7 +273,7 @@ export const sendPrescriptionPdfWhatsApp = async (req, res) => {
           patient, 
           org, 
           template,
-          { doctorName, doctorQualification, doctorSpecialization }
+          { doctorName: finalDocName, doctorQualification: finalDocQual, doctorSpecialization: finalDocSpec }
         );
 
         // Upload to S3 for storage

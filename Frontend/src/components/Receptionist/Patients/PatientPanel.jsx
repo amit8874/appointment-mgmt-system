@@ -284,7 +284,7 @@ const PatientPanel = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="space-y-6 p-4 sm:p-6 bg-gray-50 min-h-screen w-full max-w-full overflow-x-hidden"
+      className="space-y-6 p-4 sm:p-6 pb-24 sm:pb-6 bg-gray-50 min-h-screen w-full max-w-full overflow-x-hidden"
     >
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -435,10 +435,10 @@ const PatientPanel = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{p.lastVisit || p.date || '-'}</td>
                     <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right">
-                      ₹{(p.paidAmount || p.pendingAmount || 0).toLocaleString('en-US')}
+                      ₹{(p.totalAmount !== undefined && p.totalAmount !== null ? p.totalAmount : ((p.paidAmount || 0) + (p.pendingAmount || 0))).toLocaleString('en-US')}
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      {(p.paymentStatus || p.status || '').toLowerCase() === 'paid' ? (
+                      {(p.paymentStatus || p.status || '').toLowerCase() === 'paid' || (p.pendingAmount === 0 && (p.paidAmount > 0 || (p.totalAmount || 0) === 0)) ? (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100">
                           <CheckCircle className="w-3.5 h-3.5" /> Paid
                         </span>
@@ -448,7 +448,7 @@ const PatientPanel = () => {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-100">
-                          <Clock className="w-3.5 h-3.5" /> Pending
+                          <Clock className="w-3.5 h-3.5" /> Pending{p.pendingAmount > 0 ? ` ₹${p.pendingAmount.toLocaleString('en-US')}` : ''}
                         </span>
                       )}
                     </td>

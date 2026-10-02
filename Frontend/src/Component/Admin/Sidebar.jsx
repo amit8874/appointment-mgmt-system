@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { LayoutDashboard, Users, Stethoscope, HandHeart, BarChart, CalendarCheck, Wallet, X, ChevronDown, ChevronRight, User, Calendar, Activity, Brain } from 'lucide-react';
+import ClinicSwitcher from '../../components/common/ClinicSwitcher';
 
 const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }) => {
   const [expandedItems, setExpandedItems] = useState({});
@@ -93,14 +94,20 @@ const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }
   return (
     <aside
       className={`w-64 fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        md:relative md:translate-x-0 flex-shrink-0 bg-white dark:bg-gray-800 p-4 border-r border-gray-100 dark:border-gray-700 shadow-xl
-        md:shadow-lg h-full overflow-y-auto z-50 transition-transform duration-300`}
+        md:relative md:translate-x-0 flex-shrink-0 bg-white dark:bg-gray-800 p-4 pb-24 md:pb-4 border-r border-gray-100 dark:border-gray-700 shadow-xl
+        md:shadow-lg h-full overflow-y-auto z-[9999] transition-transform duration-300`}
     >
-      <div className="flex justify-between items-center mb-5 md:hidden">
+      <div className="flex justify-between items-center mb-4 md:hidden">
         <h2 className="text-xl font-extrabold text-blue-700 dark:text-blue-400 tracking-wider">Navigation</h2>
         <button onClick={toggleSidebar} className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
           <X className="w-6 h-6" />
         </button>
+      </div>
+
+      {/* Mobile Clinic Branch Switcher */}
+      <div className="md:hidden mb-4 pb-3 border-b border-gray-100 dark:border-gray-700">
+        <p className="text-[10px] font-black uppercase text-gray-400 mb-2 ml-1 tracking-wider">Branch</p>
+        <ClinicSwitcher />
       </div>
 
       <nav className="space-y-3">

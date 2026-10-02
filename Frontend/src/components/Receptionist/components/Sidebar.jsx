@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LogOut, ChevronDown, ChevronRight, ChevronLeft, Bell } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import ClinicSwitcher from '../../common/ClinicSwitcher';
 
 const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, setIsSidebarCollapsed, onLogout }) => {
   const { user } = useAuth();
@@ -20,7 +21,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
     <>
       {/* Sidebar backdrop */}
       <div
-        className={`fixed inset-0 bg-gray-900 bg-opacity-50 z-20 lg:hidden ${sidebarOpen ? 'block' : 'hidden'
+        className={`fixed inset-0 bg-gray-900 bg-opacity-50 z-[9990] lg:hidden ${sidebarOpen ? 'block' : 'hidden'
           }`}
         onClick={() => setSidebarOpen(false)}
       />
@@ -30,9 +31,9 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
         initial={{ x: -256 }}
         animate={{ x: sidebarOpen ? 0 : (isSidebarCollapsed ? -80 : -256) }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className={`fixed inset-y-0 left-0 z-30 ${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-white dark:bg-gray-800 shadow-xl transform lg:translate-x-0 lg:static lg:inset-0 transition-all duration-300 border-r border-gray-100 dark:border-gray-700`}
+        className={`fixed inset-y-0 left-0 z-[9999] w-80 max-w-[85vw] ${isSidebarCollapsed ? 'lg:w-20' : 'lg:w-64'} bg-white dark:bg-gray-800 shadow-xl transform lg:translate-x-0 lg:static lg:inset-0 transition-all duration-300 border-r border-gray-100 dark:border-gray-700`}
       >
-        <div className="flex flex-col h-full p-4 relative">
+        <div className="flex flex-col h-full p-4 pb-24 lg:pb-4 overflow-y-auto relative">
           {/* Logo */}
           <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-center'} mb-2 px-4 bg-transparent text-center transition-all duration-300`}>
             {(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) ? (
@@ -53,6 +54,11 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                 {(user?.organization?.name || user?.organizationId?.name || "O").charAt(0)}
               </div>
             )}
+          </div>
+
+          {/* Mobile-only Clinic Branch Switcher */}
+          <div className="block lg:hidden mb-3 px-1">
+            <ClinicSwitcher />
           </div>
 
           {/* Navigation */}

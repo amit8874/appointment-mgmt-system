@@ -1,14 +1,10 @@
 import mongoose from 'mongoose';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
-import Groq from "groq-sdk";
 import dotenv from "dotenv";
+import { createGroqChatCompletion } from '../utils/groqHelper.js';
 
 dotenv.config();
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
 
 // For Clinic Admins / Receptionists: Get all active chats
 export const getConversations = async (req, res) => {
@@ -177,8 +173,8 @@ export const explainWithMaya = async (req, res) => {
     if (!conversationId || !messageText) return res.status(400).json({ message: 'Missing parameters' });
 
     const systemPrompt = `You are Maya, an AI medical interpreter. Explain: "${messageText}" simply to ${patientName}. No medical advice. Reassuring tone. Max 4 sentences.`;
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const response = await createGroqChatCompletion({
+      model: "openai/gpt-oss-120b",
       messages: [{ role: "system", content: systemPrompt }, { role: "user", content: "Explain simply." }],
       max_tokens: 250,
       temperature: 0.3,

@@ -1,10 +1,7 @@
-import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
-dotenv.config();
+import { createGroqChatCompletion } from '../utils/groqHelper.js';
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
+dotenv.config();
 
 export const generateBusinessReport = async (req, res) => {
   try {
@@ -29,12 +26,12 @@ Keep your response under 800 words. Focus directly on the "${category}" aspect.`
 
     const userPrompt = `Here is our live dashboard data context:\n\n${JSON.stringify(dashboardData, null, 2)}\n\nPlease give me an insightful ${category} analysis!`;
 
-    const completion = await groq.chat.completions.create({
+    const completion = await createGroqChatCompletion({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       temperature: 0.7,
       max_tokens: 1500,
     });
