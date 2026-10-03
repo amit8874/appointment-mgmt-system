@@ -22,30 +22,72 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
 
     useEffect(() => {
         const fetchDoctor = async () => {
-            if (!doctorName || doctorName === 'N/A') return;
-            try {
-                if (billData.doctorId && billData.doctorId !== 'N/A') {
-                    const doc = await centralDoctorApi.getById(billData.doctorId);
+            if (billData.doctorStamp || billData.doctorSignature) {
+                setDoctorDetails({
+                    doctorStamp: billData.doctorStamp,
+                    doctorSignature: billData.doctorSignature,
+                    name: doctorName
+                });
+                return;
+            }
+
+            let fetchedDoc = null;
+            const docId = billData.doctorId || billData.doctor?._id || billData.doctor?.id || (typeof billData.doctor === 'string' ? billData.doctor : null);
+            if (docId && docId !== 'N/A') {
+                try {
+                    const doc = await centralDoctorApi.getById(docId);
                     if (doc) {
+                        fetchedDoc = doc;
                         setDoctorDetails(doc);
-                        return;
+                        if (doc.doctorStamp || doc.doctorSignature) return;
                     }
+                } catch (e) {
+                    console.warn("Could not fetch doctor by ID in InvoiceTemplateRenderer:", e.message);
                 }
+            }
+
+            try {
                 const response = await centralDoctorApi.getAll();
                 const docsList = response?.doctors || (Array.isArray(response) ? response : []);
-                const match = docsList.find(d => 
-                    d.name?.toLowerCase().includes(doctorName.toLowerCase()) || 
-                    `${d.firstName} ${d.lastName}`.toLowerCase().includes(doctorName.toLowerCase())
-                );
-                if (match) {
-                    setDoctorDetails(match);
+                
+                if (doctorName && doctorName !== 'N/A') {
+                    const cleanTargetName = doctorName.replace(/^dr\.?\s*/i, '').trim().toLowerCase();
+                    const match = docsList.find(d => {
+                        const dName = (d.name || `${d.firstName || ''} ${d.lastName || ''}`).replace(/^dr\.?\s*/i, '').trim().toLowerCase();
+                        return (dName && cleanTargetName && (dName.includes(cleanTargetName) || cleanTargetName.includes(dName)));
+                    });
+                    if (match && (match.doctorStamp || match.doctorSignature)) {
+                        setDoctorDetails(match);
+                        return;
+                    }
+                    if (match && !fetchedDoc) {
+                        fetchedDoc = match;
+                        setDoctorDetails(match);
+                    }
+                }
+
+                // Permanent fallback: Find any doctor in the clinic who uploaded a stamp/signature
+                const docWithStamp = docsList.find(d => d.doctorStamp || d.doctorSignature);
+                if (docWithStamp) {
+                    setDoctorDetails(prev => ({
+                        ...(prev || fetchedDoc || {}),
+                        doctorStamp: docWithStamp.doctorStamp,
+                        doctorSignature: docWithStamp.doctorSignature,
+                        name: prev?.name || fetchedDoc?.name || docWithStamp.name
+                    }));
+                    return;
+                }
+
+                if (docsList.length > 0 && !fetchedDoc) {
+                    setDoctorDetails(docsList[0]);
+                    return;
                 }
             } catch (e) {
                 console.error("Error fetching doctor in InvoiceTemplateRenderer:", e);
             }
         };
         fetchDoctor();
-    }, [billData.doctorId, doctorName]);
+    }, [billData.doctorId, doctorName, billData.doctorStamp]);
 
     const [patientDetails, setPatientDetails] = useState(null);
 
@@ -132,11 +174,11 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
             : (isManomay ? 'Reg. No.A-14880' : ''));
 
     // Resolve patient details
-    const finalGender = patientDetails?.gender || billData.gender || '';
+    const finalGender = patientDetails?.gender || billData.gender || 'N/A';
     const rawAge = patientDetails?.age || billData.age || '';
-    const finalAge = rawAge ? `${rawAge} Years` : '';
-    const genderAge = [finalGender, finalAge].filter(Boolean).join(', ') || '';
-
+    const finalAge = rawAge ? `${rawAge} Years` : 'N/A';
+    const finalMobile = patientDetails?.mobile || patientDetails?.phone || patientDetails?.contactNumber || billData.patientPhone || billData.contactNumber || billData.mobile || 'N/A';
+    const finalPatientId = billData.patientId || patientDetails?.patientId || 'N/A';
     const patientLocation = billData.patientAddress || patientDetails?.address || '';
 
     const receiptNumber = billData.receiptNumber || billData.transactionId || (installments && installments.length > 0 ? (installments[installments.length - 1].receiptNumber || installments[installments.length - 1].transactionId) : null) || `RCPT-${(String(billId || '').replace(/\D/g, '') || '118')}`;
@@ -409,16 +451,33 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
 
                     <hr className="separator-line" />
 
-                    <table className="w-full mb-[3px] border-collapse">
+                    <table className="w-full mb-[15px] border-collapse">
                         <tbody>
                             <tr>
-                                <td className="p-0 py-0.5 align-top w-[50%] text-left">
-                                    <div className="patient-name">{patientName}</div>
-                                    <div className="patient-label mt-[2px]">Patient Id: <span className="patient-value font-bold">{patientId}</span></div>
+                                <td className="p-0 py-0.5 align-top w-[55%] text-left">
+                                    <div className="patient-name" style={{ fontSize: '13px', marginBottom: '3px' }}>
+                                        <span className="patient-label">Patient Name : </span>
+                                        <span className="font-bold">{patientName}</span>
+                                    </div>
+                                    <div className="patient-label" style={{ fontSize: '12px', marginBottom: '3px' }}>
+                                        Patient ID : <span className="patient-value font-bold">{finalPatientId}</span>
+                                    </div>
+                                    <div className="patient-label" style={{ fontSize: '12px', marginBottom: '3px' }}>
+                                        Mobile No : <span className="patient-value font-bold">{finalMobile}</span>
+                                    </div>
                                 </td>
-                                <td className="p-0 py-0.5 align-top w-[50%] text-right">
-                                    {genderAge && <div className="patient-value font-bold">{genderAge}</div>}
-                                    {patientLocation && <div className="patient-value mt-[2px]">{patientLocation}</div>}
+                                <td className="p-0 py-0.5 align-top w-[45%] text-right">
+                                    <div className="patient-value" style={{ fontSize: '12px', marginBottom: '3px' }}>
+                                        Patient Age : <span className="font-bold">{finalAge}</span>
+                                    </div>
+                                    <div className="patient-value" style={{ fontSize: '12px', marginBottom: '3px' }}>
+                                        Gender : <span className="font-bold">{finalGender}</span>
+                                    </div>
+                                    {patientLocation && (
+                                        <div className="patient-value" style={{ fontSize: '11px', marginTop: '3px' }}>
+                                            Address : {patientLocation}
+                                        </div>
+                                    )}
                                 </td>
                             </tr>
                         </tbody>
@@ -531,6 +590,11 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
                                     </tr>
                                 </tbody>
                             </table>
+                            {(doctorDetails?.doctorStamp || doctorDetails?.doctorSignature || billData.doctorStamp || billData.doctorSignature || clinicInfo.doctorSignature || clinicInfo.stamp) && (
+                                <div style={{ marginTop: '25px', marginBottom: '-5px', textAlign: 'right' }}>
+                                    <img src={doctorDetails?.doctorStamp || doctorDetails?.doctorSignature || billData.doctorStamp || billData.doctorSignature || clinicInfo.doctorSignature || clinicInfo.stamp} alt="Doctor Stamp & Signature" style={{ maxHeight: '120px', maxWidth: '220px', objectFit: 'contain', marginLeft: 'auto', display: 'block' }} />
+                                </div>
+                            )}
                         </div>
                     </div>
 

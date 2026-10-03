@@ -684,11 +684,7 @@ export const sendWhatsAppInvoice = async (req, res) => {
       mediaId = await uploadWhatsAppMediaFromFile(tempPdfPath, "application/pdf");
       console.log(`[WhatsApp Invoice] Uploaded Media ID: ${mediaId}`);
     } catch (mediaError) {
-      console.error('[WhatsApp Invoice] Media upload failed:', mediaError);
-      return res.status(500).json({ 
-        success: false, 
-        message: "Invoice PDF upload to WhatsApp failed. Please try again." 
-      });
+      console.warn('[WhatsApp Invoice] Media upload failed, falling back to S3 URL link:', mediaError.message || mediaError);
     } finally {
       if (fs.existsSync(tempPdfPath)) {
         fs.unlinkSync(tempPdfPath);
@@ -1070,12 +1066,14 @@ export const sendWhatsAppStatement = async (req, res) => {
     const publicUrl = s3Result.signedUrl || s3Result.fileUrl;
     const sanitizedPhone = sanitizePhone(phone || patient.mobile);
 
-    // Upload to WhatsApp Media
+    // Upload to WhatsApp Media (with fallback to S3 URL link)
     const tempPdfPath = path.join(os.tmpdir(), `temp-stmt-${patientId}-${Date.now()}.pdf`);
     let mediaId = null;
     try {
       fs.writeFileSync(tempPdfPath, pdfBuffer);
       mediaId = await uploadWhatsAppMediaFromFile(tempPdfPath, "application/pdf");
+    } catch (mediaErr) {
+      console.warn('[WhatsApp Statement] Media upload failed, falling back to S3 URL link:', mediaErr.message || mediaErr);
     } finally {
       if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
     }

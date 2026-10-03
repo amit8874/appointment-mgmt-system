@@ -550,6 +550,9 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
               patientName: bill.patientName,
               patientId: bill.patientId || 'N/A',
               doctorName: bill.doctorName || bill.doctor || 'N/A',
+              doctorId: bill.doctorId || bill.doctor,
+              doctorStamp: bill.doctorStamp || bill.doctorDetails?.doctorStamp,
+              doctorSignature: bill.doctorSignature || bill.doctorDetails?.doctorSignature,
               items: (bill.items || []).map(item => ({
                 description: item.description,
                 quantity: item.quantity || item.qty || 1,

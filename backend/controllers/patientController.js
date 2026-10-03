@@ -18,7 +18,7 @@ import { formatPatientFullName, cleanPatientName } from '../utils/nameUtils.js';
 dotenv.config();
 
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
+  apiKey: process.env.GROQ_API_KEY || "gsk_dummy",
 });
 
 // New route to get patient by patientId (string) instead of _id (ObjectId)

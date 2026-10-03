@@ -17,7 +17,7 @@ import mongoose from 'mongoose';
 dotenv.config();
 
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
+  apiKey: process.env.GROQ_API_KEY || "gsk_dummy",
 });
 
 /**
@@ -286,12 +286,14 @@ export const sendPrescriptionPdfWhatsApp = async (req, res) => {
           organizationId: orgId,
         });
 
-        // Upload to WhatsApp Media API
+        // Upload to WhatsApp Media API (with fallback to S3 URL link if token/upload fails)
         const tempPdfPath = path.join(os.tmpdir(), `temp-rx-${Date.now()}.pdf`);
         let mediaId = null;
         try {
           fs.writeFileSync(tempPdfPath, pdfBuffer);
           mediaId = await uploadWhatsAppMediaFromFile(tempPdfPath, "application/pdf");
+        } catch (mediaErr) {
+          console.warn(`[WhatsApp Media Upload Failed - falling back to S3 URL link]:`, mediaErr.message || mediaErr);
         } finally {
           if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
         }

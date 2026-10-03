@@ -186,6 +186,14 @@ const doctorSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  doctorStamp: {
+    type: String,
+    trim: true,
+  },
+  doctorSignature: {
+    type: String,
+    trim: true,
+  },
   clinicImages: {
     type: [String],
     default: [],

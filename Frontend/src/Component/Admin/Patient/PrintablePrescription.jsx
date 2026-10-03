@@ -47,24 +47,27 @@ const PrintablePrescription = ({
   const footerImageUrl = getImageUrl(footerImage);
 
   const isDefaultV2 = template?._id === 'default_v2';
-  const isA4 = template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4';
+  const hasA4Template = Boolean(orgTemplateUrl) || template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4';
+  const isA4 = hasA4Template;
 
-  const margins = printableArea || { top: 55, left: 12, right: 12, bottom: 30 };
+  const margins = printableArea || { top: 55, left: 15, right: 15, bottom: 25 };
 
   console.log("PrintablePrescription rendering:", { isA4, orgTemplateUrl, margins });
 
   const contentStyle = isA4 ? {
-    paddingTop: `${margins.top}mm`,
-    paddingBottom: `${margins.bottom}mm`,
-    paddingLeft: `${margins.left}mm`,
-    paddingRight: `${margins.right}mm`,
-    width: '100%',
-    minHeight: '297mm',
+    paddingTop: `${margins.top || 55}mm`,
+    paddingBottom: `${margins.bottom || 25}mm`,
+    paddingLeft: `${margins.left || 15}mm`,
+    paddingRight: `${margins.right || 15}mm`,
+    width: '210mm',
+    height: '297mm',
+    maxHeight: '297mm',
     display: 'flex',
     flexDirection: 'column',
     position: 'relative',
     zIndex: 10,
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
+    overflow: 'hidden'
   } : {
     width: '100%',
     display: 'flex',
@@ -75,21 +78,21 @@ const PrintablePrescription = ({
   };
 
   return (
-    <div className="bg-white w-full max-w-[210mm] min-h-[297mm] mx-auto flex flex-col relative overflow-hidden shadow-2xl" style={{ backgroundColor: 'white', color: 'black' }}>
+    <div className="bg-white w-[210mm] h-[297mm] max-w-[210mm] max-h-[297mm] mx-auto flex flex-col relative overflow-hidden" style={{ backgroundColor: 'white', color: 'black', boxSizing: 'border-box' }}>
       
       {/* A4 Background Image */}
       {isA4 && orgTemplateUrl && (
         <img 
           src={getImageUrl(orgTemplateUrl)} 
           alt="A4 Background" 
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+          className="absolute inset-0 w-[210mm] h-[297mm] object-contain pointer-events-none" 
           style={{ zIndex: 0 }} 
         />
       )}
 
       {/* CONTENT WRAPPER WITH LETTERHEAD MARGINS */}
       <div style={contentStyle}>
-        {/* PROFESSIONAL HEADER (Only if NOT A4) */}
+        {/* PROFESSIONAL HEADER (Only if NOT A4 template) */}
         {!isA4 && (
           <div className="w-full relative p-8 z-10">
             {isDefaultV2 ? (
@@ -163,12 +166,11 @@ const PrintablePrescription = ({
 
         {/* PREVIEW PATIENT INFO BAR */}
         <div 
-          className={`bg-slate-100 flex items-center gap-6 text-[11px] border border-slate-200 print:bg-slate-100 ${isA4 ? 'p-3 rounded-lg mb-6 shadow-sm' : 'px-8 py-3 border-b'}`} 
-          style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
+          className={`flex items-center justify-between text-[12px] text-slate-800 font-normal ${isA4 ? 'mb-4 py-1' : 'px-8 py-3 border-b'}`}
         >
           {isDefaultV2 ? (
             <>
-              <span className="font-black text-slate-900 uppercase">
+              <span>
                 Name: {(() => {
                   let name = patient?.fullName || `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim();
                   const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
@@ -185,13 +187,13 @@ const PrintablePrescription = ({
                   return parts.join(' ');
                 })()}
               </span>
-              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase">Age: {patient?.age || '--'} Years</span>
-              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase ml-auto">Date: {new Date(prescription.date).toLocaleDateString()}</span>
+              <span className="border-l border-slate-300 pl-4">Mobile: {patient?.mobile || patient?.phone || patient?.contactNumber || patient?.patientPhone || prescription?.patientPhone || 'N/A'}</span>
+              <span className="border-l border-slate-300 pl-4">Age: {patient?.age || '--'} Years</span>
+              <span className="border-l border-slate-300 pl-4 ml-auto">Date: {new Date(prescription.date).toLocaleDateString()}</span>
             </>
           ) : (
             <>
-              <span className="font-black text-slate-900 uppercase">Patient ID: {patient?.patientId || 'N/A'}</span>
-              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase">
+              <span>
                 Name: {(() => {
                   let name = patient?.fullName || `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim();
                   const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
@@ -208,8 +210,9 @@ const PrintablePrescription = ({
                   return parts.join(' ');
                 })()}
               </span>
-              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase">Age/Sex: {patient?.age || '--'}Y / {patient?.gender || '--'}</span>
-              <span className="font-black text-slate-900 border-l-2 border-slate-300 pl-6 uppercase ml-auto">Date: {new Date(prescription.date).toLocaleDateString()} {prescription.time && `| ${prescription.time}`}</span>
+              <span className="border-l border-slate-300 pl-4">Mobile: {patient?.mobile || patient?.phone || patient?.contactNumber || patient?.patientPhone || prescription?.patientPhone || 'N/A'}</span>
+              <span className="border-l border-slate-300 pl-4">Age/Sex: {patient?.age || '--'}Y / {patient?.gender || '--'}</span>
+              <span className="border-l border-slate-300 pl-4 ml-auto">Date: {new Date(prescription.date).toLocaleDateString()}</span>
             </>
           )}
         </div>
@@ -227,7 +230,7 @@ const PrintablePrescription = ({
           <div className="relative z-10">
             {parsedNotes ? (
               <>
-                {(parsedNotes.vitals || parsedNotes.complaints || parsedNotes.diagnosis) && (
+                {(parsedNotes.vitals || parsedNotes.complaints || parsedNotes.diagnosis || parsedNotes.treatmentPlans || parsedNotes.dentalTreatments) && (
                   <div className="text-sm space-y-1 mb-6 border-b border-slate-100 pb-4">
                     {parsedNotes.vitals && Object.values(parsedNotes.vitals).some(v => v) && (
                       <p><span className="font-bold text-slate-600">Vitals:</span> {Object.entries(parsedNotes.vitals).filter(([_,v]) => v).map(([k,v]) => `${k.replace('_', ' ')}: ${v}`).join(', ')}</p>
@@ -238,6 +241,14 @@ const PrintablePrescription = ({
                     {parsedNotes.diagnosis?.length > 0 && (
                       <p><span className="font-bold text-slate-600">Diagnosis:</span> {parsedNotes.diagnosis.map(d => d.name).join(', ')}</p>
                     )}
+                    {(parsedNotes.treatmentPlans?.length > 0 || parsedNotes.dentalTreatments?.length > 0) && (() => {
+                      const rawList = parsedNotes.treatmentPlans || parsedNotes.dentalTreatments || [];
+                      const names = Array.from(new Set(rawList.map(t => typeof t === 'string' ? t : (t.procedure || t.name || t.treatmentName)).filter(Boolean)));
+                      if (!names.length) return null;
+                      return (
+                        <p><span className="font-bold text-slate-600">Treatment:</span> {names.join(', ')}</p>
+                      );
+                    })()}
                   </div>
                 )}
 

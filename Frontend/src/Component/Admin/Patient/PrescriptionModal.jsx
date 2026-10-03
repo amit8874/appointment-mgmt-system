@@ -4,9 +4,10 @@ import {
   X, Plus, Trash2, Save, Activity, ClipboardList, 
   Stethoscope, Pill, Info, FileSearch, Search,
   ChevronDown, History, BookOpen, User, Loader2, Sparkles,
-  Mic, MicOff, Languages, Wand2, Copy, RotateCcw, Check, Calendar, Phone
+  Mic, MicOff, Languages, Wand2, Copy, RotateCcw, Check, Calendar, Phone, Eye
 } from 'lucide-react';
-import { medicalRecordApi, appointmentApi, centralDoctorApi, complaintApi, chatbotApi, diagnosisApi, aiApi, patientApi, translationApi, prescriptionContentTemplateApi } from '../../../services/api';
+import { medicalRecordApi, appointmentApi, centralDoctorApi, complaintApi, chatbotApi, diagnosisApi, aiApi, patientApi, translationApi, prescriptionContentTemplateApi, dentistApi } from '../../../services/api';
+import { getToothLabel } from './dentalUtils';
 import { COMPLAINT_FREQUENCY_MAP, COMMON_FREQUENCIES } from '../../../data/complaintFrequencyMap';
 import { DIAGNOSIS_DURATION_OPTIONS } from '../../../data/diagnosisDurationMap';
 import SmartDiagnosisInput from '../../../components/emr/SmartDiagnosisInput';
@@ -686,6 +687,31 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
   const [advice, setAdvice] = useState('');
   const [testsRequested, setTestsRequested] = useState([]);
 
+  // --- Dental Treatment Plan State ---
+  const [availableDentalTreatments, setAvailableDentalTreatments] = useState([]);
+  const [selectedDentalTreatments, setSelectedDentalTreatments] = useState([]);
+  const [viewTeethPopover, setViewTeethPopover] = useState(null);
+
+  // Group available treatments by procedure name (deduplicate RCT across multiple teeth)
+  const groupedAvailableTreatments = React.useMemo(() => {
+    const groups = {};
+    (availableDentalTreatments || []).forEach(item => {
+      const procName = item.procedure || item.name || item.treatmentName || 'General Procedure';
+      if (!groups[procName]) {
+        groups[procName] = {
+          procedure: procName,
+          teeth: [],
+          items: []
+        };
+      }
+      groups[procName].items.push(item);
+      if (item.toothNumber && !groups[procName].teeth.includes(item.toothNumber)) {
+        groups[procName].teeth.push(item.toothNumber);
+      }
+    });
+    return Object.values(groups);
+  }, [availableDentalTreatments]);
+
   // --- Advice Extensions State ---
   const [translatedAdvice, setTranslatedAdvice] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -744,6 +770,17 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
           setDoctors(docs);
           setMasterComplaints(masterComplaintsResponse);
 
+          if (patient?._id || patient?.patientId) {
+            try {
+              const dtRes = await dentistApi.getPatientTreatments(patient._id || patient.patientId);
+              if (Array.isArray(dtRes)) {
+                setAvailableDentalTreatments(dtRes);
+              }
+            } catch (dtErr) {
+              console.warn("Could not fetch patient dental treatments:", dtErr);
+            }
+          }
+
           // If editing, match doctor after fetching
           if (editData?.doctorId) {
              const matched = docs.find(d => d._id === editData.doctorId || d.userId === editData.doctorId);
@@ -760,7 +797,7 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
       fetchData();
       fetchContentTemplates();
     }
-  }, [isOpen]);
+  }, [isOpen, patient?._id, patient?.patientId]);
 
   // 2. Initialize Form Fields
   useEffect(() => {
@@ -776,6 +813,7 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
             if (draft.vitals) setVitals(draft.vitals);
             if (draft.complaints) setComplaints(draft.complaints);
             if (draft.diagnosis) setDiagnosis(draft.diagnosis);
+            if (draft.dentalTreatments) setSelectedDentalTreatments(draft.dentalTreatments);
             if (draft.medications) setMedications(draft.medications);
             if (draft.advice !== undefined) setAdvice(draft.advice);
             if (draft.translatedAdvice !== undefined) setTranslatedAdvice(draft.translatedAdvice);
@@ -806,6 +844,7 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
         });
         setComplaints(parsedNotes.complaints || [{ name: '', frequency: 'daily', severity: 'mild', duration: '', durationUnit: 'days' }]);
         setDiagnosis(parsedNotes.diagnosis || [{ name: '', duration: '', durationUnit: 'days' }]);
+        setSelectedDentalTreatments(parsedNotes.dentalTreatments || []);
         setMedications(parsedNotes.medications || [{ name: '', composition: '', genericName: '', form: '', strength: '', dose: '', when: 'After Food', frequency: 'Daily', duration: '', instructions: '' }]);
         setAdvice(parsedNotes.advice || '');
         setTranslatedAdvice(parsedNotes.translatedAdvice || '');
@@ -821,6 +860,7 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
             if (draft.vitals) setVitals(draft.vitals);
             if (draft.complaints) setComplaints(draft.complaints);
             if (draft.diagnosis) setDiagnosis(draft.diagnosis);
+            if (draft.dentalTreatments) setSelectedDentalTreatments(draft.dentalTreatments);
             if (draft.medications) setMedications(draft.medications);
             if (draft.advice !== undefined) setAdvice(draft.advice);
             if (draft.translatedAdvice !== undefined) setTranslatedAdvice(draft.translatedAdvice);
@@ -844,6 +884,7 @@ const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }
         });
         setComplaints([{ name: '', frequency: 'daily', severity: 'mild', duration: '', durationUnit: 'days' }]);
         setDiagnosis([{ name: '', duration: '', durationUnit: 'days' }]);
+        setSelectedDentalTreatments([]);
         setMedications([{ name: '', composition: '', genericName: '', form: '', strength: '', dose: '', when: 'After Food', frequency: 'Daily', duration: '', instructions: '' }]);
         setAdvice('');
         setTranslatedAdvice('');
@@ -1283,6 +1324,8 @@ setDiagnosis(newArr);
         vitals,
         complaints: finalComplaints,
         diagnosis: diagnosis.filter(d => d.name),
+        treatmentPlans: selectedDentalTreatments.map(t => typeof t === 'string' ? { name: t } : { name: t.procedure || t.name || t.treatmentName, procedure: t.procedure || t.name || t.treatmentName, teeth: t.teeth || [] }).filter(t => t.name && t.name?.trim() !== ''),
+        dentalTreatments: selectedDentalTreatments.map(t => typeof t === 'string' ? { name: t } : { name: t.procedure || t.name || t.treatmentName, procedure: t.procedure || t.name || t.treatmentName, teeth: t.teeth || [] }).filter(t => t.name && t.name?.trim() !== ''),
         medications: finalMedications,
         advice,
         translatedAdvice,
@@ -1693,6 +1736,149 @@ setDiagnosis(newArr);
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </section>
+
+            {/* 3.5 TREATMENT PLAN */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="text-teal-600" size={18} />
+                  <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-300">Treatment Plan</h4>
+                </div>
+                {availableDentalTreatments.length > 0 && (
+                  <span className="text-[10px] font-bold text-teal-600 bg-teal-50 dark:bg-teal-950/40 px-2 py-0.5 rounded-full border border-teal-100 dark:border-teal-900/30">
+                    {availableDentalTreatments.length} Patient Treatment(s) Available
+                  </span>
+                )}
+              </div>
+              
+              {/* Quick Selection Badges from Patient's Treatment Plan Tab */}
+              {availableDentalTreatments.length > 0 && (
+                <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                    Select from Patient's Treatment Plan:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {groupedAvailableTreatments.map((group, idx) => {
+                      const procName = group.procedure;
+                      const teeth = group.teeth;
+                      const isSelected = selectedDentalTreatments.some(st => (typeof st === 'string' ? st : (st.procedure || st.name)) === procName);
+                      const isPopoverOpen = viewTeethPopover === procName;
+
+                      return (
+                        <div key={idx} className="relative inline-flex items-center">
+                          <div className={`flex items-center rounded-xl overflow-hidden border transition-all ${
+                            isSelected
+                              ? 'bg-teal-600 text-white border-teal-700 shadow-sm'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-teal-400'
+                          }`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedDentalTreatments(selectedDentalTreatments.filter(st => (typeof st === 'string' ? st : (st.procedure || st.name)) !== procName));
+                                } else {
+                                  setSelectedDentalTreatments([
+                                    ...selectedDentalTreatments,
+                                    { name: procName, procedure: procName, teeth: teeth }
+                                  ]);
+                                }
+                              }}
+                              className="px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer bg-transparent border-none text-inherit"
+                            >
+                              {isSelected ? <Check size={14} /> : <Plus size={14} />}
+                              <span>{procName}</span>
+                            </button>
+
+                            {/* Eye Button for Tooth details */}
+                            {teeth.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setViewTeethPopover(isPopoverOpen ? null : procName);
+                                }}
+                                className={`px-2 py-1.5 border-l text-xs transition-colors cursor-pointer flex items-center justify-center ${
+                                  isSelected
+                                    ? 'border-teal-500 hover:bg-teal-700 text-teal-100'
+                                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500'
+                                }`}
+                                title="View Tooth Details"
+                              >
+                                <Eye size={13} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Teeth Details Popover */}
+                          {isPopoverOpen && teeth.length > 0 && (
+                            <div className="absolute bottom-full mb-2 left-0 z-[9999] bg-slate-900 text-white p-2.5 rounded-xl shadow-xl text-xs min-w-[180px] border border-slate-700 animate-in fade-in zoom-in-95">
+                              <div className="font-bold text-[10px] text-teal-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                                <span>Teeth ({teeth.length})</span>
+                                <button onClick={() => setViewTeethPopover(null)} className="text-slate-400 hover:text-white">
+                                  <X size={10} />
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {teeth.map(tNum => (
+                                  <span key={tNum} className="px-1.5 py-0.5 bg-slate-800 rounded font-semibold text-[11px] border border-slate-700">
+                                    Tooth #{getToothLabel(tNum)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected / Custom Treatment Plans List */}
+              <div className="space-y-2">
+                {selectedDentalTreatments.map((tp, idx) => {
+                  const nameVal = typeof tp === 'string' ? tp : (tp.name || tp.procedure || '');
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0"></span>
+                        <input
+                          type="text"
+                          value={nameVal}
+                          onChange={(e) => {
+                            const updated = [...selectedDentalTreatments];
+                            if (typeof updated[idx] === 'string') {
+                              updated[idx] = e.target.value;
+                            } else {
+                              updated[idx] = { ...updated[idx], name: e.target.value, procedure: e.target.value };
+                            }
+                            setSelectedDentalTreatments(updated);
+                          }}
+                          placeholder="e.g. Root Canal Treatment, Teeth Whitening..."
+                          className="w-full bg-transparent border-none text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDentalTreatments(selectedDentalTreatments.filter((_, i) => i !== idx))}
+                        className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
+                        title="Remove Treatment Plan"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  );
+                })}
+                
+                <button
+                  type="button"
+                  onClick={() => setSelectedDentalTreatments([...selectedDentalTreatments, { name: '', procedure: '' }])}
+                  className="px-4 py-2 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-teal-100 dark:hover:bg-teal-900/40 transition-all flex items-center gap-2 border border-teal-200/60 dark:border-teal-900/30"
+                >
+                  <Plus size={14} /> Add Treatment Plan
+                </button>
               </div>
             </section>
 

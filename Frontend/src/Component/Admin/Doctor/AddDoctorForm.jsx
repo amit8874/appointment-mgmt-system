@@ -101,6 +101,8 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
         about: doctor?.about || doctor?.bio || '',
         featured: doctor?.featured || false,
         photo: doctor?.photo || doctor?.profilePhoto || '',
+        doctorStamp: doctor?.doctorStamp || '',
+        doctorSignature: doctor?.doctorSignature || '',
         workingHours: Array.isArray(doctor?.workingHours) && doctor.workingHours.length > 0 
             ? doctor.workingHours 
             : [{ start: '09:00', end: '13:00' }],
@@ -449,27 +451,81 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                                 {activeTab === 'basic' && (
                                     <motion.div key="basic" className="space-y-6">
                                         <SectionTitle title="Identity & Contact" icon={User} />
-                                        <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
-                                            <div className="relative group flex-shrink-0">
-                                                <div className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-dashed ${errors.photo || uploadError.photo ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'} flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-indigo-400`}>
-                                                    {uploading ? (
-                                                        <div className="flex flex-col items-center gap-2">
-                                                            <Loader2 className="animate-spin text-indigo-600" />
-                                                            <span className="text-[8px] font-black text-indigo-600 uppercase">Uploading...</span>
+                                        <div className="flex flex-col gap-6">
+                                            <div className="flex flex-wrap gap-4 items-center">
+                                                {/* Doctor Photo */}
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase mb-1">Photo</span>
+                                                    <div className="relative group flex-shrink-0">
+                                                        <div className={`w-24 h-24 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-dashed ${errors.photo || uploadError.photo ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'} flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-indigo-400`}>
+                                                            {uploading ? (
+                                                                <div className="flex flex-col items-center gap-1">
+                                                                    <Loader2 className="animate-spin text-indigo-600" size={18} />
+                                                                    <span className="text-[8px] font-black text-indigo-600 uppercase">Uploading...</span>
+                                                                </div>
+                                                            ) : formData.photo ? (
+                                                                <img src={formData.photo} alt="Doc" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="text-center p-2">
+                                                                    <ImageIcon size={18} className="text-slate-300 mx-auto mb-1" />
+                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Upload Photo</span>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    ) : formData.photo ? (
-                                                        <img src={formData.photo} alt="Doc" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="text-center p-2">
-                                                            <ImageIcon size={20} className="text-slate-300 mx-auto mb-1.5 md:mb-2" />
-                                                            <span className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Upload Photo</span>
-                                                        </div>
-                                                    )}
+                                                        <input type="file" onChange={(e) => handleFileUpload(e, 'photo')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                        {uploadError.photo && <p className="absolute top-full left-0 w-32 text-[9px] text-red-500 font-bold mt-1 leading-tight">{uploadError.photo}</p>}
+                                                    </div>
                                                 </div>
-                                                <input type="file" onChange={(e) => handleFileUpload(e, 'photo')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
-                                                {uploadError.photo && <p className="absolute top-full left-0 w-48 text-[10px] text-red-500 font-bold mt-1 leading-tight">{uploadError.photo}</p>}
-                                                {uploading && <p className="absolute top-full left-0 w-48 text-[10px] text-indigo-600 font-bold mt-1 leading-tight animate-pulse">Image is uploading please wait...</p>}
+
+                                                {/* Doctor Stamp */}
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase mb-1">Doctor Stamp (Invoice)</span>
+                                                    <div className="relative group flex-shrink-0">
+                                                        <div className={`w-28 h-24 rounded-2xl bg-indigo-50/50 dark:bg-slate-800 border-2 border-dashed ${uploadError.doctorStamp ? 'border-red-400' : 'border-indigo-200 dark:border-slate-700'} flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-indigo-500`}>
+                                                            {uploading ? (
+                                                                <div className="flex flex-col items-center gap-1">
+                                                                    <Loader2 className="animate-spin text-indigo-600" size={18} />
+                                                                    <span className="text-[8px] font-black text-indigo-600 uppercase">Uploading...</span>
+                                                                </div>
+                                                            ) : formData.doctorStamp ? (
+                                                                <img src={formData.doctorStamp} alt="Stamp" className="w-full h-full object-contain p-1" />
+                                                            ) : (
+                                                                <div className="text-center p-2">
+                                                                    <Upload size={18} className="text-indigo-400 mx-auto mb-1" />
+                                                                    <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-tighter">Upload Stamp</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <input type="file" onChange={(e) => handleFileUpload(e, 'doctorStamp')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                        {uploadError.doctorStamp && <p className="absolute top-full left-0 w-32 text-[9px] text-red-500 font-bold mt-1 leading-tight">{uploadError.doctorStamp}</p>}
+                                                    </div>
+                                                </div>
+
+                                                {/* Doctor Signature */}
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase mb-1">Signature</span>
+                                                    <div className="relative group flex-shrink-0">
+                                                        <div className={`w-28 h-24 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-dashed ${uploadError.doctorSignature ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'} flex flex-col items-center justify-center overflow-hidden transition-all group-hover:border-indigo-400`}>
+                                                            {uploading ? (
+                                                                <div className="flex flex-col items-center gap-1">
+                                                                    <Loader2 className="animate-spin text-indigo-600" size={18} />
+                                                                    <span className="text-[8px] font-black text-indigo-600 uppercase">Uploading...</span>
+                                                                </div>
+                                                            ) : formData.doctorSignature ? (
+                                                                <img src={formData.doctorSignature} alt="Signature" className="w-full h-full object-contain p-1" />
+                                                            ) : (
+                                                                <div className="text-center p-2">
+                                                                    <Upload size={18} className="text-slate-300 mx-auto mb-1" />
+                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Upload Signature</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <input type="file" onChange={(e) => handleFileUpload(e, 'doctorSignature')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                        {uploadError.doctorSignature && <p className="absolute top-full left-0 w-32 text-[9px] text-red-500 font-bold mt-1 leading-tight">{uploadError.doctorSignature}</p>}
+                                                    </div>
+                                                </div>
                                             </div>
+
                                             <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                                                 <InputField label="Full Name" name="name" value={formData.name} onChange={handleInputChange} required icon={User} error={errors.name} />
                                                 <InputField label="Mobile Number" name="phone" value={formData.phone} onChange={handleInputChange} required icon={Phone} error={errors.phone} />

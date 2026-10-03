@@ -17,21 +17,26 @@ const createSuperAdmin = async () => {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/hospital');
     console.log('Connected to MongoDB');
 
+    const superAdminEmail = process.env.SUPERADMIN_EMAIL || 'admin@oviaan.com';
+    const superAdminPassword = process.env.SUPERADMIN_PASSWORD;
+
     // Check if super admin already exists
-    const existingSuperAdmin = await User.findOne({ role: 'superadmin' });
+    let existingSuperAdmin = await User.findOne({ role: 'superadmin' });
     if (existingSuperAdmin) {
-      console.log('Super admin already exists:', existingSuperAdmin.email);
+      existingSuperAdmin.email = superAdminEmail;
+      existingSuperAdmin.password = superAdminPassword;
+      await existingSuperAdmin.save();
+      console.log('Super admin credentials updated successfully from .env!');
+      console.log(`Email: ${superAdminEmail}`);
       return;
     }
 
     // Create super admin
-    const superAdminEmail = process.env.SUPERADMIN_EMAIL;
     const superAdmin = new User({
       name: 'Super Admin',
       email: superAdminEmail,
-      password: process.env.SUPERADMIN_PASSWORD, // This will be hashed by the pre-save hook
+      password: superAdminPassword, // This will be hashed by the pre-save hook
       role: 'superadmin'
-      // No mobile required for admin roles
     });
 
     await superAdmin.save();

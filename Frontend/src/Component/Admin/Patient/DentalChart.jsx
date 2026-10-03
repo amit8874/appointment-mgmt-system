@@ -35,6 +35,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   // Modal/Popup inputs
   const [procedure, setProcedure] = useState('');
   const [estimatedCost, setEstimatedCost] = useState('');
+  const [totalPackageCost, setTotalPackageCost] = useState('');
   const [initialPaidAmount, setInitialPaidAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('Medium');
@@ -47,6 +48,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editingName, setEditingName] = useState('');
   const [editingCost, setEditingCost] = useState('');
+  const [editingTotalCost, setEditingTotalCost] = useState('');
 
   // Compute merged presets dynamically
   const mergedPresets = STANDARD_DENTAL_PROCEDURES.map(p => ({ ...p }));
@@ -150,6 +152,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     }
     setProcedure('');
     setEstimatedCost('');
+    setTotalPackageCost('');
     setInitialPaidAmount('');
     setNotes('');
     setPriority('Medium');
@@ -158,6 +161,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     setEditingIndex(null);
     setEditingName('');
     setEditingCost('');
+    setEditingTotalCost('');
     setIsProcedureModalOpen(true);
   };
 
@@ -166,8 +170,17 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       toast.error('Please specify a procedure name');
       return;
     }
-    const costNum = Number(estimatedCost) || 0;
-    if (costNum < 0) {
+    
+    let perToothNum = Number(estimatedCost);
+    let totalNum = Number(totalPackageCost);
+
+    if ((!perToothNum || isNaN(perToothNum)) && totalNum && selectedTeeth.length > 0) {
+      perToothNum = Math.round((totalNum / selectedTeeth.length) * 100) / 100;
+    } else if ((!totalNum || isNaN(totalNum)) && perToothNum && selectedTeeth.length > 0) {
+      totalNum = Math.round((perToothNum * selectedTeeth.length) * 100) / 100;
+    }
+
+    if (perToothNum < 0 || totalNum < 0) {
       toast.error('Cost cannot be negative');
       return;
     }
@@ -178,9 +191,10 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       return;
     }
 
-    setSelectedProceduresList(prev => [...prev, { name: nameTrimmed, cost: costNum }]);
+    setSelectedProceduresList(prev => [...prev, { name: nameTrimmed, cost: perToothNum || 0, packageCost: totalNum || 0 }]);
     setProcedure('');
     setEstimatedCost('');
+    setTotalPackageCost('');
     setShowRctOptions(false);
   };
 
@@ -199,12 +213,14 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     setEditingIndex(index);
     setEditingName(item.name);
     setEditingCost(item.cost.toString());
+    setEditingTotalCost((item.cost * (selectedTeeth.length || 1)).toString());
   };
 
   const handleCancelEdit = () => {
     setEditingIndex(null);
     setEditingName('');
     setEditingCost('');
+    setEditingTotalCost('');
   };
 
   const handleSaveEdit = (index) => {
@@ -212,8 +228,16 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       toast.error('Procedure name cannot be empty');
       return;
     }
-    const costNum = Number(editingCost) || 0;
-    if (costNum < 0) {
+    let perToothNum = Number(editingCost);
+    let totalNum = Number(editingTotalCost);
+
+    if ((!perToothNum || isNaN(perToothNum)) && totalNum && selectedTeeth.length > 0) {
+      perToothNum = Math.round((totalNum / selectedTeeth.length) * 100) / 100;
+    } else if ((!totalNum || isNaN(totalNum)) && perToothNum && selectedTeeth.length > 0) {
+      totalNum = Math.round((perToothNum * selectedTeeth.length) * 100) / 100;
+    }
+
+    if (perToothNum < 0 || totalNum < 0) {
       toast.error('Cost cannot be negative');
       return;
     }
@@ -228,11 +252,12 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     }
 
     setSelectedProceduresList(prev =>
-      prev.map((item, i) => (i === index ? { name: nameTrimmed, cost: costNum } : item))
+      prev.map((item, i) => (i === index ? { name: nameTrimmed, cost: perToothNum || 0, packageCost: totalNum || 0 } : item))
     );
     setEditingIndex(null);
     setEditingName('');
     setEditingCost('');
+    setEditingTotalCost('');
   };
 
   const handleQuickProcedureSelect = (proc) => {
@@ -240,7 +265,10 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     if (isRct) {
       setShowRctOptions(true);
       setProcedure('Root Canal Treatment (RCT)');
-      setEstimatedCost(proc.defaultCost.toString());
+      if (!estimatedCost && !totalPackageCost) {
+        setEstimatedCost(proc.defaultCost.toString());
+        setTotalPackageCost((proc.defaultCost * selectedTeeth.length).toString());
+      }
       return;
     }
 
@@ -249,11 +277,22 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       toast.error(`${proc.name} is already added to the list`);
       return;
     }
-    setSelectedProceduresList(prev => [...prev, { name: proc.name, cost: proc.defaultCost }]);
+    const perTooth = proc.defaultCost;
+    const total = proc.defaultCost * (selectedTeeth.length || 1);
+    setSelectedProceduresList(prev => [...prev, { name: proc.name, cost: perTooth, packageCost: total }]);
   };
 
   const handleSelectRctOption = (opt) => {
-    const rctCost = Number(estimatedCost) || 5000;
+    let perToothNum = Number(estimatedCost);
+    let totalNum = Number(totalPackageCost);
+    if ((!perToothNum || isNaN(perToothNum)) && totalNum && selectedTeeth.length > 0) {
+      perToothNum = Math.round((totalNum / selectedTeeth.length) * 100) / 100;
+    } else if ((!totalNum || isNaN(totalNum)) && perToothNum && selectedTeeth.length > 0) {
+      totalNum = Math.round((perToothNum * selectedTeeth.length) * 100) / 100;
+    } else if (!perToothNum && !totalNum) {
+      perToothNum = 5000;
+      totalNum = 5000 * (selectedTeeth.length || 1);
+    }
     const procName = opt.fullName;
 
     const exists = selectedProceduresList.some(p => p.name.toLowerCase() === procName.toLowerCase());
@@ -262,9 +301,10 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       return;
     }
 
-    setSelectedProceduresList(prev => [...prev, { name: procName, cost: rctCost }]);
+    setSelectedProceduresList(prev => [...prev, { name: procName, cost: perToothNum, packageCost: totalNum }]);
     setProcedure('');
     setEstimatedCost('');
+    setTotalPackageCost('');
     setShowRctOptions(false);
   };
 
@@ -274,8 +314,14 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
     let listToSave = [...selectedProceduresList];
     if (listToSave.length === 0) {
       if (procedure.trim()) {
-        const costNum = Number(estimatedCost) || 0;
-        listToSave.push({ name: procedure.trim(), cost: costNum });
+        let perToothNum = Number(estimatedCost);
+        let totalNum = Number(totalPackageCost);
+        if ((!perToothNum || isNaN(perToothNum)) && totalNum && selectedTeeth.length > 0) {
+          perToothNum = Math.round((totalNum / selectedTeeth.length) * 100) / 100;
+        } else if ((!totalNum || isNaN(totalNum)) && perToothNum && selectedTeeth.length > 0) {
+          totalNum = Math.round((perToothNum * selectedTeeth.length) * 100) / 100;
+        }
+        listToSave.push({ name: procedure.trim(), cost: perToothNum || 0, packageCost: totalNum || 0 });
       } else {
         toast.error('Please add at least one procedure to the list');
         return;
@@ -287,7 +333,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
       return;
     }
 
-    const totalCostSum = listToSave.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0);
+    const totalCostSum = listToSave.reduce((acc, p) => acc + (p.packageCost !== undefined && !isNaN(p.packageCost) ? Number(p.packageCost) : p.cost * selectedTeeth.length), 0);
     const parsedPaidInput = Number(initialPaidAmount) || 0;
 
     if (parsedPaidInput < 0) {
@@ -759,36 +805,61 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                                           className="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-950 outline-none focus:ring-2 focus:ring-indigo-500 bg-white w-full font-sans"
                                         />
                                       </div>
-                                      <div className="flex items-end gap-2.5">
-                                        <div className="flex flex-col gap-1 flex-1">
+                                      
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <div className="flex flex-col gap-1">
                                           <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
-                                            Edit Cost per Tooth (₹)
+                                            Cost Per Tooth (₹)
                                           </label>
                                           <input
                                             type="number"
                                             value={editingCost}
-                                            onChange={(e) => setEditingCost(e.target.value)}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              setEditingCost(val);
+                                              const num = Number(val) || 0;
+                                              setEditingTotalCost(selectedTeeth.length > 0 ? (num * selectedTeeth.length).toString() : val);
+                                            }}
                                             className="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-950 outline-none focus:ring-2 focus:ring-indigo-500 bg-white w-full font-sans"
                                           />
                                         </div>
-                                        <div className="flex gap-1.5 pb-0.5">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleSaveEdit(idx)}
-                                            className="p-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-950 rounded-lg transition-colors cursor-pointer border border-emerald-300 flex items-center justify-center font-black"
-                                            title="Save changes"
-                                          >
-                                            <Check className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={handleCancelEdit}
-                                            className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-950 rounded-lg transition-colors cursor-pointer border border-slate-400 flex items-center justify-center font-black"
-                                            title="Cancel edit"
-                                          >
-                                            <X className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
+
+                                        {selectedTeeth.length > 1 && (
+                                          <div className="flex flex-col gap-1">
+                                            <label className="text-[9px] font-black text-indigo-950 uppercase tracking-widest">
+                                              Overall Total ({selectedTeeth.length} Teeth)
+                                            </label>
+                                            <input
+                                              type="number"
+                                              value={editingTotalCost}
+                                              onChange={(e) => {
+                                                const val = e.target.value;
+                                                setEditingTotalCost(val);
+                                                const num = Number(val) || 0;
+                                                const perTooth = selectedTeeth.length > 0 ? Math.round((num / selectedTeeth.length) * 100) / 100 : num;
+                                                setEditingCost(perTooth.toString());
+                                              }}
+                                              className="border border-indigo-300 bg-indigo-50/50 rounded-lg px-2.5 py-1.5 text-xs font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500 w-full font-sans"
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div className="flex justify-end gap-1.5 pt-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSaveEdit(idx)}
+                                          className="px-3 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-950 rounded-lg transition-colors cursor-pointer border border-emerald-300 font-black text-xs flex items-center gap-1"
+                                        >
+                                          <Check className="w-3.5 h-3.5" /> Save
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={handleCancelEdit}
+                                          className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-950 rounded-lg transition-colors cursor-pointer border border-slate-400 font-black text-xs flex items-center gap-1"
+                                        >
+                                          <X className="w-3.5 h-3.5" /> Cancel
+                                        </button>
                                       </div>
                                     </div>
                                   ) : (
@@ -796,7 +867,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                                       <div className="min-w-0 flex-1">
                                         <p className="font-black text-slate-950 text-xs truncate" title={item.name}>{item.name}</p>
                                         <p className="text-[11px] text-indigo-950 font-black">
-                                          Cost per tooth: ₹{item.cost} {selectedTeeth.length > 1 && `(Total for ${selectedTeeth.length} teeth: ₹${item.cost * selectedTeeth.length})`}
+                                          Cost per tooth: ₹{item.cost} {selectedTeeth.length > 1 && `(Total for ${selectedTeeth.length} teeth: ₹${item.packageCost !== undefined && !isNaN(item.packageCost) ? item.packageCost : Math.round(item.cost * selectedTeeth.length * 100) / 100})`}
                                         </p>
                                       </div>
                                       <div className="flex gap-1 shrink-0">
@@ -828,13 +899,20 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
 
                       {/* Financial Payment & Advance Entry Card */}
                       <div className="border-t border-indigo-200 pt-3 mt-3 space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-black text-slate-950 uppercase tracking-wider">
-                            Grand Total ({selectedTeeth.length} {selectedTeeth.length === 1 ? 'Tooth' : 'Teeth'})
-                          </span>
-                          <span className="text-xl font-black text-slate-950">
-                            ₹{selectedProceduresList.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0)}
-                          </span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-black text-slate-950 uppercase tracking-wider">
+                              Grand Total ({selectedTeeth.length} {selectedTeeth.length === 1 ? 'Tooth' : 'Teeth'})
+                            </span>
+                            <span className="text-xl font-black text-slate-950">
+                              ₹{selectedProceduresList.reduce((acc, p) => acc + (p.packageCost !== undefined && !isNaN(p.packageCost) ? Number(p.packageCost) : p.cost * selectedTeeth.length), 0) || Number(totalPackageCost) || (Number(estimatedCost) * selectedTeeth.length) || 0}
+                            </span>
+                          </div>
+                          {selectedProceduresList.length === 0 && (Number(totalPackageCost) > 0 || Number(estimatedCost) > 0) && (
+                            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-md border border-indigo-200 self-end">
+                              Pending Add: ₹{totalPackageCost || (Number(estimatedCost) * selectedTeeth.length)} (₹{estimatedCost}/tooth)
+                            </span>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-dashed border-indigo-200">
@@ -857,11 +935,11 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                               Remaining Due (₹)
                             </label>
                             <div className={`px-3 py-1.5 rounded-xl border text-xs font-black text-right ${
-                              Math.max(0, selectedProceduresList.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0) - (Number(initialPaidAmount) || 0)) > 0
+                              Math.max(0, selectedProceduresList.reduce((acc, p) => acc + (p.packageCost !== undefined && !isNaN(p.packageCost) ? Number(p.packageCost) : p.cost * selectedTeeth.length), 0) - (Number(initialPaidAmount) || 0)) > 0
                                 ? 'bg-rose-50 border-rose-300 text-rose-700'
                                 : 'bg-emerald-50 border-emerald-300 text-emerald-800'
                             }`}>
-                              ₹{Math.max(0, selectedProceduresList.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0) - (Number(initialPaidAmount) || 0))}
+                              ₹{Math.max(0, selectedProceduresList.reduce((acc, p) => acc + (p.packageCost !== undefined && !isNaN(p.packageCost) ? Number(p.packageCost) : p.cost * selectedTeeth.length), 0) - (Number(initialPaidAmount) || 0))}
                             </div>
                           </div>
                         </div>
@@ -870,7 +948,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                         <div className="flex justify-between items-center pt-1">
                           <span className="text-[9px] font-black text-slate-950 uppercase tracking-wider">Payment Status Tag:</span>
                           {(() => {
-                            const grandTotal = selectedProceduresList.reduce((acc, p) => acc + (p.cost * selectedTeeth.length), 0);
+                            const grandTotal = selectedProceduresList.reduce((acc, p) => acc + (p.packageCost !== undefined && !isNaN(p.packageCost) ? Number(p.packageCost) : p.cost * selectedTeeth.length), 0);
                             const paid = Number(initialPaidAmount) || 0;
                             const due = Math.max(0, grandTotal - paid);
                             if (paid >= grandTotal && grandTotal > 0) {
@@ -888,20 +966,120 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
 
                   {/* Right Column - Selection & Input */}
                   <div className="space-y-4">
-                    {/* Quick presets */}
-                    <div className="flex flex-col gap-2 bg-slate-50 border border-slate-300 p-3.5 rounded-2xl shadow-sm">
-                      <span className="text-[10px] font-black text-slate-950 uppercase tracking-wider select-none">Quick Presets (Tap to add to queue):</span>
-                      <div className="flex flex-wrap gap-1.5 max-h-[160px] overflow-y-auto pr-1">
-                        {mergedPresets.map((proc) => (
-                          <button
-                            key={proc.name}
-                            type="button"
-                            onClick={() => handleQuickProcedureSelect(proc)}
-                            className="px-2.5 py-1.5 bg-white hover:bg-indigo-100 border border-slate-300 hover:border-indigo-400 text-slate-950 hover:text-indigo-950 text-[10px] font-black rounded-lg transition-colors cursor-pointer select-none"
-                          >
-                            + {proc.name.replace(/ Treatment| Placement| Surgery/g, '')} (₹{proc.defaultCost})
-                          </button>
-                        ))}
+                    
+                    {/* 1. Add / Plan Procedure Form (Prominent TOP Section) */}
+                    <div className="bg-indigo-50/70 border-2 border-indigo-200 p-4 rounded-2xl space-y-3 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                          <Plus className="w-4 h-4 text-indigo-600" /> Procedure & Pricing Form
+                        </p>
+                        <span className="text-[10px] font-black bg-indigo-600 text-white px-2.5 py-0.5 rounded-full">
+                          {selectedTeeth.length} {selectedTeeth.length === 1 ? 'Tooth' : 'Teeth'} Selected
+                        </span>
+                      </div>
+
+                      {/* Procedure Name */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                          Procedure Name
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Root Canal Treatment (RCT), Extraction..."
+                          value={procedure}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setProcedure(val);
+                            if (val.toLowerCase().includes('rct') || val.toLowerCase().includes('root canal')) {
+                              setShowRctOptions(true);
+                            } else {
+                              setShowRctOptions(false);
+                            }
+                            if (!estimatedCost && !totalPackageCost) {
+                              const match = mergedPresets.find(p => p.name.toLowerCase() === val.toLowerCase());
+                              if (match) {
+                                setEstimatedCost(match.defaultCost.toString());
+                                setTotalPackageCost((match.defaultCost * selectedTeeth.length).toString());
+                              }
+                            }
+                          }}
+                          list="dental-procedure-suggestions"
+                          className="border border-slate-300 rounded-xl px-3 py-2 text-xs font-black text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                        />
+                        <datalist id="dental-procedure-suggestions">
+                          {mergedPresets.map((proc, idx) => (
+                            <option key={idx} value={proc.name} />
+                          ))}
+                        </datalist>
+                      </div>
+
+                      {/* Pricing Section: Overall Total vs Per-Tooth Cost */}
+                      <div className="space-y-2 pt-1 border-t border-indigo-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* OVERALL TOTAL PACKAGE PRICE */}
+                          <div className="flex flex-col gap-1 bg-white p-2.5 rounded-xl border-2 border-indigo-300 shadow-sm">
+                            <label className="text-[10px] font-black text-indigo-900 uppercase tracking-wider flex items-center justify-between">
+                              <span>Overall Total Price ({selectedTeeth.length} Teeth)</span>
+                              <span className="text-indigo-600 font-bold">₹</span>
+                            </label>
+                            <input
+                              type="number"
+                              placeholder={selectedTeeth.length > 1 ? "e.g. 12000" : "Amount"}
+                              value={totalPackageCost}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTotalPackageCost(val);
+                                const num = Number(val);
+                                if (!isNaN(num) && val !== '' && selectedTeeth.length > 0) {
+                                  const perTooth = Math.round((num / selectedTeeth.length) * 100) / 100;
+                                  setEstimatedCost(perTooth.toString());
+                                } else if (val === '') {
+                                  setEstimatedCost('');
+                                }
+                              }}
+                              className="border border-indigo-200 bg-indigo-50/30 rounded-lg px-3 py-1.5 text-sm font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                            <span className="text-[9px] font-bold text-indigo-600">
+                              Write total package price for all {selectedTeeth.length} teeth
+                            </span>
+                          </div>
+
+                          {/* PER-TOOTH COST */}
+                          <div className="flex flex-col gap-1 bg-white p-2.5 rounded-xl border border-slate-200">
+                            <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                              <span>Per-Tooth Cost</span>
+                              <span className="text-slate-400 font-bold">₹</span>
+                            </label>
+                            <input
+                              type="number"
+                              placeholder="e.g. 3000"
+                              value={estimatedCost}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEstimatedCost(val);
+                                const num = Number(val);
+                                if (!isNaN(num) && val !== '' && selectedTeeth.length > 0) {
+                                  const total = Math.round((num * selectedTeeth.length) * 100) / 100;
+                                  setTotalPackageCost(total.toString());
+                                } else if (val === '') {
+                                  setTotalPackageCost('');
+                                }
+                              }}
+                              className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-black text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                            <span className="text-[9px] font-bold text-slate-400">
+                              Calculated per tooth cost
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAddProcedureToList}
+                          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl uppercase tracking-wider transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center justify-center gap-1.5 mt-2"
+                        >
+                          <Plus className="w-4 h-4" /> Add Procedure to Queue
+                        </button>
                       </div>
                     </div>
 
@@ -943,61 +1121,20 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                       </div>
                     )}
 
-                    {/* Manual Custom Add Form */}
-                    <div className="bg-slate-100/70 border border-slate-300 p-3.5 rounded-2xl space-y-2.5 shadow-sm">
-                      <p className="text-[10px] font-black text-slate-950 uppercase tracking-wider select-none">Or Add Custom Procedure:</p>
-                      
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
-                          Procedure Name
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Root Canal (RCT), Extraction..."
-                          value={procedure}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setProcedure(val);
-                            if (val.toLowerCase().includes('rct') || val.toLowerCase().includes('root canal')) {
-                              setShowRctOptions(true);
-                            } else {
-                              setShowRctOptions(false);
-                            }
-                            const match = mergedPresets.find(p => p.name.toLowerCase() === val.toLowerCase());
-                            if (match) {
-                              setEstimatedCost(match.defaultCost.toString());
-                            }
-                          }}
-                          list="dental-procedure-suggestions"
-                          className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-black text-slate-950 placeholder:text-slate-500 placeholder:font-normal outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                        />
-                        <datalist id="dental-procedure-suggestions">
-                          {mergedPresets.map((proc, idx) => (
-                            <option key={idx} value={proc.name} />
-                          ))}
-                        </datalist>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 items-end">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
-                            Cost per tooth (₹)
-                          </label>
-                          <input
-                            type="number"
-                            placeholder="e.g. 4500"
-                            value={estimatedCost}
-                            onChange={(e) => setEstimatedCost(e.target.value)}
-                            className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-black text-slate-950 placeholder:text-slate-500 placeholder:font-normal outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleAddProcedureToList}
-                          className="px-4 py-1.5 border-2 border-indigo-700 hover:bg-indigo-50 text-indigo-950 text-xs font-black rounded-xl uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1 h-[32px]"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Add
-                        </button>
+                    {/* Quick presets */}
+                    <div className="flex flex-col gap-2 bg-slate-50 border border-slate-300 p-3.5 rounded-2xl shadow-sm">
+                      <span className="text-[10px] font-black text-slate-950 uppercase tracking-wider select-none">Quick Presets (Tap to prefill procedure & cost):</span>
+                      <div className="flex flex-wrap gap-1.5 max-h-[160px] overflow-y-auto pr-1">
+                        {mergedPresets.map((proc) => (
+                          <button
+                            key={proc.name}
+                            type="button"
+                            onClick={() => handleQuickProcedureSelect(proc)}
+                            className="px-2.5 py-1.5 bg-white hover:bg-indigo-100 border border-slate-300 hover:border-indigo-400 text-slate-950 hover:text-indigo-950 text-[10px] font-black rounded-lg transition-colors cursor-pointer select-none"
+                          >
+                            + {proc.name.replace(/ Treatment| Placement| Surgery/g, '')} (₹{proc.defaultCost})
+                          </button>
+                        ))}
                       </div>
                     </div>
 

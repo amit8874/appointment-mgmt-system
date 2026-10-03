@@ -253,8 +253,10 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
   const showPharmacyTerms = org.branding?.showPharmacyTerms !== false;
 
   const patientName = bill.patientName || bill.patient?.name || 'Walk-in Patient';
+  const patientId = bill.patientId || bill.patient?.patientId || 'N/A';
   const age = bill.age || bill.patient?.age || '';
-  const gender = bill.gender || bill.patient?.gender || '';
+  const gender = bill.gender || bill.patient?.gender || 'N/A';
+  const finalMobile = bill.patientPhone || bill.patientMobile || bill.patient?.mobile || bill.patient?.phone || 'N/A';
   const doctorName = bill.doctorName || 'N/A';
   const patientAddress = bill.patientAddress || 'N/A';
   const billDate = new Date(bill.date || bill.createdAt).toLocaleDateString('en-GB'); 
@@ -360,9 +362,12 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
         <div class="details">
           <div class="details-left">
             <div class="row"><span class="label">Patient Name :</span><span class="value">${patientName}</span></div>
-            <div class="row"><span class="label">Age / Sex :</span><span class="value">${age} Years / ${gender}</span></div>
+            <div class="row"><span class="label">Patient ID :</span><span class="value">${patientId}</span></div>
+            <div class="row"><span class="label">Mobile No :</span><span class="value">${finalMobile}</span></div>
+            <div class="row"><span class="label">Patient Age :</span><span class="value">${age ? `${age} Years` : 'N/A'}</span></div>
+            <div class="row"><span class="label">Gender :</span><span class="value">${gender}</span></div>
             <div class="row"><span class="label">Dr.Name :</span><span class="value">${doctorName}</span></div>
-            <div class="row"><span class="label">Address :</span><span class="value">${patientAddress}</span></div>
+            ${patientAddress && patientAddress !== 'N/A' ? `<div class="row"><span class="label">Address :</span><span class="value">${patientAddress}</span></div>` : ''}
           </div>
           <div class="details-right">
             <div class="row"><span class="label">Bill Date :</span><span class="value">${billDate}</span></div>
@@ -524,6 +529,40 @@ async function getInvoiceHtml(bill, org, template) {
         ? `Reg. No.${doctorDetails.licenseNumber}` 
         : (isManomay ? 'Reg. No.A-14880' : ''));
 
+  // Doctor Stamp / Signature resolution
+  let stampBase64 = null;
+  let stampPath = bill.doctorStamp || bill.doctorSignature || doctorDetails?.doctorStamp || doctorDetails?.doctorSignature;
+  
+  if (!stampPath) {
+    try {
+      const Doctor = mongoose.model('Doctor');
+      const docWithStamp = await Doctor.findOne({
+        organizationId: bill.organizationId || org._id,
+        $or: [
+          { doctorStamp: { $ne: null, $exists: true, $ne: '' } },
+          { doctorSignature: { $ne: null, $exists: true, $ne: '' } }
+        ]
+      }).lean();
+      if (docWithStamp) {
+        stampPath = docWithStamp.doctorStamp || docWithStamp.doctorSignature;
+      }
+    } catch (e) {
+      console.warn("Could not load fallback doctor stamp in pdfService:", e.message);
+    }
+  }
+
+  if (!stampPath) {
+    stampPath = org.doctorSignature || org.stamp;
+  }
+
+  if (stampPath) {
+    try {
+      stampBase64 = await getBase64Image(stampPath);
+    } catch (e) {
+      console.warn("Could not load doctor stamp/signature:", e.message);
+    }
+  }
+
   // Query Patient details dynamically
   let patientDetails = null;
   if (bill.patientId) {
@@ -550,12 +589,12 @@ async function getInvoiceHtml(bill, org, template) {
   }
 
   // Patient Details
-  const patientName = bill.patientName || 'Hemlata Tiwari';
-  const patientId = bill.patientId || 'P245';
-  const finalGender = patientDetails?.gender || bill.gender || '';
+  const patientName = bill.patientName || patientDetails?.fullName || patientDetails?.name || 'Walk-in Patient';
+  const patientId = bill.patientId || patientDetails?.patientId || 'N/A';
+  const finalGender = patientDetails?.gender || bill.gender || 'N/A';
   const rawAge = patientDetails?.age || bill.age || '';
-  const finalAge = rawAge ? `${rawAge} Years` : '';
-  const genderAge = [finalGender, finalAge].filter(Boolean).join(', ') || '';
+  const finalAge = rawAge ? `${rawAge} Years` : 'N/A';
+  const finalMobile = patientDetails?.mobile || patientDetails?.phone || patientDetails?.contactNumber || bill.patientPhone || bill.contactNumber || 'N/A';
   const patientLocation = bill.patientAddress || patientDetails?.address || '';
 
   // Metadata
@@ -921,13 +960,15 @@ async function getInvoiceHtml(bill, org, template) {
 
           <table class="patient-table">
             <tr>
-              <td style="width: 50%;">
-                <div class="patient-name">${patientName}</div>
-                <div class="patient-label" style="margin-top: 2px;">Patient Id: <span class="patient-value" style="font-weight: bold;">${patientId}</span></div>
+              <td style="width: 55%; vertical-align: top;">
+                <div class="patient-name" style="font-size: 13px; margin-bottom: 3px;"><strong>Patient Name :</strong> ${patientName}</div>
+                <div class="patient-label" style="font-size: 12px; margin-bottom: 3px;"><strong>Patient ID :</strong> ${patientId}</div>
+                <div class="patient-label" style="font-size: 12px; margin-bottom: 3px;"><strong>Mobile No :</strong> ${finalMobile}</div>
               </td>
-              <td style="width: 50%; text-align: right;">
-                ${genderAge ? `<div class="patient-value" style="font-weight: bold;">${genderAge}</div>` : ''}
-                ${patientLocation ? `<div class="patient-value" style="margin-top: 2px;">${patientLocation}</div>` : ''}
+              <td style="width: 45%; text-align: right; vertical-align: top;">
+                <div class="patient-value" style="font-size: 12px; margin-bottom: 3px;"><strong>Patient Age :</strong> ${finalAge}</div>
+                <div class="patient-value" style="font-size: 12px; margin-bottom: 3px;"><strong>Gender :</strong> ${finalGender}</div>
+                ${patientLocation ? `<div class="patient-value" style="font-size: 11px; margin-top: 3px;"><strong>Address :</strong> ${patientLocation}</div>` : ''}
               </td>
             </tr>
           </table>
@@ -1010,6 +1051,11 @@ async function getInvoiceHtml(bill, org, template) {
                   <td class="summary-value">${formatCurrency(balanceAmount)} INR</td>
                 </tr>
               </table>
+              ${stampBase64 ? `
+              <div style="margin-top: 25px; margin-bottom: -5px; text-align: right;">
+                <img src="${stampBase64}" style="max-height: 120px; max-width: 220px; object-fit: contain; margin-left: auto; display: inline-block;" alt="Doctor Stamp & Signature" />
+              </div>
+              ` : ''}
             </div>
           </div>
         </div>
@@ -1382,10 +1428,10 @@ export const generatePrescriptionPDF = async (prescriptionData, patientData, org
       format: 'A4',
       printBackground: true,
       margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
-        left: '10mm'
+        top: '0mm',
+        right: '0mm',
+        bottom: '0mm',
+        left: '0mm'
       }
     });
 
@@ -1411,12 +1457,10 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   let parsedData = null;
   let rawContent = prescriptionData;
 
-  // 1. Resolve rawContent if prescriptionData is an object
   if (typeof prescriptionData === 'object' && prescriptionData !== null) {
     rawContent = prescriptionData.notes || prescriptionData.description || prescriptionData.content || (prescriptionData.medications ? prescriptionData : null);
   }
 
-  // 2. Parse rawContent into parsedData
   try {
     if (typeof rawContent === 'string') {
       const trimmed = rawContent.trim();
@@ -1430,106 +1474,161 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     console.error('[PDF Service] Error parsing prescription content:', e.message);
   }
 
-  // 3. Fallback for doctor name and credentials
+  // Doctor Details
   const doctorName = doctorDetails.doctorName || prescriptionData?.doctorName || parsedData?.doctorName || 'Doctor';
-  const doctorQualification = doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || '';
+  const doctorQualification = doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || doctorDetails.qualification || '';
   const doctorSpecialization = doctorDetails.doctorSpecialization || doctorDetails.specialty || prescriptionData?.doctorSpecialization || prescriptionData?.specialty || parsedData?.doctorSpecialization || parsedData?.specialty || '';
+  const doctorEmail = doctorDetails.doctorEmail || prescriptionData?.doctorEmail || '';
+
+  // Organization & Clinic Details
+  const clinicName = org?.branding?.clinicName || org?.clinicName || org?.name || 'Clinic Name';
+  const clinicAddress = formatAddress(org?.address || org?.location);
+  const clinicContact = org?.phone || org?.branding?.phone || '';
 
   const isDefaultV2 = template?._id === 'default_v2';
 
+  // Template background image resolution (A4)
+  const orgTemplateUrl = org?.prescriptionTemplate?.templateUrl || org?.prescriptionTemplateUrl || template?.orgTemplateUrl || template?.templateUrl;
+  const templateBase64 = orgTemplateUrl ? await getBase64Image(orgTemplateUrl) : null;
+  const isA4 = Boolean(templateBase64) || template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4';
+
+  const printableArea = template?.printableArea || org?.prescriptionTemplate?.printableArea;
+  const margins = printableArea || { top: 55, left: 15, right: 15, bottom: 25 };
+
+  // Patient Name Formatter
+  const formattedPatientName = (() => {
+    let name = patientData?.fullName || patientData?.name || `${patientData?.firstName || ''} ${patientData?.lastName || ''}`.trim() || 'Unknown';
+    const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
+    let parts = name.split(/\s+/);
+    while (parts.length > 1) {
+      const p0 = parts[0].toUpperCase().replace(/\./g, '');
+      const p1 = parts[1].toUpperCase().replace(/\./g, '');
+      if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
+        parts.shift();
+      } else {
+        break;
+      }
+    }
+    return parts.join(' ');
+  })();
+
+  const dateStr = prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString();
+  const timeStr = prescriptionData?.time ? `| ${prescriptionData.time}` : '';
+
+  // Header HTML (Only used when !isA4)
   let headerHtml = '';
   if (isDefaultV2) {
     headerHtml = `
-      <div style="display: flex; flex-direction: column; align-items: center; text-align: center; padding-bottom: 10px; border-bottom: 2px solid #eee; width: 100%;">
-        ${logoBase64 ? `<img src="${logoBase64}" style="height: 80px; width: 80px; object-fit: contain; margin-bottom: 10px;" />` : ''}
-        <h1 style="margin: 0; color: #0f172a; font-size: 24px; font-weight: 900; text-transform: uppercase;">${org?.name || org?.clinicName || 'Clinic Name'}</h1>
-        <div style="margin: 5px 0 0 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase;">
-          ${formatAddress(org?.address || org?.location)}<br/>
-          Contact: ${org?.phone || ''}
+      <div style="display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 16px; width: 100%;">
+        ${logoBase64 ? `<img src="${logoBase64}" style="height: 80px; width: 80px; object-fit: contain; margin-bottom: 8px;" />` : ''}
+        <h2 style="font-size: 24px; font-weight: 900; color: #047857; margin: 0; line-height: 1.25;">${clinicName}</h2>
+        <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 4px;">
+          ${clinicAddress ? `<p style="max-width: 600px; margin: 0; line-height: 1.25;">${clinicAddress}</p>` : ''}
+          ${clinicContact ? `<p style="margin: 2px 0 0 0;">Contact: ${clinicContact}</p>` : ''}
         </div>
       </div>
     `;
   } else if (template?.headerType === 'custom' && template?.headerImage && logoBase64) {
-    headerHtml = `<img src="${logoBase64}" style="width: 100%; max-height: 150px; object-fit: contain;" />`;
+    headerHtml = `<div style="min-height: 120px;"><img src="${logoBase64}" style="width: 100%; height: auto; object-fit: contain;" /></div>`;
   } else {
+    const formattedDocHeader = doctorName?.toLowerCase().startsWith('dr') ? doctorName : `Dr. ${doctorName}`;
     headerHtml = `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 10px; border-bottom: 2px solid #eee;">
-        <div style="display: flex; align-items: center; gap: 15px;">
-          ${logoBase64 ? `<img src="${logoBase64}" style="height: 80px; width: 80px; object-fit: contain;" />` : ''}
-          <div>
-            <h1 style="margin: 0; color: #0f172a; font-size: 24px; font-weight: 900; text-transform: uppercase;">${org?.name || org?.clinicName || 'Clinic Name'}</h1>
-            <div style="margin: 5px 0 0 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase;">
-              ${formatAddress(org?.address || org?.location)}<br/>
-              Contact: ${org?.phone || ''}
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
+          ${logoBase64 ? `<img src="${logoBase64}" style="height: 96px; width: 96px; object-fit: contain;" />` : ''}
+          <div style="display: flex; flex-direction: column;">
+            <h2 style="font-size: 24px; font-weight: 900; color: #047857; margin: 0; line-height: 1.25;">${clinicName}</h2>
+            <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 4px;">
+              ${clinicAddress ? `<p style="max-width: 400px; margin: 0; line-height: 1.25;">${clinicAddress}</p>` : ''}
+              ${clinicContact ? `<p style="margin: 2px 0 0 0;">Contact: ${clinicContact}</p>` : ''}
             </div>
           </div>
         </div>
-        <div style="text-align: right;">
-          <h2 style="margin: 0; color: #4338ca; font-size: 22px; font-weight: 900; text-transform: uppercase;">Dr. ${doctorName}</h2>
-          ${doctorQualification ? `<p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #6366f1; text-transform: uppercase; border-bottom: 2px solid #eef2ff; padding-bottom: 2px; display: inline-block;">${doctorQualification}</p>` : ''}
-          ${doctorSpecialization ? `<p style="margin: 2px 0; font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">${doctorSpecialization}</p>` : ''}
+        <div style="text-align: right; flex: 1; display: flex; flex-direction: column; align-items: flex-end;">
+          <h1 style="font-size: 28px; font-weight: 900; color: #1e40af; margin: 0; line-height: 1.25;">${formattedDocHeader}</h1>
+          ${doctorQualification ? `<div style="font-size: 11px; font-weight: 900; color: rgba(37, 99, 235, 0.8); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em;">${doctorQualification}</div>` : ''}
+          ${doctorSpecialization ? `<p style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 2px 0 0 0;">${doctorSpecialization}</p>` : ''}
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">
+            ${doctorEmail ? `<p style="margin: 0;">E-Mail: ${doctorEmail}</p>` : ''}
+            ${clinicContact ? `<p style="margin: 2px 0 0 0;">Contact: ${clinicContact}</p>` : ''}
+          </div>
         </div>
       </div>
+      <div style="height: 4px; background-color: #e2e8f0; width: 100%; border-radius: 9999px; opacity: 0.5;"></div>
     `;
   }
 
+  // Footer HTML (Only used when !isA4)
   let footerHtml = '';
   if (isDefaultV2) {
     footerHtml = `
-      <div style="padding: 10px 40px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box;">
-        <div style="font-size: 9px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Dr. ${doctorName}</div>
-        <div style="font-size: 10px; color: #999; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Powered by Oviaan</div>
+      <div style="padding: 16px 32px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box;">
+        <div style="font-size: 9px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Dr. ${doctorName}</div>
+        <div style="text-align: center; opacity: 0.7;"><p style="font-size: 10px; font-weight: 700; color: #94a3b8; margin: 0;">Powered by Oviaan</p></div>
         <div style="width: 80px;"></div>
       </div>
     `;
   } else if (template?.footerType === 'custom' && template?.footerImage && signatureBase64) {
-    footerHtml = `<img src="${signatureBase64}" style="width: 100%; max-height: 80px; object-fit: contain;" />`;
+    footerHtml = `<img src="${signatureBase64}" style="width: 100%; height: 100%; object-fit: contain;" />`;
   } else {
-    footerHtml = `<div style="padding: 10px; text-align: center; border-top: 1px solid #eee; font-size: 10px; color: #999; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Powered by Oviaan</div>`;
+    footerHtml = `<div style="padding: 16px; text-align: center; opacity: 0.7; border-top: 1px solid #e2e8f0;"><p style="font-size: 12px; font-weight: 700; color: #94a3b8; margin: 0;">Powered by Oviaan</p></div>`;
   }
 
-  let bodyBg = '';
+  // Custom Watermark / Body Background
+  let bodyBgStyle = '';
   if (template?.bodyType === 'custom' && template?.bodyImage) {
     const bodyBase64 = await getBase64Image(template.bodyImage);
     if (bodyBase64) {
-      bodyBg = `background-image: url('${bodyBase64}'); background-size: 60%; background-position: center; background-repeat: no-repeat; opacity: 0.05;`;
+      bodyBgStyle = `background-image: url('${bodyBase64}'); background-size: 60%; background-position: center; background-repeat: no-repeat; opacity: 0.05;`;
     }
   }
 
-
+  // Clinical Content HTML
   let contentHtml = '';
   if (parsedData) {
     contentHtml = `
-      <div style="font-size: 14px;">
-        ${(parsedData.vitals || parsedData.complaints || parsedData.diagnosis) ? `
-          <div style="margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
-            ${parsedData.vitals ? `<p><strong>Vitals:</strong> ${Object.entries(parsedData.vitals).filter(([_,v])=>v).map(([k,v])=>`${k}: ${v}`).join(', ')}</p>` : ''}
-            ${parsedData.complaints?.length > 0 ? `<p><strong>Complaints:</strong> ${parsedData.complaints.map(c=>c.name || c).join(', ')}</p>` : ''}
-            ${parsedData.diagnosis?.length > 0 ? `<p><strong>Diagnosis:</strong> ${parsedData.diagnosis.map(d=>d.name || d).join(', ')}</p>` : ''}
+      <div style="position: relative; z-index: 10;">
+        ${(parsedData.vitals || parsedData.complaints || parsedData.diagnosis || parsedData.treatmentPlans || parsedData.dentalTreatments) ? `
+          <div style="font-size: 14px; margin-bottom: 24px; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px;">
+            ${(parsedData.vitals && Object.values(parsedData.vitals).some(v => v)) ? `<p style="margin: 4px 0;"><span style="font-weight: 700; color: #475569;">Vitals:</span> ${Object.entries(parsedData.vitals).filter(([_,v]) => v).map(([k,v]) => `${k.replace('_', ' ')}: ${v}`).join(', ')}</p>` : ''}
+            ${parsedData.complaints?.length > 0 ? `<p style="margin: 4px 0;"><span style="font-weight: 700; color: #475569;">Complaints:</span> ${parsedData.complaints.map(c => typeof c === 'string' ? c : c.name).join(', ')}</p>` : ''}
+            ${parsedData.diagnosis?.length > 0 ? `<p style="margin: 4px 0;"><span style="font-weight: 700; color: #475569;">Diagnosis:</span> ${parsedData.diagnosis.map(d => typeof d === 'string' ? d : d.name).join(', ')}</p>` : ''}
+            ${(parsedData.treatmentPlans?.length > 0 || parsedData.dentalTreatments?.length > 0) ? (() => {
+              const rawList = parsedData.treatmentPlans || parsedData.dentalTreatments || [];
+              const names = Array.from(new Set(rawList.map(t => typeof t === 'string' ? t : (t.procedure || t.name || t.treatmentName)).filter(Boolean)));
+              if (!names.length) return '';
+              return `<p style="margin: 4px 0;"><span style="font-weight: 700; color: #475569;">Treatment:</span> ${names.join(', ')}</p>`;
+            })() : ''}
           </div>
         ` : ''}
-        
-        <div style="font-size: 32px; font-style: italic; font-weight: bold; margin-bottom: 10px; color: #000;">Rx</div>
-        
+
         ${parsedData.medications?.length > 0 ? `
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <div style="margin-bottom: 16px;">
+            <span style="font-size: 30px; font-family: Georgia, serif; font-style: italic; font-weight: bold; color: #1e293b;">Rx</span>
+          </div>
+          <table style="width: 100%; text-align: left; font-size: 13px; margin-bottom: 32px; border-collapse: collapse;">
             <thead>
-              <tr style="background: #f8f9fa;">
-                <th style="padding: 10px; border-bottom: 2px solid #dee2e6; text-align: left;">Medicine</th>
-                <th style="padding: 10px; border-bottom: 2px solid #dee2e6; text-align: left;">Dose</th>
-                <th style="padding: 10px; border-bottom: 2px solid #dee2e6; text-align: left;">Timing</th>
-                <th style="padding: 10px; border-bottom: 2px solid #dee2e6; text-align: left;">Freq</th>
-                <th style="padding: 10px; border-bottom: 2px solid #dee2e6; text-align: left;">Duration</th>
+              <tr style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">#</th>
+                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Medicine</th>
+                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Dose</th>
+                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Timing</th>
+                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Frequency</th>
+                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">Duration</th>
               </tr>
             </thead>
             <tbody>
-              ${parsedData.medications.map(m => `
-                <tr>
-                  <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>${m.name}</strong><br/><small>${m.composition || ''}</small></td>
-                  <td style="padding: 10px; border-bottom: 1px solid #eee;">${m.dose}</td>
-                  <td style="padding: 10px; border-bottom: 1px solid #eee;">${m.when}</td>
-                  <td style="padding: 10px; border-bottom: 1px solid #eee;">${m.frequency}</td>
-                  <td style="padding: 10px; border-bottom: 1px solid #eee;">${m.duration || '--'}</td>
+              ${parsedData.medications.map((m, i) => `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 16px 12px; color: #94a3b8; font-weight: bold;">${String(i + 1).padStart(2, '0')}</td>
+                  <td style="padding: 16px 12px;">
+                    <div style="font-weight: 900; color: #0f172a; font-size: 14px;">${m.name}</div>
+                    ${(m.composition || m.genericName) ? `<div style="font-size: 10px; color: #64748b; font-weight: 500; margin-top: 2px;">${m.composition || m.genericName}</div>` : ''}
+                  </td>
+                  <td style="padding: 16px 12px; font-weight: 900; color: #334155;">${m.dose || ''}</td>
+                  <td style="padding: 16px 12px; font-weight: 700; color: #475569;">${m.when || ''}</td>
+                  <td style="padding: 16px 12px; font-weight: 700; color: #475569;">${m.frequency || ''}</td>
+                  <td style="padding: 16px 12px; font-weight: 900; color: #0f172a; text-align: right;">${m.duration || '-'}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1537,13 +1636,13 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
         ` : ''}
 
         ${parsedData.testsRequested?.length > 0 ? `
-          <div style="margin-top: 20px;">
-            <p style="font-weight: bold; color: #1e293b; margin-bottom: 8px;">Tests Required:</p>
-            <div style="font-size: 13px;">
+          <div style="margin-bottom: 32px;">
+            <p style="font-weight: 900; color: #0f172a; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 12px 0; border-left: 4px solid #4f46e5; padding-left: 12px;">Tests Required:</p>
+            <div style="font-size: 14px; color: #334155;">
               ${parsedData.testsRequested.map((t, i) => `
-                <div style="margin-bottom: 5px; display: flex; align-items: center;">
-                  <span style="background: #eef2ff; color: #4f46e5; border: 1px solid #e0e7ff; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 10px;">${String(i + 1).padStart(2, '0')}</span>
-                  <span style="font-weight: 600;">${t.name || t}</span>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                  <span style="font-size: 9px; font-weight: 900; color: #4f46e5; background-color: #eef2ff; padding: 4px 8px; border-radius: 4px; border: 1px solid #e0e7ff; min-width: 24px; text-align: center;">${String(i + 1).padStart(2, '0')}</span>
+                  <span style="font-weight: 700; color: #1e293b;">${typeof t === 'string' ? t : (t.name || t)}</span>
                 </div>
               `).join('')}
             </div>
@@ -1551,99 +1650,35 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
         ` : ''}
 
         ${parsedData.advice ? `
-          <div style="margin-top: 20px;">
-            <p style="font-weight: bold; color: #1e293b; margin-bottom: 5px;">Clinical Advice:</p>
-            <p style="white-space: pre-wrap; font-size: 13px; color: #334155; line-height: 1.5;">${parsedData.advice}</p>
+          <div style="margin-bottom: 24px;">
+            <p style="font-weight: 700; color: #1e293b; margin: 0 0 8px 0;">Clinical Advice:</p>
+            <p style="font-size: 14px; color: #334155; white-space: pre-wrap; margin: 0; line-height: 1.6;">${parsedData.advice}</p>
           </div>
         ` : ''}
       </div>
     `;
   } else {
-    contentHtml = `<div style="font-size: 14px; line-height: 1.8; white-space: pre-wrap;">${prescriptionData?.notes || prescriptionData?.description || ''}</div>`;
+    contentHtml = `<div style="font-size: 14px; line-height: 1.8; white-space: pre-wrap; color: #334155;">${prescriptionData?.notes || prescriptionData?.description || ''}</div>`;
   }
 
-  const customTemplate = org?.prescriptionTemplate;
-  const isGlobalA4Enabled = customTemplate?.enabled && customTemplate?.templateUrl;
+  const patientMobile = patientData?.mobile || patientData?.phone || patientData?.contactNumber || patientData?.patientPhone || prescriptionData?.patientPhone || 'N/A';
 
-  const isA4Type = template?.headerType === 'a4' || template?.layoutType === 'a4';
-  const hasOtherCustomTemplate = template && !isA4Type;
-
-  // Use A4 if: explicitly selected via template manager, OR global A4 is enabled and no other template overrides it.
-  const isCustomTemplateEnabled = customTemplate?.templateUrl && (isA4Type || (isGlobalA4Enabled && !hasOtherCustomTemplate));
-
-  if (isCustomTemplateEnabled) {
-    const templateBase64 = await getBase64Image(customTemplate.templateUrl);
-    const { top = 55, left = 12, right = 12, bottom = 30 } = customTemplate.printableArea || {};
-    const fontSize = customTemplate.fontSize || 12;
-
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          @page {
-            size: A4;
-            margin: 0;
-          }
-          body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Helvetica', 'Arial', sans-serif;
-            color: #1e293b;
-            font-size: ${fontSize}px;
-          }
-          .template-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1;
-          }
-          .content-wrapper {
-            position: relative;
-            z-index: 1;
-            padding-top: ${top}mm;
-            padding-left: ${left}mm;
-            padding-right: ${right}mm;
-            padding-bottom: ${bottom}mm;
-            box-sizing: border-box;
-            min-height: 100vh;
-          }
-          .patient-info {
-            display: flex;
-            justify-content: space-between;
-            border-bottom: 2px solid #1e293b;
-            padding-bottom: 8px;
-            margin-bottom: 20px;
-            font-weight: bold;
-          }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          th { padding: 8px; text-align: left; border-bottom: 2px solid #ccc; }
-          td { padding: 8px; border-bottom: 1px solid #eee; }
-        </style>
-      </head>
-      <body>
-        <img class="template-bg" src="${templateBase64}" alt="Template Background" />
-        
-        <div class="content-wrapper">
-          <div class="patient-info">
-            ${isDefaultV2 ? `
-              <span>Name: ${patientData?.fullName || patientData?.name || 'Unknown'} (${patientData?.age || '--'} Years)</span>
-              <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
-            ` : `
-              <span>Patient: ${patientData?.fullName || patientData?.name || 'Unknown'} (${patientData?.age || '--'} / ${patientData?.gender || '--'})</span>
-              <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
-            `}
-          </div>
-          
-          ${contentHtml}
-        </div>
-      </body>
-      </html>
-    `;
-  }
+  // Build Patient Info HTML
+  const patientInfoHtml = `
+    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: normal; color: #1e293b; margin-bottom: 16px; padding: 4px 0;">
+      ${isDefaultV2 ? `
+        <span>Name: ${formattedPatientName}</span>
+        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px;">Mobile: ${patientMobile}</span>
+        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px;">Age: ${patientData?.age || '--'} Years</span>
+        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px; margin-left: auto;">Date: ${dateStr}</span>
+      ` : `
+        <span>Name: ${formattedPatientName}</span>
+        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px;">Mobile: ${patientMobile}</span>
+        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px;">Age/Sex: ${patientData?.age || '--'}Y / ${patientData?.gender || '--'}</span>
+        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px; margin-left: auto;">Date: ${dateStr}</span>
+      `}
+    </div>
+  `;
 
   return `
     <!DOCTYPE html>
@@ -1651,37 +1686,111 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     <head>
       <meta charset="UTF-8">
       <style>
-        body { font-family: 'Helvetica', 'Arial', sans-serif; margin: 0; padding: 0; box-sizing: border-box; color: #1e293b; }
-        .container { width: 100%; position: relative; display: flex; flex-direction: column; background: #fff; }
-        .header-wrapper { padding: 30px 40px 10px 40px; }
-        .patient-info { padding: 12px 40px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
-        .content { padding: 30px 40px; flex: 1; position: relative; }
-        .watermark { position: absolute; top: 0; left: 0; right: 0; bottom: 0; ${bodyBg} z-index: -1; }
-        .footer { width: 100%; min-height: 60px; display: flex; align-items: center; justify-content: center; margin-top: auto; padding-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #f8fafc; padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; border-bottom: 2px solid #e2e8f0; }
-        td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        @page {
+          size: A4;
+          margin: 0;
+        }
+        *, ::before, ::after {
+          box-sizing: border-box;
+        }
+        body {
+          margin: 0;
+          padding: 0;
+          width: 210mm;
+          height: 297mm;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+          background-color: #ffffff;
+          color: #000000;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .page-container {
+          width: 210mm;
+          height: 297mm;
+          max-width: 210mm;
+          max-height: 297mm;
+          position: relative;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          background-color: #ffffff;
+        }
+        .template-bg {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 210mm;
+          height: 297mm;
+          object-fit: contain;
+          pointer-events: none;
+          z-index: 0;
+        }
+        .content-wrapper {
+          position: relative;
+          z-index: 10;
+          box-sizing: border-box;
+          width: 210mm;
+          height: 297mm;
+          max-height: 297mm;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          ${isA4 ? `
+            padding-top: ${margins.top || 55}mm;
+            padding-bottom: ${margins.bottom || 25}mm;
+            padding-left: ${margins.left || 15}mm;
+            padding-right: ${margins.right || 15}mm;
+          ` : `
+            padding: 0;
+          `}
+        }
+        .body-content {
+          flex: 1;
+          position: relative;
+          padding: ${isA4 ? '8px 0' : '32px'};
+          min-height: 400px;
+        }
+        .watermark {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          ${bodyBgStyle}
+          z-index: -1;
+          pointer-events: none;
+        }
       </style>
     </head>
     <body>
-      <div class="container">
-        <div class="header-wrapper">${headerHtml}</div>
-        <div class="patient-info">
-          ${isDefaultV2 ? `
-            <span>Name: ${patientData?.fullName || patientData?.name || 'Unknown'}</span>
-            <span>Age: ${patientData?.age || '--'} Years</span>
-            <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()}</span>
+      <div class="page-container">
+        ${isA4 && templateBase64 ? `
+          <img class="template-bg" src="${templateBase64}" alt="A4 Background" />
+        ` : ''}
+
+        <div class="content-wrapper">
+          ${!isA4 ? `
+            <div style="padding: 32px 32px 10px 32px; width: 100%; box-sizing: border-box;">
+              ${headerHtml}
+            </div>
+            <div style="padding: 0 32px; width: 100%; box-sizing: border-box;">
+              ${patientInfoHtml}
+            </div>
           ` : `
-            <span>Name: ${patientData?.fullName || patientData?.name || 'Unknown'}</span>
-            <span>Age/Sex: ${patientData?.age || '--'} / ${patientData?.gender || '--'}</span>
-            <span>Date: ${prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString()} ${prescriptionData?.time ? `| ${prescriptionData.time}` : ''}</span>
+            ${patientInfoHtml}
           `}
+
+          <div class="body-content">
+            <div class="watermark"></div>
+            ${contentHtml}
+          </div>
+
+          ${!isA4 ? `
+            <div style="width: 100%; min-height: 80px; margin-top: auto; position: relative; z-index: 10;">
+              ${footerHtml}
+            </div>
+          ` : ''}
         </div>
-        <div class="content">
-          <div class="watermark"></div>
-          ${contentHtml}
-        </div>
-        <div class="footer">${footerHtml}</div>
       </div>
     </body>
     </html>

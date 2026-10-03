@@ -63,6 +63,7 @@ import {
 import { patientApi, appointmentApi, medicalRecordApi, emailApi, whatsappApi, prescriptionTemplateApi, invoiceTemplateApi, organizationApi, centralDoctorApi, billingApi, authApi, patientProgressImageApi, patientProgressComparisonApi, translationApi, clinicalNoteApi, progressNoteApi, followUpReminderApi } from '../../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
+import { getToothLabel } from './dentalUtils';
 import { format } from 'date-fns';
 import { calculateInvoiceTotals } from '../../../utils/billingCalculations';
 import { normalizePharmacyInvoice } from '../../../utils/pharmacyInvoiceCalculator';
@@ -781,6 +782,50 @@ const EditProfileModal = ({ data, onClose, onSave }) => {
 
 
 
+const TreatmentBadgeItem = ({ itemGroup }) => {
+  const [showTeeth, setShowTeeth] = useState(false);
+  const teethList = itemGroup.teeth || [];
+
+  return (
+    <div className="relative inline-flex items-center">
+      <span className="px-2.5 py-0.5 bg-teal-100/80 text-teal-900 rounded-md text-xs font-semibold border border-teal-200 flex items-center gap-1.5">
+        <span>{itemGroup.name}</span>
+        {teethList.length > 0 && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowTeeth(!showTeeth);
+            }}
+            className="p-0.5 hover:bg-teal-200 rounded text-teal-700 transition-colors cursor-pointer flex items-center justify-center"
+            title="View tooth details"
+          >
+            <Eye size={12} />
+          </button>
+        )}
+      </span>
+
+      {showTeeth && teethList.length > 0 && (
+        <div className="absolute bottom-full mb-1 left-0 z-[999] bg-slate-900 text-white text-[11px] p-2 rounded-lg shadow-lg border border-slate-700 min-w-[140px]">
+          <div className="font-bold text-[9px] text-teal-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <span>Teeth ({teethList.length})</span>
+            <button onClick={() => setShowTeeth(false)} className="text-slate-400 hover:text-white cursor-pointer">
+              <X size={10} />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {teethList.map(tNum => (
+              <span key={tNum} className="px-1.5 py-0.5 bg-slate-800 rounded font-semibold text-[10px] border border-slate-700">
+                Tooth #{getToothLabel(tNum)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const PrescriptionContent = ({ notes }) => {
   let data = null;
   try {
@@ -844,6 +889,42 @@ const PrescriptionContent = ({ notes }) => {
           </p>
         </div>
       )}
+
+      {/* 3.5 TREATMENT PLAN */}
+      {(data.treatmentPlans?.length > 0 || data.dentalTreatments?.length > 0) && (() => {
+        const rawList = data.treatmentPlans || data.dentalTreatments || [];
+        const groupedMap = {};
+        rawList.forEach(t => {
+          const name = typeof t === 'string' ? t : (t.procedure || t.name || t.treatmentName);
+          if (!name) return;
+          if (!groupedMap[name]) {
+            groupedMap[name] = { name, teeth: [] };
+          }
+          if (t.teeth && Array.isArray(t.teeth)) {
+            t.teeth.forEach(tn => {
+              if (!groupedMap[name].teeth.includes(tn)) groupedMap[name].teeth.push(tn);
+            });
+          } else if (t.toothNumber && !groupedMap[name].teeth.includes(t.toothNumber)) {
+            groupedMap[name].teeth.push(t.toothNumber);
+          }
+        });
+        const groupedTreatments = Object.values(groupedMap);
+        if (!groupedTreatments.length) return null;
+
+        return (
+          <div className="flex items-start gap-3 px-4 py-2.5 bg-teal-50/40">
+            <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
+              <ClipboardList size={12} className="text-teal-600 shrink-0" />
+              <span className="text-[10px] font-semibold text-teal-600 uppercase tracking-widest">Treatment</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {groupedTreatments.map((itemGroup, i) => (
+                <TreatmentBadgeItem key={i} itemGroup={itemGroup} />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 4. MEDICATIONS (Rx) */}
       {data.medications?.length > 0 && (
@@ -926,7 +1007,7 @@ const PrescriptionContent = ({ notes }) => {
   );
 };
 
-const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescription, onOpenTemplateModal, onEmail, onWhatsApp, onPrint, onDownload, onEdit, templates = [], selectedTemplate, setSelectedTemplate, pdfProgress }) => {
+const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescription, onOpenTemplateModal, onEmail, onWhatsApp, onPrint, onDownload, onEdit, onDelete, templates = [], selectedTemplate, setSelectedTemplate, pdfProgress }) => {
   const allPrescriptions = [
     ...appointments.filter(a => a.visitNotes).map(a => ({
       id: a._id,
@@ -1053,6 +1134,10 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
                   <button onClick={() => onEdit(p)} className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 transition-colors bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 hover:border-indigo-300">
                     <Edit2 size={16} />
                     <span className="text-sm font-bold uppercase tracking-wider">Edit</span>
+                  </button>
+                  <button onClick={() => onDelete && onDelete(p)} className="flex items-center gap-1.5 text-rose-600 hover:text-rose-700 transition-colors bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100 hover:border-rose-300">
+                    <Trash2 size={16} />
+                    <span className="text-sm font-bold uppercase tracking-wider">Delete</span>
                   </button>
                   <div className="flex items-center gap-2 px-3 py-1 bg-white border border-slate-100 rounded-full text-[9px] font-bold text-slate-500 uppercase tracking-widest shadow-sm ml-2">
                     <Clock size={10} />
@@ -2043,8 +2128,13 @@ const TabBilling = ({
 
               <div class="patient-box">
                 <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px;">Patient Information</div>
-                <div style="font-size: 22px; font-weight: 900;">${patient.fullName || `${patient.firstName} ${patient.lastName}`}</div>
-                <div style="font-size: 12px; color: #4f46e5; font-weight: bold; margin-top: 2px;">Patient ID: ${patient.patientId}</div>
+                <div style="font-size: 18px; font-weight: 900; color: #0f172a;">Patient Name : ${patient.fullName || `${patient.firstName || ''} ${patient.lastName || ''}`}</div>
+                <div style="font-size: 12px; font-weight: bold; margin-top: 6px; color: #334155; display: flex; flex-wrap: wrap; gap: 15px;">
+                  <span>Patient ID : <strong style="color: #4f46e5;">${patient.patientId || 'N/A'}</strong></span>
+                  <span>Mobile No : <strong style="color: #4f46e5;">${patient.mobile || patient.phone || patient.contactNumber || 'N/A'}</strong></span>
+                  <span>Patient Age : <strong style="color: #4f46e5;">${patient.age ? `${patient.age} Years` : 'N/A'}</strong></span>
+                  <span>Gender : <strong style="color: #4f46e5;">${patient.gender || 'N/A'}</strong></span>
+                </div>
               </div>
 
               <div class="stats-grid">
@@ -3978,6 +4068,8 @@ const PatientProfile = () => {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showInvoiceTemplateModal, setShowInvoiceTemplateModal] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentFormType, setConsentFormType] = useState('general');
+  const [consentDropdownOpen, setConsentDropdownOpen] = useState(false);
   const [showAddMedicineModal, setShowAddMedicineModal] = useState(false);
   const [billingRefreshKey, setBillingRefreshKey] = useState(0);
   const [selectedNotes, setSelectedNotes] = useState('');
@@ -4536,6 +4628,24 @@ const PatientProfile = () => {
   const handleEditPrescription = (p) => {
     setEditingPrescription(p);
     setShowPrescriptionModal(true);
+  };
+
+  const handleDeletePrescription = async (p) => {
+    if (!window.confirm("Are you sure you want to delete this prescription?")) return;
+    
+    try {
+      if (p.type === 'Visit Note') {
+        await appointmentApi.updateNotes(p.id, '');
+        toast.success("Prescription deleted successfully!");
+      } else {
+        await medicalRecordApi.delete(p.id);
+        toast.success("Prescription deleted successfully!");
+      }
+      fetchData(false);
+    } catch (error) {
+      console.error("Error deleting prescription:", error);
+      toast.error(error.response?.data?.message || "Failed to delete prescription");
+    }
   };
 
   const tabs = isDentistClinic ? [
@@ -5237,13 +5347,57 @@ const PatientProfile = () => {
 
               <div className="flex items-center gap-2 lg:gap-3">
                 {isDentistClinic && (
-                  <button
-                    onClick={() => setShowConsentModal(true)}
-                    className="flex items-center gap-2 px-3 py-2.5 lg:px-6 lg:py-3.5 bg-white border-2 border-slate-100 text-slate-700 rounded-[1.25rem] text-xs lg:text-sm font-bold hover:bg-slate-50 hover:border-indigo-200 transition-all shadow-sm active:scale-95"
-                  >
-                    <FileText size={16} className="text-indigo-600" />
-                    <span className="hidden sm:inline">Consent Form</span>
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setConsentDropdownOpen(prev => !prev)}
+                      className="flex items-center gap-2 px-3 py-2.5 lg:px-5 lg:py-3.5 bg-white border-2 border-slate-100 text-slate-700 rounded-[1.25rem] text-xs lg:text-sm font-bold hover:bg-slate-50 hover:border-indigo-200 transition-all shadow-sm active:scale-95"
+                    >
+                      <FileText size={16} className="text-indigo-600" />
+                      <span className="hidden sm:inline">Consent Forms</span>
+                      <ChevronDown size={14} className="text-slate-400" />
+                    </button>
+
+                    {consentDropdownOpen && (
+                      <div 
+                        className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 text-left"
+                        onClick={() => setConsentDropdownOpen(false)}
+                      >
+                        <div className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                          Select Consent Form
+                        </div>
+                        <button
+                          onClick={() => {
+                            setConsentFormType('general');
+                            setShowConsentModal(true);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 text-left transition-colors"
+                        >
+                          <FileText size={14} className="text-indigo-500 shrink-0" />
+                          <span>General Dental Consent</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setConsentFormType('endodontic');
+                            setShowConsentModal(true);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 text-left transition-colors"
+                        >
+                          <FileText size={14} className="text-indigo-500 shrink-0" />
+                          <span>Endodontic (Root Canal) Consent</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setConsentFormType('extraction');
+                            setShowConsentModal(true);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 text-left transition-colors"
+                        >
+                          <FileText size={14} className="text-indigo-500 shrink-0" />
+                          <span>Removal of Teeth (Extraction) Consent</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <button
                   onClick={() => setShowFollowUpModal(true)}
@@ -5301,6 +5455,7 @@ const PatientProfile = () => {
                       onPrint={handlePrint}
                       onDownload={handleDownloadPDF}
                       onEdit={handleEditPrescription}
+                      onDelete={handleDeletePrescription}
                       onNewPrescription={() => { setEditingPrescription(null); setShowPrescriptionModal(true); }}
                       onOpenTemplateModal={() => setShowTemplateModal(true)}
                       templates={templates}
@@ -5367,7 +5522,12 @@ const PatientProfile = () => {
       </div>
 
         {showEditModal && <EditProfileModal data={data} onClose={() => setShowEditModal(false)} onSave={(updated) => setData(prev => ({ ...prev, ...updated }))} />}
-        <DentalConsentFormModal isOpen={showConsentModal} onClose={() => setShowConsentModal(false)} patientData={data} />
+        <DentalConsentFormModal 
+          isOpen={showConsentModal} 
+          onClose={() => setShowConsentModal(false)} 
+          patientData={data} 
+          initialFormType={consentFormType}
+        />
         <AddPharmacyMedicineBillModal 
           isOpen={showAddMedicineModal} 
           onClose={() => setShowAddMedicineModal(false)} 
@@ -5463,6 +5623,9 @@ const PatientProfile = () => {
                   patientName: (data.fullName || `${data.firstName || ''} ${data.lastName || ''}`).trim().replace(/\b(MR|MS|MRS|DR|SHRI|SMT)\.?\s+\1\.?\b/gi, '$1.'),
                   patientId: data.patientId,
                   doctorName: printingInvoice.doctorName || 'N/A',
+                  doctorId: printingInvoice.doctorId,
+                  doctorStamp: printingInvoice.doctorStamp,
+                  doctorSignature: printingInvoice.doctorSignature,
                   items: (printingInvoice.items && printingInvoice.items.length > 0)
                     ? printingInvoice.items.map(i => ({ 
                         description: i.description || i.medicineName || i.name || i.procedureName || 'Medicine/Treatment', 

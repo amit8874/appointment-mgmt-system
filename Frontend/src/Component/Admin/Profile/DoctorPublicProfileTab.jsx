@@ -9,10 +9,13 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
     experience: doctor?.experience || 0,
     fee: doctor?.fee || doctor?.consultationFee || 0,
     bio: doctor?.bio || doctor?.about || '',
+    doctorStamp: doctor?.doctorStamp || '',
+    doctorSignature: doctor?.doctorSignature || '',
     clinicImages: doctor?.clinicImages || []
   });
 
   const [uploading, setUploading] = useState(false);
+  const [stampUploading, setStampUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
   useEffect(() => {
@@ -23,6 +26,8 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
         experience: doctor.experience || 0,
         fee: doctor.fee || doctor.consultationFee || 0,
         bio: doctor.bio || doctor.about || '',
+        doctorStamp: doctor.doctorStamp || '',
+        doctorSignature: doctor.doctorSignature || '',
         clinicImages: doctor.clinicImages || []
       });
     }
@@ -70,6 +75,38 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
       setUploadError('Failed to upload image. Please try again.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleStampUpload = async (e, field) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadError('');
+    const MAX_SIZE = 2 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setUploadError('Image size must be less than 2MB.');
+      return;
+    }
+
+    setStampUploading(true);
+    try {
+      const data = new FormData();
+      data.append('image', file);
+      const result = await commonApi.uploadImage(data);
+      if (result?.imageUrl) {
+        setFormData(prev => ({
+          ...prev,
+          [field]: result.imageUrl
+        }));
+      } else {
+        setUploadError('Failed to upload image.');
+      }
+    } catch (err) {
+      console.error('Stamp upload failed:', err);
+      setUploadError('Failed to upload image. Please try again.');
+    } finally {
+      setStampUploading(false);
     }
   };
 
@@ -190,6 +227,81 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
                 placeholder="Write a brief description about your expertise, background, or clinical philosophy..."
                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium text-slate-700 resize-none"
               />
+            </div>
+          </div>
+
+          {/* Doctor Stamp & Signature */}
+          <div className="space-y-4 pt-6 border-t border-slate-100">
+            <div>
+              <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <FileText size={18} className="text-indigo-600" />
+                Doctor Stamp & Signature (For Invoices)
+              </h4>
+              <p className="text-xs text-slate-400 mt-1">Upload your official stamp or signature to automatically appear on the bottom right of patient invoices.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Doctor Stamp Upload */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Doctor Stamp</label>
+                <div className="relative group rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50/80 p-4 flex flex-col items-center justify-center min-h-[120px] transition-all">
+                  {stampUploading ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="animate-spin text-indigo-600" size={20} />
+                      <span className="text-xs font-bold text-indigo-600">Uploading...</span>
+                    </div>
+                  ) : formData.doctorStamp ? (
+                    <div className="relative w-full flex flex-col items-center">
+                      <img src={formData.doctorStamp} alt="Doctor Stamp" className="max-h-24 max-w-full object-contain" />
+                      <button 
+                        type="button" 
+                        onClick={() => setFormData(p => ({ ...p, doctorStamp: '' }))}
+                        className="mt-2 text-xs text-rose-600 font-bold hover:underline"
+                      >
+                        Remove Stamp
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <FileText size={24} className="text-indigo-400 mx-auto mb-1" />
+                      <span className="text-xs font-bold text-indigo-600 block">Click to Upload Stamp</span>
+                      <span className="text-[10px] text-slate-400">PNG / JPG up to 2MB</span>
+                    </div>
+                  )}
+                  <input type="file" onChange={(e) => handleStampUpload(e, 'doctorStamp')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={stampUploading} />
+                </div>
+              </div>
+
+              {/* Doctor Signature Upload */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Doctor Signature</label>
+                <div className="relative group rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 p-4 flex flex-col items-center justify-center min-h-[120px] transition-all">
+                  {stampUploading ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="animate-spin text-indigo-600" size={20} />
+                      <span className="text-xs font-bold text-indigo-600">Uploading...</span>
+                    </div>
+                  ) : formData.doctorSignature ? (
+                    <div className="relative w-full flex flex-col items-center">
+                      <img src={formData.doctorSignature} alt="Doctor Signature" className="max-h-24 max-w-full object-contain" />
+                      <button 
+                        type="button" 
+                        onClick={() => setFormData(p => ({ ...p, doctorSignature: '' }))}
+                        className="mt-2 text-xs text-rose-600 font-bold hover:underline"
+                      >
+                        Remove Signature
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <FileText size={24} className="text-slate-300 mx-auto mb-1" />
+                      <span className="text-xs font-bold text-slate-600 block">Click to Upload Signature</span>
+                      <span className="text-[10px] text-slate-400">PNG / JPG up to 2MB</span>
+                    </div>
+                  )}
+                  <input type="file" onChange={(e) => handleStampUpload(e, 'doctorSignature')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={stampUploading} />
+                </div>
+              </div>
             </div>
           </div>
 

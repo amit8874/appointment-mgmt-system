@@ -1113,6 +1113,10 @@ export const medicalRecordApi = {
   update: async (id, recordData) => {
     const { data } = await api.put(`/medical-records/${id}`, recordData);
     return data;
+  },
+  delete: async (id) => {
+    const { data } = await api.delete(`/medical-records/${id}`);
+    return data;
   }
 };
 export const whatsappCreditsApi = {

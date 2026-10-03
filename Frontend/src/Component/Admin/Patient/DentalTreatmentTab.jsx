@@ -9,7 +9,11 @@ import {
   CheckCircle2, 
   AlertCircle,
   CreditCard,
-  Smile
+  Smile,
+  Eye,
+  Layers,
+  List,
+  X
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -44,6 +48,45 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
 
   // Selected treatments for multi-procedure billing
   const [selectedTreatments, setSelectedTreatments] = useState([]);
+
+  // View Mode: 'grouped' (default) or 'detailed'
+  const [viewMode, setViewMode] = useState('grouped');
+  const [expandedGroupTeeth, setExpandedGroupTeeth] = useState(null);
+
+  // Group treatments by procedure name
+  const groupedTreatments = React.useMemo(() => {
+    const groups = {};
+    (treatments || []).forEach(item => {
+      const procName = item.procedure || 'General Procedure';
+      if (!groups[procName]) {
+        groups[procName] = {
+          procedure: procName,
+          items: [],
+          teeth: [],
+          totalEst: 0,
+          totalDisc: 0,
+          totalNet: 0,
+          totalPaid: 0,
+          totalDue: 0,
+          statuses: new Set(),
+          priorities: new Set()
+        };
+      }
+      const g = groups[procName];
+      g.items.push(item);
+      if (item.toothNumber && !g.teeth.includes(item.toothNumber)) {
+        g.teeth.push(item.toothNumber);
+      }
+      g.totalEst += (item.estimatedCost || 0);
+      g.totalDisc += (item.discount || 0);
+      g.totalNet += (item.netAmount || 0);
+      g.totalPaid += (item.paidAmount || 0);
+      g.totalDue += (item.dueAmount || 0);
+      if (item.status) g.statuses.add(item.status);
+      if (item.priority) g.priorities.add(item.priority);
+    });
+    return Object.values(groups);
+  }, [treatments]);
 
   // Synchronize numbering system choice across other dental tabs dynamically
   useEffect(() => {
@@ -88,28 +131,52 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
 
   const handleLogPaymentSubmit = async (e) => {
     e.preventDefault();
-    if (!paymentAmount || Number(paymentAmount) <= 0) {
+    const pAmt = Number(paymentAmount);
+    if (!pAmt || isNaN(pAmt) || pAmt <= 0) {
       toast.error('Please enter a valid payment amount');
       return;
     }
 
     const currentDue = activeTreatment.dueAmount;
-    if (Number(paymentAmount) > currentDue) {
+    if (pAmt > currentDue + 0.01) {
       toast.error(`Payment amount cannot exceed remaining due (₹${currentDue})`);
       return;
     }
 
     setLoggingPayment(true);
     try {
-      const updatedPaidAmount = (activeTreatment.paidAmount || 0) + Number(paymentAmount);
-      const isFull = updatedPaidAmount >= activeTreatment.netAmount;
-      
-      await dentistApi.updateTreatment(activeTreatment._id, {
-        paidAmount: updatedPaidAmount,
-        status: isFull ? 'Completed' : activeTreatment.status
-      });
+      if (activeTreatment.isGroup) {
+        let remainingToAllocate = pAmt;
+        const itemsWithDue = [...activeTreatment.items].filter(i => (i.dueAmount || 0) > 0);
+        const savePromises = [];
 
-      toast.success(`Payment of ₹${paymentAmount} logged successfully!`);
+        for (const item of itemsWithDue) {
+          if (remainingToAllocate <= 0) break;
+          const payForItem = Math.min(item.dueAmount, Math.round(remainingToAllocate * 100) / 100);
+          remainingToAllocate = Math.max(0, Math.round((remainingToAllocate - payForItem) * 100) / 100);
+          const updatedPaidAmount = (item.paidAmount || 0) + payForItem;
+          const isFull = updatedPaidAmount >= item.netAmount;
+
+          savePromises.push(
+            dentistApi.updateTreatment(item._id, {
+              paidAmount: updatedPaidAmount,
+              status: isFull ? 'Completed' : item.status
+            })
+          );
+        }
+        await Promise.all(savePromises);
+        toast.success(`Payment of ₹${pAmt} logged successfully for ${activeTreatment.procedure}!`);
+      } else {
+        const updatedPaidAmount = (activeTreatment.paidAmount || 0) + pAmt;
+        const isFull = updatedPaidAmount >= activeTreatment.netAmount;
+
+        await dentistApi.updateTreatment(activeTreatment._id, {
+          paidAmount: updatedPaidAmount,
+          status: isFull ? 'Completed' : activeTreatment.status
+        });
+        toast.success(`Payment of ₹${pAmt} logged successfully!`);
+      }
+
       setActiveTreatment(null);
       setPaymentAmount('');
       fetchTreatments();
@@ -303,16 +370,45 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
 
   return (
     <div className="p-6 bg-white border border-slate-100 rounded-b-3xl mt-4 shadow-sm space-y-6">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
         <div className="flex items-center gap-2">
           <ClipboardList className="w-5 h-5 text-indigo-600" />
           <h3 className="text-sm font-black text-indigo-900 uppercase tracking-wider">
             Patient Treatment Plan & procedure Ledger
           </h3>
         </div>
-        <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-xs font-black rounded-xl">
-          {treatments.length} Active Procedures
-        </span>
+
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setViewMode('grouped')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border-none ${
+                viewMode === 'grouped'
+                  ? 'bg-white text-indigo-600 shadow-sm font-black'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Layers size={13} /> Grouped View
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('detailed')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border-none ${
+                viewMode === 'detailed'
+                  ? 'bg-white text-indigo-600 shadow-sm font-black'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <List size={13} /> Detailed View
+            </button>
+          </div>
+
+          <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-xs font-black rounded-xl">
+            {groupedTreatments.length} {groupedTreatments.length === 1 ? 'Procedure' : 'Procedures'} ({treatments.length} Teeth)
+          </span>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -359,7 +455,9 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
                     className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
                   />
                 </th>
-                <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tooth</th>
+                <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  {viewMode === 'grouped' ? 'Teeth' : 'Tooth'}
+                </th>
                 <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Procedure</th>
                 <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pricing (₹)</th>
                 <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
@@ -368,90 +466,239 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {treatments.map((item) => (
-                <tr key={item._id} className="hover:bg-slate-50/40 transition-colors">
-                  <td className="p-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedTreatments.includes(item._id)}
-                      onChange={() => handleToggleSelect(item._id)}
-                      className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
-                    />
-                  </td>
-                  <td className="p-3">
-                    <span 
-                      className="inline-flex px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 items-center justify-center font-black text-xs text-slate-700 shadow-sm"
-                      title={getToothDisplayName(item.toothNumber, numberingSystem)}
-                    >
-                      {getToothLabel(item.toothNumber, numberingSystem)}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <p className="font-black text-slate-800 text-sm">{item.procedure}</p>
-                    <p className="text-[10px] text-slate-400 font-bold">{item.notes || 'No description notes.'}</p>
-                  </td>
-                  <td className="p-3">
-                    <div className="text-xs space-y-0.5">
-                      <p className="font-bold text-slate-400">Est: <span className="font-black text-slate-700">₹{item.estimatedCost}</span></p>
-                      {item.discount > 0 && <p className="font-bold text-emerald-500">Disc: <span className="font-black">-₹{item.discount}</span></p>}
-                      <p className="font-bold text-indigo-500">Net: <span className="font-black">₹{item.netAmount}</span></p>
-                      <p className="font-bold text-slate-400">Paid: <span className="font-black text-emerald-600">₹{item.paidAmount}</span></p>
-                      {item.dueAmount > 0 && <p className="font-bold text-rose-500">Due: <span className="font-black">₹{item.dueAmount}</span></p>}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <button
-                      onClick={() => {
-                        setEditingStatusTreatment(item);
-                        setNewStatus(item.status);
-                      }}
-                      className={`inline-flex px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider transition-colors ${
-                        item.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100' :
-                        item.status === 'In Progress' ? 'bg-amber-50 text-amber-600 border border-amber-100 hover:bg-amber-100' :
-                        'bg-cyan-50 text-cyan-600 border border-cyan-100 hover:bg-cyan-100'
-                      }`}
-                    >
-                      {item.status}
-                    </button>
-                  </td>
-                  <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${
-                      item.priority === 'High' ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {item.priority}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleGenerateInvoice(item)}
-                        className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition-all"
-                        title="Generate Bill Invoice"
+              {viewMode === 'grouped' ? (
+                // --- GROUPED VIEW ---
+                groupedTreatments.map((group, idx) => {
+                  const groupItemIds = group.items.map(i => i._id);
+                  const isAllSelected = groupItemIds.every(id => selectedTreatments.includes(id));
+                  const isSomeSelected = groupItemIds.some(id => selectedTreatments.includes(id));
+                  const isPopoverOpen = expandedGroupTeeth === group.procedure;
+                  const statusList = Array.from(group.statuses).join(', ');
+                  const priorityList = Array.from(group.priorities).join(', ');
+
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/40 transition-colors">
+                      <td className="p-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          ref={el => { if (el) el.indeterminate = !isAllSelected && isSomeSelected; }}
+                          onChange={() => {
+                            if (isAllSelected) {
+                              setSelectedTreatments(prev => prev.filter(id => !groupItemIds.includes(id)));
+                            } else {
+                              setSelectedTreatments(prev => Array.from(new Set([...prev, ...groupItemIds])));
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                        />
+                      </td>
+                      <td className="p-3 relative">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedGroupTeeth(isPopoverOpen ? null : group.procedure)}
+                            className="inline-flex px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition-colors items-center gap-1.5 font-bold text-xs text-indigo-700 cursor-pointer shadow-sm"
+                            title="Click to view teeth list"
+                          >
+                            <span>Teeth ({group.teeth.length})</span>
+                            <Eye size={13} className="text-indigo-600" />
+                          </button>
+                        </div>
+
+                        {/* Teeth List Popover */}
+                        {isPopoverOpen && (
+                          <div className="absolute top-full left-0 z-50 mt-1 bg-slate-900 text-white p-3 rounded-2xl shadow-2xl min-w-[200px] border border-slate-700 animate-in fade-in zoom-in-95">
+                            <div className="font-bold text-[10px] text-teal-400 uppercase tracking-wider mb-2 flex items-center justify-between border-b border-slate-800 pb-1">
+                              <span>Teeth ({group.teeth.length})</span>
+                              <button onClick={() => setExpandedGroupTeeth(null)} className="text-slate-400 hover:text-white cursor-pointer">
+                                <X size={12} />
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto custom-scrollbar">
+                              {group.teeth.map(tNum => (
+                                <span key={tNum} className="px-2 py-0.5 bg-slate-800 text-white rounded-md font-semibold text-xs border border-slate-700">
+                                  Tooth #{getToothLabel(tNum, numberingSystem)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <p className="font-black text-slate-800 text-sm">{group.procedure}</p>
+                        <p className="text-[10px] text-slate-400 font-bold">
+                          {group.items[0]?.notes || `${group.items.length} tooth procedure(s)`}
+                        </p>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-xs space-y-0.5">
+                          <p className="font-bold text-slate-400">Est: <span className="font-black text-slate-700">₹{group.totalEst}</span></p>
+                          {group.totalDisc > 0 && <p className="font-bold text-emerald-500">Disc: <span className="font-black">-₹{group.totalDisc}</span></p>}
+                          <p className="font-bold text-indigo-500">Net: <span className="font-black">₹{group.totalNet}</span></p>
+                          <p className="font-bold text-slate-400">Paid: <span className="font-black text-emerald-600">₹{group.totalPaid}</span></p>
+                          {group.totalDue > 0 && <p className="font-bold text-rose-500">Due: <span className="font-black">₹{group.totalDue}</span></p>}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <span className={`inline-flex px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${
+                          statusList.includes('Completed') ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                          statusList.includes('In Progress') ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                          'bg-cyan-50 text-cyan-600 border border-cyan-100'
+                        }`}>
+                          {statusList || 'Planned'}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${
+                          priorityList.includes('High') ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {priorityList || 'Medium'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedTreatments(groupItemIds);
+                              handleGenerateInvoiceForSelected();
+                            }}
+                            className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition-all cursor-pointer"
+                            title="Generate Bill for Procedure Group"
+                          >
+                            <IndianRupee className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              const totalGroupDue = Math.round(group.totalDue * 100) / 100;
+                              setActiveTreatment({
+                                isGroup: true,
+                                procedure: group.procedure,
+                                teeth: group.teeth,
+                                dueAmount: totalGroupDue,
+                                netAmount: Math.round(group.totalNet * 100) / 100,
+                                paidAmount: Math.round(group.totalPaid * 100) / 100,
+                                items: group.items
+                              });
+                              setPaymentAmount(totalGroupDue.toString());
+                            }}
+                            disabled={group.totalDue === 0}
+                            className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all cursor-pointer"
+                            title="Record Payment for Procedure"
+                          >
+                            <CreditCard className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm(`Are you sure you want to delete "${group.procedure}" for all associated teeth?`)) return;
+                              for (const item of group.items) {
+                                await dentistApi.deleteTreatment(item._id);
+                              }
+                              toast.success(`Deleted procedure "${group.procedure}"`);
+                              fetchTreatments();
+                            }}
+                            className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-all cursor-pointer"
+                            title="Delete Procedure Group"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                // --- DETAILED VIEW ---
+                treatments.map((item) => (
+                  <tr key={item._id} className="hover:bg-slate-50/40 transition-colors">
+                    <td className="p-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedTreatments.includes(item._id)}
+                        onChange={() => handleToggleSelect(item._id)}
+                        className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <span 
+                        className="inline-flex px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 items-center justify-center font-black text-xs text-slate-700 shadow-sm"
+                        title={getToothDisplayName(item.toothNumber, numberingSystem)}
                       >
-                        <IndianRupee className="w-4 h-4" />
-                      </button>
+                        {getToothLabel(item.toothNumber, numberingSystem)}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <p className="font-black text-slate-800 text-sm">{item.procedure}</p>
+                      <p className="text-[10px] text-slate-400 font-bold">{item.notes || 'No description notes.'}</p>
+                    </td>
+                    <td className="p-3">
+                      <div className="text-xs space-y-0.5">
+                        <p className="font-bold text-slate-400">Est: <span className="font-black text-slate-700">₹{item.estimatedCost}</span></p>
+                        {item.discount > 0 && <p className="font-bold text-emerald-500">Disc: <span className="font-black">-₹{item.discount}</span></p>}
+                        <p className="font-bold text-indigo-500">Net: <span className="font-black">₹{item.netAmount}</span></p>
+                        <p className="font-bold text-slate-400">Paid: <span className="font-black text-emerald-600">₹{item.paidAmount}</span></p>
+                        {item.dueAmount > 0 && <p className="font-bold text-rose-500">Due: <span className="font-black">₹{item.dueAmount}</span></p>}
+                      </div>
+                    </td>
+                    <td className="p-3">
                       <button
                         onClick={() => {
-                          setActiveTreatment(item);
-                          setPaymentAmount(item.dueAmount.toString());
+                          setEditingStatusTreatment(item);
+                          setNewStatus(item.status);
                         }}
-                        disabled={item.dueAmount === 0}
-                        className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all"
-                        title="Record Local Payment"
+                        className={`inline-flex px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider transition-colors ${
+                          item.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100' :
+                          item.status === 'In Progress' ? 'bg-amber-50 text-amber-600 border border-amber-100 hover:bg-amber-100' :
+                          'bg-cyan-50 text-cyan-600 border border-cyan-100 hover:bg-cyan-100'
+                        }`}
                       >
-                        <CreditCard className="w-4 h-4" />
+                        {item.status}
                       </button>
-                      <button
-                        onClick={() => handleDelete(item._id)}
-                        className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-all"
-                        title="Delete Procedure"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${
+                        item.priority === 'High' ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {item.priority}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleGenerateInvoice(item)}
+                          className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition-all"
+                          title="Generate Bill Invoice"
+                        >
+                          <IndianRupee className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const itemDue = Math.round((item.dueAmount || 0) * 100) / 100;
+                            setActiveTreatment({
+                              ...item,
+                              isGroup: false,
+                              dueAmount: itemDue
+                            });
+                            setPaymentAmount(itemDue.toString());
+                          }}
+                          disabled={item.dueAmount === 0}
+                          className="p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all cursor-pointer"
+                          title="Record Local Payment"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item._id)}
+                          className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl transition-all"
+                          title="Delete Procedure"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -469,12 +716,19 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
             >
               <div className="bg-emerald-600 p-6 text-white flex justify-between items-center">
                 <div>
-                  <h4 className="text-lg font-black uppercase tracking-tight">Record Tooth Payment</h4>
-                  <p className="text-xs opacity-80 font-semibold">{getToothDisplayName(activeTreatment.toothNumber, numberingSystem)} • {activeTreatment.procedure}</p>
+                  <h4 className="text-lg font-black uppercase tracking-tight">
+                    {activeTreatment.isGroup ? 'Record Procedure Payment' : 'Record Tooth Payment'}
+                  </h4>
+                  <p className="text-xs opacity-80 font-semibold">
+                    {activeTreatment.isGroup
+                      ? `${activeTreatment.procedure} (${activeTreatment.teeth?.length || 0} ${activeTreatment.teeth?.length === 1 ? 'Tooth' : 'Teeth'})`
+                      : `${getToothDisplayName(activeTreatment.toothNumber, numberingSystem)} • ${activeTreatment.procedure}`
+                    }
+                  </p>
                 </div>
                 <button 
                   onClick={() => setActiveTreatment(null)}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-all font-bold"
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all font-bold cursor-pointer"
                 >
                   ✕
                 </button>

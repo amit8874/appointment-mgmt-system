@@ -61,6 +61,12 @@ const resolveDoctorPhoto = async (doctor) => {
   if (docObj.photo) {
     docObj.photo = await resolveS3UrlIfNeeded(docObj.photo);
   }
+  if (docObj.doctorStamp) {
+    docObj.doctorStamp = await resolveS3UrlIfNeeded(docObj.doctorStamp);
+  }
+  if (docObj.doctorSignature) {
+    docObj.doctorSignature = await resolveS3UrlIfNeeded(docObj.doctorSignature);
+  }
   if (docObj.clinicImages && Array.isArray(docObj.clinicImages)) {
     try {
       docObj.clinicImages = await Promise.all(
@@ -225,7 +231,9 @@ export const getGlobalPublicDoctors = async (req, res) => {
         status: doctor.status,
         organizationId: doctor.organizationId,
         likesPercentage: doctor.likesPercentage || 0,
-        totalStories: doctor.totalStories || 0
+        totalStories: doctor.totalStories || 0,
+        doctorStamp: await resolveS3UrlIfNeeded(doctor.doctorStamp),
+        doctorSignature: await resolveS3UrlIfNeeded(doctor.doctorSignature)
       };
     }));
 
@@ -325,6 +333,8 @@ export const getPublicDoctors = async (req, res) => {
         clinicName: displayClinic,
         phone: doctor.phone,
         status: doctor.status,
+        doctorStamp: await resolveS3UrlIfNeeded(doctor.doctorStamp),
+        doctorSignature: await resolveS3UrlIfNeeded(doctor.doctorSignature)
       };
     }));
 
@@ -717,6 +727,8 @@ export const getAllDoctors = async (req, res) => {
       idNumber: doctor.idNumber,
       idDocumentUrl: doctor.idDocumentUrl,
       serviceLocation: doctor.serviceLocation,
+      doctorStamp: await resolveS3UrlIfNeeded(doctor.doctorStamp),
+      doctorSignature: await resolveS3UrlIfNeeded(doctor.doctorSignature),
     })));
 
     res.json({
