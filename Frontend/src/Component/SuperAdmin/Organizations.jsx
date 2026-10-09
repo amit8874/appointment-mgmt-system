@@ -18,7 +18,7 @@ const Organizations = () => {
     upgraded: 0
   });
   const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({ status: '', search: '', page: 1 });
+  const [filters, setFilters] = useState({ status: '', search: '', includeBranches: 'false', page: 1 });
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1, currentPage: 1 });
   const [processingId, setProcessingId] = useState(null);
   const [showTrialModal, setShowTrialModal] = useState(false);
@@ -31,6 +31,12 @@ const Organizations = () => {
   const [selectedDuration, setSelectedDuration] = useState(1);
   const [startDateOption, setStartDateOption] = useState('today');
   const [customStartDate, setCustomStartDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Delete Organization States
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [orgToDelete, setOrgToDelete] = useState(null);
+  const [confirmDeleteInput, setConfirmDeleteInput] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -185,6 +191,35 @@ const Organizations = () => {
     setStartDateOption('today');
     setCustomStartDate(new Date().toISOString().split('T')[0]);
     setShowPlanModal(true);
+  };
+
+  const openDeleteModal = (e, org) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    setOrgToDelete(org);
+    setConfirmDeleteInput('');
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteOrganization = async () => {
+    if (!orgToDelete) return;
+    if (confirmDeleteInput.trim().toLowerCase() !== orgToDelete.name.trim().toLowerCase()) {
+      alert(`Please type "${orgToDelete.name}" accurately to confirm permanent deletion.`);
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      await superAdminApi.deleteOrganization(orgToDelete._id);
+      alert(`Organization "${orgToDelete.name}" and all associated data have been permanently deleted.`);
+      setShowDeleteModal(false);
+      setOrgToDelete(null);
+      fetchOrganizations();
+      fetchStats();
+    } catch (err) {
+      alert('Failed to delete organization: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getDisplayStatus = (org) => {
@@ -393,9 +428,17 @@ const Organizations = () => {
               <option value="free">Free Plan</option>
               <option value="upgraded">Paid Plan</option>
             </select>
-            <div className="md:col-span-2 flex items-center justify-end">
-              <span className="text-sm text-gray-500">
-                Total: {pagination.total} organizations
+            <select
+              value={filters.includeBranches}
+              onChange={(e) => setFilters({ ...filters, includeBranches: e.target.value, page: 1 })}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-sm text-gray-700"
+            >
+              <option value="false">Parent Clinics Only (Default)</option>
+              <option value="true">Include All Branches</option>
+            </select>
+            <div className="flex items-center justify-end">
+              <span className="text-sm font-semibold text-gray-600">
+                Total: {pagination.total} Organization{pagination.total !== 1 ? 's' : ''}
               </span>
             </div>
           </div>
@@ -429,7 +472,21 @@ const Organizations = () => {
                             {org.name?.charAt(0).toUpperCase() || 'O'}
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-semibold text-gray-900">{org.name}</div>
+                            <div className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                              {org.name}
+                              {(org.isBranch || org.parentOrganizationId) && (
+                                <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded-full border border-blue-200" title={`Branch of ${org.parentOrganizationId?.name || 'Main Clinic'}`}>
+                                  Branch of {org.parentOrganizationId?.name || 'Main Clinic'}
+                                </span>
+                              )}
+                            </div>
+                            {org.branches && org.branches.length > 0 && (
+                              <div className="text-[11px] text-indigo-600 font-semibold mt-0.5 flex items-center gap-1">
+                                <span className="bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                  🏢 {org.branches.length} Branch{org.branches.length > 1 ? 'es' : ''}: {org.branches.map(b => b.name).join(', ')}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -520,6 +577,19 @@ const Organizations = () => {
                               <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5 10a5 5 0 1110 0 5 5 0 01-10 0z" clipRule="evenodd" />
                             </svg>
                             Upgrade Plan
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => openDeleteModal(e, org)}
+                            disabled={isProcessing}
+                            className="inline-flex items-center px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition text-sm font-medium border border-red-200"
+                            title="Permanently Delete Organization"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            Delete
                           </button>
                         </div>
                       </td>
@@ -825,6 +895,87 @@ const Organizations = () => {
                   type="button"
                   onClick={() => setShowPlanModal(false)}
                   className="inline-flex justify-center rounded-xl px-6 py-2.5 bg-white text-xs font-bold text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Organization Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity z-[10000]" 
+            onClick={() => !isDeleting && setShowDeleteModal(false)}
+          ></div>
+          
+          <div className="relative w-full max-w-lg mx-auto z-[10001] transform transition-all duration-300">
+            <div className="bg-white rounded-3xl shadow-2xl border border-red-100 overflow-hidden">
+              <div className="p-8">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl bg-red-100 text-red-600 shadow-inner">
+                    <svg className="h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+                      Delete Organization Permanently
+                    </h3>
+                    <p className="text-red-600 font-bold text-sm">
+                      This action cannot be undone!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-red-50 rounded-2xl border border-red-200">
+                    <p className="text-xs text-red-900 font-medium leading-relaxed">
+                      You are about to permanently delete <strong className="font-bold underline">{orgToDelete?.name}</strong>. 
+                      All associated users, doctors, staff, patients, appointments, medical records, billing invoices, prescriptions, and inventory will be <span className="font-bold uppercase tracking-wider text-red-700">permanently wiped out from the system</span>.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">
+                      To confirm, type <span className="text-red-600 font-bold select-all">"{orgToDelete?.name}"</span> below:
+                    </label>
+                    <input
+                      type="text"
+                      value={confirmDeleteInput}
+                      onChange={(e) => setConfirmDeleteInput(e.target.value)}
+                      placeholder={orgToDelete?.name}
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-red-500/20 focus:border-red-500 transition-all outline-none font-medium text-gray-900 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 px-8 py-5 flex flex-row-reverse gap-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleDeleteOrganization}
+                  disabled={isDeleting || confirmDeleteInput.trim().toLowerCase() !== orgToDelete?.name?.trim().toLowerCase()}
+                  className="inline-flex justify-center items-center rounded-xl px-6 py-3 bg-red-600 text-sm font-bold text-white hover:bg-red-700 focus:outline-none transition-all shadow-lg shadow-red-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4" />
+                      </svg>
+                      Deleting Everything...
+                    </span>
+                  ) : 'Permanently Delete'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                  className="inline-flex justify-center rounded-xl px-6 py-3 bg-white text-sm font-bold text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>

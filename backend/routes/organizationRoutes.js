@@ -15,6 +15,7 @@ import {
   resendRegistrationOTP,
   createBranchOrganization
 } from '../controllers/organizationController.js';
+import { deleteOrganization } from '../controllers/superAdminController.js';
 
 const router = express.Router();
 
@@ -62,6 +63,13 @@ router.put('/:id', authenticateToken, detectTenant, loadTenant, updateOrganizati
  * @access  Super Admin
  */
 router.patch('/:id/status', authenticateToken, requireSuperAdmin, updateOrganizationStatus);
+
+/**
+ * @route   DELETE /api/organizations/:id
+ * @desc    Permanently delete organization (Super Admin only)
+ * @access  Super Admin
+ */
+router.delete('/:id', authenticateToken, requireSuperAdmin, deleteOrganization);
 
 /**
  * @route   GET /api/organizations/:id/stats

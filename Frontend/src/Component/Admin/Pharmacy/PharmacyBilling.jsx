@@ -248,7 +248,7 @@ const PharmacyBilling = () => {
       alert('Bill generated successfully!');
 
       if (action === 'Print') {
-        setTimeout(() => window.print(), 500);
+        setTimeout(() => window.print(), 2000);
       }
 
       setItems([]);

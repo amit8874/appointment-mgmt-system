@@ -131,6 +131,16 @@ const organizationSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  // Parent organization reference for multi-branch clinics
+  parentOrganizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization',
+    default: null,
+  },
+  isBranch: {
+    type: Boolean,
+    default: false,
+  },
   // Status
   status: {
     type: String,
@@ -310,6 +320,7 @@ organizationSchema.pre('save', async function (next) {
 organizationSchema.index({ slug: 1 });
 organizationSchema.index({ subdomain: 1 });
 organizationSchema.index({ ownerId: 1 });
+organizationSchema.index({ parentOrganizationId: 1 });
 organizationSchema.index({ status: 1 });
 
 export default mongoose.model('Organization', organizationSchema);

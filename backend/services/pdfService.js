@@ -29,8 +29,19 @@ const getBase64Image = async (filePath) => {
         timeout: 5000 // 5 second timeout for image fetching
       });
       const buffer = Buffer.from(response.data, 'binary');
-      const ext = resolvedPath.split('?')[0].split('.').pop() || 'png';
-      return `data:image/${ext};base64,${buffer.toString('base64')}`;
+      
+      let mimeType = response.headers['content-type'] || response.headers['Content-Type'];
+      if (!mimeType || !mimeType.startsWith('image/')) {
+        const cleanUrl = resolvedPath.split('?')[0].toLowerCase();
+        if (cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg')) mimeType = 'image/jpeg';
+        else if (cleanUrl.endsWith('.png')) mimeType = 'image/png';
+        else if (cleanUrl.endsWith('.webp')) mimeType = 'image/webp';
+        else if (cleanUrl.endsWith('.svg')) mimeType = 'image/svg+xml';
+        else mimeType = 'image/png';
+      }
+      if (mimeType === 'image/jpg') mimeType = 'image/jpeg';
+
+      return `data:${mimeType};base64,${buffer.toString('base64')}`;
     }
 
     // Fix for Windows: ensure we don't treat '/uploads/...' as root of the E: drive
@@ -46,8 +57,11 @@ const getBase64Image = async (filePath) => {
     
     if (fs.existsSync(absolutePath)) {
       const fileBuffer = fs.readFileSync(absolutePath);
-      const ext = path.extname(absolutePath).slice(1) || 'png';
-      return `data:image/${ext};base64,${fileBuffer.toString('base64')}`;
+      let ext = path.extname(absolutePath).slice(1).toLowerCase() || 'png';
+      if (ext === 'jpg') ext = 'jpeg';
+      let mimeType = `image/${ext}`;
+      if (ext === 'svg') mimeType = 'image/svg+xml';
+      return `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
     }
   } catch (err) {
     console.error("Base64 conversion error in pdfService:", err.message);
@@ -228,9 +242,42 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
     ? await getBase64Image(template.headerImage) 
     : (org?.branding?.logo ? await getBase64Image(org.branding.logo) : (org?.logo ? await getBase64Image(org.logo) : null));
     
-  const signatureBase64 = (template?.footerType === 'custom' && template?.footerImage)
+  let stampBase64 = null;
+  let signatureBase64 = (template?.footerType === 'custom' && template?.footerImage)
     ? await getBase64Image(template.footerImage)
-    : (org?.doctorSignature ? await getBase64Image(org.doctorSignature) : null);
+    : null;
+
+  let stampPath = bill.doctorStamp;
+  let signaturePath = bill.doctorSignature;
+
+  if (!stampPath || (!signaturePath && template?.footerType !== 'custom')) {
+    try {
+      const Doctor = mongoose.model('Doctor');
+      const docWithAssets = await Doctor.findOne({
+        organizationId: bill.organizationId || org._id,
+        $or: [
+          { doctorStamp: { $ne: null, $exists: true, $ne: '' } },
+          { doctorSignature: { $ne: null, $exists: true, $ne: '' } }
+        ]
+      }).lean();
+      if (docWithAssets) {
+        if (!stampPath) stampPath = docWithAssets.doctorStamp;
+        if (!signaturePath && template?.footerType !== 'custom') signaturePath = docWithAssets.doctorSignature;
+      }
+    } catch (e) {
+      console.warn("Could not load fallback doctor assets in pharmacy pdfService:", e.message);
+    }
+  }
+
+  if (!signaturePath && !signatureBase64) {
+    signaturePath = org.doctorSignature;
+  }
+  if (!stampPath) {
+    stampPath = org.stamp;
+  }
+
+  if (stampPath) stampBase64 = await getBase64Image(stampPath);
+  if (signaturePath && !signatureBase64) signatureBase64 = await getBase64Image(signaturePath);
   
   // Safety parse metadata if it comes as a string
   let metadata = template?.metadata || {};
@@ -334,7 +381,7 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
         .amount-value { font-weight: bold; width: 80px; text-align: right; }
         .balance-row { border-top: 1px solid #000; margin-top: 2px; padding-top: 2px; }
         .signature-section { position: absolute; bottom: 40px; right: 30px; text-align: right; }
-        .signature-img { width: 90px; height: auto; }
+        .signature-img { width: 90px; height: auto; background-color: transparent; }
       </style>
     </head>
     <body>
@@ -440,7 +487,12 @@ async function getOviaanDefaultPharmacyHtml(bill, org, template) {
             <div class="amount-row balance-row"><span class="amount-label">NET PAYABLE :</span><span class="amount-value">₹${formatCurrency(finalTotal)}</span></div>
           </div>
         </div>
-        ${signatureBase64 ? `<div class="signature-section"><img src="${signatureBase64}" class="signature-img" /></div>` : ''}
+        ${(stampBase64 || signatureBase64) ? `
+          <div class="signature-section" style="display: flex; align-items: flex-end; justify-content: flex-end; gap: 10px;">
+            ${stampBase64 ? `<img src="${stampBase64}" class="signature-img" style="max-height: 80px; max-width: 120px;" />` : ''}
+            ${signatureBase64 ? `<img src="${signatureBase64}" class="signature-img" style="max-height: 70px; max-width: 140px;" />` : ''}
+          </div>
+        ` : ''}
       </div>
     </body>
     </html>
@@ -517,8 +569,13 @@ async function getInvoiceHtml(bill, org, template) {
   // Doctor Details
   const isManomay = String(clinicName).toLowerCase().includes('manomay');
   const attendingDoctorName = doctorDetails?.name || bill.doctorName || (isManomay ? 'Parimal Anand' : 'Attending Doctor');
-  const attendingDoctorSpecialization = doctorDetails?.specialization 
-    ? `( ${doctorDetails.specialization} )` 
+  const rawDoctorSpec = doctorDetails?.specialization || doctorDetails?.specialty || doctorDetails?.department || bill.doctorSpecialization || bill.specialty || '';
+  let formattedSpec = rawDoctorSpec.trim();
+  if (formattedSpec.toLowerCase() === 'dental' || formattedSpec.toLowerCase() === 'dentist') {
+    formattedSpec = 'Dental Surgeon';
+  }
+  const attendingDoctorSpecialization = formattedSpec 
+    ? `( ${formattedSpec} )` 
     : (isManomay ? '( Periodontist, Oral Implantologist & Laser Specialist )' : '');
   const attendingDoctorQualification = doctorDetails?.qualification 
     ? doctorDetails.qualification 
@@ -529,37 +586,51 @@ async function getInvoiceHtml(bill, org, template) {
         ? `Reg. No.${doctorDetails.licenseNumber}` 
         : (isManomay ? 'Reg. No.A-14880' : ''));
 
-  // Doctor Stamp / Signature resolution
+  // Doctor Stamp & Signature resolution
   let stampBase64 = null;
-  let stampPath = bill.doctorStamp || bill.doctorSignature || doctorDetails?.doctorStamp || doctorDetails?.doctorSignature;
+  let signatureBase64 = null;
+  let stampPath = bill.doctorStamp || doctorDetails?.doctorStamp;
+  let signaturePath = bill.doctorSignature || doctorDetails?.doctorSignature;
   
-  if (!stampPath) {
+  if (!stampPath || !signaturePath) {
     try {
       const Doctor = mongoose.model('Doctor');
-      const docWithStamp = await Doctor.findOne({
+      const docWithAssets = await Doctor.findOne({
         organizationId: bill.organizationId || org._id,
         $or: [
           { doctorStamp: { $ne: null, $exists: true, $ne: '' } },
           { doctorSignature: { $ne: null, $exists: true, $ne: '' } }
         ]
       }).lean();
-      if (docWithStamp) {
-        stampPath = docWithStamp.doctorStamp || docWithStamp.doctorSignature;
+      if (docWithAssets) {
+        if (!stampPath) stampPath = docWithAssets.doctorStamp;
+        if (!signaturePath) signaturePath = docWithAssets.doctorSignature;
       }
     } catch (e) {
       console.warn("Could not load fallback doctor stamp in pdfService:", e.message);
     }
   }
 
-  if (!stampPath) {
-    stampPath = org.doctorSignature || org.stamp;
+  if (!signaturePath && org.doctorSignature) {
+    signaturePath = org.doctorSignature;
+  }
+  if (!stampPath && org.stamp) {
+    stampPath = org.stamp;
   }
 
   if (stampPath) {
     try {
       stampBase64 = await getBase64Image(stampPath);
     } catch (e) {
-      console.warn("Could not load doctor stamp/signature:", e.message);
+      console.warn("Could not load doctor stamp:", e.message);
+    }
+  }
+
+  if (signaturePath) {
+    try {
+      signatureBase64 = await getBase64Image(signaturePath);
+    } catch (e) {
+      console.warn("Could not load doctor signature:", e.message);
     }
   }
 
@@ -1051,9 +1122,10 @@ async function getInvoiceHtml(bill, org, template) {
                   <td class="summary-value">${formatCurrency(balanceAmount)} INR</td>
                 </tr>
               </table>
-              ${stampBase64 ? `
-              <div style="margin-top: 25px; margin-bottom: -5px; text-align: right;">
-                <img src="${stampBase64}" style="max-height: 120px; max-width: 220px; object-fit: contain; margin-left: auto; display: inline-block;" alt="Doctor Stamp & Signature" />
+              ${(stampBase64 || signatureBase64) ? `
+              <div style="margin-top: 20px; margin-bottom: -5px; display: flex; align-items: flex-end; justify-content: flex-end; gap: 15px;">
+                ${stampBase64 ? `<img src="${stampBase64}" style="max-height: 90px; max-width: 140px; object-fit: contain; background-color: transparent;" alt="Doctor Stamp" />` : ''}
+                ${signatureBase64 ? `<img src="${signatureBase64}" style="max-height: 80px; max-width: 160px; object-fit: contain; background-color: transparent;" alt="Doctor Signature" />` : ''}
               </div>
               ` : ''}
             </div>
@@ -1477,7 +1549,11 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   // Doctor Details
   const doctorName = doctorDetails.doctorName || prescriptionData?.doctorName || parsedData?.doctorName || 'Doctor';
   const doctorQualification = doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || doctorDetails.qualification || '';
-  const doctorSpecialization = doctorDetails.doctorSpecialization || doctorDetails.specialty || prescriptionData?.doctorSpecialization || prescriptionData?.specialty || parsedData?.doctorSpecialization || parsedData?.specialty || '';
+  let rawPrescSpec = doctorDetails.doctorSpecialization || doctorDetails.specialty || prescriptionData?.doctorSpecialization || prescriptionData?.specialty || parsedData?.doctorSpecialization || parsedData?.specialty || '';
+  if (rawPrescSpec.trim().toLowerCase() === 'dental' || rawPrescSpec.trim().toLowerCase() === 'dentist') {
+    rawPrescSpec = 'Dental Surgeon';
+  }
+  const doctorSpecialization = rawPrescSpec;
   const doctorEmail = doctorDetails.doctorEmail || prescriptionData?.doctorEmail || '';
 
   // Organization & Clinic Details

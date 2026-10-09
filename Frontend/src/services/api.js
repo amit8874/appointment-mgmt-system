@@ -739,6 +739,10 @@ export const superAdminApi = {
     const { data } = await api.patch(`/superadmin/organizations/${id}/status`, { status });
     return data;
   },
+  deleteOrganization: async (id) => {
+    const { data } = await api.delete(`/superadmin/organizations/${id}`);
+    return data;
+  },
   overrideSubscription: async (orgId, overrideData) => {
     const { data } = await api.put(`/superadmin/organizations/${orgId}/subscription/override`, overrideData);
     return data;
@@ -798,6 +802,10 @@ export const superAdminApi = {
   },
   createPublicDoctorProfile: async (doctorData) => {
     const { data } = await api.post('/superadmin/doctors/create-profile', doctorData);
+    return data;
+  },
+  toggleDoctorBookingVisibility: async (doctorId, hideBookAppointment) => {
+    const { data } = await api.patch(`/superadmin/doctors/${doctorId}/toggle-booking`, { hideBookAppointment });
     return data;
   },
 };

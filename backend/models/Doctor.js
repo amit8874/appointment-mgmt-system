@@ -211,6 +211,10 @@ const doctorSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  hideBookAppointment: {
+    type: Boolean,
+    default: false,
+  },
   appointmentInfo: {
     type: String,
     advanceBooking: Boolean,

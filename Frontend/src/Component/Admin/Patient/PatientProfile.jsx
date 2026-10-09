@@ -4723,7 +4723,7 @@ const PatientProfile = () => {
     setPrintingInvoice(bill);
     setTimeout(() => {
       window.print();
-    }, 500);
+    }, 2000);
   };
 
   const handleInvoiceWhatsApp = async (bill) => {

@@ -239,9 +239,12 @@ const PatientStoriesModal = ({ doctor, isOpen, onClose }) => {
 
   const handleSubmitReview = async (e) => {
     e.preventDefault();
+    if (!name || !name.trim()) {
+      setLoginError("Please enter your full name to submit a review.");
+      return;
+    }
     if (!agreed) {
       setLoginError("Please agree to the Terms and Conditions to continue.");
-      setIsSubmitting(false);
       return;
     }
     setIsSubmitting(true);
@@ -252,24 +255,24 @@ const PatientStoriesModal = ({ doctor, isOpen, onClose }) => {
       
       // 1. Handle Quick Login if not authenticated
       if (!isAuthenticated) {
-        if (!name || !mobile || mobile.length < 10) {
-          setLoginError("Please provide both name and 10-digit mobile number.");
+        if (!name.trim() || !mobile || mobile.length < 10) {
+          setLoginError("Please provide both full name and 10-digit mobile number.");
           setIsSubmitting(false);
           return;
         }
         
-        const loginRes = await api.post('/auth/quick-login', { name, mobile });
+        const loginRes = await api.post('/auth/quick-login', { name: name.trim(), mobile });
         authLogin(loginRes.data); // Update AuthContext
         currentUser = loginRes.data.user;
       }
 
       // 2. Submit Review
-      // Get the fresh token from local/session storage since authLogin might not have populated it in state instantly
       const token = sessionStorage.getItem('token') || localStorage.getItem('token');
       
       await api.post(`/doctors/${doctor._id}/reviews`, { 
+        name: name.trim(),
         rating, 
-        comment 
+        comment: comment.trim() 
       }, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -382,40 +385,28 @@ const PatientStoriesModal = ({ doctor, isOpen, onClose }) => {
               )}
 
               <div className="space-y-4">
-                {!isAuthenticated ? (
-                  <>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Full Name</label>
-                      <input 
-                        type="text" 
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Your Name (e.g. Amit)"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-none text-sm font-bold text-slate-800 outline-none focus:border-[#14bef0] transition-colors"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Mobile Number</label>
-                      <input 
-                        type="tel" 
-                        value={mobile}
-                        onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0,10))}
-                        placeholder="10-digit mobile"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-none text-sm font-bold text-slate-800 outline-none focus:border-[#14bef0] transition-colors"
-                        required
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="p-4 bg-slate-50 border border-slate-100 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-[#14bef0]/10 flex items-center justify-center text-[#14bef0] font-black">
-                      {user.name ? user.name[0].toUpperCase() : 'U'}
-                    </div>
-                    <div>
-                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Posting as</p>
-                       <p className="text-sm font-black text-slate-800 leading-none">{user.name}</p>
-                    </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Full Name *</label>
+                  <input 
+                    type="text" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Your Full Name (e.g. Amit Kumar)"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-none text-sm font-bold text-slate-800 outline-none focus:border-[#14bef0] transition-colors"
+                    required
+                  />
+                </div>
+                {!isAuthenticated && (
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Mobile Number *</label>
+                    <input 
+                      type="tel" 
+                      value={mobile}
+                      onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0,10))}
+                      placeholder="10-digit mobile"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-none text-sm font-bold text-slate-800 outline-none focus:border-[#14bef0] transition-colors"
+                      required
+                    />
                   </div>
                 )}
 
@@ -963,20 +954,22 @@ const FindDoctors = () => {
                         <Calendar size={14} className="fill-green-600/10" />
                         Available Today
                      </div>
-                     <button 
-                      onClick={() => {
-                        setExpandedDoctorId(expandedDoctorId === doctor._id ? null : doctor._id);
-                        setExpandedContactId(null);
-                      }}
-                      className={`w-full py-2.5 font-bold rounded text-sm transition-all shadow-md active:scale-95 ${
-                        expandedDoctorId === doctor._id 
-                        ? "bg-slate-100 text-slate-600 border border-slate-200" 
-                        : "bg-[#14bef0] text-white hover:bg-[#079cc7]"
-                      }`}
-                     >
-                        {expandedDoctorId === doctor._id ? "Close Slots" : "Book Clinic Visit"}
-                        <div className="text-[10px] font-normal opacity-80 -mt-0.5">No Booking Fee</div>
-                     </button>
+                     {!doctor.hideBookAppointment && (
+                       <button 
+                        onClick={() => {
+                          setExpandedDoctorId(expandedDoctorId === doctor._id ? null : doctor._id);
+                          setExpandedContactId(null);
+                        }}
+                        className={`w-full py-2.5 font-bold rounded text-sm transition-all shadow-md active:scale-95 ${
+                          expandedDoctorId === doctor._id 
+                          ? "bg-slate-100 text-slate-600 border border-slate-200" 
+                          : "bg-[#14bef0] text-white hover:bg-[#079cc7]"
+                        }`}
+                       >
+                          {expandedDoctorId === doctor._id ? "Close Slots" : "Book Clinic Visit"}
+                          <div className="text-[10px] font-normal opacity-80 -mt-0.5">No Booking Fee</div>
+                       </button>
+                     )}
                      <button 
                       onClick={() => {
                         setExpandedContactId(expandedContactId === doctor._id ? null : doctor._id);
@@ -995,19 +988,20 @@ const FindDoctors = () => {
                 </div>
 
                 {/* Expanded Slot Selector */}
-                <motion.div
-                  initial={false}
-                  animate={{ height: expandedDoctorId === doctor._id ? "auto" : 0, opacity: expandedDoctorId === doctor._id ? 1 : 0 }}
-                  className="overflow-hidden"
-                >
-                  <SlotSelector 
-                    doctorId={doctor._id} 
-                    onSelect={(date, slot) => {
-                      navigate(`/booking/checkout/${doctor._id}?date=${date}&slot=${slot}`);
-                    }} 
-                  />
-
-                </motion.div>
+                {!doctor.hideBookAppointment && (
+                  <motion.div
+                    initial={false}
+                    animate={{ height: expandedDoctorId === doctor._id ? "auto" : 0, opacity: expandedDoctorId === doctor._id ? 1 : 0 }}
+                    className="overflow-hidden"
+                  >
+                    <SlotSelector 
+                      doctorId={doctor._id} 
+                      onSelect={(date, slot) => {
+                        navigate(`/booking/checkout/${doctor._id}?date=${date}&slot=${slot}`);
+                      }} 
+                    />
+                  </motion.div>
+                )}
 
                 {/* Expanded Contact Clinic */}
                 <motion.div

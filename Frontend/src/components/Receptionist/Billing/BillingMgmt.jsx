@@ -175,6 +175,8 @@ const transformApiData = (apiBill) => {
       amount: normalized.grandTotal,
       status: apiBill.status,
       patientPhone: apiBill.patientPhone || '',
+      doctorStamp: apiBill.doctorStamp || apiBill.doctorDetails?.doctorStamp,
+      doctorSignature: apiBill.doctorSignature || apiBill.doctorDetails?.doctorSignature,
       billType: 'Pharmacy',
       items: normalized.items,
       installments: apiBill.installments || [],
@@ -218,6 +220,8 @@ const transformApiData = (apiBill) => {
     amount: apiBill.amount,
     status: apiBill.status,
     patientPhone: apiBill.patientPhone || '',
+    doctorStamp: apiBill.doctorStamp || apiBill.doctorDetails?.doctorStamp,
+    doctorSignature: apiBill.doctorSignature || apiBill.doctorDetails?.doctorSignature,
     billType: apiBill.billType || 'General',
     items: apiBill.items || [],
     installments: apiBill.installments || [],
@@ -1135,7 +1139,7 @@ const BillingMgmt = () => {
 
   useEffect(() => {
     if (!printingInvoice) return;
-    const timeout = setTimeout(() => { window.print(); setPrintingInvoice(null); }, 1500);
+    const timeout = setTimeout(() => { window.print(); setPrintingInvoice(null); }, 2000);
     return () => clearTimeout(timeout);
   }, [printingInvoice]);
 

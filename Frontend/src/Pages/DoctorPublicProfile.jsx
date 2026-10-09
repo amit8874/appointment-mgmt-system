@@ -277,6 +277,10 @@ const DoctorPublicProfile = () => {
 
   const handleSubmitReview = async (e) => {
     e.preventDefault();
+    if (!name || !name.trim()) {
+      setReviewError("Please enter your full name before submitting review.");
+      return;
+    }
     if (!agreed) {
       setReviewError("Please agree to the Terms and Conditions to submit review.");
       return;
@@ -312,6 +316,7 @@ const DoctorPublicProfile = () => {
       }
 
       await api.post(`/doctors/${doctor._id}/reviews`, {
+        name: name.trim(),
         rating,
         comment: comment.trim()
       });
@@ -560,21 +565,21 @@ const DoctorPublicProfile = () => {
                   </div>
                 )}
 
-                {!isAuthenticated && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Full Name *</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your Full Name (e.g. Amit Kumar)"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-xs font-bold text-slate-700"
+                    />
+                  </div>
+                  {!isAuthenticated && (
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Full Name</label>
-                      <input 
-                        type="text" 
-                        required
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Your Name"
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-xs font-bold text-slate-700"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Mobile Number</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Mobile Number *</label>
                       <input 
                         type="tel" 
                         required
@@ -584,8 +589,8 @@ const DoctorPublicProfile = () => {
                         className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none text-xs font-bold text-slate-700"
                       />
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Rating</label>
@@ -641,14 +646,27 @@ const DoctorPublicProfile = () => {
             </div>
           </div>
 
-          {/* Right Column: Slot Selector Card */}
+          {/* Right Column: Slot Selector Card or Direct Contact Info */}
           <div className="space-y-8">
-            <SlotSelector 
-              doctorId={doctor._id}
-              onSelect={(date, slot) => {
-                navigate(`/booking/checkout/${doctor._id}?date=${date}&slot=${slot}`);
-              }}
-            />
+            {!doctor.hideBookAppointment ? (
+              <SlotSelector 
+                doctorId={doctor._id}
+                onSelect={(date, slot) => {
+                  navigate(`/booking/checkout/${doctor._id}?date=${date}&slot=${slot}`);
+                }}
+              />
+            ) : (
+              <div className="border border-amber-200 rounded-2xl p-6 bg-amber-50/70 shadow-sm space-y-3">
+                <div className="flex items-center gap-2 text-amber-800 font-black text-sm uppercase tracking-wide">
+                  <Phone size={18} className="text-amber-600" />
+                  Online Booking Disabled
+                </div>
+                <p className="text-xs text-amber-900/80 font-medium leading-relaxed">
+                  Direct website slot booking is currently turned off for <span className="font-bold">{doctor.name}</span>. 
+                  Please call the clinic directly or visit in person to schedule your consultation.
+                </p>
+              </div>
+            )}
 
             {/* Quick Contact Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">

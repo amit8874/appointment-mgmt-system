@@ -469,7 +469,9 @@ export const generateComparisonPdf = async (req, res) => {
       try {
         const response = await axios.get(url, { responseType: 'arraybuffer' });
         const buffer = Buffer.from(response.data, 'binary');
-        return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+        let mimeType = response.headers['content-type'] || 'image/png';
+        if (mimeType === 'image/jpg') mimeType = 'image/jpeg';
+        return `data:${mimeType};base64,${buffer.toString('base64')}`;
       } catch (err) {
         console.error('Base64 error:', err.message);
         return null;

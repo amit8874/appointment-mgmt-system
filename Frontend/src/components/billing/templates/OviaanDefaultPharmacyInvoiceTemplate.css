@@ -227,6 +227,7 @@
 .oviaan-doctor-signature {
     width: 90px;
     height: auto;
+    background-color: transparent;
 }
 
 @media print {

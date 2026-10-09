@@ -4,7 +4,7 @@ const reviewSchema = new mongoose.Schema({
   organizationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Organization',
-    required: true,
+    required: false,
   },
   doctorId: {
     type: String, // Consistent with doctorId in Doctor model

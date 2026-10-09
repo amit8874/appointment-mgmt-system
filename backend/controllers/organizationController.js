@@ -849,41 +849,66 @@ export const createBranchOrganization = async (req, res) => {
       generatedSlug = `${generatedSlug}-${Date.now()}`;
     }
 
-    // 3. Create the new Organization
+    // 3. Identify parent organization
+    const parentOrgId = user.organizationId?._id || user.organizationId;
+    let parentOrg = null;
+    if (parentOrgId) {
+      parentOrg = await Organization.findById(parentOrgId);
+    }
+
+    // 4. Create the new Branch Organization linked to parent
     const organization = new Organization({
       name: name.trim(),
       email: email.toLowerCase().trim(),
       phone: phone?.trim() || user.mobile || '',
       address: address || {},
-      ownerId: user._id, // Set the owner to the current logged-in user!
+      ownerId: user._id, // Owned by the same user/admin
+      parentOrganizationId: parentOrg ? parentOrg._id : null,
+      isBranch: true,
       slug: generatedSlug,
       subdomain: subdomain?.toLowerCase().trim() || generatedSlug,
-      status: 'trial',
-      trialStartDate: new Date(),
-      trialEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
-      trialDays: 14,
-      isTrialActive: true,
-      planType: 'FREE_TRIAL',
+      // Inherit subscription and status from Parent Organization if available
+      subscriptionId: parentOrg?.subscriptionId || null,
+      status: parentOrg?.status || 'trial',
+      trialStartDate: parentOrg?.trialStartDate || new Date(),
+      trialEndDate: parentOrg?.trialEndDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      trialDays: parentOrg?.trialDays || 14,
+      isTrialActive: parentOrg ? parentOrg.isTrialActive : true,
+      planType: parentOrg?.planType || 'FREE_TRIAL',
       clinicType: clinicType || 'General',
       specialist: specialist || '',
     });
 
-    await organization.save();
+    // If parentOrg had no subscriptionId yet, create subscription for parentOrg and share it
+    if (parentOrg && !parentOrg.subscriptionId) {
+      const subscription = new Subscription({
+        organizationId: parentOrg._id,
+        plan: 'free',
+        planName: 'Free Trial',
+        status: 'trial',
+        startDate: new Date(),
+        trialEndDate: parentOrg.trialEndDate,
+        limits: Subscription.getPlanLimits('free'),
+      });
+      await subscription.save();
+      parentOrg.subscriptionId = subscription._id;
+      await parentOrg.save();
+      organization.subscriptionId = subscription._id;
+    } else if (!parentOrg) {
+      // Fallback if standalone branch created
+      const subscription = new Subscription({
+        organizationId: organization._id,
+        plan: 'free',
+        planName: 'Free Trial',
+        status: 'trial',
+        startDate: new Date(),
+        trialEndDate: organization.trialEndDate,
+        limits: Subscription.getPlanLimits('free'),
+      });
+      await subscription.save();
+      organization.subscriptionId = subscription._id;
+    }
 
-    // 4. Create the Subscription record
-    const subscription = new Subscription({
-      organizationId: organization._id,
-      plan: 'free',
-      planName: 'Free Trial',
-      status: 'trial',
-      startDate: new Date(),
-      trialEndDate: organization.trialEndDate,
-      limits: Subscription.getPlanLimits('free'),
-    });
-
-    await subscription.save();
-
-    organization.subscriptionId = subscription._id;
     await organization.save();
 
     // 5. Clone Doctors from the primary clinic (if any exist)

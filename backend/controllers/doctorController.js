@@ -232,6 +232,7 @@ export const getGlobalPublicDoctors = async (req, res) => {
         organizationId: doctor.organizationId,
         likesPercentage: doctor.likesPercentage || 0,
         totalStories: doctor.totalStories || 0,
+        hideBookAppointment: doctor.hideBookAppointment || false,
         doctorStamp: await resolveS3UrlIfNeeded(doctor.doctorStamp),
         doctorSignature: await resolveS3UrlIfNeeded(doctor.doctorSignature)
       };
@@ -333,6 +334,7 @@ export const getPublicDoctors = async (req, res) => {
         clinicName: displayClinic,
         phone: doctor.phone,
         status: doctor.status,
+        hideBookAppointment: doctor.hideBookAppointment || false,
         doctorStamp: await resolveS3UrlIfNeeded(doctor.doctorStamp),
         doctorSignature: await resolveS3UrlIfNeeded(doctor.doctorSignature)
       };
@@ -1134,8 +1136,22 @@ export const getDoctorReviews = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Find reviews for this doctorId
-    const reviews = await Review.find({ doctorId: id }).sort({ createdAt: -1 });
+    let doctor = await Doctor.findOne({ doctorId: id });
+    if (!doctor && /^[0-9a-fA-F]{24}$/.test(id)) {
+      doctor = await Doctor.findById(id);
+    }
+    if (!doctor) {
+      doctor = await Doctor.findOne({ username: id });
+    }
+
+    const docSearchIds = [id];
+    if (doctor) {
+      if (doctor._id) docSearchIds.push(doctor._id.toString());
+      if (doctor.doctorId) docSearchIds.push(doctor.doctorId);
+    }
+
+    // Find reviews for this doctorId or doctor _id
+    const reviews = await Review.find({ doctorId: { $in: docSearchIds } }).sort({ createdAt: -1 });
 
     res.json(reviews);
   } catch (error) {
@@ -1148,41 +1164,65 @@ export const getDoctorReviews = async (req, res) => {
 export const addDoctorReview = async (req, res) => {
   try {
     const { id } = req.params;
-    const { rating, comment } = req.body;
+    const { rating, comment, name: bodyName, patientName: bodyPatientName } = req.body;
 
-    // req.user has been populated by the authenticateToken middleware
-    const patientName = req.user.name;
+    const patientName = (bodyName || bodyPatientName || req.user?.name || '').trim();
+
+    if (!patientName) {
+      return res.status(400).json({ message: 'Patient name is required to submit a review' });
+    }
 
     if (!rating || !comment) {
       return res.status(400).json({ message: 'Rating and comment are required' });
     }
 
+    // Find doctor to get organizationId and correct doctorId/_id
+    let doctor = await Doctor.findOne({ doctorId: id });
+    if (!doctor && /^[0-9a-fA-F]{24}$/.test(id)) {
+      doctor = await Doctor.findById(id);
+    }
+    if (!doctor) {
+      doctor = await Doctor.findOne({ username: id });
+    }
+
+    const orgId = doctor?.organizationId?._id || doctor?.organizationId || req.user?.organizationId || null;
+    const targetDocId = doctor ? doctor._id.toString() : id;
+
     const newReview = new Review({
-      doctorId: id,
-      organizationId: req.user.organizationId || null,
+      doctorId: targetDocId,
+      organizationId: orgId,
       patientName,
-      rating,
+      rating: Number(rating),
       comment,
-      isLike: rating >= 4 // 4 or 5 stars count as a "Like"
+      isLike: Number(rating) >= 4 // 4 or 5 stars count as a "Like"
     });
 
     await newReview.save();
 
     // Recalculate and update Doctor stats
-    const allReviews = await Review.find({ doctorId: id });
+    const docSearchIds = [targetDocId, id];
+    if (doctor?.doctorId) docSearchIds.push(doctor.doctorId);
+
+    const allReviews = await Review.find({ doctorId: { $in: docSearchIds } });
     const totalStories = allReviews.length;
     const likes = allReviews.filter(r => r.isLike).length;
     const likesPercentage = totalStories > 0 ? Math.round((likes / totalStories) * 100) : 0;
 
-    await Doctor.findOneAndUpdate(
-      { doctorId: id },
-      { totalStories, likesPercentage }
-    );
+    if (doctor) {
+      doctor.totalStories = totalStories;
+      doctor.likesPercentage = likesPercentage;
+      await doctor.save();
+    } else {
+      await Doctor.findOneAndUpdate(
+        { doctorId: id },
+        { totalStories, likesPercentage }
+      );
+    }
 
     res.status(201).json(newReview);
   } catch (error) {
     console.error('Error adding doctor review:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
@@ -1246,6 +1286,7 @@ export const getPublicDoctorProfile = async (req, res) => {
       clinicImages: doctor.clinicImages ? await Promise.all(doctor.clinicImages.map(img => resolveS3UrlIfNeeded(img))) : [],
       likesPercentage: doctor.likesPercentage || 0,
       totalStories: doctor.totalStories || 0,
+      hideBookAppointment: doctor.hideBookAppointment || false,
       organizationId: doctor.organizationId ? await resolveOrganizationUrls(doctor.organizationId) : null
     };
 

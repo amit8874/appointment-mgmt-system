@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { superAdminApi } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { ChevronLeft, Shield, UserSearch } from 'lucide-react';
+import { ChevronLeft, Shield, UserSearch, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const ManageOrganisation = () => {
@@ -11,6 +11,10 @@ const ManageOrganisation = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showPasswords, setShowPasswords] = useState({});
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [orgToDelete, setOrgToDelete] = useState(null);
+  const [confirmDeleteInput, setConfirmDeleteInput] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
@@ -46,6 +50,33 @@ const ManageOrganisation = () => {
     } catch (err) {
       console.error('Impersonation failed:', err);
       toast.error(err.response?.data?.message || 'Shadow Mode failed');
+    }
+  };
+
+  const openDeleteModal = (org) => {
+    setOrgToDelete(org);
+    setConfirmDeleteInput('');
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteOrganization = async () => {
+    if (!orgToDelete) return;
+    if (confirmDeleteInput.trim().toLowerCase() !== orgToDelete.name.trim().toLowerCase()) {
+      toast.error(`Please type "${orgToDelete.name}" accurately to confirm.`);
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      await superAdminApi.deleteOrganization(orgToDelete._id);
+      toast.success(`Organization "${orgToDelete.name}" deleted permanently.`);
+      setShowDeleteModal(false);
+      setOrgToDelete(null);
+      fetchOrganizations();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to delete organization');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -178,8 +209,20 @@ const ManageOrganisation = () => {
                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
                   <div className="flex justify-between items-start">
                     <div className="text-white">
-                      <h3 className="text-xl font-bold truncate">{org.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold truncate">{org.name}</h3>
+                        {(org.isBranch || org.parentOrganizationId) && (
+                          <span className="px-2 py-0.5 text-[10px] font-bold bg-white/20 text-white rounded-full border border-white/30 backdrop-blur-sm">
+                            Branch of {org.parentOrgName || 'Parent Clinic'}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-blue-100 text-sm">{org.subdomain}</p>
+                      {org.branches && org.branches.length > 0 && (
+                        <div className="mt-1.5 text-xs font-semibold text-blue-100 bg-white/15 px-2.5 py-1 rounded-md border border-white/20 inline-block">
+                          🏢 {org.branches.length} Branch{org.branches.length > 1 ? 'es' : ''}: {org.branches.map(b => b.name).join(', ')}
+                        </div>
+                      )}
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(org.status)}`}>
                       {org.status?.toUpperCase()}
@@ -192,6 +235,14 @@ const ManageOrganisation = () => {
                     >
                       <UserSearch size={14} className="group-hover:scale-110 transition-transform" />
                       Shadow Mode
+                    </button>
+                    <button
+                      onClick={() => openDeleteModal(org)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/80 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-all border border-red-400/30 backdrop-blur-sm"
+                      title="Delete Organization Permanently"
+                    >
+                      <Trash2 size={14} />
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -314,6 +365,77 @@ const ManageOrganisation = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity z-[10000]" 
+            onClick={() => !isDeleting && setShowDeleteModal(false)}
+          ></div>
+          
+          <div className="relative w-full max-w-lg mx-auto z-[10001] transform transition-all duration-300">
+            <div className="bg-white rounded-3xl shadow-2xl border border-red-100 overflow-hidden">
+              <div className="p-8">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="flex-shrink-0 flex items-center justify-center h-14 w-14 rounded-2xl bg-red-100 text-red-600 shadow-inner">
+                    <Trash2 className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+                      Delete Organization Permanently
+                    </h3>
+                    <p className="text-red-600 font-bold text-sm">
+                      This action is permanent and irreversible!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-red-50 rounded-2xl border border-red-200">
+                    <p className="text-xs text-red-900 font-medium leading-relaxed">
+                      You are about to permanently delete <strong className="font-bold underline">{orgToDelete?.name}</strong>. 
+                      All associated users, doctors, staff, patients, appointments, medical records, billing invoices, prescriptions, and inventory will be <span className="font-bold uppercase tracking-wider text-red-700">permanently erased</span>.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">
+                      To confirm, type <span className="text-red-600 font-bold select-all">"{orgToDelete?.name}"</span> below:
+                    </label>
+                    <input
+                      type="text"
+                      value={confirmDeleteInput}
+                      onChange={(e) => setConfirmDeleteInput(e.target.value)}
+                      placeholder={orgToDelete?.name}
+                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-red-500/20 focus:border-red-500 transition-all outline-none font-medium text-gray-900 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 px-8 py-5 flex flex-row-reverse gap-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleDeleteOrganization}
+                  disabled={isDeleting || confirmDeleteInput.trim().toLowerCase() !== orgToDelete?.name?.trim().toLowerCase()}
+                  className="inline-flex justify-center items-center rounded-xl px-6 py-3 bg-red-600 text-sm font-bold text-white hover:bg-red-700 focus:outline-none transition-all shadow-lg shadow-red-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? 'Deleting...' : 'Permanently Delete'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                  className="inline-flex justify-center rounded-xl px-6 py-3 bg-white text-sm font-bold text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

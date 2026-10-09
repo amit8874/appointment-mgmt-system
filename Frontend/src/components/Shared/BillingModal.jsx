@@ -181,7 +181,7 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
         setTimeout(() => {
           window.print();
           if (onComplete) onComplete(newBill);
-        }, 400);
+        }, 2000);
       }
 
     } catch (err) {

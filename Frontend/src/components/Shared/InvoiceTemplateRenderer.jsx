@@ -2,6 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { centralDoctorApi, patientApi } from '../../services/api';
 
+const getImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('data:') || path.startsWith('http://') || path.startsWith('https://')) return path;
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const serverUrl = baseUrl.replace(/\/api$/, '') || 'http://localhost:5000';
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${serverUrl}${cleanPath}`;
+};
+
+const convertUrlToBase64 = async (url) => {
+    if (!url) return null;
+    if (url.startsWith('data:')) return url;
+    try {
+        const fullUrl = getImageUrl(url);
+        const response = await fetch(fullUrl, { cache: 'force-cache' });
+        if (!response.ok) return fullUrl;
+        const blob = await response.blob();
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve(fullUrl);
+            reader.readAsDataURL(blob);
+        });
+    } catch (err) {
+        console.warn("Could not pre-convert image to base64 for printing:", err);
+        return getImageUrl(url);
+    }
+};
+
 const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = null }) => {
     if (!billData) return <div className="p-8 text-center text-gray-500 font-bold">Loading invoice preview...</div>;
 
@@ -19,10 +48,36 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
     const dueAmount = Number(billData.dueAmount ?? Math.max(0, total - paidAmount));
 
     const [doctorDetails, setDoctorDetails] = useState(null);
+    const [stampDataUrl, setStampDataUrl] = useState(null);
+    const [signatureDataUrl, setSignatureDataUrl] = useState(null);
+
+    useEffect(() => {
+        let active = true;
+        const resolveImages = async () => {
+            const rawStamp = doctorDetails?.doctorStamp || billData.doctorStamp || clinicInfo.stamp;
+            const rawSignature = doctorDetails?.doctorSignature || billData.doctorSignature || clinicInfo.doctorSignature;
+
+            if (rawStamp) {
+                const b64 = await convertUrlToBase64(rawStamp);
+                if (active) setStampDataUrl(b64);
+            } else {
+                if (active) setStampDataUrl(null);
+            }
+
+            if (rawSignature) {
+                const b64 = await convertUrlToBase64(rawSignature);
+                if (active) setSignatureDataUrl(b64);
+            } else {
+                if (active) setSignatureDataUrl(null);
+            }
+        };
+        resolveImages();
+        return () => { active = false; };
+    }, [doctorDetails, billData.doctorStamp, billData.doctorSignature, clinicInfo.stamp, clinicInfo.doctorSignature]);
 
     useEffect(() => {
         const fetchDoctor = async () => {
-            if (billData.doctorStamp || billData.doctorSignature) {
+            if (billData.doctorStamp && billData.doctorSignature) {
                 setDoctorDetails({
                     doctorStamp: billData.doctorStamp,
                     doctorSignature: billData.doctorSignature,
@@ -39,7 +94,7 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
                     if (doc) {
                         fetchedDoc = doc;
                         setDoctorDetails(doc);
-                        if (doc.doctorStamp || doc.doctorSignature) return;
+                        if (doc.doctorStamp && doc.doctorSignature) return;
                     }
                 } catch (e) {
                     console.warn("Could not fetch doctor by ID in InvoiceTemplateRenderer:", e.message);
@@ -56,23 +111,19 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
                         const dName = (d.name || `${d.firstName || ''} ${d.lastName || ''}`).replace(/^dr\.?\s*/i, '').trim().toLowerCase();
                         return (dName && cleanTargetName && (dName.includes(cleanTargetName) || cleanTargetName.includes(dName)));
                     });
-                    if (match && (match.doctorStamp || match.doctorSignature)) {
+                    if (match) {
                         setDoctorDetails(match);
-                        return;
-                    }
-                    if (match && !fetchedDoc) {
-                        fetchedDoc = match;
-                        setDoctorDetails(match);
+                        if (match.doctorStamp && match.doctorSignature) return;
                     }
                 }
 
-                // Permanent fallback: Find any doctor in the clinic who uploaded a stamp/signature
+                // Permanent fallback: Merge any doctor in the clinic who uploaded a stamp/signature if missing
                 const docWithStamp = docsList.find(d => d.doctorStamp || d.doctorSignature);
                 if (docWithStamp) {
                     setDoctorDetails(prev => ({
                         ...(prev || fetchedDoc || {}),
-                        doctorStamp: docWithStamp.doctorStamp,
-                        doctorSignature: docWithStamp.doctorSignature,
+                        doctorStamp: prev?.doctorStamp || fetchedDoc?.doctorStamp || billData.doctorStamp || docWithStamp.doctorStamp,
+                        doctorSignature: prev?.doctorSignature || fetchedDoc?.doctorSignature || billData.doctorSignature || docWithStamp.doctorSignature,
                         name: prev?.name || fetchedDoc?.name || docWithStamp.name
                     }));
                     return;
@@ -87,7 +138,7 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
             }
         };
         fetchDoctor();
-    }, [billData.doctorId, doctorName, billData.doctorStamp]);
+    }, [billData.doctorId, doctorName, billData.doctorStamp, billData.doctorSignature]);
 
     const [patientDetails, setPatientDetails] = useState(null);
 
@@ -161,8 +212,13 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
     // Doctor details fallback
     const isManomay = info.name.toLowerCase().includes('manomay');
     const attendingDoctorName = doctorDetails?.name || doctorName || (isManomay ? 'Parimal Anand' : 'Attending Doctor');
-    const attendingDoctorSpecialization = doctorDetails?.specialization 
-        ? `( ${doctorDetails.specialization} )` 
+    const rawDoctorSpec = doctorDetails?.specialization || doctorDetails?.specialty || doctorDetails?.department || billData?.doctorSpecialization || billData?.specialty || '';
+    let formattedSpec = rawDoctorSpec.trim();
+    if (formattedSpec.toLowerCase() === 'dental' || formattedSpec.toLowerCase() === 'dentist') {
+        formattedSpec = 'Dental Surgeon';
+    }
+    const attendingDoctorSpecialization = formattedSpec 
+        ? `( ${formattedSpec} )` 
         : (isManomay ? '( Periodontist, Oral Implantologist & Laser Specialist )' : '');
     const attendingDoctorQualification = doctorDetails?.qualification 
         ? doctorDetails.qualification 
@@ -590,11 +646,23 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
                                     </tr>
                                 </tbody>
                             </table>
-                            {(doctorDetails?.doctorStamp || doctorDetails?.doctorSignature || billData.doctorStamp || billData.doctorSignature || clinicInfo.doctorSignature || clinicInfo.stamp) && (
-                                <div style={{ marginTop: '25px', marginBottom: '-5px', textAlign: 'right' }}>
-                                    <img src={doctorDetails?.doctorStamp || doctorDetails?.doctorSignature || billData.doctorStamp || billData.doctorSignature || clinicInfo.doctorSignature || clinicInfo.stamp} alt="Doctor Stamp & Signature" style={{ maxHeight: '120px', maxWidth: '220px', objectFit: 'contain', marginLeft: 'auto', display: 'block' }} />
-                                </div>
-                            )}
+                            {(() => {
+                                const rawStamp = doctorDetails?.doctorStamp || billData.doctorStamp || clinicInfo.stamp;
+                                const rawSignature = doctorDetails?.doctorSignature || billData.doctorSignature || clinicInfo.doctorSignature;
+                                const finalStamp = stampDataUrl || (rawStamp ? getImageUrl(rawStamp) : null);
+                                const finalSignature = signatureDataUrl || (rawSignature ? getImageUrl(rawSignature) : null);
+                                if (!finalStamp && !finalSignature) return null;
+                                return (
+                                    <div style={{ marginTop: '20px', marginBottom: '-5px', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', gap: '15px' }}>
+                                        {finalStamp && (
+                                            <img src={finalStamp} alt="Doctor Stamp" style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', backgroundColor: 'transparent' }} />
+                                        )}
+                                        {finalSignature && (
+                                            <img src={finalSignature} alt="Doctor Signature" style={{ maxHeight: '80px', maxWidth: '160px', objectFit: 'contain', backgroundColor: 'transparent' }} />
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
 

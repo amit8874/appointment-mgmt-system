@@ -41,7 +41,9 @@ const DentalImagesTab = ({ patientId }) => {
 
     // Basic size validation (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File size exceeds 5MB limit.');
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      toast.error(`Selected file is ${fileSizeMB}MB. Please decrease the image file size to under 5MB before uploading.`);
+      e.target.value = '';
       return;
     }
 
@@ -151,7 +153,7 @@ const DentalImagesTab = ({ patientId }) => {
                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
                     <ImageIcon className="w-8 h-8 text-slate-400 mb-2 animate-pulse" />
                     <p className="text-xs font-bold text-slate-500">Click to choose image</p>
-                    <p className="text-[9px] text-slate-400 mt-1 uppercase font-bold tracking-wider">JPEG, PNG up to 5MB</p>
+                    <p className="text-[10px] text-amber-600 font-bold mt-1 uppercase tracking-wider">JPEG, PNG (Max size: 5MB)</p>
                   </div>
                   <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                 </label>

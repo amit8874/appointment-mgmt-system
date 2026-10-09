@@ -11,6 +11,15 @@ import { centralDoctorApi, commonApi, centralSpecializationApi, centralCouncilAp
 import { AnimatePresence, motion } from 'framer-motion';
 import LimitReachedModal from '../../../components/common/LimitReachedModal';
 
+const getImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('data:') || path.startsWith('http://') || path.startsWith('https://')) return path;
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const serverUrl = baseUrl.replace(/\/api$/, '') || 'http://localhost:5000';
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${serverUrl}${cleanPath}`;
+};
+
 const SectionTitle = ({ title, icon: Icon }) => (
     <div className="flex items-center gap-2 pb-2 mb-4 border-b border-gray-100 dark:border-gray-700">
         <Icon size={16} className="text-indigo-600 dark:text-indigo-400" />
@@ -488,7 +497,9 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                                                                     <span className="text-[8px] font-black text-indigo-600 uppercase">Uploading...</span>
                                                                 </div>
                                                             ) : formData.doctorStamp ? (
-                                                                <img src={formData.doctorStamp} alt="Stamp" className="w-full h-full object-contain p-1" />
+                                                                <div className="w-full h-full bg-white p-1 rounded-xl flex items-center justify-center">
+                                                                    <img src={getImageUrl(formData.doctorStamp)} alt="Stamp" className="w-full h-full object-contain" />
+                                                                </div>
                                                             ) : (
                                                                 <div className="text-center p-2">
                                                                     <Upload size={18} className="text-indigo-400 mx-auto mb-1" />
@@ -512,7 +523,9 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                                                                     <span className="text-[8px] font-black text-indigo-600 uppercase">Uploading...</span>
                                                                 </div>
                                                             ) : formData.doctorSignature ? (
-                                                                <img src={formData.doctorSignature} alt="Signature" className="w-full h-full object-contain p-1" />
+                                                                <div className="w-full h-full bg-white p-1 rounded-xl flex items-center justify-center">
+                                                                    <img src={getImageUrl(formData.doctorSignature)} alt="Signature" className="w-full h-full object-contain" />
+                                                                </div>
                                                             ) : (
                                                                 <div className="text-center p-2">
                                                                     <Upload size={18} className="text-slate-300 mx-auto mb-1" />

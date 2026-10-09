@@ -19,6 +19,7 @@ import {
   XCircle,
   AlertCircle,
   Eye,
+  EyeOff,
   FileText,
   Fingerprint,
   IndianRupee,
@@ -101,6 +102,25 @@ const Doctors = () => {
       }
     } catch (err) {
       alert('Rejection failed: ' + err.message);
+    }
+  };
+
+  const handleToggleBookingVisibility = async (doctorId, currentHideStatus) => {
+    const targetStatus = !currentHideStatus;
+    const actionText = targetStatus ? "HIDE" : "SHOW";
+    if (!window.confirm(`Are you sure you want to ${actionText} the "Book Clinic Visit" button for this doctor?`)) return;
+    try {
+      const res = await superAdminApi.toggleDoctorBookingVisibility(doctorId, targetStatus);
+      if (selectedOrg?._id) {
+        const data = await superAdminApi.getOrganizationDoctors(selectedOrg._id);
+        setDoctors(data || []);
+      }
+      if (selectedDoctor && selectedDoctor._id === doctorId) {
+        setSelectedDoctor({ ...selectedDoctor, hideBookAppointment: targetStatus });
+      }
+      alert(res.message || `Updated booking button visibility.`);
+    } catch (err) {
+      alert('Failed to update booking visibility: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -209,6 +229,37 @@ const Doctors = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Slot Booking Button Control Box */}
+                <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Public Booking Button Control</h4>
+                  <p className="text-xs text-slate-500 mb-4 font-medium leading-relaxed">
+                    Control whether the <span className="font-bold text-slate-700">"Book Clinic Visit"</span> slot booking button is visible to public visitors for this doctor.
+                  </p>
+                  <button
+                    onClick={() => handleToggleBookingVisibility(doctor._id, doctor.hideBookAppointment)}
+                    className={`w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                      doctor.hideBookAppointment 
+                        ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20" 
+                        : "bg-amber-500 text-white hover:bg-amber-600 shadow-md shadow-amber-500/20"
+                    }`}
+                  >
+                    {doctor.hideBookAppointment ? (
+                      <>
+                        <Eye size={16} /> Show "Book Clinic Visit" Button
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff size={16} /> Hide "Book Clinic Visit" Button
+                      </>
+                    )}
+                  </button>
+                  {doctor.hideBookAppointment && (
+                    <p className="text-[11px] font-bold text-amber-600 mt-3 text-center">
+                      Currently Hidden: Users will see "Contact Clinic" but not "Book Clinic Visit".
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Right Columns - Detailed Data */}
@@ -449,24 +500,45 @@ const Doctors = () => {
                          >
                             <Eye size={14} /> Full Details
                          </button>
-                         {doctor.status === 'Pending' && (
-                           <div className="flex gap-2">
-                             <button 
-                               onClick={() => handleVerifyDoctor(doctor._id)}
-                               className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
-                               title="Verify Immediately"
-                             >
-                                <CheckCircle2 size={16} />
-                             </button>
-                             <button 
-                               onClick={() => handleRejectDoctor(doctor._id)}
-                               className="p-1.5 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-600 hover:text-white transition-all shadow-sm"
-                               title="Reject Registration"
-                             >
-                                <XCircle size={16} />
-                             </button>
-                           </div>
-                         )}
+                         <div className="flex items-center gap-2">
+                           <button
+                             onClick={() => handleToggleBookingVisibility(doctor._id, doctor.hideBookAppointment)}
+                             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm ${
+                               doctor.hideBookAppointment 
+                                 ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100" 
+                                 : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                             }`}
+                             title={doctor.hideBookAppointment ? "Click to SHOW Book Slot button on public site" : "Click to HIDE Book Slot button on public site"}
+                           >
+                             {doctor.hideBookAppointment ? (
+                               <>
+                                 <EyeOff size={13} /> Slots Hidden
+                               </>
+                             ) : (
+                               <>
+                                 <Eye size={13} /> Slots Visible
+                               </>
+                             )}
+                           </button>
+                           {doctor.status === 'Pending' && (
+                             <div className="flex gap-2">
+                               <button 
+                                 onClick={() => handleVerifyDoctor(doctor._id)}
+                                 className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                                 title="Verify Immediately"
+                               >
+                                  <CheckCircle2 size={16} />
+                               </button>
+                               <button 
+                                 onClick={() => handleRejectDoctor(doctor._id)}
+                                 className="p-1.5 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                                 title="Reject Registration"
+                               >
+                                  <XCircle size={16} />
+                               </button>
+                             </div>
+                           )}
+                         </div>
                       </div>
                     </div>
                   ))}

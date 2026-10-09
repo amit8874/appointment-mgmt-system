@@ -200,6 +200,8 @@ const transformApiData = (apiBill) => {
       amount: normalized.grandTotal,
       status: apiBill.status,
       patientPhone: apiBill.patientPhone || '',
+      doctorStamp: apiBill.doctorStamp || apiBill.doctorDetails?.doctorStamp,
+      doctorSignature: apiBill.doctorSignature || apiBill.doctorDetails?.doctorSignature,
       billType: 'Pharmacy',
       items: normalized.items,
       installments: apiBill.installments || [],
@@ -243,6 +245,8 @@ const transformApiData = (apiBill) => {
     amount: apiBill.amount,
     status: apiBill.status,
     patientPhone: apiBill.patientPhone || '',
+    doctorStamp: apiBill.doctorStamp || apiBill.doctorDetails?.doctorStamp,
+    doctorSignature: apiBill.doctorSignature || apiBill.doctorDetails?.doctorSignature,
     billType: apiBill.billType || 'General',
     items: apiBill.items || [],
     installments: apiBill.installments || [],
@@ -2034,6 +2038,9 @@ const BillingDashboard = () => {
               patientName: printingInvoice.patient,
               patientId: printingInvoice.details?.patientId || printingInvoice.patientId || 'N/A',
               doctorName: printingInvoice.doctor || 'N/A',
+              doctorId: printingInvoice.doctorId || printingInvoice.doctor?._id,
+              doctorStamp: printingInvoice.doctorStamp || printingInvoice.doctorDetails?.doctorStamp,
+              doctorSignature: printingInvoice.doctorSignature || printingInvoice.doctorDetails?.doctorSignature,
               items: (printingInvoice.items && printingInvoice.items.length > 0)
                 ? printingInvoice.items.map(i => ({
                   description: i.description,

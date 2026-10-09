@@ -2,6 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Stethoscope, Award, GraduationCap, Briefcase, IndianRupee, FileText, Image as ImageIcon, Trash2, Plus, Loader2, AlertCircle, Info } from 'lucide-react';
 import { commonApi } from '../../../services/api';
 
+const getImageUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('data:') || path.startsWith('http://') || path.startsWith('https://')) return path;
+  const baseUrl = import.meta.env.VITE_API_URL || '';
+  const serverUrl = baseUrl.replace(/\/api$/, '') || 'http://localhost:5000';
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${serverUrl}${cleanPath}`;
+};
+
 const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
   const [formData, setFormData] = useState({
     specialization: doctor?.specialization || '',
@@ -252,7 +261,9 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
                     </div>
                   ) : formData.doctorStamp ? (
                     <div className="relative w-full flex flex-col items-center">
-                      <img src={formData.doctorStamp} alt="Doctor Stamp" className="max-h-24 max-w-full object-contain" />
+                      <div className="bg-white p-2 rounded-xl border border-slate-100 shadow-sm flex items-center justify-center">
+                        <img src={getImageUrl(formData.doctorStamp)} alt="Doctor Stamp" className="max-h-24 max-w-full object-contain" />
+                      </div>
                       <button 
                         type="button" 
                         onClick={() => setFormData(p => ({ ...p, doctorStamp: '' }))}
@@ -283,7 +294,9 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
                     </div>
                   ) : formData.doctorSignature ? (
                     <div className="relative w-full flex flex-col items-center">
-                      <img src={formData.doctorSignature} alt="Doctor Signature" className="max-h-24 max-w-full object-contain" />
+                      <div className="bg-white p-2 rounded-xl border border-slate-100 shadow-sm flex items-center justify-center">
+                        <img src={getImageUrl(formData.doctorSignature)} alt="Doctor Signature" className="max-h-24 max-w-full object-contain" />
+                      </div>
                       <button 
                         type="button" 
                         onClick={() => setFormData(p => ({ ...p, doctorSignature: '' }))}

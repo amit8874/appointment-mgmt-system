@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import Organization from '../models/Organization.js';
 import Subscription from '../models/Subscription.js';
@@ -14,9 +15,94 @@ import { applyPlanWhatsappCredits } from '../services/whatsappCreditService.js';
 import { sendPharmacyRegistrationNotification } from '../services/emailService.js';
 import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 
+/**
+ * Synchronize subscription, status, and trial dates from a Parent Organization to all its child branches.
+ */
+export const syncBranchSubscriptionsAndStatus = async (parentOrg) => {
+  if (!parentOrg || !parentOrg._id) return;
+  try {
+    const branches = await Organization.find({ parentOrganizationId: parentOrg._id });
+    for (const branch of branches) {
+      branch.status = parentOrg.status;
+      branch.isTrialActive = parentOrg.isTrialActive;
+      branch.planType = parentOrg.planType;
+      branch.trialStartDate = parentOrg.trialStartDate;
+      branch.trialEndDate = parentOrg.trialEndDate;
+      if (parentOrg.subscriptionId) {
+        branch.subscriptionId = parentOrg.subscriptionId;
+      }
+      await branch.save();
+      console.log(`[Branch Sync] Synchronized subscription & status for branch "${branch.name}" under parent "${parentOrg.name}"`);
+    }
+  } catch (err) {
+    console.error('[Branch Sync] Error syncing child branches:', err.message);
+  }
+};
+
+/**
+ * Auto-links existing branch organizations created under the same owner account.
+ */
+export const syncAllExistingBranches = async () => {
+  try {
+    const orgs = await Organization.find().sort({ createdAt: 1 });
+    const orgsByOwner = {};
+    for (const org of orgs) {
+      const ownerStr = org.ownerId?.toString();
+      if (!ownerStr) continue;
+      if (!orgsByOwner[ownerStr]) {
+        orgsByOwner[ownerStr] = [];
+      }
+      orgsByOwner[ownerStr].push(org);
+    }
+
+    for (const ownerStr in orgsByOwner) {
+      const group = orgsByOwner[ownerStr];
+      if (group.length > 1) {
+        const primaryOrg = group[0]; // Earliest created clinic is Parent
+        for (let i = 1; i < group.length; i++) {
+          const branch = group[i];
+          let updated = false;
+          if (!branch.parentOrganizationId || branch.parentOrganizationId.toString() !== primaryOrg._id.toString()) {
+            branch.parentOrganizationId = primaryOrg._id;
+            branch.isBranch = true;
+            updated = true;
+          }
+          if (primaryOrg.subscriptionId && (!branch.subscriptionId || branch.subscriptionId.toString() !== primaryOrg.subscriptionId.toString())) {
+            branch.subscriptionId = primaryOrg.subscriptionId;
+            branch.status = primaryOrg.status;
+            branch.planType = primaryOrg.planType;
+            branch.isTrialActive = primaryOrg.isTrialActive;
+            branch.trialEndDate = primaryOrg.trialEndDate;
+            updated = true;
+          }
+          if (updated) {
+            await branch.save();
+            console.log(`[Auto-Sync Branch] Linked existing branch "${branch.name}" to Parent Clinic "${primaryOrg.name}"`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Auto-Sync Branch Error]:', err.message);
+  }
+};
+
 // Get super admin dashboard statistics
 export const getDashboard = async (req, res) => {
   try {
+    await syncAllExistingBranches();
+
+    const parentOrgFilter = { $or: [{ isBranch: false }, { isBranch: { $exists: false } }, { parentOrganizationId: null }] };
+
+    // Calculate distinct doctors across clinics to avoid double counting cloned branch doctors
+    const distinctDoctorEmails = await Doctor.distinct('email');
+    const nonNullDoctorEmails = distinctDoctorEmails.filter(Boolean);
+    let totalDoctorsCount = nonNullDoctorEmails.length;
+    if (totalDoctorsCount === 0) {
+      const distinctDoctorNames = await Doctor.distinct('name');
+      totalDoctorsCount = distinctDoctorNames.length;
+    }
+
     const [
       totalOrganizations,
       activeOrganizations,
@@ -24,26 +110,26 @@ export const getDashboard = async (req, res) => {
       totalSubscriptions,
       activeSubscriptions,
       totalUsers,
-      totalDoctors,
       totalPatients,
       totalAppointments,
       totalPending,
       totalConfirmed,
       totalCancelled,
     ] = await Promise.all([
-      Organization.countDocuments(),
-      Organization.countDocuments({ status: 'active' }),
-      Organization.countDocuments({ status: 'trial' }),
-      Subscription.countDocuments(),
-      Subscription.countDocuments({ status: 'active' }),
+      Organization.countDocuments(parentOrgFilter),
+      Organization.countDocuments({ ...parentOrgFilter, status: 'active' }),
+      Organization.countDocuments({ ...parentOrgFilter, status: 'trial' }),
+      Subscription.countDocuments(parentOrgFilter),
+      Subscription.countDocuments({ ...parentOrgFilter, status: 'active' }),
       User.countDocuments({ role: { $ne: 'superadmin' } }),
-      Doctor.countDocuments(),
       User.countDocuments({ role: 'patient' }),
       Appointment.countDocuments(),
       PendingAppointment.countDocuments(),
       ConfirmedAppointment.countDocuments(),
       CancelledAppointment.countDocuments(),
     ]);
+
+    const totalDoctors = totalDoctorsCount;
 
     // Sum all appointment types for a true global count
     const totalAppointmentsCombined = (totalAppointments || 0) + (totalPending || 0) + (totalConfirmed || 0) + (totalCancelled || 0);
@@ -227,57 +313,82 @@ export const getDashboard = async (req, res) => {
 // Get all organizations with filters
 export const getOrganizations = async (req, res) => {
   try {
-    const { status, search, page = 1, limit = 20 } = req.query;
+    const { status, search, includeBranches, page = 1, limit = 20 } = req.query;
+    await syncAllExistingBranches();
+
     const query = {};
 
+    // Filter parent organizations by default unless includeBranches is explicitly 'true'
+    if (includeBranches !== 'true') {
+      query.$or = [
+        { isBranch: false },
+        { isBranch: { $exists: false } },
+        { parentOrganizationId: null }
+      ];
+    }
+
     if (status) {
+      const statusCond = {};
       if (status === 'expired') {
-        // Trial expired: status is trial but end date has passed
-        query.status = 'trial';
-        query.trialEndDate = { $lt: new Date() };
+        statusCond.status = 'trial';
+        statusCond.trialEndDate = { $lt: new Date() };
       } else if (status === 'trial') {
-        // Trial active: status is trial and end date is in future
-        query.status = 'trial';
-        query.trialEndDate = { $gte: new Date() };
+        statusCond.status = 'trial';
+        statusCond.trialEndDate = { $gte: new Date() };
       } else if (status === 'new') {
-        // Created in last 3 days
         const last3Days = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-        query.createdAt = { $gte: last3Days };
+        statusCond.createdAt = { $gte: last3Days };
       } else if (status === 'free') {
-        // Free Trial plan
-        query.planType = 'FREE_TRIAL';
+        statusCond.planType = 'FREE_TRIAL';
       } else if (status === 'upgraded') {
-        // Paid plan
-        query.planType = 'PAID';
+        statusCond.planType = 'PAID';
       } else if (status === 'inactive') {
-        // Deactivated
-        query.status = { $in: ['inactive', 'suspended'] };
+        statusCond.status = { $in: ['inactive', 'suspended'] };
       } else {
-        query.status = status;
+        statusCond.status = status;
       }
+      Object.assign(query, statusCond);
     }
 
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { slug: { $regex: search, $options: 'i' } },
+      const searchRegex = { $regex: search, $options: 'i' };
+      const searchCond = [
+        { name: searchRegex },
+        { email: searchRegex },
+        { slug: searchRegex },
       ];
+      if (query.$or) {
+        query.$and = [
+          { $or: query.$or },
+          { $or: searchCond }
+        ];
+        delete query.$or;
+      } else {
+        query.$or = searchCond;
+      }
     }
 
     const organizations = await Organization.find(query)
       .populate('ownerId', 'name email')
       .populate('subscriptionId')
+      .populate('parentOrganizationId', 'name slug subdomain')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .skip((page - 1) * limit)
+      .lean();
+
+    // Attach child branches to each organization
+    for (const org of organizations) {
+      const childBranches = await Organization.find({ parentOrganizationId: org._id }).select('_id name subdomain status').lean();
+      org.branches = childBranches || [];
+    }
 
     const total = await Organization.countDocuments(query);
 
     res.json({
       organizations,
       totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      currentPage: Number(page),
       total,
     });
   } catch (error) {
@@ -289,8 +400,10 @@ export const getOrganizations = async (req, res) => {
 // Get organization statistics for filter boxes
 export const getOrganizationStats = async (req, res) => {
   try {
+    await syncAllExistingBranches();
     const now = new Date();
     const last3Days = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const parentOrgFilter = { $or: [{ isBranch: false }, { isBranch: { $exists: false } }, { parentOrganizationId: null }] };
 
     const [
       total,
@@ -302,35 +415,14 @@ export const getOrganizationStats = async (req, res) => {
       free,
       upgraded
     ] = await Promise.all([
-      // 1. All
-      Organization.countDocuments(),
-      
-      // 2. Expired: Specifically organizations in trial status whose end date has passed
-      Organization.countDocuments({ 
-        status: 'trial', 
-        trialEndDate: { $lt: now } 
-      }),
-      
-      // 3. Deactivated: Manually inactive or suspended organizations
-      Organization.countDocuments({ status: { $in: ['inactive', 'suspended'] } }),
-      
-      // 4. Activated: Organizations with active status (paid/upgraded)
-      Organization.countDocuments({ status: 'active' }),
-      
-      // 5. New: Created in last 3 days
-      Organization.countDocuments({ createdAt: { $gte: last3Days } }),
-      
-      // 6. Trial Active: Organizations in trial status whose end date is in the future
-      Organization.countDocuments({ 
-        status: 'trial', 
-        trialEndDate: { $gte: now } 
-      }),
-      
-      // 7. Free: Based on organization planType
-      Organization.countDocuments({ planType: 'FREE_TRIAL' }),
-      
-      // 8. Upgraded: Based on organization planType
-      Organization.countDocuments({ planType: 'PAID' })
+      Organization.countDocuments(parentOrgFilter),
+      Organization.countDocuments({ ...parentOrgFilter, status: 'trial', trialEndDate: { $lt: now } }),
+      Organization.countDocuments({ ...parentOrgFilter, status: { $in: ['inactive', 'suspended'] } }),
+      Organization.countDocuments({ ...parentOrgFilter, status: 'active' }),
+      Organization.countDocuments({ ...parentOrgFilter, createdAt: { $gte: last3Days } }),
+      Organization.countDocuments({ ...parentOrgFilter, status: 'trial', trialEndDate: { $gte: now } }),
+      Organization.countDocuments({ ...parentOrgFilter, planType: 'FREE_TRIAL' }),
+      Organization.countDocuments({ ...parentOrgFilter, planType: 'PAID' })
     ]);
 
     res.json({
@@ -352,38 +444,49 @@ export const getOrganizationStats = async (req, res) => {
 // Get all organizations with owner credentials (including plain password)
 export const getOrganizationsWithCredentials = async (req, res) => {
   try {
-    const organizations = await Organization.find()
+    await syncAllExistingBranches();
+    const parentOrgFilter = { $or: [{ isBranch: false }, { isBranch: { $exists: false } }, { parentOrganizationId: null }] };
+
+    const organizations = await Organization.find(parentOrgFilter)
       .populate({
         path: 'ownerId',
         select: 'name email plainPassword',
         options: { lean: true }
       })
       .populate('subscriptionId')
+      .populate('parentOrganizationId', 'name slug subdomain')
       .sort({ createdAt: -1 })
       .lean();
 
-    // Transform data to include credentials
-    const organizationsWithCredentials = organizations.map(org => ({
-      _id: org._id,
-      name: org.name,
-      slug: org.slug,
-      subdomain: org.subdomain,
-      email: org.email,
-      phone: org.phone,
-      address: org.address,
-      status: org.status,
-      createdAt: org.createdAt,
-      ownerId: org.ownerId?._id,
-      ownerName: org.ownerId?.name || 'N/A',
-      ownerEmail: org.ownerId?.email || 'N/A',
-      ownerPassword: org.ownerId?.plainPassword || 'N/A',
-      subscription: org.subscriptionId ? {
-        plan: org.subscriptionId.plan,
-        planName: org.subscriptionId.planName,
-        status: org.subscriptionId.status,
-        startDate: org.subscriptionId.startDate,
-        endDate: org.subscriptionId.endDate,
-      } : null,
+    // Transform data and attach branches
+    const organizationsWithCredentials = await Promise.all(organizations.map(async (org) => {
+      const branches = await Organization.find({ parentOrganizationId: org._id }).select('_id name subdomain status').lean();
+      return {
+        _id: org._id,
+        name: org.name,
+        slug: org.slug,
+        subdomain: org.subdomain,
+        email: org.email,
+        phone: org.phone,
+        address: org.address,
+        status: org.status,
+        createdAt: org.createdAt,
+        branches: branches || [],
+        parentOrganizationId: org.parentOrganizationId?._id || org.parentOrganizationId || null,
+        parentOrgName: org.parentOrganizationId?.name || null,
+        isBranch: org.isBranch || !!org.parentOrganizationId,
+        ownerId: org.ownerId?._id,
+        ownerName: org.ownerId?.name || 'N/A',
+        ownerEmail: org.ownerId?.email || 'N/A',
+        ownerPassword: org.ownerId?.plainPassword || 'N/A',
+        subscription: org.subscriptionId ? {
+          plan: org.subscriptionId.plan,
+          planName: org.subscriptionId.planName,
+          status: org.subscriptionId.status,
+          startDate: org.subscriptionId.startDate,
+          endDate: org.subscriptionId.endDate,
+        } : null,
+      };
     }));
 
     res.json({
@@ -525,6 +628,9 @@ export const updateOrganizationStatus = async (req, res) => {
 
     await organization.save();
 
+    // Cascading sync to all child branches if this is a Parent Organization
+    await syncBranchSubscriptionsAndStatus(organization);
+
     // Log the configuration change
     await AuditLog.create({
       adminId: req.user.id,
@@ -612,6 +718,8 @@ export const overrideSubscription = async (req, res) => {
       }
       
       await org.save();
+      // Cascading sync to all child branches
+      await syncBranchSubscriptionsAndStatus(org);
     }
 
     // Apply WhatsApp Credits for the new plan
@@ -993,6 +1101,9 @@ export const updateTrialPeriod = async (req, res) => {
 
     await organization.save();
 
+    // Cascading sync to all child branches
+    await syncBranchSubscriptionsAndStatus(organization);
+
     // Sync with Subscription model
     const subscription = await Subscription.findOne({ organizationId: organization._id });
     if (subscription) {
@@ -1105,6 +1216,9 @@ export const manualUpgradePlan = async (req, res) => {
     organization.isTrialActive = false;
     organization.planType = 'PAID';
     await organization.save();
+
+    // Cascading sync to all child branches
+    await syncBranchSubscriptionsAndStatus(organization);
 
     // 3. Log the action
     await AuditLog.create({
@@ -1386,4 +1500,125 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
     res.status(500).json({ message: error.message || 'Server error' });
   }
 };
+
+/**
+ * @desc    Permanently delete an organization and all its data across the database
+ * @route   DELETE /api/superadmin/organizations/:id
+ * @access  Super Admin
+ */
+export const deleteOrganization = async (req, res) => {
+  try {
+    const { id: orgId } = req.params;
+
+    const organization = await Organization.findById(orgId);
+    if (!organization) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+
+    const ownerId = organization.ownerId;
+    const orgIdObj = new mongoose.Types.ObjectId(orgId);
+    const orgIdStr = orgId.toString();
+    const orgQuery = { $in: [orgIdObj, orgIdStr] };
+
+    // 1. Dynamic sweep of all registered Mongoose models for organizationId or organization
+    const loadedModelNames = Object.keys(mongoose.models);
+    for (const modelName of loadedModelNames) {
+      if (modelName === 'Organization') continue; // Handled last
+      try {
+        const Model = mongoose.models[modelName];
+        if (Model && typeof Model.deleteMany === 'function') {
+          await Model.deleteMany({
+            $or: [
+              { organizationId: orgQuery },
+              { organization: orgQuery }
+            ]
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn(`[Org Delete Sweep] Non-fatal notice clearing ${modelName}:`, err.message);
+      }
+    }
+
+    // 2. Explicit User deletion (users linked to org OR the owner user account)
+    await User.deleteMany({
+      $or: [
+        { organizationId: orgQuery },
+        ...(ownerId ? [{ _id: ownerId }] : [])
+      ]
+    });
+
+    // 3. Delete the Organization record itself
+    await Organization.findByIdAndDelete(orgId);
+
+    // 4. Log the deletion in Audit Log
+    await AuditLog.create({
+      adminId: req.user.id,
+      action: 'DELETE_ORGANIZATION_PERMANENT',
+      targetType: 'Organization',
+      targetId: orgId,
+      details: {
+        name: organization.name,
+        email: organization.email,
+        subdomain: organization.subdomain,
+      },
+      ipAddress: req.ip
+    }).catch(e => console.error('Audit log failed for org delete:', e.message));
+
+    console.log(`[SuperAdmin] Permanently deleted organization ${organization.name} (${orgId}) and all associated data.`);
+
+    res.json({
+      success: true,
+      message: `Organization "${organization.name}" and all associated data deleted permanently.`,
+      organizationId: orgId
+    });
+  } catch (error) {
+    console.error('Delete organization error:', error);
+    res.status(500).json({ message: error.message || 'Failed to delete organization' });
+  }
+};
+
+/**
+ * @desc    Toggle hiding/showing Book Clinic Visit button for a specific doctor
+ * @route   PATCH /api/superadmin/doctors/:id/toggle-booking
+ * @access  Super Admin
+ */
+export const toggleDoctorBookingVisibility = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { hideBookAppointment } = req.body;
+
+    const doctor = await Doctor.findById(id);
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    const newHideValue = typeof hideBookAppointment === 'boolean' 
+      ? hideBookAppointment 
+      : !doctor.hideBookAppointment;
+
+    doctor.hideBookAppointment = newHideValue;
+    await doctor.save();
+
+    // Log the action
+    await AuditLog.create({
+      adminId: req.user.id,
+      action: 'DOCTOR_TOGGLE_BOOKING_VISIBILITY',
+      targetType: 'Doctor',
+      targetId: doctor._id,
+      details: { doctorName: doctor.name, hideBookAppointment: doctor.hideBookAppointment },
+      ipAddress: req.ip
+    }).catch(e => console.error('Audit log failed:', e.message));
+
+    res.json({
+      success: true,
+      message: `Book Slot button is now ${doctor.hideBookAppointment ? 'HIDDEN' : 'VISIBLE'} for Dr. ${doctor.name}`,
+      doctor
+    });
+  } catch (error) {
+    console.error('Toggle doctor booking visibility error:', error);
+    res.status(500).json({ message: error.message || 'Failed to update doctor booking visibility' });
+  }
+};
+
+
 

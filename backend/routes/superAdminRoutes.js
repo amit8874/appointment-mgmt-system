@@ -21,6 +21,8 @@ import {
   rejectDoctorBySuperAdmin,
   getOrganizationStats,
   createPublicDoctorProfileBySuperAdmin,
+  deleteOrganization,
+  toggleDoctorBookingVisibility,
 } from '../controllers/superAdminController.js';
 
 const router = express.Router();
@@ -84,6 +86,13 @@ router.get('/revenue', getRevenue);
  * @access  Super Admin
  */
 router.patch('/organizations/:id/status', updateOrganizationStatus);
+
+/**
+ * @route   DELETE /api/superadmin/organizations/:id
+ * @desc    Permanently delete an organization and all its data
+ * @access  Super Admin
+ */
+router.delete('/organizations/:id', deleteOrganization);
 
 /**
  * @route   PATCH /api/superadmin/organizations/:id/trial
@@ -181,5 +190,12 @@ router.patch('/doctors/:id/reject', rejectDoctorBySuperAdmin);
  * @access  Super Admin
  */
 router.post('/doctors/create-profile', createPublicDoctorProfileBySuperAdmin);
+
+/**
+ * @route   PATCH /api/superadmin/doctors/:id/toggle-booking
+ * @desc    Toggle hiding/showing Book Clinic Visit button for a doctor
+ * @access  Super Admin
+ */
+router.patch('/doctors/:id/toggle-booking', toggleDoctorBookingVisibility);
 
 export default router;
