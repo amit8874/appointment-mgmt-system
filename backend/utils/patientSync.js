@@ -3,6 +3,14 @@ import Appointment from '../models/Appointment.js';
 import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import CancelledAppointment from '../models/CancelledAppointment.js';
+import DentalTreatment from '../models/DentalTreatment.js';
+import DentalImage from '../models/DentalImage.js';
+import MedicalRecord from '../models/MedicalRecord.js';
+import PatientClinicalNote from '../models/PatientClinicalNote.js';
+import PatientProgressImage from '../models/PatientProgressImage.js';
+import PatientProgressComparison from '../models/PatientProgressComparison.js';
+import FollowUpReminder from '../models/FollowUpReminder.js';
+import DentalLabCase from '../models/DentalLabCase.js';
 
 import { cleanPatientName } from './nameUtils.js';
 
@@ -17,6 +25,13 @@ export const syncPatientDataToDependents = async (tenantId, patientIdStr, patien
   try {
     const billingUpdate = {};
     const appointmentUpdate = {};
+
+    // Sync Custom Patient ID
+    if (updateFields.patientId && String(updateFields.patientId).trim() !== String(patientIdStr).trim()) {
+      const newCustomId = String(updateFields.patientId).trim();
+      billingUpdate.patientId = newCustomId;
+      appointmentUpdate.patientId = newCustomId;
+    }
 
     // Sync Patient Name
     if (updateFields.fullName) {
@@ -80,9 +95,29 @@ export const syncPatientDataToDependents = async (tenantId, patientIdStr, patien
       promises.push(CancelledAppointment.updateMany(appointmentQuery, { $set: appointmentUpdate }));
     }
 
+    // If patientId itself was changed, update other clinical record collections too
+    if (updateFields.patientId && String(updateFields.patientId).trim() !== String(patientIdStr).trim()) {
+      const newCustomId = String(updateFields.patientId).trim();
+      const clinicalModels = [
+        DentalTreatment,
+        DentalImage,
+        MedicalRecord,
+        PatientClinicalNote,
+        PatientProgressImage,
+        PatientProgressComparison,
+        FollowUpReminder,
+        DentalLabCase
+      ];
+      for (const model of clinicalModels) {
+        if (model) {
+          promises.push(model.updateMany({ organizationId: tenantId, patientId: { $in: queryIds } }, { $set: { patientId: newCustomId } }));
+        }
+      }
+    }
+
     if (promises.length > 0) {
       await Promise.all(promises);
-      console.log(`[SYNC SUCCESS] Propagated patient profile updates (patientId: ${patientIdStr}, _id: ${patientDbId}) to dependent Billing & Appointments.`);
+      console.log(`[SYNC SUCCESS] Propagated patient profile updates (patientId: ${patientIdStr} -> ${updateFields.patientId || patientIdStr}, _id: ${patientDbId}) to dependent Billing, Appointments & Clinical records.`);
     }
   } catch (error) {
     console.error('[SYNC ERROR] Failed to sync patient data to dependents:', error);

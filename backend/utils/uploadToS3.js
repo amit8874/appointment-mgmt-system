@@ -47,12 +47,13 @@ export const uploadToS3 = async ({
     }
 
     // 2. Validate MIME Type
-    if (!finalMimeType || !ALLOWED_MIME_TYPES.includes(finalMimeType)) {
-      throw new Error(`Invalid file type: ${finalMimeType}. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`);
+    const isImageOrPdf = finalMimeType && (finalMimeType.toLowerCase().startsWith('image/') || finalMimeType.toLowerCase() === 'application/pdf');
+    if (!isImageOrPdf) {
+      throw new Error(`Invalid file type: ${finalMimeType}. Only images and PDF files are allowed.`);
     }
 
     // 3. Validate File Size
-    const maxMb = parseFloat(process.env.FILE_UPLOAD_MAX_MB) || 10;
+    const maxMb = parseFloat(process.env.FILE_UPLOAD_MAX_MB) || 35;
     const maxBytes = maxMb * 1024 * 1024;
     
     let fileSize = 0;

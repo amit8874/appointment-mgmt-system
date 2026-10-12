@@ -638,6 +638,7 @@ const TextArea = ({ label, value, onChange }) => (
 // --- Edit Profile Modal ---
 const EditProfileModal = ({ data, onClose, onSave }) => {
   const [form, setForm] = useState({
+    patientId: data.patientId || '',
     designation: data.designation || '',
     firstName: data.firstName || '',
     lastName: data.lastName || '',
@@ -670,6 +671,7 @@ const EditProfileModal = ({ data, onClose, onSave }) => {
     try {
       const updated = await patientApi.update(data._id, {
         ...form,
+        patientId: form.patientId ? form.patientId.trim() : data.patientId,
         fullName: (() => {
           const designation = form.designation ? form.designation.trim() : '';
           let firstName = form.firstName.trim();
@@ -690,7 +692,7 @@ const EditProfileModal = ({ data, onClose, onSave }) => {
       onSave(updated);
       onClose();
     } catch (err) {
-      toast.error('Failed to update profile. Please try again.');
+      toast.error(err.response?.data?.message || 'Failed to update profile. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -715,6 +717,7 @@ const EditProfileModal = ({ data, onClose, onSave }) => {
               <User size={14} /> Personal Information
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Field label="Patient ID" value={form.patientId} onChange={set('patientId')} />
               <Field label="Designation" value={form.designation} onChange={set('designation')} options={['', 'MR.', 'MS.', 'MRS.', 'MISS', 'SHRI', 'SMT.']} />
               <Field label="First Name" value={form.firstName} onChange={set('firstName')} />
               <Field label="Last Name" value={form.lastName} onChange={set('lastName')} />

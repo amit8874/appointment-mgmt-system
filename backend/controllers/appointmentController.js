@@ -158,7 +158,7 @@ export const getPatientSummary = async (req, res) => {
 
 export const bookPatientAppointment = async (req, res) => {
   try {
-    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, paymentMethod, patientDetails, sendWhatsApp = false, skipBilling = false } = req.body;
+    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, paymentMethod, patientDetails, sendWhatsApp = false, skipBilling = false, isNewPatient = false } = req.body;
 
     if (!organizationId) return res.status(400).json({ message: 'Organization is required' });
     if (!patientDetails || !patientDetails.firstName) {
@@ -178,33 +178,36 @@ export const bookPatientAppointment = async (req, res) => {
     }
 
     let existingPatient = null;
+    const candidateId = (patientId || patientDetails?.patientId || '').toString().trim();
     
     // 1. First try to find by patientId OR MongoDB _id
-    if (patientId) {
-      existingPatient = await Patient.findOne({ organizationId, patientId: patientId });
-      if (!existingPatient && mongoose.Types.ObjectId.isValid(patientId)) {
-        existingPatient = await Patient.findOne({ organizationId, _id: patientId });
+    if (candidateId && candidateId !== 'Loading...') {
+      existingPatient = await Patient.findOne({ organizationId, patientId: candidateId });
+      if (!existingPatient && mongoose.Types.ObjectId.isValid(candidateId)) {
+        existingPatient = await Patient.findOne({ organizationId, _id: candidateId });
       }
     }
-    
-    /* 
-    // Commented out automatic phone-only fallback to support multiple patients per phone.
-    // The frontend should now explicitly provide a patientId if they want to use an existing record.
-    if (!existingPatient && patientDetails.phone) {
-      existingPatient = await Patient.findOne({ organizationId, mobile: patientDetails.phone });
-      if (!existingPatient) {
-        existingPatient = await Patient.findOne({ mobile: patientDetails.phone });
-        if (existingPatient && !existingPatient.organizationId) {
-          existingPatient.organizationId = organizationId;
-          await existingPatient.save();
-        }
-      }
+
+    // If caller explicitly indicated this is a new patient registration, do not overwrite an existing patient record with this ID
+    if (isNewPatient && existingPatient) {
+      return res.status(400).json({
+        message: `Patient ID "${candidateId}" is already registered to ${existingPatient.fullName || existingPatient.firstName}. Please use a different Patient ID.`
+      });
     }
-    */
 
     if (!existingPatient) {
-      // Generate internal Patient ID
-      const newPatientId = await generatePatientId(organizationId);
+      let newPatientId = '';
+      if (candidateId && candidateId !== 'Loading...') {
+        const dup = await Patient.findOne({ organizationId, patientId: candidateId });
+        if (dup) {
+          return res.status(400).json({
+            message: `Patient ID "${candidateId}" is already registered to ${dup.fullName || dup.firstName}. Please use a different Patient ID.`
+          });
+        }
+        newPatientId = candidateId;
+      } else {
+        newPatientId = await generatePatientId(organizationId);
+      }
 
       existingPatient = new Patient({
         organizationId,
@@ -666,7 +669,7 @@ export const getAllAppointments = async (req, res) => {
 
 export const bookAppointment = async (req, res) => {
   try {
-    const { patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, patientDetails, amount, skipBilling = false } = req.body;
+    const { patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, patientDetails, amount, skipBilling = false, isNewPatient = false } = req.body;
 
     if (!patientDetails || !patientDetails.firstName) return res.status(400).json({ message: 'Patient first name is required' });
 
@@ -691,20 +694,36 @@ export const bookAppointment = async (req, res) => {
     const baseId = 23440000;
     const shortId = (baseId + counter.value).toString();
 
-    let patientIdToUse = patientId;
+    let candidateId = (patientId || patientDetails?.patientId || '').toString().trim();
     let existingPatient = null;
 
     // First try by ID
-    if (patientId) {
-      existingPatient = await Patient.findOne({ organizationId: req.tenantId, patientId: patientId });
-      if (!existingPatient && mongoose.Types.ObjectId.isValid(patientId)) {
-        existingPatient = await Patient.findOne({ organizationId: req.tenantId, _id: patientId });
+    if (candidateId && candidateId !== 'Loading...') {
+      existingPatient = await Patient.findOne({ organizationId: req.tenantId, patientId: candidateId });
+      if (!existingPatient && mongoose.Types.ObjectId.isValid(candidateId)) {
+        existingPatient = await Patient.findOne({ organizationId: req.tenantId, _id: candidateId });
       }
     }
 
+    if (isNewPatient && existingPatient) {
+      return res.status(400).json({
+        message: `Patient ID "${candidateId}" is already registered to ${existingPatient.fullName || existingPatient.firstName}. Please use a different Patient ID.`
+      });
+    }
+
     if (!existingPatient) {
-      // Generate internal Patient ID
-      const newPatientId = await generatePatientId(req.tenantId);
+      let newPatientId = '';
+      if (candidateId && candidateId !== 'Loading...') {
+        const dup = await Patient.findOne({ organizationId: req.tenantId, patientId: candidateId });
+        if (dup) {
+          return res.status(400).json({
+            message: `Patient ID "${candidateId}" is already registered to ${dup.fullName || dup.firstName}. Please use a different Patient ID.`
+          });
+        }
+        newPatientId = candidateId;
+      } else {
+        newPatientId = await generatePatientId(req.tenantId);
+      }
 
       existingPatient = new Patient({
         organizationId: req.tenantId,
@@ -2089,6 +2108,8 @@ export const bookWalkInAppointment = async (req, res) => {
       department,
       doctorId,
       doctorName,
+      patientId,
+      isNewPatient = false,
       symptoms,
       administrativeNotes,
       billingStatus,
@@ -2105,12 +2126,35 @@ export const bookWalkInAppointment = async (req, res) => {
 
     // 1. Find or Create Patient
     let existingPatient = null;
-    if (mobileNumber) {
+    const candidateId = (patientId || '').toString().trim();
+
+    if (candidateId && candidateId !== 'Loading...') {
+      existingPatient = await Patient.findOne({ organizationId, patientId: candidateId });
+      if (isNewPatient && existingPatient) {
+        return res.status(400).json({
+          message: `Patient ID "${candidateId}" is already registered to ${existingPatient.fullName || existingPatient.firstName}. Please use a different Patient ID.`
+        });
+      }
+    }
+
+    if (!existingPatient && mobileNumber && (!candidateId || candidateId === 'Loading...')) {
       existingPatient = await Patient.findOne({ organizationId, mobile: mobileNumber });
     }
 
     if (!existingPatient) {
-      const newPatientId = await generatePatientId(organizationId);
+      let newPatientId = '';
+      if (candidateId && candidateId !== 'Loading...') {
+        const dup = await Patient.findOne({ organizationId, patientId: candidateId });
+        if (dup) {
+          return res.status(400).json({
+            message: `Patient ID "${candidateId}" is already registered to ${dup.fullName || dup.firstName}. Please use a different Patient ID.`
+          });
+        }
+        newPatientId = candidateId;
+      } else {
+        newPatientId = await generatePatientId(organizationId);
+      }
+
       existingPatient = new Patient({
         organizationId,
         patientId: newPatientId,

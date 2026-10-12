@@ -5,6 +5,7 @@ import api from '../../../services/api';
 
 const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete }) => {
   const [formData, setFormData] = useState({
+    patientId: '',
     fullName: '',
     age: '',
     gender: '',
@@ -37,6 +38,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
   useEffect(() => {
     if (patient) {
       setFormData({
+        patientId: patient.patientId || '',
         fullName: patient.fullName || `${patient.firstName || patient.name?.split(' ')[0] || ''} ${patient.lastName || patient.name?.split(' ').slice(1).join(' ') || ''}`.trim(),
         age: patient.age || '',
         gender: patient.gender || '',
@@ -57,6 +59,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
       });
     } else {
       setFormData({
+        patientId: '',
         fullName: '',
         age: '',
         gender: '',
@@ -75,8 +78,19 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
         assignedDoctor: '',
         assignedDoctorId: ''
       });
+
+      // Pre-fill next sequential ID for new patient
+      if (isOpen) {
+        api.get('/patients/generate-id')
+          .then(res => {
+            if (res.data?.patientId) {
+              setFormData(prev => ({ ...prev, patientId: res.data.patientId }));
+            }
+          })
+          .catch(err => console.error('Error generating patient ID:', err));
+      }
     }
-  }, [patient]);
+  }, [patient, isOpen]);
 
   // Fetch doctors from backend
   useEffect(() => {
@@ -313,6 +327,13 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 <span className="text-xs font-bold text-blue-600 self-center">PERSONAL</span>
               </div>
 
+              <div className="w-28">
+                <label className="block text-xs font-medium text-gray-700">Patient ID</label>
+                <input type="text" name="patientId" value={formData.patientId} onChange={handleChange}
+                  placeholder="Auto / Custom"
+                  className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500 font-bold text-blue-700" />
+              </div>
+
               <div className="w-48">
                 <label className="block text-xs font-medium text-gray-700">Full Name *</label>
                 <input type="text" name="fullName" value={formData.fullName} onChange={handleChange}
@@ -466,7 +487,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 </button>
                 <button type="button" onClick={() => {
                   setFormData({
-                    fullName: '', dateOfBirth: '', age: '', gender: '', bloodGroup: '',
+                    patientId: '', fullName: '', dateOfBirth: '', age: '', gender: '', bloodGroup: '',
                     contactNumber: '', email: '', address: '', city: '', state: '', zip: '',
                     emergencyContact: '', emergencyPhone: '', pastMedicalHistory: '', allergies: '',
                     assignedDoctor: '', assignedDoctorId: ''

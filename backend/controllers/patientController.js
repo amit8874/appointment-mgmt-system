@@ -327,13 +327,30 @@ export const createPatient = async (req, res) => {
 
     // Duplicate mobile check relaxed as frontend handles user choice (Family shared numbers)
 
-    // Generate unique Patient ID
-    const patientId = await generatePatientId(req.tenantId);
+    // Patient ID handling: allow custom patient ID, or auto-generate if omitted/blank
+    let finalPatientId = (req.body.patientId && typeof req.body.patientId === 'string')
+      ? req.body.patientId.trim()
+      : '';
+
+    if (finalPatientId && finalPatientId !== 'Loading...') {
+      // Validate uniqueness within organization
+      const existingWithId = await Patient.findOne({
+        organizationId: req.tenantId,
+        patientId: finalPatientId
+      });
+      if (existingWithId) {
+        return res.status(400).json({
+          message: `Patient ID "${finalPatientId}" is already registered. Please enter a different Patient ID.`
+        });
+      }
+    } else {
+      finalPatientId = await generatePatientId(req.tenantId);
+    }
 
     // Create new patient
     const newPatient = new Patient({
       organizationId: req.tenantId,
-      patientId,
+      patientId: finalPatientId,
       designation: designation || '',
       fullName: formatPatientFullName(designation, firstName, lastName),
       firstName: firstName.trim(),
@@ -359,8 +376,6 @@ export const createPatient = async (req, res) => {
     });
 
     await newPatient.save();
-
-
 
     res.status(201).json(newPatient);
 
@@ -548,12 +563,32 @@ export const updatePatient = async (req, res) => {
     }
     }
 
+    // Check if custom patientId is being updated
+    if (updateData.patientId !== undefined) {
+      const customPatientId = String(updateData.patientId).trim();
+      if (customPatientId && customPatientId !== 'Loading...' && customPatientId !== patient.patientId) {
+        const duplicate = await Patient.findOne({
+          organizationId: req.tenantId,
+          patientId: customPatientId,
+          _id: { $ne: patient._id }
+        });
+        if (duplicate) {
+          return res.status(400).json({
+            message: `Patient ID "${customPatientId}" is already assigned to another patient.`
+          });
+        }
+        filteredUpdateData.patientId = customPatientId;
+      }
+    }
+
+    const oldPatientId = patient.patientId;
+
     // Now update the patient with filtered data
     const updatedPatient = await Patient.findByIdAndUpdate(patient._id, filteredUpdateData, { new: true, runValidators: true });
     if (!updatedPatient) return res.status(404).json({ message: 'Patient not found' });
 
     // Propagate changes to all dependent collections (Billing and Appointments)
-    await syncPatientDataToDependents(req.tenantId, updatedPatient.patientId, updatedPatient._id, filteredUpdateData);
+    await syncPatientDataToDependents(req.tenantId, oldPatientId, updatedPatient._id, filteredUpdateData);
 
     res.json(updatedPatient);
   } catch (error) {

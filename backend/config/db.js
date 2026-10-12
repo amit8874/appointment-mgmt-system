@@ -9,6 +9,19 @@ const connectDB = async () => {
     });
 
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+
+    // Drop legacy conflicting index on dentalproceduremasters if it exists
+    try {
+      const collection = conn.connection.collection('dentalproceduremasters');
+      const indexes = await collection.indexes();
+      const legacyIndex = indexes.find(i => i.name === 'name_1_organizationId_1');
+      if (legacyIndex) {
+        await collection.dropIndex('name_1_organizationId_1');
+        console.log('[MongoDB] Successfully dropped legacy conflicting index name_1_organizationId_1 on dentalproceduremasters');
+      }
+    } catch (indexErr) {
+      // Ignore if collection does not exist yet or index is already removed
+    }
   } catch (error) {
     console.error(`MongoDB connection failed: ${error.message}`);
     process.exit(1);

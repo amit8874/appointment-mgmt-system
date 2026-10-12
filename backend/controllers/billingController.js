@@ -400,21 +400,34 @@ export const createBill = async (req, res) => {
             const procedureName = item.description || '';
             const unitPrice = Number(item.unitPrice || item.price || item.cost || 0);
             if (procedureName.trim() && unitPrice >= 0) {
-              await DentalProcedureMaster.findOneAndUpdate(
-                {
-                  organizationId: req.tenantId,
-                  doctorId: activeDoctorId,
-                  name: { $regex: new RegExp(`^${procedureName.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
-                },
-                {
-                  organizationId: req.tenantId,
-                  doctorId: activeDoctorId,
-                  name: procedureName.trim(),
-                  defaultCost: unitPrice,
-                  isActive: true
-                },
-                { upsert: true }
-              );
+              const trimmedName = procedureName.trim();
+              const nameRegex = new RegExp(`^${trimmedName.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i');
+              try {
+                await DentalProcedureMaster.findOneAndUpdate(
+                  {
+                    organizationId: req.tenantId,
+                    doctorId: activeDoctorId,
+                    name: nameRegex
+                  },
+                  {
+                    organizationId: req.tenantId,
+                    doctorId: activeDoctorId,
+                    name: trimmedName,
+                    defaultCost: unitPrice,
+                    isActive: true
+                  },
+                  { upsert: true }
+                );
+              } catch (upErr) {
+                if (upErr.code === 11000) {
+                  await DentalProcedureMaster.findOneAndUpdate(
+                    { organizationId: req.tenantId, name: nameRegex },
+                    { defaultCost: unitPrice, isActive: true }
+                  );
+                } else {
+                  throw upErr;
+                }
+              }
             }
           }
         } catch (masterErr) {

@@ -13,7 +13,16 @@ const dentalImageSchema = new mongoose.Schema({
   },
   imageType: {
     type: String,
-    enum: ['Before Image', 'After Image', 'X-Ray Image', 'Intraoral Image', 'Progress Image'],
+    enum: [
+      'Before Image',
+      'After Image',
+      'X-Ray Image',
+      'Intraoral Image',
+      'Progress Image',
+      'Prescription',
+      'Prescription Image',
+      'Manual Prescription'
+    ],
     required: true,
   },
   imageUrl: {
@@ -21,6 +30,10 @@ const dentalImageSchema = new mongoose.Schema({
     required: [true, 'Image URL is required'],
   },
   publicId: {
+    type: String,
+    default: '',
+  },
+  s3Key: {
     type: String,
     default: '',
   },

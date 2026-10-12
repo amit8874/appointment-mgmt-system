@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, ChevronDown, Calendar as CalendarIcon, Loader2, Mic, MicOff, X, Clock, Star, Heart } from 'lucide-react';
+import { Plus, ChevronDown, Calendar as CalendarIcon, Loader2, Mic, MicOff, X, Clock, Star, Heart, RotateCcw } from 'lucide-react';
 import api, { whatsappApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
@@ -234,6 +234,23 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     fetchPatientId();
   }, [user, initialData]);
 
+  const handleRegenerateId = async () => {
+    try {
+      const orgId = user?.organizationId?._id || user?.organizationId || user?.organization?._id;
+      if (!orgId) return;
+      const response = await api.get(`/patients/generate-id?organizationId=${orgId}`);
+      if (response.data && response.data.patientId) {
+        generatedPatientIdRef.current = response.data.patientId;
+        setSelectedExistingId(null);
+        setFormData(prev => ({ ...prev, patientId: response.data.patientId }));
+        toast.info(`Generated Patient ID: ${response.data.patientId}`);
+      }
+    } catch (error) {
+      console.error('Error generating patient ID:', error);
+      toast.error('Failed to generate patient ID');
+    }
+  };
+
   // Handle click outside to close name suggestions dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -433,6 +450,8 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       
       if (bookingMode === 'WALK_IN') {
         const walkInData = {
+          patientId: selectedExistingId || formData.patientId,
+          isNewPatient: !selectedExistingId,
           designation: formData.designation || 'MR.',
           firstName: (formData.fullName || '').trim().split(/\s+/)[0] || '',
           lastName: (formData.fullName || '').trim().split(/\s+/).slice(1).join(' ') || '',
@@ -471,6 +490,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         const appointmentData = {
           organizationId: orgId,
           patientId: selectedExistingId || formData.patientId,
+          isNewPatient: !selectedExistingId,
           doctorId: formData.doctor,
           doctorName: selectedDoc ? selectedDoc.name : '',
           specialty: selectedDoc ? selectedDoc.specialization : 'General',
@@ -649,8 +669,29 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         {/* Fields Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-4 md:grid-cols-9 gap-4">
           <div className="flex flex-col">
-            <label className="text-xs text-gray-400 mb-1">Patient ID</label>
-            <span className="text-xl font-bold text-gray-800 dark:text-gray-100 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-200 dark:border-gray-600 block text-center">{formData.patientId}</span>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Patient ID</label>
+              <button
+                type="button"
+                onClick={handleRegenerateId}
+                title="Generate next sequential ID"
+                className="text-[10px] text-blue-600 hover:text-blue-800 dark:text-blue-400 flex items-center gap-0.5 font-bold cursor-pointer"
+              >
+                <RotateCcw className="w-2.5 h-2.5" /> Auto
+              </button>
+            </div>
+            <input
+              type="text"
+              name="patientId"
+              value={formData.patientId}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (selectedExistingId) setSelectedExistingId(null);
+                setFormData(prev => ({ ...prev, patientId: val }));
+              }}
+              placeholder="e.g. 000312"
+              className="w-full border border-blue-400 dark:border-blue-500 p-2 rounded text-sm font-bold text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 text-center tracking-wide"
+            />
           </div>
 
           <div className="flex flex-col">

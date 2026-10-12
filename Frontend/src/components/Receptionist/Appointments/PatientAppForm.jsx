@@ -30,6 +30,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isLinkedPatient, setIsLinkedPatient] = useState(false);
   const location = useLocation();
   const rebookData = location.state?.rebookData;
 
@@ -76,6 +77,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
   // Handle re-book data pre-fill
   useEffect(() => {
     if (rebookData) {
+      setIsLinkedPatient(true);
       if (rebookData.patient) {
         const p = rebookData.patient;
         setFormData(prev => ({
@@ -107,6 +109,15 @@ const PatientAppointmentForm = ({ onSuccess }) => {
           assignedDoctor: rebookData.doctorName || prev.assignedDoctor
         }));
       }
+    } else {
+      // Pre-fill auto-generated ID for new patient
+      api.get('/patients/generate-id')
+        .then(res => {
+          if (res.data?.patientId) {
+            setFormData(prev => ({ ...prev, patientId: prev.patientId || res.data.patientId }));
+          }
+        })
+        .catch(err => console.error('Error fetching patient ID:', err));
     }
   }, [rebookData]);
 
@@ -151,6 +162,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
   }, [formData.firstName, formData.lastName, formData.patientId]);
 
   const handleSelectPatient = (p) => {
+    setIsLinkedPatient(true);
     const rawName = p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
     setFormData(prev => ({
       ...prev,
@@ -176,6 +188,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
   };
 
   const handleClearPatientSelection = () => {
+    setIsLinkedPatient(false);
     setFormData(prev => ({
       ...prev,
       firstName: '',
@@ -240,7 +253,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
       let patientId = null;
 
       // 1. Create Patient ONLY if not re-booking an existing one
-      if (!patientIdString) {
+      if (!isLinkedPatient) {
         const patientResponse = await api.post('/patients', {
           ...formData,
           gender: formData.gender === 'Prefer not to say' ? 'Other' : formData.gender
@@ -394,6 +407,20 @@ const PatientAppointmentForm = ({ onSuccess }) => {
 
           {/* Name Fields Container with Suggestions Dropdown */}
           <div className="relative w-full flex flex-wrap gap-2" ref={nameSearchRef}>
+            <div className="w-28">
+              <label className="block text-xs font-medium text-gray-700">Patient ID</label>
+              <input
+                type="text"
+                name="patientId"
+                value={formData.patientId}
+                onChange={(e) => {
+                  setIsLinkedPatient(false);
+                  setFormData(prev => ({ ...prev, patientId: e.target.value }));
+                }}
+                placeholder="Auto / Custom"
+                className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500 font-bold text-blue-700"
+              />
+            </div>
             <div className="w-32">
               <label className="block text-xs font-medium text-gray-700">First *</label>
               <input type="text" name="firstName" value={formData.firstName} onChange={handleChange}

@@ -5,6 +5,7 @@ import Appointment from '../models/Appointment.js';
 import Billing from '../models/Billing.js';
 import DentalProcedureMaster from '../models/DentalProcedureMaster.js';
 import mongoose from 'mongoose';
+import { resolveS3UrlIfNeeded, deleteFileFromS3 } from '../services/s3Service.js';
 
 const resolveDoctorUserId = async (doctorIdStr, tenantId) => {
   if (!doctorIdStr) return null;
@@ -97,6 +98,65 @@ const resolvePatientObjectId = async (patientId, organizationId) => {
     return null;
   }
   return patient._id;
+};
+
+/**
+ * Safely upsert a procedure in DentalProcedureMaster without throwing E11000 duplicate key error
+ */
+const upsertCustomProcedureMaster = async (organizationId, doctorId, procedureName, cost) => {
+  if (!procedureName || !procedureName.trim()) return null;
+  const trimmed = procedureName.trim();
+  const nameRegex = new RegExp(`^${trimmed.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i');
+  const defaultCost = Number(cost) || 0;
+
+  try {
+    // 1. Try finding by doctorId and name
+    let doc = await DentalProcedureMaster.findOne({
+      organizationId,
+      doctorId,
+      name: nameRegex
+    });
+
+    if (doc) {
+      doc.defaultCost = defaultCost;
+      doc.name = trimmed;
+      doc.isActive = true;
+      return await doc.save();
+    }
+
+    // 2. Try upserting
+    return await DentalProcedureMaster.findOneAndUpdate(
+      {
+        organizationId,
+        doctorId,
+        name: nameRegex
+      },
+      {
+        organizationId,
+        doctorId,
+        name: trimmed,
+        defaultCost,
+        isActive: true
+      },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    if (err.code === 11000) {
+      // Legacy index name_1_organizationId_1 hit: update existing without duplicate error
+      try {
+        return await DentalProcedureMaster.findOneAndUpdate(
+          { organizationId, name: nameRegex },
+          { defaultCost, isActive: true },
+          { new: true }
+        );
+      } catch (innerErr) {
+        console.warn('Could not update procedure master after duplicate key:', innerErr.message);
+      }
+    } else {
+      console.warn('Could not auto-save custom procedure master:', err.message);
+    }
+  }
+  return null;
 };
 
 // ==========================================
@@ -263,25 +323,7 @@ export const createTreatment = async (req, res) => {
     // Auto-upsert custom procedure price for this doctor
     const activeDoctorId = newTreatment.doctorId || req.user?._id;
     if (activeDoctorId && procedure && estimatedCost !== undefined) {
-      try {
-        await DentalProcedureMaster.findOneAndUpdate(
-          {
-            organizationId,
-            doctorId: activeDoctorId,
-            name: { $regex: new RegExp(`^${procedure.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
-          },
-          {
-            organizationId,
-            doctorId: activeDoctorId,
-            name: procedure.trim(),
-            defaultCost: Number(estimatedCost) || 0,
-            isActive: true
-          },
-          { upsert: true }
-        );
-      } catch (err) {
-        console.warn('Could not auto-save custom procedure master:', err.message);
-      }
+      await upsertCustomProcedureMaster(organizationId, activeDoctorId, procedure, estimatedCost);
     }
 
     res.status(201).json(newTreatment);
@@ -320,25 +362,7 @@ export const updateTreatment = async (req, res) => {
     const activeCost = estimatedCost !== undefined ? estimatedCost : treatment.estimatedCost;
     const activeDoctorId = await resolveDoctorUserId(req.body.doctorId, organizationId) || treatment.doctorId || req.user?._id;
     if (activeProcedure && activeCost !== undefined && activeDoctorId) {
-      try {
-        await DentalProcedureMaster.findOneAndUpdate(
-          {
-            organizationId,
-            doctorId: activeDoctorId,
-            name: { $regex: new RegExp(`^${activeProcedure.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
-          },
-          {
-            organizationId,
-            doctorId: activeDoctorId,
-            name: activeProcedure.trim(),
-            defaultCost: Number(activeCost) || 0,
-            isActive: true
-          },
-          { upsert: true }
-        );
-      } catch (err) {
-        console.warn('Could not auto-save custom procedure master on treatment update:', err.message);
-      }
+      await upsertCustomProcedureMaster(organizationId, activeDoctorId, activeProcedure, activeCost);
     }
 
     res.json(treatment);
@@ -420,7 +444,23 @@ export const getPatientImages = async (req, res) => {
     }
 
     const images = await DentalImage.find({ organizationId, patientId: resolvedId }).sort({ date: -1 });
-    res.json(images);
+
+    // Refresh signed URLs on-the-fly so images remain accessible indefinitely
+    const resolvedImages = await Promise.all(
+      images.map(async (img) => {
+        const item = img.toObject();
+        try {
+          if (item.imageUrl) {
+            item.imageUrl = await resolveS3UrlIfNeeded(item.imageUrl, 86400 * 7);
+          }
+        } catch (err) {
+          console.warn('[getPatientImages] Failed to resolve S3 URL for item:', err.message);
+        }
+        return item;
+      })
+    );
+
+    res.json(resolvedImages);
   } catch (error) {
     console.error('Error fetching patient dental images:', error);
     res.status(500).json({ message: 'Error retrieving dental clinical images', error: error.message });
@@ -432,7 +472,7 @@ export const uploadDentalImage = async (req, res) => {
   try {
     const { patientId } = req.params;
     const organizationId = req.tenantId;
-    const { imageType, imageUrl, publicId, notes, date } = req.body;
+    const { imageType, imageUrl, publicId, s3Key, notes, date } = req.body;
 
     if (!imageType || !imageUrl) {
       return res.status(400).json({ message: 'Image type and Image URL are required' });
@@ -444,12 +484,23 @@ export const uploadDentalImage = async (req, res) => {
       return res.status(404).json({ message: 'Patient not found' });
     }
 
+    // Extract S3 key if not directly provided
+    let resolvedS3Key = s3Key || publicId || '';
+    if (!resolvedS3Key && typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
+      try {
+        const parsed = new URL(imageUrl);
+        let pathKey = parsed.pathname.replace(/^\//, '');
+        if (pathKey) resolvedS3Key = pathKey.split('?')[0];
+      } catch (e) {}
+    }
+
     const newImage = new DentalImage({
       organizationId,
       patientId: resolvedId,
       imageType,
       imageUrl,
       publicId: publicId || '',
+      s3Key: resolvedS3Key,
       notes: notes || '',
       date: date || new Date()
     });
@@ -471,6 +522,16 @@ export const deleteDentalImage = async (req, res) => {
     const image = await DentalImage.findOneAndDelete({ _id: imageId, organizationId });
     if (!image) {
       return res.status(404).json({ message: 'Dental image record not found' });
+    }
+
+    // Permanently remove image file from S3 if key is present
+    const keyToDelete = image.s3Key || image.publicId;
+    if (keyToDelete) {
+      try {
+        await deleteFileFromS3(keyToDelete);
+      } catch (s3Err) {
+        console.warn(`[deleteDentalImage] Could not delete file from S3 (${keyToDelete}):`, s3Err.message);
+      }
     }
 
     res.json({ message: 'Dental image deleted successfully' });
@@ -532,22 +593,8 @@ export const createCustomProcedure = async (req, res) => {
 
     const trimmedName = name.trim();
 
-    // Upsert (update or insert) for this doctor and organization
-    const updatedProcedure = await DentalProcedureMaster.findOneAndUpdate(
-      {
-        organizationId,
-        doctorId,
-        name: { $regex: new RegExp(`^${trimmedName.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
-      },
-      {
-        organizationId,
-        doctorId,
-        name: trimmedName,
-        defaultCost: Number(defaultCost) || 0,
-        isActive: true
-      },
-      { new: true, upsert: true }
-    );
+    // Upsert (update or insert) safely for this doctor and organization
+    const updatedProcedure = await upsertCustomProcedureMaster(organizationId, doctorId, trimmedName, defaultCost);
 
     res.status(200).json(updatedProcedure);
   } catch (error) {

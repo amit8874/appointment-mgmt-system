@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar as CalendarIcon, Loader2, Plus, Save, ChevronDown, Mic, MicOff } from 'lucide-react';
+import { X, Calendar as CalendarIcon, Loader2, Plus, Save, ChevronDown, Mic, MicOff, RotateCcw } from 'lucide-react';
 import api, { whatsappApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
@@ -371,6 +371,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       const appointmentData = {
         organizationId: orgId,
         patientId: selectedExistingId || formData.patientId,
+        isNewPatient: !selectedExistingId,
         doctorId: formData.doctor,
         doctorName: selectedDoctor ? selectedDoctor.name : '',
         specialty: selectedDoctor ? selectedDoctor.specialization : 'General',
@@ -512,8 +513,29 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
         {/* Row 1: Patient ID, Designation, Name, Age */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
           <div className="flex flex-col">
-            <label className="text-xs text-gray-400 mb-1 uppercase tracking-wider font-semibold">Patient ID</label>
-            <span className="text-xl font-extrabold text-blue-600 dark:text-blue-400">{formData.patientId}</span>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-gray-500 uppercase tracking-wider font-bold">Patient ID</label>
+              <button
+                type="button"
+                onClick={fetchPatientId}
+                title="Generate next sequential ID"
+                className="text-[10px] text-blue-600 hover:text-blue-800 dark:text-blue-400 flex items-center gap-0.5 font-bold cursor-pointer"
+              >
+                <RotateCcw className="w-2.5 h-2.5" /> Auto
+              </button>
+            </div>
+            <input
+              type="text"
+              name="patientId"
+              value={formData.patientId}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (selectedExistingId) setSelectedExistingId(null);
+                setFormData(prev => ({ ...prev, patientId: val }));
+              }}
+              placeholder="e.g. 000312"
+              className="w-full border border-blue-400 dark:border-blue-500 p-2 rounded-lg text-sm font-bold text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-center tracking-wide"
+            />
           </div>
 
           <div className="flex flex-col">
