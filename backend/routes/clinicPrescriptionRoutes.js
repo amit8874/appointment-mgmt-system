@@ -4,7 +4,8 @@ import {
   getSettings, 
   updateSettings,
   uploadTemplate,
-  deleteTemplate
+  deleteTemplate,
+  analyzeTemplateWithAI
 } from '../controllers/clinicPrescriptionController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -30,6 +31,7 @@ router.use(authenticateToken);
 router.get('/', getSettings);
 router.put('/settings', updateSettings);
 router.post('/upload', upload.single('image'), uploadTemplate);
+router.post('/ai-analyze', upload.single('image'), analyzeTemplateWithAI);
 router.delete('/', deleteTemplate);
 
 export default router;

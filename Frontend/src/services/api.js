@@ -664,6 +664,11 @@ export const organizationApi = {
     const { data } = await api.delete('/clinic/prescription-template');
     return data;
   },
+  analyzePrescriptionTemplateWithAI: async (formData) => {
+    const config = formData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+    const { data } = await api.post('/clinic/prescription-template/ai-analyze', formData || {}, config);
+    return data;
+  },
   getStats: async (id) => {
     const { data } = await api.get(`/organizations/${id}/stats`);
     return data;
@@ -1475,6 +1480,39 @@ export const dentistApi = {
   },
   createCustomProcedure: async (procedureData) => {
     const { data } = await api.post('/dentist/procedures', procedureData);
+    return data;
+  },
+  // Dental Quotations / Treatment Estimates
+  getPatientQuotations: async (patientId) => {
+    const { data } = await api.get(`/dentist/patient/${patientId}/quotations`);
+    return data;
+  },
+  createQuotation: async (patientId, quotationData) => {
+    const { data } = await api.post(`/dentist/patient/${patientId}/quotations`, quotationData);
+    return data;
+  },
+  getQuotationById: async (id) => {
+    const { data } = await api.get(`/dentist/quotations/${id}`);
+    return data;
+  },
+  updateQuotation: async (id, quotationData) => {
+    const { data } = await api.put(`/dentist/quotations/${id}`, quotationData);
+    return data;
+  },
+  deleteQuotation: async (id) => {
+    const { data } = await api.delete(`/dentist/quotations/${id}`);
+    return data;
+  },
+  convertQuotationToPlan: async (id, convertData = {}) => {
+    const { data } = await api.post(`/dentist/quotations/${id}/convert-to-plan`, convertData);
+    return data;
+  },
+  downloadQuotationPDF: async (id) => {
+    const response = await api.get(`/dentist/quotations/${id}/pdf`, { responseType: 'blob' });
+    return response.data;
+  },
+  sendQuotationWhatsApp: async (id, payload = {}) => {
+    const { data } = await api.post(`/dentist/quotations/${id}/whatsapp`, payload);
     return data;
   }
 };

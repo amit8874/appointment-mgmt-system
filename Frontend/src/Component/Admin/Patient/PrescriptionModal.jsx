@@ -17,7 +17,7 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../../../context/AuthContext';
 
 const DURATION_OPTIONS = ['Days', 'Weeks', 'Months', 'Years'];
-const DOSE_OPTIONS = ['1-0-0', '0-1-0', '0-0-1', '1-0-1', '1-1-1', '1-1-0', '0-1-1', '1/2-0-1/2', '2-0-2', '0-0-0'];
+const DOSE_OPTIONS = ['1 Tab', '2 Tabs', '1 Cap', '1/2 Tab', '5 ml', '10 ml', '1 Drop', '2 Drops', '1 Application', '1 Sachet'];
 const WHEN_OPTIONS = ['After Food', 'Before Food', 'With Food', 'Empty Stomach', 'After Breakfast', 'After Lunch', 'After Dinner', 'At Night'];
 const FREQ_OPTIONS = ['Daily', 'Twice Daily (BD)', 'Thrice Daily (TDS)', 'Four Times Daily', 'Alternate Day', 'Weekly', 'SOS (As Needed)', 'Once a Month'];
 
@@ -663,7 +663,7 @@ const ComplaintDropdownInput = ({ index, value, onChange, masterComplaints, onAd
   );
 };
 
-const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData }) => {
+const PrescriptionModal = ({ isOpen, onClose, patient, onSaveSuccess, editData, onSwitchToDental }) => {
   const { user } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -1441,7 +1441,17 @@ setDiagnosis(newArr);
             </div>
 
             {/* Right side: Date and Doctor */}
-            <div className="flex gap-4 items-start">
+            <div className="flex gap-3 items-center">
+              {onSwitchToDental && (
+                <button
+                  type="button"
+                  onClick={onSwitchToDental}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-teal-500/30 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 text-xs font-bold transition-all hover:bg-teal-100 dark:hover:bg-teal-900/40 shadow-xs cursor-pointer"
+                  title="Switch to specialized Dental Examination & Rx layout"
+                >
+                  <span>🦷 Dental Form</span>
+                </button>
+              )}
               <div className="flex flex-col items-end gap-0.5 mt-1">
                 <span className="text-[13px] font-bold text-slate-900 dark:text-white tracking-wide">
                   {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

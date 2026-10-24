@@ -14,6 +14,16 @@ import {
   getCustomProcedures,
   createCustomProcedure
 } from '../controllers/dentistController.js';
+import {
+  createDentalQuotation,
+  getPatientQuotations,
+  getQuotationById,
+  updateDentalQuotation,
+  deleteDentalQuotation,
+  convertQuotationToPlan,
+  downloadQuotationPDF,
+  sendQuotationWhatsApp
+} from '../controllers/dentalQuotationController.js';
 
 const router = express.Router();
 
@@ -29,6 +39,16 @@ router.get('/patient/:patientId/treatments', getPatientTreatments);
 router.post('/patient/:patientId/treatments', createTreatment);
 router.put('/treatments/:treatmentId', updateTreatment);
 router.delete('/treatments/:treatmentId', deleteTreatment);
+
+// Dental Quotations / Treatment Estimates CRUD & Actions
+router.get('/patient/:patientId/quotations', getPatientQuotations);
+router.post('/patient/:patientId/quotations', createDentalQuotation);
+router.get('/quotations/:id', getQuotationById);
+router.put('/quotations/:id', updateDentalQuotation);
+router.delete('/quotations/:id', deleteDentalQuotation);
+router.post('/quotations/:id/convert-to-plan', convertQuotationToPlan);
+router.get('/quotations/:id/pdf', downloadQuotationPDF);
+router.post('/quotations/:id/whatsapp', sendQuotationWhatsApp);
 
 // Chart log aggregation
 router.get('/patient/:patientId/chart', getToothChart);

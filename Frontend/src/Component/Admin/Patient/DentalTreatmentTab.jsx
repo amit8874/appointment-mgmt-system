@@ -13,8 +13,17 @@ import {
   Eye,
   Layers,
   List,
-  X
+  X,
+  FileText,
+  Printer,
+  Download,
+  Send,
+  Calendar,
+  ArrowRight,
+  Check
 } from 'lucide-react';
+import DentalQuotationModal from './DentalQuotationModal';
+import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getToothLabel, getToothDisplayName } from './dentalUtils';
@@ -48,6 +57,18 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
 
   // Selected treatments for multi-procedure billing
   const [selectedTreatments, setSelectedTreatments] = useState([]);
+
+  // Quotations & Estimates state
+  const [mainTab, setMainTab] = useState('treatments'); // 'treatments' | 'quotations'
+  const [quotations, setQuotations] = useState([]);
+  const [quotationsLoading, setQuotationsLoading] = useState(false);
+  const [quotationModalOpen, setQuotationModalOpen] = useState(false);
+  const [selectedQuotationForEdit, setSelectedQuotationForEdit] = useState(null);
+
+  // Convert to Plan Procedure modal state
+  const [convertingQuotation, setConvertingQuotation] = useState(null);
+  const [convertAdvance, setConvertAdvance] = useState('');
+  const [isConverting, setIsConverting] = useState(false);
 
   // View Mode: 'grouped' (default) or 'detailed'
   const [viewMode, setViewMode] = useState('grouped');
@@ -112,10 +133,90 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
     }
   };
 
+  const fetchQuotations = async () => {
+    try {
+      setQuotationsLoading(true);
+      const res = await dentistApi.getPatientQuotations(patientId);
+      setQuotations(res?.quotations || []);
+    } catch (err) {
+      console.error('Error fetching quotations:', err);
+    } finally {
+      setQuotationsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchTreatments();
+    fetchQuotations();
     setSelectedTreatments([]);
   }, [patientId]);
+
+  const handleDeleteQuotation = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this treatment quotation?')) return;
+    try {
+      await dentistApi.deleteQuotation(id);
+      toast.success('Quotation deleted successfully.');
+      fetchQuotations();
+    } catch (err) {
+      console.error('Error deleting quotation:', err);
+      toast.error('Failed to delete quotation.');
+    }
+  };
+
+  const handleConvertQuotationSubmit = async (e) => {
+    e.preventDefault();
+    if (!convertingQuotation) return;
+    setIsConverting(true);
+    try {
+      await dentistApi.convertQuotationToPlan(convertingQuotation._id, {
+        paidAmount: Number(convertAdvance) || 0,
+      });
+      toast.success('Quotation converted to active planned procedures!');
+      setConvertingQuotation(null);
+      setConvertAdvance('');
+      fetchTreatments();
+      fetchQuotations();
+      setMainTab('treatments');
+    } catch (err) {
+      console.error('Error converting quotation:', err);
+      toast.error('Failed to convert quotation.');
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  const handleDownloadQuotationPDF = async (q) => {
+    try {
+      const blob = await dentistApi.downloadQuotationPDF(q._id);
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Quotation-${q.quotationNumber}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+    } catch (err) {
+      toast.error('Could not download PDF');
+    }
+  };
+
+  const handleSendQuotationWhatsApp = async (q) => {
+    const phone = q.patientPhone || patientData?.mobile || patientData?.phone;
+    if (!phone) {
+      toast.error('No phone number available for WhatsApp');
+      return;
+    }
+    try {
+      await dentistApi.sendQuotationWhatsApp(q._id, { phone });
+      toast.success('Quotation sent via WhatsApp!');
+    } catch (err) {
+      const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+      const summaryText = `Hello ${q.patientName || 'Patient'},\n\nHere is your Treatment Estimate (${q.quotationNumber}):\n\n` +
+        q.items.map(it => `• ${it.procedure} (${it.toothDisplay}): ₹${it.totalCost}`).join('\n') +
+        `\n\nTotal Estimated Amount: ₹${q.totalAmount}\nValidity: 30 Days\n\nThank you!`;
+      window.open(`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(summaryText)}`, '_blank');
+    }
+  };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this treatment plan item?')) return;
@@ -370,6 +471,206 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
 
   return (
     <div className="p-6 bg-white border border-slate-100 rounded-b-3xl mt-4 shadow-sm space-y-6">
+      {/* Primary Section Switcher */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMainTab('treatments')}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              mainTab === 'treatments'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                : 'text-slate-600 hover:text-indigo-600 hover:bg-slate-200/50'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" /> Active Treatment Plan ({treatments.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setMainTab('quotations')}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              mainTab === 'quotations'
+                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                : 'text-slate-600 hover:text-amber-600 hover:bg-slate-200/50'
+            }`}
+          >
+            <FileText className="w-4 h-4" /> Quotations & Estimates ({quotations.length})
+          </button>
+        </div>
+
+        {mainTab === 'quotations' && (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedQuotationForEdit(null);
+              setQuotationModalOpen(true);
+            }}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-amber-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> New Quotation / Estimate
+          </button>
+        )}
+      </div>
+
+      {mainTab === 'quotations' ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-600" /> Patient Treatment Estimates & Mock Bills
+              </h4>
+              <p className="text-xs text-slate-500 font-bold">
+                Estimates given to patient prior to procedure commencement
+              </p>
+            </div>
+            <span className="px-3 py-1 bg-amber-50 text-amber-800 text-xs font-black rounded-xl border border-amber-200">
+              {quotations.length} {quotations.length === 1 ? 'Estimate' : 'Estimates'}
+            </span>
+          </div>
+
+          {quotations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+              <FileText className="w-12 h-12 mb-3 opacity-40 text-amber-500" />
+              <p className="font-bold text-sm text-slate-600">No treatment estimates created for this patient yet.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedQuotationForEdit(null);
+                  setQuotationModalOpen(true);
+                }}
+                className="mt-4 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-amber-600/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Create First Quotation
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {quotations.map((q) => {
+                const isConverted = q.status === 'Converted';
+                return (
+                  <div
+                    key={q._id}
+                    className={`bg-white border rounded-2xl p-5 shadow-sm transition-all ${
+                      isConverted ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200 hover:border-amber-300'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${
+                          isConverted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-sm text-slate-900">{q.quotationNumber}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              isConverted
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-amber-100 text-amber-800 border border-amber-300'
+                            }`}>
+                              {isConverted ? '✓ Converted to Treatment' : q.status}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 font-bold">
+                            Date: {format(new Date(q.date || q.createdAt), 'dd MMM, yyyy')} | Valid Until: {format(new Date(q.validUntil), 'dd MMM, yyyy')}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Estimate</p>
+                        <p className="text-xl font-black text-amber-700">₹{Number(q.totalAmount).toLocaleString('en-IN')}</p>
+                      </div>
+                    </div>
+
+                    {/* Procedures List */}
+                    <div className="py-3 space-y-1.5">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Proposed Treatments:</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {q.items.map((it, idx) => (
+                          <div key={idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex justify-between items-center text-xs">
+                            <div>
+                              <span className="font-black text-slate-800">{it.procedure}</span>
+                              <span className="text-[11px] font-bold text-indigo-600 block">Teeth: {it.toothDisplay}</span>
+                            </div>
+                            <span className="font-black text-slate-900">₹{it.totalCost}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {q.notes && (
+                        <p className="text-[11px] text-slate-500 italic mt-2">
+                          Note: {q.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Card Actions */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedQuotationForEdit(q);
+                            setQuotationModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                          title="View / Edit quotation"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadQuotationPDF(q)}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                          title="Download PDF"
+                        >
+                          <Download className="w-3.5 h-3.5" /> PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSendQuotationWhatsApp(q)}
+                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                          title="Send to patient via WhatsApp"
+                        >
+                          <Send className="w-3.5 h-3.5" /> WhatsApp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteQuotation(q._id)}
+                          className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                          title="Delete quotation"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Convert to Plan Button */}
+                      {!isConverted ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConvertingQuotation(q);
+                            setConvertAdvance('');
+                          }}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                        >
+                          <Check className="w-4 h-4" /> Convert to Plan Procedure
+                        </button>
+                      ) : (
+                        <span className="text-xs font-black text-emerald-700 flex items-center gap-1">
+                          ✓ Treatment Planned & Executing
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
         <div className="flex items-center gap-2">
           <ClipboardList className="w-5 h-5 text-indigo-600" />
@@ -849,6 +1150,106 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
           </div>
         )}
       </AnimatePresence>
+
+        </>
+      )}
+
+      {/* Dental Quotation Modal */}
+      {quotationModalOpen && (
+        <DentalQuotationModal
+          patientId={patientId}
+          patientData={patientData}
+          existingQuotation={selectedQuotationForEdit}
+          numberingSystem={numberingSystem}
+          onClose={() => {
+            setQuotationModalOpen(false);
+            setSelectedQuotationForEdit(null);
+          }}
+          onSuccess={() => {
+            setQuotationModalOpen(false);
+            setSelectedQuotationForEdit(null);
+            fetchQuotations();
+          }}
+        />
+      )}
+
+      {/* Convert to Plan Procedure Confirmation Modal */}
+      {convertingQuotation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden"
+          >
+            <div className="bg-emerald-600 p-5 text-white flex justify-between items-center">
+              <div>
+                <h4 className="text-base font-black uppercase tracking-wide">Convert to Planned Treatment</h4>
+                <p className="text-xs text-emerald-100 font-medium">Estimate #{convertingQuotation.quotationNumber}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConvertingQuotation(null)}
+                className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConvertQuotationSubmit} className="p-6 space-y-4">
+              <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 text-xs text-slate-800">
+                <p className="font-black text-emerald-950 mb-1">
+                  Procedures ({convertingQuotation.items.length}):
+                </p>
+                <ul className="list-disc pl-4 space-y-0.5 font-bold text-slate-700">
+                  {convertingQuotation.items.map((it, i) => (
+                    <li key={i}>{it.procedure} ({it.toothDisplay}) — ₹{it.totalCost}</li>
+                  ))}
+                </ul>
+                <div className="mt-2 pt-2 border-t border-emerald-200 flex justify-between font-black text-emerald-950">
+                  <span>Total Amount:</span>
+                  <span>₹{convertingQuotation.totalAmount}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                  Initial Advance Received Today (₹) — Optional
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max={convertingQuotation.totalAmount}
+                  placeholder="0"
+                  value={convertAdvance}
+                  onChange={(e) => setConvertAdvance(e.target.value)}
+                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                />
+                <span className="text-[10px] text-slate-500">
+                  Leave 0 if payment will be collected after treatment.
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setConvertingQuotation(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isConverting}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isConverting ? 'Converting...' : 'Confirm & Start Treatment'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
 
       {/* billing modal overlay */}
       {billingOpen && (

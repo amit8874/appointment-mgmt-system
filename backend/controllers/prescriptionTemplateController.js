@@ -190,13 +190,13 @@ export const generatePdf = async (req, res) => {
     let template = null;
     if (templateId === 'system_default') {
       console.log("[generatePdf] Explicitly requested system default. Skipping custom templates.");
-      // template remains null, so it falls back to system layout
+      template = { _id: 'system_default' };
     } else if (templateId === 'default_v2') {
       console.log("[generatePdf] Explicitly requested default template V2.");
       template = { _id: 'default_v2', templateName: 'Oviaan Default Template 2' };
     } else if (templateId === 'global_a4') {
       console.log("[generatePdf] Explicitly requested global A4 template.");
-      template = { headerType: 'a4', layoutType: 'a4' };
+      template = { _id: 'global_a4', headerType: 'a4', layoutType: 'a4' };
     } else if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
       template = await PrescriptionTemplate.findById(templateId);
       console.log("[generatePdf] Found template by ID:", template ? template._id : "Not Found");

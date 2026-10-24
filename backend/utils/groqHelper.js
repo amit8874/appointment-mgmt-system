@@ -1,11 +1,22 @@
 import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Ensure backend .env is loaded reliably regardless of working directory
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 
-export const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || "gsk_dummy",
-});
+export const getGroqClient = () => {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) {
+    console.warn('[Groq Helper] Warning: GROQ_API_KEY is not defined in environment variables');
+  }
+  return new Groq({ apiKey: key || 'gsk_dummy' });
+};
 
 const DEFAULT_FALLBACK_MODELS = [
   'openai/gpt-oss-120b',
@@ -20,7 +31,8 @@ const DEFAULT_FALLBACK_MODELS = [
  * to ensure AI functionality never fails due to model deprecation or tier restrictions.
  */
 export const createGroqChatCompletion = async (params) => {
-  const preferredModel = process.env.GROQ_MODEL || params.model;
+  const groq = getGroqClient();
+  const preferredModel = process.env.GROQ_MODEL || params.model || 'openai/gpt-oss-120b';
   
   // Deduplicate model list
   const models = Array.from(new Set([preferredModel, ...DEFAULT_FALLBACK_MODELS])).filter(Boolean);

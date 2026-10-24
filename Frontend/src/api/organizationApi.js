@@ -48,6 +48,11 @@ export const organizationApi = {
     const { data } = await api.delete('/clinic/prescription-template');
     return data;
   },
+  analyzePrescriptionTemplateWithAI: async (formData) => {
+    const config = formData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+    const { data } = await api.post('/clinic/prescription-template/ai-analyze', formData || {}, config);
+    return data;
+  },
 };
 
 export default organizationApi;

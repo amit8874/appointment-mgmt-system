@@ -1,23 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { FileImage, Upload, Trash2, CheckCircle, AlertCircle, Save } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { 
+    FileImage, 
+    Upload, 
+    Trash2, 
+    CheckCircle, 
+    AlertCircle, 
+    Save, 
+    User, 
+    Stethoscope, 
+    Sliders, 
+    Sparkles, 
+    Bot, 
+    Check, 
+    X, 
+    RefreshCw, 
+    Zap,
+    SlidersHorizontal,
+    Layers,
+    Info
+} from 'lucide-react';
 import organizationApi from '../../../api/organizationApi';
 
 const PrescriptionTemplateTab = () => {
     const [settings, setSettings] = useState({
         enabled: false,
+        templateMode: 'manual', // 'manual' | 'ai_vision'
         templateUrl: '',
         printableArea: { top: 55, left: 12, right: 12, bottom: 30 },
+        headerArea: { top: 45, left: 10, right: 10, height: 25 },
+        bodyArea: { top: 75, bottom: 25, left: 12, right: 12 },
+        aiHeaderArea: { top: 45, left: 10, right: 10, height: 25 },
+        aiBodyArea: { top: 75, bottom: 25, left: 12, right: 12 },
         fontSize: 12
     });
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [analyzingAI, setAnalyzingAI] = useState(false);
+    const [showAIModal, setShowAIModal] = useState(false);
+    const [aiAnalysisResult, setAiAnalysisResult] = useState(null);
     const [notification, setNotification] = useState({ message: '', type: '', visible: false });
     const [filePreview, setFilePreview] = useState(null);
 
     const showNotification = (message, type = 'success') => {
         setNotification({ message, type, visible: true });
-        setTimeout(() => setNotification({ message: '', type: '', visible: false }), 3000);
+        setTimeout(() => setNotification({ message: '', type: '', visible: false }), 4000);
     };
 
     useEffect(() => {
@@ -29,7 +55,31 @@ const PrescriptionTemplateTab = () => {
         try {
             const data = await organizationApi.getPrescriptionTemplateSettings();
             if (data?.data) {
-                setSettings(data.data);
+                const d = data.data;
+                const defaultHeader = {
+                    top: d.printableArea?.top ? Math.max(10, d.printableArea.top - 15) : 45,
+                    left: d.printableArea?.left !== undefined ? d.printableArea.left : 10,
+                    right: d.printableArea?.right !== undefined ? d.printableArea.right : 10,
+                    height: 25
+                };
+                const defaultBody = {
+                    top: d.printableArea?.top ? d.printableArea.top + 15 : 75,
+                    bottom: d.printableArea?.bottom !== undefined ? d.printableArea.bottom : 25,
+                    left: d.printableArea?.left !== undefined ? d.printableArea.left : 12,
+                    right: d.printableArea?.right !== undefined ? d.printableArea.right : 12
+                };
+
+                setSettings({
+                    enabled: Boolean(d.enabled),
+                    templateMode: d.templateMode || 'manual',
+                    templateUrl: d.templateUrl || '',
+                    printableArea: d.printableArea || { top: 55, left: 12, right: 12, bottom: 30 },
+                    headerArea: d.headerArea || defaultHeader,
+                    bodyArea: d.bodyArea || defaultBody,
+                    aiHeaderArea: d.aiHeaderArea || defaultHeader,
+                    aiBodyArea: d.aiBodyArea || defaultBody,
+                    fontSize: d.fontSize || 12
+                });
             }
         } catch (error) {
             console.error('Failed to load template settings:', error);
@@ -39,15 +89,22 @@ const PrescriptionTemplateTab = () => {
         }
     };
 
-    const handleSave = async () => {
+    const handleSave = async (customSettings = null) => {
         setLoading(true);
+        const dataToSave = customSettings || settings;
         try {
             await organizationApi.updatePrescriptionTemplateSettings({
-                enabled: settings.enabled,
-                printableArea: settings.printableArea,
-                fontSize: settings.fontSize
+                enabled: dataToSave.enabled,
+                templateMode: dataToSave.templateMode,
+                printableArea: dataToSave.printableArea,
+                headerArea: dataToSave.headerArea,
+                bodyArea: dataToSave.bodyArea,
+                aiHeaderArea: dataToSave.aiHeaderArea,
+                aiBodyArea: dataToSave.aiBodyArea,
+                fontSize: dataToSave.fontSize
             });
-            showNotification('Settings saved successfully');
+            const modeLabel = dataToSave.templateMode === 'ai_vision' ? 'AI Vision Auto-Detect' : 'Manual Margins';
+            showNotification(`Settings saved successfully! (${modeLabel} active for print)`);
         } catch (error) {
             showNotification('Failed to save settings', 'error');
         } finally {
@@ -61,7 +118,6 @@ const PrescriptionTemplateTab = () => {
 
         setUploading(true);
         try {
-            // Preview locally first
             const objectUrl = URL.createObjectURL(file);
             setFilePreview(objectUrl);
 
@@ -70,7 +126,7 @@ const PrescriptionTemplateTab = () => {
             const response = await organizationApi.uploadPrescriptionTemplate(formData);
             
             setSettings(prev => ({ ...prev, templateUrl: response.templateUrl, enabled: true }));
-            showNotification('Template uploaded successfully');
+            showNotification('Letterhead template uploaded successfully');
         } catch (error) {
             showNotification('Failed to upload template', 'error');
             setFilePreview(null);
@@ -83,7 +139,12 @@ const PrescriptionTemplateTab = () => {
         setLoading(true);
         try {
             await organizationApi.deletePrescriptionTemplate();
-            setSettings(prev => ({ ...prev, templateUrl: '', enabled: false }));
+            setSettings(prev => ({ 
+                ...prev, 
+                templateUrl: '', 
+                enabled: false,
+                templateMode: 'manual'
+            }));
             setFilePreview(null);
             showNotification('Template removed');
         } catch (error) {
@@ -93,20 +154,123 @@ const PrescriptionTemplateTab = () => {
         }
     };
 
-    const handleMarginChange = (side, value) => {
+    // Trigger AI Vision Analysis
+    const handleRunAIAnalysis = async (fileToUpload = null) => {
+        if (!fileToUpload && !settings.templateUrl && !filePreview) {
+            showNotification('Please upload a letterhead pad first or select a file to analyze.', 'error');
+            return;
+        }
+
+        setAnalyzingAI(true);
+        try {
+            let formData = null;
+            if (fileToUpload) {
+                formData = new FormData();
+                formData.append('image', fileToUpload);
+                const previewUrl = URL.createObjectURL(fileToUpload);
+                setFilePreview(previewUrl);
+            }
+
+            const res = await organizationApi.analyzePrescriptionTemplateWithAI(formData);
+
+            if (res && res.success) {
+                setAiAnalysisResult(res);
+                setShowAIModal(true);
+                if (res.templateUrl) {
+                    setSettings(prev => ({ ...prev, templateUrl: res.templateUrl, enabled: true }));
+                }
+            } else {
+                showNotification(res?.message || 'AI Vision could not detect prescription layout.', 'error');
+            }
+        } catch (error) {
+            console.error('AI Analysis failed:', error);
+            showNotification(error.response?.data?.message || 'AI analysis failed. Please try again.', 'error');
+        } finally {
+            setAnalyzingAI(false);
+        }
+    };
+
+    // Apply AI Vision results and save
+    const handleApplyAIResults = async () => {
+        if (!aiAnalysisResult) return;
+
+        const updatedSettings = {
+            ...settings,
+            templateMode: 'ai_vision',
+            enabled: true,
+            aiHeaderArea: aiAnalysisResult.headerArea || settings.aiHeaderArea,
+            aiBodyArea: aiAnalysisResult.bodyArea || settings.aiBodyArea,
+            templateUrl: aiAnalysisResult.templateUrl || settings.templateUrl
+        };
+
+        setSettings(updatedSettings);
+        setShowAIModal(false);
+        await handleSave(updatedSettings);
+    };
+
+    const handleHeaderChange = (field, value) => {
         setSettings(prev => ({
             ...prev,
-            printableArea: {
-                ...prev.printableArea,
-                [side]: Number(value)
+            headerArea: {
+                ...prev.headerArea,
+                [field]: Number(value)
             }
         }));
     };
 
-    // Calculate preview styles (scaled down to fit UI, using mm to % conversion for visual representation)
-    const renderPreviewStyle = () => {
-        const { top, left, right, bottom } = settings.printableArea;
-        // A4 aspect ratio 1:1.414, 210mm x 297mm
+    const handleBodyChange = (field, value) => {
+        setSettings(prev => ({
+            ...prev,
+            bodyArea: {
+                ...prev.bodyArea,
+                [field]: Number(value)
+            }
+        }));
+    };
+
+    const handleAIHeaderChange = (field, value) => {
+        setSettings(prev => ({
+            ...prev,
+            aiHeaderArea: {
+                ...prev.aiHeaderArea,
+                [field]: Number(value)
+            }
+        }));
+    };
+
+    const handleAIBodyChange = (field, value) => {
+        setSettings(prev => ({
+            ...prev,
+            aiBodyArea: {
+                ...prev.aiBodyArea,
+                [field]: Number(value)
+            }
+        }));
+    };
+
+    // Active coordinates depending on selected mode
+    const isAiMode = settings.templateMode === 'ai_vision';
+    const activeHeaderArea = isAiMode ? (settings.aiHeaderArea || settings.headerArea) : settings.headerArea;
+    const activeBodyArea = isAiMode ? (settings.aiBodyArea || settings.bodyArea) : settings.bodyArea;
+
+    // Calculate preview styles for Header and Body independently (A4: 210mm x 297mm)
+    const renderHeaderPreviewStyle = () => {
+        const { top, left, right, height } = activeHeaderArea || { top: 45, left: 10, right: 10, height: 25 };
+        const topPct = (top / 297) * 100;
+        const leftPct = (left / 210) * 100;
+        const rightPct = (right / 210) * 100;
+        const heightPct = (height / 297) * 100;
+
+        return {
+            top: `${topPct}%`,
+            left: `${leftPct}%`,
+            right: `${rightPct}%`,
+            height: `${heightPct}%`,
+        };
+    };
+
+    const renderBodyPreviewStyle = () => {
+        const { top, bottom, left, right } = activeBodyArea || { top: 75, bottom: 25, left: 12, right: 12 };
         const topPct = (top / 297) * 100;
         const bottomPct = (bottom / 297) * 100;
         const leftPct = (left / 210) * 100;
@@ -123,15 +287,29 @@ const PrescriptionTemplateTab = () => {
     const currentImage = filePreview || settings.templateUrl;
 
     if (loading && !settings.templateUrl && !filePreview) {
-        return <div className="p-8 text-center text-slate-500">Loading...</div>;
+        return <div className="p-8 text-center text-slate-500 font-bold">Loading Template Settings...</div>;
     }
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
-            <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+            {/* Header Bar */}
+            <div className="p-6 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 rounded-t-2xl">
                 <div>
-                    <h2 className="text-lg font-black text-slate-900 tracking-tight">Prescription Letterhead</h2>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Full A4 Template System</p>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-black text-slate-900 tracking-tight">Prescription Letterhead & Margin Manager</h2>
+                        {isAiMode ? (
+                            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
+                                <Sparkles size={12} className="text-purple-600 animate-pulse" /> AI Vision Active
+                            </span>
+                        ) : (
+                            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                <SlidersHorizontal size={12} className="text-indigo-600" /> Manual Active
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+                        Independent Header & Body A4 Layout with Groq AI Vision Detection
+                    </p>
                 </div>
                 <div className="flex items-center gap-4">
                     <label className="flex items-center cursor-pointer">
@@ -148,31 +326,70 @@ const PrescriptionTemplateTab = () => {
                         <span className="ml-3 text-sm font-bold text-slate-700">{settings.enabled ? 'Enabled' : 'Disabled'}</span>
                     </label>
                     <button 
-                        onClick={handleSave}
-                        disabled={loading || uploading}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                        onClick={() => handleSave()}
+                        disabled={loading || uploading || analyzingAI}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-indigo-700 transition-colors disabled:opacity-50 cursor-pointer"
                     >
                         <Save size={16} /> Save Changes
                     </button>
                 </div>
             </div>
 
-            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Left side: Upload & Settings */}
-                <div className="space-y-8">
-                    {/* Upload Section */}
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Left side: Controls (7 cols) */}
+                <div className="lg:col-span-7 space-y-6">
+                    {/* MODE SELECTOR TABS */}
+                    <div className="bg-slate-100 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200">
+                        <button
+                            type="button"
+                            onClick={() => setSettings(prev => ({ ...prev, templateMode: 'manual' }))}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-black transition-all ${
+                                !isAiMode 
+                                    ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/80' 
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <SlidersHorizontal size={15} />
+                            <span>1. Manual Calibration</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setSettings(prev => ({ ...prev, templateMode: 'ai_vision' }))}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-black transition-all ${
+                                isAiMode 
+                                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' 
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <Sparkles size={15} className={isAiMode ? "animate-pulse" : ""} />
+                            <span>2. AI Vision Auto-Detect</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider font-extrabold ${isAiMode ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'}`}>
+                                Groq AI
+                            </span>
+                        </button>
+                    </div>
+
+                    {/* Letterhead Upload Section */}
                     <div className="space-y-3">
-                        <label className="text-sm font-bold text-slate-700">A4 Background Template</label>
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-bold text-slate-700">A4 Background Letterhead Image</label>
+                            {currentImage && (
+                                <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                                    <CheckCircle size={13} /> Active Pad
+                                </span>
+                            )}
+                        </div>
+
                         {!currentImage ? (
-                            <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-slate-300 border-dashed rounded-2xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-slate-300 border-dashed rounded-2xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                                <div className="flex flex-col items-center justify-center pt-4 pb-5">
                                     {uploading ? (
                                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                                     ) : (
                                         <>
-                                            <Upload className="w-10 h-10 text-slate-400 mb-3" />
-                                            <p className="mb-2 text-sm text-slate-500 font-bold"><span className="text-indigo-600">Click to upload</span> or drag and drop</p>
-                                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">PNG, JPG up to 5MB</p>
+                                            <Upload className="w-8 h-8 text-slate-400 mb-2" />
+                                            <p className="mb-1 text-sm text-slate-500 font-bold"><span className="text-indigo-600">Click to upload letterhead</span> or drag and drop</p>
+                                            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">PNG, JPG, WebP up to 5MB (A4 Dimensions)</p>
                                         </>
                                     )}
                                 </div>
@@ -184,10 +401,10 @@ const PrescriptionTemplateTab = () => {
                                     <img src={currentImage} alt="Template Thumbnail" className="w-full h-full object-contain" />
                                 </div>
                                 <div className="flex-1 text-center sm:text-left min-w-0">
-                                    <h4 className="text-xs font-bold text-slate-800 truncate">Background Letterhead Template</h4>
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">A4 (210 x 297 mm)</p>
+                                    <h4 className="text-xs font-bold text-slate-800 truncate">Uploaded Letterhead Template</h4>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">A4 Page (210 x 297 mm)</p>
                                     <div className="flex items-center justify-center sm:justify-start gap-1 text-[10px] text-emerald-600 font-bold mt-1">
-                                        <CheckCircle size={12} /> Loaded & Active
+                                        <CheckCircle size={12} /> Ready for Printing & AI Vision
                                     </div>
                                 </div>
                                 <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
@@ -196,8 +413,9 @@ const PrescriptionTemplateTab = () => {
                                         <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                                     </label>
                                     <button 
+                                        type="button"
                                         onClick={handleDelete}
-                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors shadow-sm"
+                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors shadow-sm cursor-pointer"
                                     >
                                         <Trash2 size={14} /> Remove
                                     </button>
@@ -206,100 +424,514 @@ const PrescriptionTemplateTab = () => {
                         )}
                     </div>
 
-                    {/* Margins Section */}
-                    <div className="space-y-4 bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                            <FileImage size={16} className="text-indigo-600" />
-                            Printable Area Margins (mm)
-                        </h3>
-                        <p className="text-xs text-slate-500 mb-4">Set margins to avoid printing text over your letterhead headers and footers.</p>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Top Margin (mm)</label>
-                                <input 
-                                    type="number" 
-                                    value={settings.printableArea.top} 
-                                    onChange={(e) => handleMarginChange('top', e.target.value)}
-                                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
+                    {/* ========================================================================= */}
+                    {/* AI VISION PANEL (Shown when AI Vision mode is selected) */}
+                    {/* ========================================================================= */}
+                    {isAiMode && (
+                        <div className="bg-gradient-to-br from-purple-50 via-indigo-50/40 to-slate-50 p-5 rounded-2xl border-2 border-purple-200 space-y-4 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow">
+                                        <Sparkles size={16} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black text-purple-950">AI Vision Auto-Calibration</h3>
+                                        <p className="text-[11px] font-bold text-purple-700">Groq Optical Layout Recognition</p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 px-2.5 py-1 rounded-full border border-purple-200">
+                                    Active for Print
+                                </span>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Bottom Margin (mm)</label>
-                                <input 
-                                    type="number" 
-                                    value={settings.printableArea.bottom} 
-                                    onChange={(e) => handleMarginChange('bottom', e.target.value)}
-                                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Left Margin (mm)</label>
-                                <input 
-                                    type="number" 
-                                    value={settings.printableArea.left} 
-                                    onChange={(e) => handleMarginChange('left', e.target.value)}
-                                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Right Margin (mm)</label>
-                                <input 
-                                    type="number" 
-                                    value={settings.printableArea.right} 
-                                    onChange={(e) => handleMarginChange('right', e.target.value)}
-                                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
-                            </div>
-                        </div>
 
-                        <div className="mt-4 pt-4 border-t border-slate-200">
-                            <label className="block text-xs font-bold text-slate-500 mb-1">Base Font Size (px)</label>
-                            <input 
-                                type="number" 
-                                value={settings.fontSize || 12} 
-                                onChange={(e) => setSettings(prev => ({...prev, fontSize: Number(e.target.value)}))}
-                                className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
+                            <p className="text-xs text-slate-600 leading-relaxed">
+                                Upload your prescription pad and Groq AI will automatically scan the pre-printed patient header lines (Name, Age/Sex, Date, Chief Complain) and Rx medicines boundary to compute millimeter-accurate print margins.
+                            </p>
+
+                            <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => handleRunAIAnalysis()}
+                                    disabled={analyzingAI || (!settings.templateUrl && !filePreview)}
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-xs font-black shadow-md hover:from-purple-700 hover:to-indigo-700 transition-all disabled:opacity-50 cursor-pointer"
+                                >
+                                    {analyzingAI ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                            <span>Analyzing Pad with AI Vision...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Bot size={16} />
+                                            <span>Scan Current Pad with AI</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                <label className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-purple-200 text-purple-700 hover:bg-purple-50 rounded-xl text-xs font-black cursor-pointer shadow-sm transition-colors">
+                                    <Upload size={14} />
+                                    <span>Upload & Scan New Pad</span>
+                                    <input 
+                                        type="file" 
+                                        className="hidden" 
+                                        accept="image/*" 
+                                        onChange={(e) => {
+                                            if (e.target.files?.[0]) handleRunAIAnalysis(e.target.files[0]);
+                                        }}
+                                        disabled={analyzingAI}
+                                    />
+                                </label>
+                            </div>
+
+                            {/* Detected AI Coordinates Summary */}
+                            <div className="pt-2 border-t border-purple-100">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[11px] font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                                        <CheckCircle size={13} className="text-emerald-600" /> Active AI Margins (A4 Millimeters)
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-500">Fine-tune if needed</span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 text-xs">
+                                    {/* AI Header Area Box */}
+                                    <div className="bg-white p-3 rounded-xl border border-purple-200 shadow-xs space-y-2">
+                                        <div className="flex items-center justify-between text-indigo-700 font-black text-[11px]">
+                                            <span className="flex items-center gap-1"><User size={13} /> Header Area</span>
+                                            <span className="text-[9px] bg-indigo-50 px-1.5 py-0.5 rounded text-indigo-600">Patient Info</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
+                                            <div>
+                                                <span className="text-slate-400 block">Top</span>
+                                                <input 
+                                                    type="number"
+                                                    value={settings.aiHeaderArea?.top ?? 45}
+                                                    onChange={(e) => handleAIHeaderChange('top', e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-800 font-bold"
+                                                />
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 block">Height</span>
+                                                <input 
+                                                    type="number"
+                                                    value={settings.aiHeaderArea?.height ?? 25}
+                                                    onChange={(e) => handleAIHeaderChange('height', e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-800 font-bold"
+                                                />
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 block">Left</span>
+                                                <input 
+                                                    type="number"
+                                                    value={settings.aiHeaderArea?.left ?? 10}
+                                                    onChange={(e) => handleAIHeaderChange('left', e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-800 font-bold"
+                                                />
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 block">Right</span>
+                                                <input 
+                                                    type="number"
+                                                    value={settings.aiHeaderArea?.right ?? 10}
+                                                    onChange={(e) => handleAIHeaderChange('right', e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-800 font-bold"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* AI Body Area Box */}
+                                    <div className="bg-white p-3 rounded-xl border border-purple-200 shadow-xs space-y-2">
+                                        <div className="flex items-center justify-between text-emerald-700 font-black text-[11px]">
+                                            <span className="flex items-center gap-1"><Stethoscope size={13} /> Body Area</span>
+                                            <span className="text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded text-emerald-600">Rx & Medicines</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-[10px] font-bold">
+                                            <div>
+                                                <span className="text-slate-400 block">Top</span>
+                                                <input 
+                                                    type="number"
+                                                    value={settings.aiBodyArea?.top ?? 75}
+                                                    onChange={(e) => handleAIBodyChange('top', e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-800 font-bold"
+                                                />
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 block">Bottom</span>
+                                                <input 
+                                                    type="number"
+                                                    value={settings.aiBodyArea?.bottom ?? 25}
+                                                    onChange={(e) => handleAIBodyChange('bottom', e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-800 font-bold"
+                                                />
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 block">Left</span>
+                                                <input 
+                                                    type="number"
+                                                    value={settings.aiBodyArea?.left ?? 12}
+                                                    onChange={(e) => handleAIBodyChange('left', e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-800 font-bold"
+                                                />
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 block">Right</span>
+                                                <input 
+                                                    type="number"
+                                                    value={settings.aiBodyArea?.right ?? 12}
+                                                    onChange={(e) => handleAIBodyChange('right', e.target.value)}
+                                                    className="w-full bg-slate-50 border border-slate-200 rounded px-1.5 py-1 text-slate-800 font-bold"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                    )}
+
+                    {/* ========================================================================= */}
+                    {/* MANUAL MARGINS PANEL (Shown when Manual mode is selected) */}
+                    {/* ========================================================================= */}
+                    {!isAiMode && (
+                        <div className="space-y-6">
+                            {/* PART 1: Patient Header Margins */}
+                            <div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-black text-indigo-950 flex items-center gap-2">
+                                        <User size={16} className="text-indigo-600" />
+                                        Part 1: Patient Info Header (Name, Age/Sex, Date, Chief Complain)
+                                    </h3>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Independent</span>
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                    Configure length, width, and position for the Patient Info Header separately. Set Left & Right margin to <strong>0mm</strong> if you want it full-bleed across the entire page.
+                                </p>
+                                
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Top Offset (mm)</label>
+                                        <input 
+                                            type="number" 
+                                            value={settings.headerArea?.top ?? 45} 
+                                            onChange={(e) => handleHeaderChange('top', e.target.value)}
+                                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Left Margin (mm)</label>
+                                        <input 
+                                            type="number" 
+                                            value={settings.headerArea?.left ?? 10} 
+                                            onChange={(e) => handleHeaderChange('left', e.target.value)}
+                                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Right Margin (mm)</label>
+                                        <input 
+                                            type="number" 
+                                            value={settings.headerArea?.right ?? 10} 
+                                            onChange={(e) => handleHeaderChange('right', e.target.value)}
+                                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Height (mm)</label>
+                                        <input 
+                                            type="number" 
+                                            value={settings.headerArea?.height ?? 25} 
+                                            onChange={(e) => handleHeaderChange('height', e.target.value)}
+                                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* PART 2: Prescription Body Margins */}
+                            <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm font-black text-emerald-950 flex items-center gap-2">
+                                        <Stethoscope size={16} className="text-emerald-600" />
+                                        Part 2: Prescription Body (Rx, Medicines, Advice)
+                                    </h3>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Independent</span>
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                    Configure where medicines, treatments, and clinical advice print. Adjusting these will not move the Patient Info Header above.
+                                </p>
+                                
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Top Offset (mm)</label>
+                                        <input 
+                                            type="number" 
+                                            value={settings.bodyArea?.top ?? 75} 
+                                            onChange={(e) => handleBodyChange('top', e.target.value)}
+                                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Bottom Space (mm)</label>
+                                        <input 
+                                            type="number" 
+                                            value={settings.bodyArea?.bottom ?? 25} 
+                                            onChange={(e) => handleBodyChange('bottom', e.target.value)}
+                                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Left Margin (mm)</label>
+                                        <input 
+                                            type="number" 
+                                            value={settings.bodyArea?.left ?? 12} 
+                                            onChange={(e) => handleBodyChange('left', e.target.value)}
+                                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Right Margin (mm)</label>
+                                        <input 
+                                            type="number" 
+                                            value={settings.bodyArea?.right ?? 12} 
+                                            onChange={(e) => handleBodyChange('right', e.target.value)}
+                                            className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Font Size Setting */}
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex items-center justify-between">
+                        <div>
+                            <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <Sliders size={16} className="text-slate-600" /> Base Font Size (px)
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-0.5">Controls standard font scale across the prescription</p>
+                        </div>
+                        <input 
+                            type="number" 
+                            min="9" 
+                            max="20"
+                            value={settings.fontSize || 12} 
+                            onChange={(e) => setSettings(prev => ({...prev, fontSize: Number(e.target.value)}))}
+                            className="w-24 bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 text-center focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
                     </div>
                 </div>
 
-                {/* Right side: Live Preview */}
-                <div className="bg-slate-100 rounded-2xl p-6 border border-slate-200 flex flex-col items-center lg:sticky lg:top-[180px] self-start w-full">
-                    <h3 className="text-sm font-bold text-slate-800 mb-4 w-full text-center uppercase tracking-widest">Live Preview</h3>
-                    <div className="relative w-full max-w-[300px] aspect-[1/1.414] bg-white shadow-xl rounded overflow-hidden border border-slate-300">
+                {/* Right side: Live Preview (5 cols) */}
+                <div className="lg:col-span-5 bg-slate-100 rounded-2xl p-5 border border-slate-200 flex flex-col items-center lg:sticky lg:top-[160px] self-start w-full">
+                    <div className="flex items-center justify-between w-full mb-3">
+                        <div className="flex items-center gap-1.5">
+                            <FileImage size={14} className={isAiMode ? "text-purple-600" : "text-indigo-600"} />
+                            <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest">
+                                {isAiMode ? 'AI Vision Preview' : 'Manual Margins Preview'}
+                            </h3>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-bold">
+                            <span className="flex items-center gap-1 text-indigo-700"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> Header</span>
+                            <span className="flex items-center gap-1 text-emerald-700"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Body</span>
+                        </div>
+                    </div>
+
+                    {/* A4 Paper Aspect Ratio Container (1 : 1.414) */}
+                    <div className="relative w-full max-w-[340px] aspect-[1/1.414] bg-white shadow-xl rounded overflow-hidden border border-slate-300 select-none">
                         {currentImage ? (
-                            <img src={currentImage} className="absolute inset-0 w-full h-full object-contain" alt="Template Preview" />
+                            <img src={currentImage} className="absolute inset-0 w-full h-full object-contain" alt="Letterhead Template Preview" />
                         ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-slate-300">
-                                <FileImage size={48} />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
+                                <FileImage size={40} />
+                                <span className="text-[10px] font-bold uppercase tracking-wider mt-2">No Template Uploaded</span>
                             </div>
                         )}
                         
-                        {/* Overlay text block based on margins */}
+                        {/* 1. INDEPENDENT PATIENT HEADER BOX */}
                         <div 
-                            className="absolute border-2 border-indigo-400 border-dashed bg-indigo-500/10 flex flex-col p-2 text-[8px] text-slate-700 overflow-hidden"
-                            style={renderPreviewStyle()}
+                            className={`absolute border-2 border-dashed flex flex-col justify-center px-1.5 py-1 text-[7px] text-slate-800 overflow-hidden transition-all duration-150 ${
+                                isAiMode 
+                                    ? 'border-purple-500 bg-purple-500/15' 
+                                    : 'border-indigo-500 bg-indigo-500/15'
+                            }`}
+                            style={renderHeaderPreviewStyle()}
                         >
-                            <div className="font-bold border-b border-slate-300 pb-1 mb-1">Patient Name - Age - Date</div>
-                            <div className="font-bold text-[10px] my-1">Rx</div>
-                            <ul className="list-disc pl-3">
+                            <span className={`absolute top-0 right-1 text-[6px] font-black uppercase tracking-tighter bg-white/90 px-1 rounded-bl ${
+                                isAiMode ? 'text-purple-700' : 'text-indigo-700'
+                            }`}>
+                                {isAiMode ? 'AI Header' : 'Header Area'}
+                            </span>
+                            
+                            {/* Line 1: Name and Age/Sex */}
+                            <div className="flex items-center justify-between w-full mb-0.5">
+                                <div className="flex items-baseline gap-1 flex-1 min-w-0 pr-1">
+                                    <span className="font-bold text-slate-900 whitespace-nowrap">Name :</span>
+                                    <span className="border-b border-dotted border-slate-600 font-semibold truncate flex-1">Amit Maurya</span>
+                                </div>
+                                <div className="flex items-baseline gap-1 shrink-0">
+                                    <span className="font-bold text-slate-900 whitespace-nowrap">Age/Sex :</span>
+                                    <span className="border-b border-dotted border-slate-600 font-semibold min-w-[20px] text-center">23/M</span>
+                                </div>
+                            </div>
+
+                            {/* Line 2: Date and Chief Complain */}
+                            <div className="flex items-baseline w-full">
+                                <div className="flex items-baseline gap-1 shrink-0 pr-1">
+                                    <span className="font-bold text-slate-900 whitespace-nowrap">Date :</span>
+                                    <span className="border-b border-dotted border-slate-600 font-semibold min-w-[28px]">24/10/26</span>
+                                </div>
+                                <div className="flex items-baseline gap-1 flex-1 min-w-0">
+                                    <span className="font-bold text-slate-900 whitespace-nowrap">Chief Complain :</span>
+                                    <span className="border-b border-dotted border-slate-600 font-semibold truncate flex-1">Pt c/o Pain in tooth</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 2. INDEPENDENT PRESCRIPTION BODY BOX */}
+                        <div 
+                            className="absolute border-2 border-emerald-500 border-dashed bg-emerald-500/10 flex flex-col p-1.5 text-[7px] text-slate-800 overflow-hidden transition-all duration-150"
+                            style={renderBodyPreviewStyle()}
+                        >
+                            <span className="absolute top-0 right-1 text-[6px] font-black uppercase tracking-tighter text-emerald-700 bg-white/90 px-1 rounded-bl">
+                                {isAiMode ? 'AI Body (Rx)' : 'Body Area (Rx)'}
+                            </span>
+                            <div className="font-bold font-serif text-[10px] text-slate-900 my-0.5 italic">Rx</div>
+                            <ul className="list-disc pl-2.5 space-y-0.5 leading-tight text-[6.5px]">
                                 <li>Paracetamol 500mg - 1-0-1 (5 days)</li>
                                 <li>Amoxicillin 250mg - 1-1-1 (5 days)</li>
                                 <li>Pantoprazole 40mg - 1-0-0 (5 days)</li>
                             </ul>
-                            <div className="mt-2 font-bold">Advice:</div>
-                            <p>Take rest, drink plenty of fluids.</p>
+                            <div className="mt-1 font-bold text-[6.5px]">Advice:</div>
+                            <p className="text-[6px] text-slate-600 leading-tight">Take rest, drink plenty of fluids.</p>
                         </div>
                     </div>
-                    <p className="text-[10px] text-slate-500 font-bold text-center mt-4 uppercase tracking-widest">The dashed box represents where your text will print.</p>
+                    
+                    <div className="mt-3 flex items-center justify-center gap-2 text-[10px] font-bold">
+                        <span className={`px-2 py-0.5 rounded-full ${isAiMode ? 'bg-purple-100 text-purple-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                            {isAiMode ? '🤖 Mode: AI Vision Active' : '✏️ Mode: Manual Margins Active'}
+                        </span>
+                    </div>
                 </div>
             </div>
 
-            {/* Notification */}
+            {/* ========================================================================= */}
+            {/* AI VISION ANALYSIS RESULT POPUP MODAL */}
+            {/* ========================================================================= */}
+            {showAIModal && aiAnalysisResult && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-purple-100 overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Modal Header */}
+                        <div className="p-6 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-xs">
+                                    <Sparkles size={20} className="text-yellow-300 animate-spin" style={{ animationDuration: '6s' }} />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black tracking-tight">AI Vision Pad Analysis</h3>
+                                    <p className="text-xs text-purple-200 font-bold">Groq AI Detected Layout Successfully</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowAIModal(false)}
+                                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6 space-y-5 overflow-y-auto">
+                            {/* Confidence Badge & Summary */}
+                            <div className="flex items-center justify-between p-3.5 bg-purple-50 rounded-2xl border border-purple-100">
+                                <div>
+                                    <div className="text-[10px] font-black uppercase tracking-wider text-purple-700">Detection Confidence</div>
+                                    <div className="text-xs font-black text-slate-800 capitalize mt-0.5">
+                                        {aiAnalysisResult.confidence || 'High'} Confidence Calibrated
+                                    </div>
+                                </div>
+                                <span className="flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
+                                    <CheckCircle size={14} /> Ready to Apply
+                                </span>
+                            </div>
+
+                            {/* Detected Fields Checklist */}
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 mb-2.5 flex items-center gap-1.5">
+                                    <CheckCircle size={14} className="text-indigo-600" />
+                                    Detected Pre-Printed Pad Elements
+                                </h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {(aiAnalysisResult.detectedFields || ['Name', 'Age/Sex', 'Date', 'Chief Complain', 'Rx']).map((field, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
+                                            <span className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] flex-shrink-0">✓</span>
+                                            <span className="truncate">{field}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Millimeter Coordinates Calculated */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-3.5 bg-indigo-50/60 rounded-2xl border border-indigo-100 space-y-1.5">
+                                    <div className="text-xs font-black text-indigo-950 flex items-center gap-1">
+                                        <User size={13} className="text-indigo-600" /> Header Area
+                                    </div>
+                                    <div className="text-[11px] text-slate-600 space-y-0.5 font-bold">
+                                        <div>Top Offset: <span className="text-slate-900 font-black">{aiAnalysisResult.headerArea?.top ?? 45} mm</span></div>
+                                        <div>Height: <span className="text-slate-900 font-black">{aiAnalysisResult.headerArea?.height ?? 25} mm</span></div>
+                                        <div>Margins: <span className="text-slate-900 font-black">L: {aiAnalysisResult.headerArea?.left ?? 10}mm | R: {aiAnalysisResult.headerArea?.right ?? 10}mm</span></div>
+                                    </div>
+                                </div>
+
+                                <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-100 space-y-1.5">
+                                    <div className="text-xs font-black text-emerald-950 flex items-center gap-1">
+                                        <Stethoscope size={13} className="text-emerald-600" /> Body Area (Rx)
+                                    </div>
+                                    <div className="text-[11px] text-slate-600 space-y-0.5 font-bold">
+                                        <div>Top Offset: <span className="text-slate-900 font-black">{aiAnalysisResult.bodyArea?.top ?? 75} mm</span></div>
+                                        <div>Bottom Space: <span className="text-slate-900 font-black">{aiAnalysisResult.bodyArea?.bottom ?? 25} mm</span></div>
+                                        <div>Margins: <span className="text-slate-900 font-black">L: {aiAnalysisResult.bodyArea?.left ?? 12}mm | R: {aiAnalysisResult.bodyArea?.right ?? 12}mm</span></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* AI Summary note */}
+                            {aiAnalysisResult.summary && (
+                                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed">
+                                    <span className="font-black text-slate-800">AI Note: </span>
+                                    {aiAnalysisResult.summary}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setShowAIModal(false)}
+                                className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                            >
+                                Discard
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleApplyAIResults}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer"
+                            >
+                                <Sparkles size={14} />
+                                <span>Apply & Activate for Printing</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Notification Toast */}
             {notification.visible && (
-                <div className={`fixed bottom-10 right-10 p-4 rounded-xl shadow-2xl flex items-center gap-3 text-white font-bold z-50 ${notification.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                <div className={`fixed bottom-10 right-10 p-4 rounded-xl shadow-2xl flex items-center gap-3 text-white font-bold z-50 animate-in slide-in-from-bottom-5 duration-200 ${
+                    notification.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'
+                }`}>
                     {notification.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
                     {notification.message}
                 </div>

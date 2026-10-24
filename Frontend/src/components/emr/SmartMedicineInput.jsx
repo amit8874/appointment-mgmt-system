@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Sparkles, Activity, Pill, BadgeCheck, AlertCircle, Loader2, Plus, FlaskConical } from 'lucide-react';
+import { Search, Sparkles, Activity, Pill, BadgeCheck, AlertCircle, Loader2, Plus, FlaskConical, Star } from 'lucide-react';
 import { medicineApi, chatbotApi } from '../../services/api';
+import { CLINIC_PAD_MEDICINES } from '../../Component/Admin/Patient/DentalMedicineAutocomplete';
 
 const SmartMedicineInput = ({ value, onChange, onSelect, context, user }) => {
   const [show, setShow] = useState(false);
@@ -19,17 +20,33 @@ const SmartMedicineInput = ({ value, onChange, onSelect, context, user }) => {
 
   const organizationId = user?.organizationId?._id || user?.organizationId;
 
-  // Server-side debounced search — runs on every keystroke with 250ms debounce
+  // Server-side debounced search — runs on every keystroke with 200ms debounce
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
 
-    if (!searchQuery || searchQuery.trim().length < 1) {
-      // On empty, fetch top common medicines
+    const q = (searchQuery || '').trim().toLowerCase();
+
+    // Instant local clinic pad matching
+    const localClinicMatches = CLINIC_PAD_MEDICINES.filter(m => {
+      if (!q) return true;
+      const mName = (m.name || '').toLowerCase();
+      const mGen = (m.genericName || '').toLowerCase();
+      return mName.includes(q) || mGen.includes(q);
+    });
+
+    if (!q || q.length < 1) {
+      // On empty, show clinic medicines immediately + top common
+      setFiltered(localClinicMatches);
       searchTimerRef.current = setTimeout(async () => {
         try {
           setIsSearching(true);
           const results = await medicineApi.search('');
-          setFiltered(Array.isArray(results) ? results.slice(0, 50) : []);
+          const existing = new Set(localClinicMatches.map(m => m.name.toLowerCase()));
+          const combined = [
+            ...localClinicMatches,
+            ...(Array.isArray(results) ? results.filter(r => !existing.has((r.name || '').toLowerCase())) : [])
+          ];
+          setFiltered(combined.slice(0, 50));
         } catch (err) {
           console.error('Medicine search error:', err);
         } finally {
@@ -39,19 +56,31 @@ const SmartMedicineInput = ({ value, onChange, onSelect, context, user }) => {
       return;
     }
 
+    // Set instant local matches right away
+    if (localClinicMatches.length > 0) {
+      setFiltered(localClinicMatches);
+    }
+
     searchTimerRef.current = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const results = await medicineApi.search(searchQuery.trim());
+        const results = await medicineApi.search(q);
+        const existing = new Set(localClinicMatches.map(m => m.name.toLowerCase()));
+        const combined = [
+          ...localClinicMatches,
+          ...(Array.isArray(results) ? results.filter(r => !existing.has((r.name || '').toLowerCase())) : [])
+        ];
+
         // Sort: exact name starts-with match first, then includes, then generic/salt
-        const q = searchQuery.trim().toLowerCase();
-        const sorted = (Array.isArray(results) ? results : []).sort((a, b) => {
+        const sorted = combined.sort((a, b) => {
           const aName = (a.name || '').toLowerCase();
           const bName = (b.name || '').toLowerCase();
           const aExact = aName.startsWith(q);
           const bExact = bName.startsWith(q);
           if (aExact && !bExact) return -1;
           if (!aExact && bExact) return 1;
+          if (a.isClinicPad && !b.isClinicPad) return -1;
+          if (!a.isClinicPad && b.isClinicPad) return 1;
           return aName.localeCompare(bName);
         });
         setFiltered(sorted.slice(0, 100));
@@ -60,7 +89,7 @@ const SmartMedicineInput = ({ value, onChange, onSelect, context, user }) => {
       } finally {
         setIsSearching(false);
       }
-    }, 250);
+    }, 200);
 
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
   }, [searchQuery]);
@@ -123,13 +152,14 @@ const SmartMedicineInput = ({ value, onChange, onSelect, context, user }) => {
       name: selection.name,
       genericName: selection.genericName || selection.generic || selection.salt || '',
       composition: selection.composition || selection.salt || selection.generic || '',
-      form: selection.form || 'Tablet',
-      strength: selection.strength || '',
+      form: selection.form || selection.type || 'Tablet',
+      strength: selection.strength || selection.dose || '',
       // Auto-fill logic
       dose: selection.defaultDose || selection.dose || '',
       when: selection.defaultWhen || selection.when || 'After Food',
       frequency: selection.defaultFrequency || selection.freq || 'Daily',
-      duration: selection.defaultDuration || selection.dur || ''
+      duration: selection.defaultDuration || selection.dur || selection.duration || '',
+      instructions: selection.instructions || selection.composition || ''
     });
     setSearchQuery(selection.name);
     setShow(false);
@@ -179,8 +209,19 @@ const SmartMedicineInput = ({ value, onChange, onSelect, context, user }) => {
                     <div className="flex flex-col flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-black text-slate-700 dark:text-slate-200">{m.name}</span>
-                        <span className="text-[8px] border border-slate-200 text-slate-400 px-1.5 py-0.5 rounded uppercase font-black">{m.form}</span>
-                        {m.strength && <span className="text-[8px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded uppercase font-black">{m.strength}</span>}
+                        <span className="text-[8px] border border-slate-200 text-slate-400 px-1.5 py-0.5 rounded uppercase font-black">
+                          {m.form || m.type || 'Tab'}
+                        </span>
+                        {(m.strength || m.dose) && (
+                          <span className="text-[8px] bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded uppercase font-black">
+                            {m.strength || m.dose}
+                          </span>
+                        )}
+                        {m.isClinicPad && (
+                          <span className="text-[8px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded uppercase font-black flex items-center gap-0.5">
+                            <Star size={8} className="fill-emerald-500 text-emerald-500" /> Clinic Pad
+                          </span>
+                        )}
                       </div>
                       {(m.salt || m.genericName || m.composition) && (
                         <div className="flex items-center gap-1.5 mt-0.5">

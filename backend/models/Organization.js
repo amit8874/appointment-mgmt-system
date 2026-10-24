@@ -231,6 +231,23 @@ const organizationSchema = new mongoose.Schema({
       type: Boolean,
       default: false
     },
+    templateMode: {
+      type: String,
+      enum: ['manual', 'ai_vision'],
+      default: 'manual'
+    },
+    aiHeaderArea: {
+      top: { type: Number },
+      left: { type: Number },
+      right: { type: Number },
+      height: { type: Number }
+    },
+    aiBodyArea: {
+      top: { type: Number },
+      bottom: { type: Number },
+      left: { type: Number },
+      right: { type: Number }
+    },
     templateUrl: {
       type: String,
       default: ""
@@ -266,6 +283,18 @@ const organizationSchema = new mongoose.Schema({
         type: Number,
         default: 30
       }
+    },
+    headerArea: {
+      top: { type: Number, default: 45 },
+      left: { type: Number, default: 10 },
+      right: { type: Number, default: 10 },
+      height: { type: Number, default: 25 }
+    },
+    bodyArea: {
+      top: { type: Number, default: 75 },
+      bottom: { type: Number, default: 25 },
+      left: { type: Number, default: 12 },
+      right: { type: Number, default: 12 }
     },
     fontSize: {
       type: Number,

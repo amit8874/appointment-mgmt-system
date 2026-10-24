@@ -58,7 +58,10 @@ import {
   Tag,
   Calendar as CalendarIcon,
   Smile,
-  ChevronDown
+  ChevronDown,
+  Activity,
+  Sparkles,
+  CheckCircle2
 } from 'lucide-react';
 import { patientApi, appointmentApi, medicalRecordApi, emailApi, whatsappApi, prescriptionTemplateApi, invoiceTemplateApi, organizationApi, centralDoctorApi, billingApi, authApi, patientProgressImageApi, patientProgressComparisonApi, translationApi, clinicalNoteApi, progressNoteApi, followUpReminderApi } from '../../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -68,6 +71,7 @@ import { format } from 'date-fns';
 import { calculateInvoiceTotals } from '../../../utils/billingCalculations';
 import { normalizePharmacyInvoice } from '../../../utils/pharmacyInvoiceCalculator';
 import PrescriptionModal from './PrescriptionModal';
+import DentalPrescriptionModal from './DentalPrescriptionModal';
 import TemplateModal from './TemplateModal';
 import InvoiceTemplateModal from './InvoiceTemplateModal';
 import PrintablePrescription from './PrintablePrescription';
@@ -881,14 +885,103 @@ const PrescriptionContent = ({ notes }) => {
       )}
 
       {/* 3. CHIEF COMPLAINTS */}
-      {data.complaints?.length > 0 && (
+      {(data.complaints?.length > 0 || data.chiefComplaint) && (
         <div className="flex items-start gap-3 px-4 py-2.5 bg-amber-50/30">
           <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
             <ClipboardList size={12} className="text-amber-500 shrink-0" />
             <span className="text-[10px] font-semibold text-amber-500 uppercase tracking-widest">Complaints</span>
           </div>
-          <p className="text-sm text-slate-700 leading-relaxed">
-            {data.complaints.map(c => `${c.name} (${c.severity || 'Mild'})`).join(', ')}
+          <p className="text-sm text-slate-700 leading-relaxed font-medium">
+            {data.complaints?.length > 0 
+              ? data.complaints.map(c => `${typeof c === 'string' ? c : c.name}${c.duration || data.complaintDuration ? ` (${c.duration || data.complaintDuration})` : ''}`).join(', ')
+              : `${data.chiefComplaint}${data.complaintDuration ? ` (${data.complaintDuration})` : ''}`
+            }
+          </p>
+        </div>
+      )}
+
+      {/* 3.1 MEDICAL & DENTAL HISTORY */}
+      {(data.medicalDentalHistory || data.medicalHistory) && (
+        <div className="flex items-start gap-3 px-4 py-2.5 bg-rose-50/25">
+          <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
+            <Activity size={12} className="text-rose-500 shrink-0" />
+            <span className="text-[10px] font-semibold text-rose-500 uppercase tracking-widest">Med History</span>
+          </div>
+          <p className="text-sm text-slate-700 leading-relaxed font-medium">
+            {data.medicalDentalHistory || data.medicalHistory}
+          </p>
+        </div>
+      )}
+
+      {/* 3.2 ORAL EXAMINATION FINDINGS */}
+      {(() => {
+        if (!data.oralExamination) return null;
+        const labelMap = {
+          stains: 'Stains',
+          calculus: 'Calculus',
+          decayedTeeth: 'Decayed Teeth',
+          grosslyDecayedTeeth: 'Grossly Decayed Teeth',
+          mobileTeeth: 'Mobile Teeth',
+          top: 'Tenderness on Percussion (TOP)',
+          otherFindings: 'Other Findings'
+        };
+        const items = [];
+        if (typeof data.oralExamination === 'string') {
+          items.push(data.oralExamination);
+        } else {
+          Object.entries(data.oralExamination).forEach(([k, v]) => {
+            if (v && (v.active || (typeof v === 'string' && v.trim()))) {
+              const l = labelMap[k] || k;
+              const s = v.severity ? ` (${v.severity})` : '';
+              const n = v.notes ? `: ${v.notes}` : '';
+              items.push(`${l}${s}${n}`);
+            }
+          });
+        }
+        if (!items.length) return null;
+        return (
+          <div className="flex items-start gap-3 px-4 py-2.5 bg-cyan-50/30">
+            <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
+              <Smile size={12} className="text-cyan-600 shrink-0" />
+              <span className="text-[10px] font-semibold text-cyan-600 uppercase tracking-widest">Oral Exam</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {items.map((item, i) => (
+                <span key={i} className="text-xs px-2 py-0.5 rounded-md bg-white border border-cyan-200 text-cyan-900 font-medium">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 3.3 AFFECTED TEETH (ODONTOGRAM) */}
+      {data.selectedTeeth?.length > 0 && (
+        <div className="flex items-start gap-3 px-4 py-2.5 bg-amber-50/20">
+          <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
+            <Sparkles size={12} className="text-amber-600 shrink-0" />
+            <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-widest">Teeth Chart</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {data.selectedTeeth.map((t, i) => (
+              <span key={i} className="text-xs px-2 py-0.5 rounded-md bg-white border border-amber-200 text-amber-900 font-bold">
+                #{t.toothId || t.toothNumber} ({t.condition}{t.notes ? ` - ${t.notes}` : ''})
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 3.4 PROCEDURE PERFORMED TODAY */}
+      {data.treatmentPerformedToday && (
+        <div className="flex items-start gap-3 px-4 py-2.5 bg-emerald-50/30">
+          <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
+            <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+            <span className="text-[10px] font-semibold text-emerald-600 uppercase tracking-widest">Done Today</span>
+          </div>
+          <p className="text-sm font-semibold text-emerald-950 leading-relaxed">
+            {data.treatmentPerformedToday}
           </p>
         </div>
       )}
@@ -987,6 +1080,20 @@ const PrescriptionContent = ({ notes }) => {
               </p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 5.5 NEXT APPOINTMENT */}
+      {data.nextAppointmentDate && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-indigo-50/40">
+          <div className="flex items-center gap-1.5 w-28 shrink-0">
+            <Calendar size={12} className="text-indigo-600 shrink-0" />
+            <span className="text-[10px] font-semibold text-indigo-600 uppercase tracking-widest">Next Visit</span>
+          </div>
+          <p className="text-xs font-bold text-indigo-950">
+            {new Date(data.nextAppointmentDate).toLocaleDateString('en-GB')}
+            {data.nextAppointmentNotes ? ` — ${data.nextAppointmentNotes}` : ''}
+          </p>
         </div>
       )}
 
@@ -4068,6 +4175,7 @@ const PatientProfile = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  const [showDentalPrescriptionModal, setShowDentalPrescriptionModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showInvoiceTemplateModal, setShowInvoiceTemplateModal] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
@@ -4130,7 +4238,7 @@ const PatientProfile = () => {
         let templateData = null;
         try {
           const settings = await organizationApi.getPrescriptionTemplateSettings();
-          if (settings?.data?.templateUrl) {
+          if (settings?.data?.templateUrl && settings?.data?.enabled !== false) {
             hasA4 = true;
             templateData = settings.data;
           }
@@ -4159,7 +4267,7 @@ const PatientProfile = () => {
             loadedTemplates = [{
               _id: 'global_a4',
               templateName: 'A4 Full Template (Admin Settings)',
-              isDefault: false
+              isDefault: true
             }, ...loadedTemplates];
           }
           setTemplates(loadedTemplates);
@@ -4628,9 +4736,43 @@ const PatientProfile = () => {
     setPrintingPrescription(p);
   };
 
+  const isDentalDoctor = Boolean(
+    user?.organization?.clinicType === 'Dental' ||
+    user?.organization?.specialist === 'Dentist' ||
+    user?.organization?.enabledModules?.dentist === true ||
+    user?.specialization?.toLowerCase()?.includes('dent') ||
+    user?.clinicType === 'Dental' ||
+    data?.treatmentPlans?.length > 0 ||
+    data?.dentalTreatments?.length > 0
+  );
+
+  const handleOpenNewPrescription = () => {
+    setEditingPrescription(null);
+    if (isDentalDoctor) {
+      setShowDentalPrescriptionModal(true);
+    } else {
+      setShowPrescriptionModal(true);
+    }
+  };
+
   const handleEditPrescription = (p) => {
     setEditingPrescription(p);
-    setShowPrescriptionModal(true);
+    let isDentalRecord = isDentalDoctor;
+    try {
+      const desc = p.description || p.notes;
+      if (typeof desc === 'string' && desc.trim().startsWith('{')) {
+        const parsed = JSON.parse(desc);
+        if (parsed.isDental || parsed.oralExamination || parsed.treatmentPerformedToday) {
+          isDentalRecord = true;
+        }
+      }
+    } catch (e) {}
+
+    if (isDentalRecord) {
+      setShowDentalPrescriptionModal(true);
+    } else {
+      setShowPrescriptionModal(true);
+    }
   };
 
   const handleDeletePrescription = async (p) => {
@@ -5459,7 +5601,7 @@ const PatientProfile = () => {
                       onDownload={handleDownloadPDF}
                       onEdit={handleEditPrescription}
                       onDelete={handleDeletePrescription}
-                      onNewPrescription={() => { setEditingPrescription(null); setShowPrescriptionModal(true); }}
+                      onNewPrescription={handleOpenNewPrescription}
                       onOpenTemplateModal={() => setShowTemplateModal(true)}
                       templates={templates}
                       selectedTemplate={selectedTemplate}
@@ -5540,14 +5682,46 @@ const PatientProfile = () => {
           onDownload={handleBillingDownload} 
           onWhatsApp={handleInvoiceWhatsApp} 
         />
+        <DentalPrescriptionModal
+          isOpen={showDentalPrescriptionModal}
+          onClose={() => { setShowDentalPrescriptionModal(false); setEditingPrescription(null); }}
+          patient={data}
+          onSaveSuccess={() => { fetchData(false); setEditingPrescription(null); }}
+          editData={editingPrescription}
+          onSwitchToGeneral={() => {
+            setShowDentalPrescriptionModal(false);
+            setShowPrescriptionModal(true);
+          }}
+          onPrintDirect={(prescriptionToPrint) => {
+            setPrintingPrescription(prescriptionToPrint);
+          }}
+        />
         <PrescriptionModal 
           isOpen={showPrescriptionModal} 
           onClose={() => { setShowPrescriptionModal(false); setEditingPrescription(null); }} 
           patient={data} 
           onSaveSuccess={() => { fetchData(false); setEditingPrescription(null); }} 
           editData={editingPrescription}
+          onSwitchToDental={() => {
+            setShowPrescriptionModal(false);
+            setShowDentalPrescriptionModal(true);
+          }}
         />
-        <TemplateModal isOpen={showTemplateModal} onClose={() => setShowTemplateModal(false)} onSaveSuccess={fetchTemplates} />
+        <TemplateModal 
+          isOpen={showTemplateModal} 
+          onClose={() => setShowTemplateModal(false)} 
+          onSaveSuccess={(layout) => {
+            fetchTemplates();
+            if (layout === 'a4') {
+              setSelectedTemplate({
+                _id: 'global_a4',
+                templateName: 'A4 Full Template (Admin Settings)'
+              });
+            } else if (layout === 'default') {
+              setSelectedTemplate(null);
+            }
+          }} 
+        />
         {showFollowUpModal && (
           <AddFollowUpReminderModal 
             isOpen={showFollowUpModal}
@@ -5584,6 +5758,13 @@ const PatientProfile = () => {
             template={selectedTemplate}
             orgTemplateUrl={orgDetails?.prescriptionTemplate?.templateUrl}
             printableArea={orgDetails?.prescriptionTemplate?.printableArea}
+            headerArea={orgDetails?.prescriptionTemplate?.headerArea}
+            bodyArea={orgDetails?.prescriptionTemplate?.bodyArea}
+            templateMode={orgDetails?.prescriptionTemplate?.templateMode}
+            aiHeaderArea={orgDetails?.prescriptionTemplate?.aiHeaderArea}
+            aiBodyArea={orgDetails?.prescriptionTemplate?.aiBodyArea}
+            fontSize={orgDetails?.prescriptionTemplate?.fontSize}
+            isTemplateEnabled={orgDetails?.prescriptionTemplate?.enabled !== false}
             prescription={printingPrescription}
             patient={data}
             clinicName={orgDetails?.name || user?.organization?.name || user?.clinicName}

@@ -182,6 +182,493 @@ export const generateInvoicePDF = async (bill, org, template = null) => {
   }
 };
 
+export const generateQuotationPDF = async (quotation, org, doctorDetails = null) => {
+  let browser = null;
+  let page = null;
+  try {
+    const html = await getQuotationHtml(quotation, org, doctorDetails);
+    browser = await getBrowser();
+    page = await browser.newPage();
+    await page.setViewport({ width: 794, height: 1123 });
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 400));
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '15mm',
+        right: '15mm',
+        bottom: '15mm',
+        left: '15mm'
+      }
+    });
+    if (pdfBuffer.length < 1024) {
+      throw new Error(`Generated Quotation PDF is too small (${pdfBuffer.length} bytes)`);
+    }
+    return pdfBuffer;
+  } catch (err) {
+    console.error(`[QUOTATION PDF GENERATION ERROR]:`, err);
+    throw err;
+  } finally {
+    if (page) await page.close();
+  }
+};
+
+async function getQuotationHtml(quotation, org, doctorDetails = null) {
+  const formatCurrency = (val) => {
+    return new Intl.NumberFormat('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(val || 0);
+  };
+
+  const formatDate = (d) => {
+    if (!d) return 'N/A';
+    try {
+      return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (e) {
+      return 'N/A';
+    }
+  };
+
+  let logoBase64 = org?.branding?.logo ? await getBase64Image(org.branding.logo) : (org?.logo ? await getBase64Image(org.logo) : null);
+  const rawClinicName = org?.branding?.clinicName || org?.clinicName || org?.name || 'Dental Care Clinic';
+  const parsedClinic = (() => {
+    const match = rawClinicName.match(/\(([^)]+)\)/);
+    if (match) {
+      const subtitle = match[1].trim();
+      const name = rawClinicName.replace(/\([^)]+\)/, '').trim();
+      return { name, subtitle };
+    }
+    return { name: rawClinicName.trim(), subtitle: org?.branding?.clinicSubtitle || '' };
+  })();
+
+  const clinicName = parsedClinic.name;
+  const clinicSubtitle = parsedClinic.subtitle;
+  const cleanClinicName = String(clinicName).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const clinicWebsite = org?.website || org?.branding?.website || '';
+  const clinicPhone = org?.phone || org?.branding?.phone || org?.mobile || org?.contactNumber || '';
+  const clinicAddress = formatAddress(org?.address || org?.location || org?.clinicAddress || org?.branding?.address);
+
+  const attendingDoctorName = doctorDetails?.name || quotation.doctorName || 'Attending Dental Surgeon';
+  const rawDoctorSpec = doctorDetails?.specialization || doctorDetails?.specialty || doctorDetails?.department || '';
+  let formattedSpec = rawDoctorSpec.trim();
+  if (formattedSpec.toLowerCase() === 'dental' || formattedSpec.toLowerCase() === 'dentist') {
+    formattedSpec = 'Dental Surgeon';
+  }
+  const attendingDoctorSpecialization = formattedSpec ? `( ${formattedSpec} )` : '';
+  const attendingDoctorQualification = doctorDetails?.qualification || '';
+  const attendingDoctorRegNo = doctorDetails?.registrationNumber 
+    ? `Reg. No. ${doctorDetails.registrationNumber}` 
+    : (doctorDetails?.licenseNumber ? `Reg. No. ${doctorDetails.licenseNumber}` : '');
+
+  let stampBase64 = null;
+  let signatureBase64 = null;
+  if (doctorDetails?.doctorStamp) stampBase64 = await getBase64Image(doctorDetails.doctorStamp);
+  if (doctorDetails?.doctorSignature) signatureBase64 = await getBase64Image(doctorDetails.doctorSignature);
+
+  const patientName = quotation.patientName || 'Valued Patient';
+  const patientAge = quotation.patientAge || 'N/A';
+  const patientGender = quotation.patientGender || 'N/A';
+  const patientMobile = quotation.patientPhone || 'N/A';
+  const patientLocation = quotation.patientAddress || '';
+
+  const quotationDate = formatDate(quotation.date || quotation.createdAt);
+  const validUntilDate = formatDate(quotation.validUntil);
+  const quotationNumber = quotation.quotationNumber || 'EST-001';
+
+  const items = quotation.items || [];
+  let itemsRowsHtml = '';
+  if (items.length > 0) {
+    itemsRowsHtml = items.map((item, index) => {
+      const teethList = (item.teeth && item.teeth.length > 0) ? item.teeth.join(', ') : item.toothDisplay;
+      return `
+        <tr>
+          <td style="text-align: center; border-bottom: 1px dotted #cbd5e0; padding: 12px 8px; vertical-align: top;">${index + 1}.</td>
+          <td style="border-bottom: 1px dotted #cbd5e0; padding: 12px 10px; text-align: left; vertical-align: top;">
+            <div style="font-weight: 700; font-size: 13px; color: #1e293b;">${item.procedure}</div>
+            ${teethList ? `<div style="font-size: 11px; color: #64748b; margin-top: 3px; font-weight: 600;">Teeth Reference: ${teethList}</div>` : ''}
+            ${item.notes ? `<div style="font-size: 10px; color: #94a3b8; margin-top: 2px; font-style: italic;">${item.notes}</div>` : ''}
+          </td>
+          <td style="text-align: right; border-bottom: 1px dotted #cbd5e0; padding: 12px 10px; font-weight: 800; font-size: 13px; color: #0f172a; vertical-align: top;">
+            ${formatCurrency(item.totalCost)} INR
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } else {
+    itemsRowsHtml = `
+      <tr>
+        <td colspan="3" style="text-align: center; padding: 20px; color: #94a3b8; font-style: italic;">
+          No procedures specified.
+        </td>
+      </tr>
+    `;
+  }
+
+  const subtotal = quotation.subtotal || quotation.totalAmount || 0;
+  const discount = quotation.discount || 0;
+  const taxAmount = quotation.taxAmount || 0;
+  const totalAmount = quotation.totalAmount || subtotal;
+  const generatedOnDate = formatDate(new Date());
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body {
+          font-family: 'Arial', 'Helvetica', sans-serif;
+          margin: 0;
+          padding: 0;
+          color: #000;
+          background-color: #fff;
+          font-size: 12px;
+          line-height: 1.4;
+          -webkit-print-color-adjust: exact;
+        }
+        .container {
+          width: 100%;
+          min-height: 267mm;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          box-sizing: border-box;
+        }
+        .content-wrap {
+          flex-grow: 1;
+        }
+        .header-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 20px;
+        }
+        .header-table td {
+          vertical-align: top;
+          padding: 0;
+        }
+        .clinic-logo {
+          width: 65px;
+          height: 65px;
+          object-fit: contain;
+          margin-right: 15px;
+        }
+        .clinic-title {
+          font-size: 20px;
+          font-weight: bold;
+          color: #000000;
+          margin: 0;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .clinic-subtitle {
+          font-size: 11px;
+          color: #000000;
+          margin: 4px 0;
+          font-weight: bold;
+        }
+        .clinic-detail {
+          font-size: 11px;
+          color: #000000;
+          margin: 2px 0;
+        }
+        .doctor-title {
+          font-size: 13px;
+          font-weight: bold;
+          margin: 0;
+        }
+        .doctor-specialization {
+          font-size: 11px;
+          color: #000000;
+          margin: 4px 0;
+        }
+        .doctor-qualification {
+          font-size: 11px;
+          color: #000000;
+          margin: 2px 0;
+        }
+        .doctor-reg {
+          font-size: 11px;
+          color: #000000;
+          margin: 2px 0;
+        }
+        .separator-line {
+          border: 0;
+          border-top: 1.5px solid #000000;
+          margin: 15px 0;
+        }
+        .patient-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 15px;
+        }
+        .patient-table td {
+          padding: 2px 0;
+          vertical-align: top;
+        }
+        .patient-name {
+          font-size: 14px;
+          font-weight: bold;
+          color: #000000;
+        }
+        .patient-label {
+          font-size: 12px;
+          color: #000000;
+        }
+        .patient-value {
+          font-size: 12px;
+          color: #000000;
+        }
+        .meta-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          margin-top: 15px;
+          margin-bottom: 20px;
+        }
+        .meta-doctor-by {
+          font-size: 12px;
+          font-weight: bold;
+          color: #000000;
+        }
+        .meta-title {
+          font-size: 22px;
+          font-weight: 900;
+          color: #d97706;
+          margin: 6px 0 0 0;
+          letter-spacing: 0.5px;
+        }
+        .meta-details {
+          text-align: right;
+          font-size: 12px;
+          color: #000000;
+        }
+        .meta-details div {
+          margin-bottom: 4px;
+        }
+        .meta-bold {
+          font-weight: bold;
+        }
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 25px;
+        }
+        .items-table th {
+          background-color: #f1f5f9;
+          color: #000000;
+          font-weight: bold;
+          font-size: 11px;
+          text-transform: uppercase;
+          padding: 10px 10px;
+          text-align: left;
+          border-top: 1.5px solid #000000;
+          border-bottom: 1.5px solid #000000;
+        }
+        .financials-section {
+          width: 100%;
+          margin-top: 20px;
+        }
+        .financials-left {
+          width: 52%;
+          float: left;
+        }
+        .financials-right {
+          width: 44%;
+          float: right;
+        }
+        .summary-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .summary-table td {
+          padding: 7px 8px;
+          font-size: 12px;
+          border-bottom: 1px solid #cbd5e0;
+        }
+        .summary-label {
+          text-align: left;
+          color: #4a5568;
+        }
+        .summary-value {
+          text-align: right;
+          font-weight: bold;
+        }
+        .notes-box {
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 12px 14px;
+          font-size: 11px;
+          color: #475569;
+        }
+        .notes-title {
+          font-weight: bold;
+          text-transform: uppercase;
+          font-size: 10px;
+          letter-spacing: 0.5px;
+          color: #0f172a;
+          margin-bottom: 4px;
+        }
+        .footer {
+          width: 100%;
+          margin-top: auto;
+          border-top: 1.5px solid #000000;
+          padding-top: 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 10px;
+          color: #000000;
+        }
+        .footer-left { width: 30%; text-align: left; }
+        .footer-center { width: 40%; text-align: center; }
+        .footer-right { width: 30%; text-align: right; }
+        .clearfix::after {
+          content: "";
+          clear: both;
+          display: table;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="content-wrap">
+          <table class="header-table">
+            <tr>
+              <td style="width: 58%; text-align: left;">
+                <div style="display: flex; align-items: center;">
+                  ${logoBase64 ? `<img src="${logoBase64}" class="clinic-logo" />` : ''}
+                  <div>
+                    <h1 class="clinic-title">${clinicName}</h1>
+                    ${clinicSubtitle ? `<p class="clinic-subtitle">${clinicSubtitle}</p>` : ''}
+                    ${clinicAddress ? `<p class="clinic-detail">${clinicAddress}</p>` : ''}
+                    ${clinicWebsite ? `<p class="clinic-detail">Website: ${clinicWebsite}</p>` : ''}
+                    ${clinicPhone ? `<p class="clinic-detail">Phone: ${clinicPhone}</p>` : ''}
+                  </div>
+                </div>
+              </td>
+              <td style="width: 42%; text-align: right;">
+                <h2 class="doctor-title">Dr. ${attendingDoctorName}</h2>
+                ${attendingDoctorSpecialization ? `<p class="doctor-specialization">${attendingDoctorSpecialization}</p>` : ''}
+                ${attendingDoctorQualification ? `<p class="doctor-qualification">${attendingDoctorQualification}</p>` : ''}
+                ${attendingDoctorRegNo ? `<p class="doctor-reg">${attendingDoctorRegNo}</p>` : ''}
+              </td>
+            </tr>
+          </table>
+
+          <hr class="separator-line" />
+
+          <table class="patient-table">
+            <tr>
+              <td style="width: 55%; text-align: left;">
+                <div class="patient-name" style="margin-bottom: 3px;">
+                  <span class="patient-label">Patient Name : </span>
+                  <b>${patientName}</b>
+                </div>
+                <div class="patient-label" style="margin-bottom: 3px;">
+                  Age / Gender : <span class="patient-value font-bold">${patientAge} / ${patientGender}</span>
+                </div>
+                <div class="patient-label">
+                  Mobile No : <span class="patient-value font-bold">${patientMobile}</span>
+                </div>
+              </td>
+              <td style="width: 45%; text-align: right;">
+                <div class="patient-value" style="margin-bottom: 3px;">
+                  Estimate Date : <span class="meta-bold">${quotationDate}</span>
+                </div>
+                <div class="patient-value" style="margin-bottom: 3px;">
+                  Valid Until : <span class="meta-bold" style="color: #b45309;">${validUntilDate}</span>
+                </div>
+                ${patientLocation ? `<div class="patient-value" style="font-size: 11px;">Address : ${patientLocation}</div>` : ''}
+              </td>
+            </tr>
+          </table>
+
+          <hr class="separator-line" />
+
+          <div class="meta-row">
+            <div>
+              <div class="meta-doctor-by">Attending Consultant: Dr. ${attendingDoctorName.toUpperCase()}</div>
+              <h2 class="meta-title">TREATMENT ESTIMATE / QUOTATION</h2>
+            </div>
+            <div class="meta-details">
+              <div>Estimate Number: <span class="meta-bold">${quotationNumber}</span></div>
+              <div>Issue Date: <span class="meta-bold">${quotationDate}</span></div>
+              <div>Validity: <span class="meta-bold">30 Days</span></div>
+            </div>
+          </div>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 8%; text-align: center;">#</th>
+                <th style="width: 62%;">Proposed Treatments & Procedures</th>
+                <th style="width: 30%; text-align: right;">Estimated Cost INR</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsRowsHtml}
+            </tbody>
+          </table>
+
+          <div class="financials-section clearfix">
+            <div class="financials-left">
+              <div class="notes-box">
+                <div class="notes-title">Clinical Notes & Validity:</div>
+                <div>${quotation.notes || 'This estimate is provided based on the initial clinical examination and is valid for 30 days. Final procedure steps may adjust depending on diagnostic radiographs or surgical findings during execution.'}</div>
+                <div style="margin-top: 8px; font-weight: bold; font-size: 10px; color: #64748b;">
+                  * Note: This is an estimated cost quotation and not a final tax invoice or payment receipt.
+                </div>
+              </div>
+            </div>
+
+            <div class="financials-right">
+              <table class="summary-table">
+                <tr>
+                  <td class="summary-label">Estimated Total:</td>
+                  <td class="summary-value">${formatCurrency(subtotal)} INR</td>
+                </tr>
+                ${discount > 0 ? `
+                <tr style="color: #e53e3e;">
+                  <td class="summary-label" style="color: #e53e3e;">Discount:</td>
+                  <td class="summary-value">-${formatCurrency(discount)} INR</td>
+                </tr>
+                ` : ''}
+                ${taxAmount > 0 ? `
+                <tr>
+                  <td class="summary-label">Taxes / GST:</td>
+                  <td class="summary-value">+${formatCurrency(taxAmount)} INR</td>
+                </tr>
+                ` : ''}
+                <tr style="background-color: #fffbeb; font-weight: bold;">
+                  <td class="summary-label" style="font-size: 13px; color: #92400e; font-weight: 900;">Total Estimate:</td>
+                  <td class="summary-value" style="font-size: 14px; color: #92400e; font-weight: 900;">${formatCurrency(totalAmount)} INR</td>
+                </tr>
+              </table>
+
+              ${(stampBase64 || signatureBase64) ? `
+              <div style="margin-top: 20px; display: flex; align-items: flex-end; justify-content: flex-end; gap: 15px;">
+                ${stampBase64 ? `<img src="${stampBase64}" style="max-height: 80px; max-width: 130px; object-fit: contain;" alt="Doctor Stamp" />` : ''}
+                ${signatureBase64 ? `<img src="${signatureBase64}" style="max-height: 70px; max-width: 140px; object-fit: contain;" alt="Doctor Signature" />` : ''}
+              </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div class="footer-left">Generated On: ${generatedOnDate}</div>
+          <div class="footer-center">Computer Generated Treatment Estimate Page 1 of 1</div>
+          <div class="footer-right">Powered by Oviaan</div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
 function formatAddress(addr) {
   if (!addr) return '';
   if (typeof addr === 'string') return addr;
@@ -785,11 +1272,21 @@ async function getInvoiceHtml(bill, org, template) {
         .header-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 20px;
+          border: 1.5px solid #000000;
+          margin-bottom: 12px;
+          box-sizing: border-box;
         }
-        .header-table td {
+        .header-table td.clinic-col {
+          width: 58%;
           vertical-align: top;
-          padding: 0;
+          padding: 10px 14px;
+          border-right: 1.5px solid #000000;
+        }
+        .header-table td.doctor-col {
+          width: 42%;
+          vertical-align: top;
+          padding: 10px 14px;
+          text-align: right;
         }
         .clinic-logo {
           width: 65px;
@@ -798,7 +1295,7 @@ async function getInvoiceHtml(bill, org, template) {
           margin-right: 15px;
         }
         .clinic-title {
-          font-size: 20px;
+          font-size: 19px;
           font-weight: bold;
           color: #000000;
           margin: 0;
@@ -808,7 +1305,7 @@ async function getInvoiceHtml(bill, org, template) {
         .clinic-subtitle {
           font-size: 11px;
           color: #000000;
-          margin: 4px 0;
+          margin: 3px 0;
           font-weight: bold;
         }
         .clinic-detail {
@@ -824,7 +1321,7 @@ async function getInvoiceHtml(bill, org, template) {
         .doctor-specialization {
           font-size: 11px;
           color: #000000;
-          margin: 4px 0;
+          margin: 3px 0;
         }
         .doctor-qualification {
           font-size: 11px;
@@ -836,140 +1333,199 @@ async function getInvoiceHtml(bill, org, template) {
           color: #000000;
           margin: 2px 0;
         }
-        .separator-line {
-          border: 0;
-          border-top: 1.5px solid #000000;
-          margin: 15px 0;
-        }
-        .patient-table {
+        .patient-box {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 15px;
+          border: 1.5px solid #000000;
+          margin-bottom: 12px;
+          background-color: #fafbfc;
+          box-sizing: border-box;
         }
-        .patient-table td {
-          padding: 2px 0;
+        .patient-box td.patient-col-left {
+          width: 50%;
           vertical-align: top;
+          padding: 8px 14px;
+          border-right: 1.5px solid #000000;
+        }
+        .patient-box td.patient-col-right {
+          width: 50%;
+          vertical-align: top;
+          padding: 8px 14px;
+        }
+        .patient-row-item {
+          display: flex;
+          justify-content: space-between;
+          padding: 2.5px 0;
+          border-bottom: 1px dashed #cbd5e0;
+        }
+        .patient-row-item:last-child {
+          border-bottom: none;
         }
         .patient-name {
-          font-size: 14px;
+          font-size: 13px;
           font-weight: bold;
           color: #000000;
         }
         .patient-label {
-          font-size: 12px;
-          color: #000000;
+          font-size: 11px;
+          color: #4a5568;
+          font-weight: bold;
         }
         .patient-value {
           font-size: 12px;
           color: #000000;
+          font-weight: bold;
         }
-        .meta-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
-          margin-top: 15px;
-          margin-bottom: 20px;
+        .meta-box {
+          width: 100%;
+          border-collapse: collapse;
+          border: 1.5px solid #000000;
+          margin-bottom: 16px;
+          background-color: #f8fafc;
+          box-sizing: border-box;
+        }
+        .meta-box td.meta-box-left {
+          width: 55%;
+          padding: 8px 14px;
+          vertical-align: middle;
+          border-right: 1.5px solid #000000;
+        }
+        .meta-box td.meta-box-right {
+          width: 45%;
+          padding: 8px 14px;
+          vertical-align: middle;
+          text-align: right;
         }
         .meta-doctor-by {
-          font-size: 12px;
+          font-size: 11px;
           font-weight: bold;
-          color: #000000;
+          color: #4a5568;
+          text-transform: uppercase;
         }
         .meta-title {
-          font-size: 24px;
-          font-weight: bold;
+          font-size: 20px;
+          font-weight: 900;
           color: #2f855a;
-          margin: 6px 0 0 0;
+          margin: 2px 0 0 0;
         }
         .meta-details {
           text-align: right;
-          font-size: 12px;
-          color: #000000;
+          font-size: 11px;
+          color: #4a5568;
         }
         .meta-details div {
-          margin-bottom: 4px;
+          margin-bottom: 3px;
         }
         .meta-bold {
-          font-weight: bold;
+          font-weight: 900;
+          color: #000000;
         }
         .items-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 30px;
+          border: 1.5px solid #000000;
+          margin-bottom: 20px;
+          box-sizing: border-box;
         }
         .items-table th {
-          background-color: #cbd5e0;
+          background-color: #e2e8f0;
           color: #000000;
           font-weight: bold;
           font-size: 11px;
           text-transform: uppercase;
-          padding: 10px 10px;
+          padding: 8px 8px;
           text-align: left;
-          border-top: 1.5px solid #000000;
-          border-bottom: 1.5px solid #000000;
+          border: 1px solid #000000;
         }
         .items-table td {
-          padding: 12px 10px;
+          padding: 9px 8px;
           font-size: 12px;
           vertical-align: top;
-          border-bottom: 1px dotted #cbd5e0;
+          border: 1px solid #cbd5e0;
+        }
+        .items-table tr:nth-child(even) td {
+          background-color: #fafbfc;
         }
         .item-date {
           font-size: 10px;
           color: #4a5568;
-          margin-top: 4px;
+          margin-top: 3px;
         }
-        .financials-section {
-          width: 100%;
-          margin-top: 25px;
-        }
-        .financials-left {
-          width: 53%;
-          float: left;
-        }
-        .financials-right {
-          width: 42%;
-          float: right;
-        }
-        .summary-table {
+        .financials-container {
           width: 100%;
           border-collapse: collapse;
+          border: 1.5px solid #000000;
+          margin-top: 15px;
+          box-sizing: border-box;
         }
-        .summary-table td {
-          padding: 8px 8px;
-          font-size: 12px;
-          border-bottom: 1px solid #cbd5e0;
+        .financials-container td.fin-left {
+          width: 53%;
+          vertical-align: top;
+          padding: 10px 12px;
+          border-right: 1.5px solid #000000;
         }
-        .summary-label {
-          text-align: left;
-          color: #4a5568;
-        }
-        .summary-value {
-          text-align: right;
-          font-weight: bold;
+        .financials-container td.fin-right {
+          width: 47%;
+          vertical-align: top;
+          padding: 10px 12px;
         }
         .payment-details-title {
-          font-size: 12px;
+          font-size: 11px;
           font-weight: bold;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
           text-transform: uppercase;
+          color: #1a202c;
         }
         .payment-table {
           width: 100%;
           border-collapse: collapse;
+          border: 1px solid #000000;
           font-size: 11px;
-          border: 1px solid #cbd5e0;
         }
         .payment-table th {
           background-color: #e2e8f0;
           font-weight: bold;
-          padding: 6px 8px;
+          padding: 5px 7px;
           text-align: left;
-          border: 1px solid #cbd5e0;
+          border: 1px solid #000000;
         }
         .payment-table td {
-          padding: 6px 8px;
+          padding: 6px 7px;
           border: 1px solid #cbd5e0;
+        }
+        .summary-table {
+          width: 100%;
+          border-collapse: collapse;
+          border: 1px solid #000000;
+        }
+        .summary-table td {
+          padding: 6px 8px;
+          font-size: 12px;
+          border-bottom: 1px solid #cbd5e0;
+        }
+        .summary-table td.summary-label {
+          text-align: left;
+          font-weight: 600;
+          color: #2d3748;
+          border-right: 1px solid #cbd5e0;
+          width: 55%;
+        }
+        .summary-table td.summary-value {
+          text-align: right;
+          font-weight: bold;
+          width: 45%;
+        }
+        .summary-table tr.grand-total-row td {
+          background-color: #f7fafc;
+          border-top: 1.5px solid #000000;
+          border-bottom: 1.5px solid #000000;
+          font-size: 13px;
+          font-weight: 900;
+        }
+        .summary-table tr.balance-row td {
+          background-color: #fff5f5;
+          border-top: 1.5px solid #000000;
+          font-weight: 900;
         }
         .footer {
           width: 100%;
@@ -1006,7 +1562,7 @@ async function getInvoiceHtml(bill, org, template) {
         <div class="invoice-content-wrap">
           <table class="header-table">
             <tr>
-              <td style="width: 58%;">
+              <td class="clinic-col">
                 <div style="display: flex; align-items: center;">
                   ${logoBase64 ? `<img src="${logoBase64}" class="clinic-logo" />` : ''}
                   <div>
@@ -1014,11 +1570,11 @@ async function getInvoiceHtml(bill, org, template) {
                     ${clinicSubtitle ? `<p class="clinic-subtitle">${clinicSubtitle}</p>` : ''}
                     ${clinicAddress ? `<p class="clinic-detail">${clinicAddress}</p>` : ''}
                     ${clinicWebsite ? `<p class="clinic-detail">Website: ${clinicWebsite}</p>` : ''}
-                    <p class="clinic-detail">Phone: ${clinicPhone}</p>
+                    ${clinicPhone ? `<p class="clinic-detail">Phone: ${clinicPhone}</p>` : ''}
                   </div>
                 </div>
               </td>
-              <td style="width: 42%; text-align: right;">
+              <td class="doctor-col">
                 <h2 class="doctor-title">Dr. ${attendingDoctorName}</h2>
                 ${attendingDoctorSpecialization ? `<p class="doctor-specialization">${attendingDoctorSpecialization}</p>` : ''}
                 ${attendingDoctorQualification ? `<p class="doctor-qualification">${attendingDoctorQualification}</p>` : ''}
@@ -1027,36 +1583,56 @@ async function getInvoiceHtml(bill, org, template) {
             </tr>
           </table>
 
-          <hr class="separator-line" />
-
-          <table class="patient-table">
+          <table class="patient-box">
             <tr>
-              <td style="width: 55%; vertical-align: top;">
-                <div class="patient-name" style="font-size: 13px; margin-bottom: 3px;"><strong>Patient Name :</strong> ${patientName}</div>
-                <div class="patient-label" style="font-size: 12px; margin-bottom: 3px;"><strong>Patient ID :</strong> ${patientId}</div>
-                <div class="patient-label" style="font-size: 12px; margin-bottom: 3px;"><strong>Mobile No :</strong> ${finalMobile}</div>
+              <td class="patient-col-left">
+                <div class="patient-row-item">
+                  <span class="patient-label">Patient Name:</span>
+                  <span class="patient-value">${patientName}</span>
+                </div>
+                <div class="patient-row-item">
+                  <span class="patient-label">Patient ID:</span>
+                  <span class="patient-value">${patientId}</span>
+                </div>
+                <div class="patient-row-item">
+                  <span class="patient-label">Mobile No:</span>
+                  <span class="patient-value">${finalMobile}</span>
+                </div>
               </td>
-              <td style="width: 45%; text-align: right; vertical-align: top;">
-                <div class="patient-value" style="font-size: 12px; margin-bottom: 3px;"><strong>Patient Age :</strong> ${finalAge}</div>
-                <div class="patient-value" style="font-size: 12px; margin-bottom: 3px;"><strong>Gender :</strong> ${finalGender}</div>
-                ${patientLocation ? `<div class="patient-value" style="font-size: 11px; margin-top: 3px;"><strong>Address :</strong> ${patientLocation}</div>` : ''}
+              <td class="patient-col-right">
+                <div class="patient-row-item">
+                  <span class="patient-label">Age / Gender:</span>
+                  <span class="patient-value">${finalAge} / ${finalGender}</span>
+                </div>
+                <div class="patient-row-item">
+                  <span class="patient-label">Date:</span>
+                  <span class="patient-value">${invoiceDate}</span>
+                </div>
+                ${patientLocation ? `
+                <div class="patient-row-item">
+                  <span class="patient-label">Address:</span>
+                  <span class="patient-value" style="font-size: 11px;">${patientLocation}</span>
+                </div>` : ''}
               </td>
             </tr>
           </table>
 
-          <hr class="separator-line" />
-
-          <div class="meta-row">
-            <div>
-              <div class="meta-doctor-by">By: Dr. ${attendingDoctorName.toUpperCase()}</div>
-              <h2 class="meta-title">Invoices</h2>
-            </div>
-            <div class="meta-details">
-              <div>Date: <span class="meta-bold">${invoiceDate}</span></div>
-              <div>Receipt Number: <span class="meta-bold">${receiptNumber}</span></div>
-              <div>Invoice Number: <span class="meta-bold">${invoiceNumber}</span></div>
-            </div>
-          </div>
+          <table class="meta-box">
+            <tr>
+              <td class="meta-box-left">
+                <div class="meta-doctor-by">Attending Doctor</div>
+                <div style="font-size: 13px; font-weight: 900; color: #000;">Dr. ${attendingDoctorName.toUpperCase()}</div>
+                <div class="meta-title">INVOICE / RECEIPT</div>
+              </td>
+              <td class="meta-box-right">
+                <div class="meta-details">
+                  <div>Invoice Number: <span class="meta-bold">${invoiceNumber}</span></div>
+                  <div>Receipt Number: <span class="meta-bold">${receiptNumber}</span></div>
+                  <div>Billing Date: <span class="meta-bold">${invoiceDate}</span></div>
+                </div>
+              </td>
+            </tr>
+          </table>
 
           <table class="items-table">
             <thead>
@@ -1073,63 +1649,65 @@ async function getInvoiceHtml(bill, org, template) {
             </tbody>
           </table>
 
-          <div class="financials-section clearfix">
-            <div class="financials-left">
-              <div class="payment-details-title">Payment Details</div>
-              <table class="payment-table">
-                <thead>
+          <table class="financials-container">
+            <tr>
+              <td class="fin-left">
+                <div class="payment-details-title">Payment Details</div>
+                <table class="payment-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Receipt Number</th>
+                      <th>Mode</th>
+                      <th style="text-align: right;">Amount Paid INR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${paymentRowsHtml}
+                  </tbody>
+                </table>
+              </td>
+              
+              <td class="fin-right">
+                <table class="summary-table">
                   <tr>
-                    <th>Date</th>
-                    <th>Receipt Number</th>
-                    <th>Mode Of Payment</th>
-                    <th style="text-align: right;">Amount Paid INR</th>
+                    <td class="summary-label">Total Cost:</td>
+                    <td class="summary-value">${formatCurrency(subtotal)} INR</td>
                   </tr>
-                </thead>
-                <tbody>
-                  ${paymentRowsHtml}
-                </tbody>
-              </table>
-            </div>
-            
-            <div class="financials-right">
-              <table class="summary-table">
-                <tr>
-                  <td class="summary-label">Total Cost:</td>
-                  <td class="summary-value">${formatCurrency(subtotal)} INR</td>
-                </tr>
-                ${discount > 0 ? `
-                <tr style="color: #e53e3e;">
-                  <td class="summary-label" style="color: #e53e3e;">Discount:</td>
-                  <td class="summary-value">-${formatCurrency(discount)} INR</td>
-                </tr>
+                  ${discount > 0 ? `
+                  <tr style="color: #e53e3e;">
+                    <td class="summary-label" style="color: #e53e3e;">Discount:</td>
+                    <td class="summary-value">-${formatCurrency(discount)} INR</td>
+                  </tr>
+                  ` : ''}
+                  ${taxAmount > 0 ? `
+                  <tr>
+                    <td class="summary-label">GST / Tax:</td>
+                    <td class="summary-value">+${formatCurrency(taxAmount)} INR</td>
+                  </tr>
+                  ` : ''}
+                  <tr class="grand-total-row">
+                    <td class="summary-label" style="font-size: 13px; font-weight: 900; color: #000;">Grand Total:</td>
+                    <td class="summary-value" style="font-size: 13px; font-weight: 900; color: #000;">${formatCurrency(grandTotal)} INR</td>
+                  </tr>
+                  <tr>
+                    <td class="summary-label">Amount Received:</td>
+                    <td class="summary-value" style="color: #16a34a;">${formatCurrency(amountReceived)} INR</td>
+                  </tr>
+                  <tr class="balance-row">
+                    <td class="summary-label" style="font-weight: 900;">Balance Amount:</td>
+                    <td class="summary-value" style="font-weight: 900; color: ${balanceAmount > 0 ? '#dc2626' : '#16a34a'};">${formatCurrency(balanceAmount)} INR</td>
+                  </tr>
+                </table>
+                ${(stampBase64 || signatureBase64) ? `
+                <div style="margin-top: 14px; margin-bottom: -4px; display: flex; align-items: flex-end; justify-content: flex-end; gap: 12px;">
+                  ${stampBase64 ? `<img src="${stampBase64}" style="max-height: 80px; max-width: 130px; object-fit: contain; background-color: transparent;" alt="Doctor Stamp" />` : ''}
+                  ${signatureBase64 ? `<img src="${signatureBase64}" style="max-height: 70px; max-width: 140px; object-fit: contain; background-color: transparent;" alt="Doctor Signature" />` : ''}
+                </div>
                 ` : ''}
-                ${taxAmount > 0 ? `
-                <tr>
-                  <td class="summary-label">GST / Tax:</td>
-                  <td class="summary-value">+${formatCurrency(taxAmount)} INR</td>
-                </tr>
-                ` : ''}
-                <tr>
-                  <td class="summary-label">Grand Total:</td>
-                  <td class="summary-value">${formatCurrency(grandTotal)} INR</td>
-                </tr>
-                <tr>
-                  <td class="summary-label">Amount Received:</td>
-                  <td class="summary-value">${formatCurrency(amountReceived)} INR</td>
-                </tr>
-                <tr>
-                  <td class="summary-label">Balance Amount:</td>
-                  <td class="summary-value">${formatCurrency(balanceAmount)} INR</td>
-                </tr>
-              </table>
-              ${(stampBase64 || signatureBase64) ? `
-              <div style="margin-top: 20px; margin-bottom: -5px; display: flex; align-items: flex-end; justify-content: flex-end; gap: 15px;">
-                ${stampBase64 ? `<img src="${stampBase64}" style="max-height: 90px; max-width: 140px; object-fit: contain; background-color: transparent;" alt="Doctor Stamp" />` : ''}
-                ${signatureBase64 ? `<img src="${signatureBase64}" style="max-height: 80px; max-width: 160px; object-fit: contain; background-color: transparent;" alt="Doctor Signature" />` : ''}
-              </div>
-              ` : ''}
-            </div>
-          </div>
+              </td>
+            </tr>
+          </table>
         </div>
 
         <div class="footer">

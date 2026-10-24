@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dentistApi } from '../../../services/api';
-import { Smile, AlertCircle, Plus, Info, Trash2, Award, Pencil, Check, X, IndianRupee, CheckSquare, Square } from 'lucide-react';
+import { Smile, AlertCircle, Plus, Info, Trash2, Award, Pencil, Check, X, IndianRupee, CheckSquare, Square, FileText } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,6 +14,8 @@ import {
 } from './dentalUtils';
 import { getToothSVG } from './ToothIcons';
 import DentalBillingCreatorModal from './DentalBillingCreatorModal';
+import RealisticDentalOdontogram from './RealisticDentalOdontogram';
+import DentalQuotationModal from './DentalQuotationModal';
 
 const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   const [chartData, setChartData] = useState({});
@@ -23,6 +25,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   const [customProcedures, setCustomProcedures] = useState([]);
   const [selectedProceduresList, setSelectedProceduresList] = useState([]);
   const [billingModalOpen, setBillingModalOpen] = useState(false);
+  const [quotationModalOpen, setQuotationModalOpen] = useState(false);
   
   // Custom persistent dental numbering system selection
   const [numberingSystem, setNumberingSystem] = useState(() => {
@@ -450,9 +453,9 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   }
 
   return (
-    <div className="p-4 sm:p-6 bg-white border border-slate-100 rounded-b-3xl mt-4 shadow-sm">
+    <div className="p-3 sm:p-5 bg-white border border-slate-100 rounded-b-3xl mt-1 shadow-sm">
       {/* Header and Numbering System Toggles */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8 pb-6 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <Smile className="w-5 h-5 text-indigo-600 animate-pulse" />
           <h3 className="text-sm font-black text-indigo-900 uppercase tracking-wider">
@@ -468,6 +471,15 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
             className="w-full sm:w-auto justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase rounded-xl tracking-wider shadow-md shadow-emerald-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <IndianRupee className="w-3.5 h-3.5" /> Create Bill
+          </button>
+
+          {/* Quotation / Estimate Button */}
+          <button
+            type="button"
+            onClick={() => setQuotationModalOpen(true)}
+            className="w-full sm:w-auto justify-center px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black uppercase rounded-xl tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+          >
+            <FileText className="w-3.5 h-3.5 text-amber-600" /> Quotation / Mock Bill
           </button>
 
           {/* Chart Type Toggle */}
@@ -520,54 +532,6 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
         </div>
       </div>
 
-      {/* Guide/Legend & Selection Helpers */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 p-4 bg-slate-50/70 rounded-2xl border border-slate-100 shadow-sm">
-        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-1 select-none">Legend:</span>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-lg bg-white border border-slate-200"></div>
-            <span className="text-xs font-black text-slate-600">Healthy / Untreated</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-lg bg-cyan-50 border border-cyan-400"></div>
-            <span className="text-xs font-black text-cyan-800">Planned / Diagnosed</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-lg bg-amber-50 border border-amber-400 animate-pulse"></div>
-            <span className="text-xs font-black text-amber-800">In Progress</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-lg bg-emerald-50 border border-emerald-400"></div>
-            <span className="text-xs font-black text-emerald-800">Completed</span>
-          </div>
-        </div>
-
-        {/* Quick Selection Shortcuts */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleSelectUpperArch}
-            className="px-3 py-1.5 bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-[10px] font-black uppercase rounded-lg transition-all shadow-sm cursor-pointer"
-          >
-            Upper Arch
-          </button>
-          <button
-            type="button"
-            onClick={handleSelectLowerArch}
-            className="px-3 py-1.5 bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-[10px] font-black uppercase rounded-lg transition-all shadow-sm cursor-pointer"
-          >
-            Lower Arch
-          </button>
-          <button
-            type="button"
-            onClick={handleSelectAllTeeth}
-            className="px-3 py-1.5 bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-[10px] font-black uppercase rounded-lg transition-all shadow-sm cursor-pointer"
-          >
-            {selectedTeeth.length > 0 && selectedTeeth.length === (getUpperArchTeeth(chartType).length + getLowerArchTeeth(chartType).length) ? 'Deselect All' : 'Select All'}
-          </button>
-        </div>
-      </div>
-
       {/* Multi-Tooth Active Selection Action Banner */}
       <AnimatePresence>
         {selectedTeeth.length > 0 && (
@@ -575,7 +539,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
             initial={{ opacity: 0, y: -10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.98 }}
-            className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl border border-indigo-700/50 mb-6"
+            className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl border border-indigo-700/50 mb-3"
           >
             <div className="flex items-center gap-3">
               <span className="bg-indigo-600 text-white px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm">
@@ -586,6 +550,13 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
               </span>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setQuotationModalOpen(true)}
+                className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase rounded-xl shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <FileText className="w-4 h-4" /> Send Mock / Quotation ({selectedTeeth.length})
+              </button>
               <button
                 type="button"
                 onClick={handleOpenPlannerModal}
@@ -605,103 +576,109 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
         )}
       </AnimatePresence>
 
-      <div className="space-y-12 select-none">
-        {/* Upper Jaw Arch */}
-        <div>
-          <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 select-none">
-            Upper Jaw (Maxillary Arch) — {chartType === 'adult' ? '18-11 | 21-28' : '55-51 | 61-65'}
-          </p>
-          <div className="flex flex-nowrap items-center gap-1 sm:gap-1.5 overflow-x-hidden justify-center w-full select-none">
-            {getUpperArchTeeth(chartType).map((tooth, index) => {
-              const label = getToothLabel(tooth.id, numberingSystem);
-              const iconColor = getToothIconColor(tooth.id);
-              const isMidline = index === (chartType === 'adult' ? 7 : 4);
-              const isSelected = selectedTeeth.includes(tooth.id);
-              return (
-                <React.Fragment key={tooth.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleToothClick(tooth.id)}
-                    className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${
-                      isSelected
-                        ? 'ring-4 ring-indigo-500 border-indigo-600 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-100 font-black scale-105 z-10 shadow-xl'
-                        : getToothStatusColor(tooth.id)
-                    }`}
-                    title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)}) — ${isSelected ? 'Click to deselect' : 'Click to select'}`}
-                  >
-                    {/* Selected checkmark badge */}
-                    {isSelected && (
-                      <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-md z-20">
-                        ✓
+      {chartType === 'adult' ? (
+        <RealisticDentalOdontogram
+          selectedTeeth={selectedTeeth}
+          onToothClick={handleToothClick}
+          onBatchSelect={(newTeeth) => setSelectedTeeth(newTeeth)}
+          chartData={chartData}
+          theme="light"
+        />
+      ) : (
+        <div className="space-y-12 select-none">
+          {/* Upper Jaw Arch */}
+          <div>
+            <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 select-none">
+              Upper Jaw (Maxillary Arch) — 55-51 | 61-65
+            </p>
+            <div className="flex flex-nowrap items-center gap-1 sm:gap-1.5 overflow-x-hidden justify-center w-full select-none">
+              {getUpperArchTeeth('child').map((tooth, index) => {
+                const label = getToothLabel(tooth.id, numberingSystem);
+                const iconColor = getToothIconColor(tooth.id);
+                const isMidline = index === 4;
+                const isSelected = selectedTeeth.includes(tooth.id);
+                return (
+                  <React.Fragment key={tooth.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleToothClick(tooth.id)}
+                      className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${
+                        isSelected
+                          ? 'ring-4 ring-indigo-500 border-indigo-600 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-100 font-black scale-105 z-10 shadow-xl'
+                          : getToothStatusColor(tooth.id)
+                      }`}
+                      title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)}) — ${isSelected ? 'Click to deselect' : 'Click to select'}`}
+                    >
+                      {isSelected && (
+                        <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-md z-20">
+                          ✓
+                        </span>
+                      )}
+                      <span className="leading-none flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8">
+                        {getToothSVG(tooth.id, isSelected ? '#3730a3' : iconColor, '100%')}
                       </span>
+                      <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none">{label}</span>
+                      <span className="text-[5px] sm:text-[6px] md:text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
+                        {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
+                      </span>
+                      {getToothIndicator(tooth.id)}
+                    </button>
+                    {isMidline && (
+                      <div className="w-[1.5px] h-10 sm:h-12 md:h-14 lg:h-16 bg-slate-200 self-center mx-0.5 sm:mx-1 shrink-0 rounded-full" />
                     )}
-                    {/* Tooth shape SVG icon */}
-                    <span className="leading-none flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8">
-                      {getToothSVG(tooth.id, isSelected ? '#3730a3' : iconColor, '100%')}
-                    </span>
-                    <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none">{label}</span>
-                    <span className="text-[5px] sm:text-[6px] md:text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
-                      {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
-                    </span>
-                    {getToothIndicator(tooth.id)}
-                  </button>
-                  {isMidline && (
-                    <div className="w-[1.5px] h-10 sm:h-12 md:h-14 lg:h-16 bg-slate-200 self-center mx-0.5 sm:mx-1 shrink-0 rounded-full" />
-                  )}
-                </React.Fragment>
-              );
-            })}
+                  </React.Fragment>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Lower Jaw Arch */}
-        <div>
-          <div className="flex flex-nowrap items-center gap-1 sm:gap-1.5 overflow-x-hidden justify-center w-full select-none mb-4">
-            {getLowerArchTeeth(chartType).map((tooth, index) => {
-              const label = getToothLabel(tooth.id, numberingSystem);
-              const iconColor = getToothIconColor(tooth.id);
-              const isMidline = index === (chartType === 'adult' ? 7 : 4);
-              const isSelected = selectedTeeth.includes(tooth.id);
-              return (
-                <React.Fragment key={tooth.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleToothClick(tooth.id)}
-                    className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${
-                      isSelected
-                        ? 'ring-4 ring-indigo-500 border-indigo-600 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-100 font-black scale-105 z-10 shadow-xl'
-                        : getToothStatusColor(tooth.id)
-                    }`}
-                    title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)}) — ${isSelected ? 'Click to deselect' : 'Click to select'}`}
-                  >
-                    {/* Selected checkmark badge */}
-                    {isSelected && (
-                      <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-md z-20">
-                        ✓
+          {/* Lower Jaw Arch */}
+          <div>
+            <div className="flex flex-nowrap items-center gap-1 sm:gap-1.5 overflow-x-hidden justify-center w-full select-none mb-4">
+              {getLowerArchTeeth('child').map((tooth, index) => {
+                const label = getToothLabel(tooth.id, numberingSystem);
+                const iconColor = getToothIconColor(tooth.id);
+                const isMidline = index === 4;
+                const isSelected = selectedTeeth.includes(tooth.id);
+                return (
+                  <React.Fragment key={tooth.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleToothClick(tooth.id)}
+                      className={`relative flex-1 min-w-0 max-w-[56px] h-14 sm:h-16 md:h-20 rounded-lg sm:rounded-xl border font-black flex flex-col items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer gap-0.5 ${
+                        isSelected
+                          ? 'ring-4 ring-indigo-500 border-indigo-600 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-950 dark:text-indigo-100 font-black scale-105 z-10 shadow-xl'
+                          : getToothStatusColor(tooth.id)
+                      }`}
+                      title={`${tooth.name} (${getToothDisplayName(tooth.id, numberingSystem)}) — ${isSelected ? 'Click to deselect' : 'Click to select'}`}
+                    >
+                      {isSelected && (
+                        <span className="absolute top-1 left-1 w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-md z-20">
+                          ✓
+                        </span>
+                      )}
+                      {getToothIndicator(tooth.id)}
+                      <span className="text-[5px] sm:text-[6px] md:text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
+                        {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
                       </span>
+                      <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none">{label}</span>
+                      <span className="leading-none flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8">
+                        {getToothSVG(tooth.id, isSelected ? '#3730a3' : iconColor, '100%')}
+                      </span>
+                    </button>
+                    {isMidline && (
+                      <div className="w-[1.5px] h-10 sm:h-12 md:h-14 lg:h-16 bg-slate-200 self-center mx-0.5 sm:mx-1 shrink-0 rounded-full" />
                     )}
-                    {getToothIndicator(tooth.id)}
-                    <span className="text-[5px] sm:text-[6px] md:text-[7px] text-slate-400 font-bold uppercase tracking-widest select-none leading-none">
-                      {numberingSystem === 'Universal' ? 'UNIV' : numberingSystem}
-                    </span>
-                    <span className="text-[10px] sm:text-xs md:text-sm font-black leading-none">{label}</span>
-                    {/* Tooth shape SVG icon — flipped for lower arch */}
-                    <span className="leading-none flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 lg:w-8 lg:h-8">
-                      {getToothSVG(tooth.id, isSelected ? '#3730a3' : iconColor, '100%')}
-                    </span>
-                  </button>
-                  {isMidline && (
-                    <div className="w-[1.5px] h-10 sm:h-12 md:h-14 lg:h-16 bg-slate-200 self-center mx-0.5 sm:mx-1 shrink-0 rounded-full" />
-                  )}
-                </React.Fragment>
-              );
-            })}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+            <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
+              Lower Jaw (Mandibular Arch) — 85-81 | 71-75
+            </p>
           </div>
-          <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest select-none">
-            Lower Jaw (Mandibular Arch) — {chartType === 'adult' ? '48-41 | 31-38' : '85-81 | 71-75'}
-          </p>
         </div>
-      </div>
+      )}
 
       {/* Selected Teeth Info & Multi-Treatment Procedure Planner Modal */}
       <AnimatePresence>
@@ -1204,6 +1181,20 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
           onComplete={(newBill) => {
             setBillingModalOpen(false);
             fetchChart();
+          }}
+        />
+      )}
+
+      {/* Dental Quotation / Estimate Modal */}
+      {quotationModalOpen && (
+        <DentalQuotationModal
+          patientId={patientId}
+          patientData={patientData}
+          initialSelectedTeeth={selectedTeeth}
+          numberingSystem={numberingSystem}
+          onClose={() => setQuotationModalOpen(false)}
+          onSuccess={(quotation) => {
+            setQuotationModalOpen(false);
           }}
         />
       )}
