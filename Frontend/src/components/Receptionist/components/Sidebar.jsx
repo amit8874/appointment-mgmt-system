@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { LogOut, ChevronDown, ChevronRight, ChevronLeft, Bell } from 'lucide-react';
+import { LogOut, ChevronDown, ChevronRight, ChevronLeft, Bell, X } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import ClinicSwitcher from '../../common/ClinicSwitcher';
 
@@ -9,6 +9,20 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
   const { user } = useAuth();
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState({});
+  const [isDesktop, setIsDesktop] = useState(
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Collapse into icon rail only on desktop when collapsed; on mobile/tablet drawer is always full-width
+  const isCollapsed = isDesktop && isSidebarCollapsed;
 
   const toggleExpand = (name) => {
     setExpandedItems(prev => ({
@@ -21,48 +35,64 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
     <>
       {/* Sidebar backdrop */}
       <div
-        className={`fixed inset-0 bg-gray-900 bg-opacity-50 z-[9990] lg:hidden ${sidebarOpen ? 'block' : 'hidden'
-          }`}
+        className={`fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-[9990] lg:hidden transition-opacity duration-300 ${
+          sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
         onClick={() => setSidebarOpen(false)}
       />
 
       {/* Sidebar */}
       <motion.div
-        initial={{ x: -256 }}
-        animate={{ x: sidebarOpen ? 0 : (isSidebarCollapsed ? -80 : -256) }}
+        initial={false}
+        animate={{ x: (isDesktop || sidebarOpen) ? 0 : '-100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className={`fixed inset-y-0 left-0 z-[9999] w-80 max-w-[85vw] ${isSidebarCollapsed ? 'lg:w-20' : 'lg:w-64'} bg-white dark:bg-gray-800 shadow-xl transform lg:translate-x-0 lg:static lg:inset-0 transition-all duration-300 border-r border-gray-100 dark:border-gray-700`}
+        className={`fixed inset-y-0 left-0 z-[9999] w-80 max-w-[85vw] ${
+          isCollapsed ? 'lg:w-20' : 'lg:w-64'
+        } bg-white dark:bg-gray-800 shadow-xl transform lg:translate-x-0 lg:static lg:inset-0 transition-all duration-300 border-r border-gray-100 dark:border-gray-700`}
       >
         <div className="flex flex-col h-full p-4 pb-24 lg:pb-4 overflow-y-auto relative">
-          {/* Logo */}
-          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-center'} mb-2 px-4 bg-transparent text-center transition-all duration-300`}>
-            {(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) ? (
-              <img
-                src={user?.organization?.branding?.logo || user?.organizationId?.branding?.logo}
-                alt="Clinic Logo"
-                className={`${isSidebarCollapsed ? 'h-8' : 'h-16'} w-auto object-contain transition-all duration-300`}
-              />
-            ) : (
-              !isSidebarCollapsed && (
-                <h1 className="text-blue-600 text-2xl font-black italic tracking-tighter uppercase whitespace-nowrap">
-                  {user?.organization?.name || user?.organizationId?.name || "Oviaan"}
-                </h1>
-              )
-            )}
-            {isSidebarCollapsed && !(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) && (
-              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black">
-                {(user?.organization?.name || user?.organizationId?.name || "O").charAt(0)}
-              </div>
-            )}
+          {/* Top Bar with Logo and Close Button (Mobile/Tablet) */}
+          <div className="flex items-center justify-between lg:justify-center mb-2 px-1">
+            {/* Logo */}
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start lg:justify-center'} bg-transparent text-center transition-all duration-300`}>
+              {(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) ? (
+                <img
+                  src={user?.organization?.branding?.logo || user?.organizationId?.branding?.logo}
+                  alt="Clinic Logo"
+                  className={`${isCollapsed ? 'h-8' : 'h-12 lg:h-16'} w-auto object-contain transition-all duration-300`}
+                />
+              ) : (
+                !isCollapsed && (
+                  <h1 className="text-blue-600 text-xl lg:text-2xl font-black italic tracking-tighter uppercase whitespace-nowrap">
+                    {user?.organization?.name || user?.organizationId?.name || "Oviaan"}
+                  </h1>
+                )
+              )}
+              {isCollapsed && !(user?.organization?.branding?.logo || user?.organizationId?.branding?.logo) && (
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black">
+                  {(user?.organization?.name || user?.organizationId?.name || "O").charAt(0)}
+                </div>
+              )}
+            </div>
+
+            {/* Close button for Mobile/Tablet drawer */}
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
+              aria-label="Close sidebar"
+            >
+              <X className="h-6 w-6" />
+            </button>
           </div>
 
           {/* Mobile-only Clinic Branch Switcher */}
-          <div className="block lg:hidden mb-3 px-1">
+          <div className="block md:hidden mb-3 px-1">
             <ClinicSwitcher />
           </div>
 
           {/* Navigation */}
-          <nav className={`flex-1 space-y-2 overflow-y-auto ${isSidebarCollapsed ? 'px-0' : ''}`}>
+          <nav className={`flex-1 space-y-2 overflow-y-auto ${isCollapsed ? 'px-0' : ''}`}>
             {(() => {
               const getSidebarItemStyles = (name, isActive) => {
                 const sidebarColors = {
@@ -114,7 +144,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
 
               return (
                 <>
-                  {!isSidebarCollapsed && <h2 className="text-[10px] font-black uppercase text-gray-400 mb-4 ml-4 tracking-[0.2em] mt-2">MAIN</h2>}
+                  {!isCollapsed && <h2 className="text-[10px] font-black uppercase text-gray-400 mb-4 ml-4 tracking-[0.2em] mt-2">MAIN</h2>}
                   {navigation.map((item) => {
                     const isParentActive = item.children ? item.children.some(child => window.location.pathname === child.href) : false;
                     const colors = getSidebarItemStyles(item.name, isParentActive);
@@ -128,21 +158,21 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                               id={item.id}
                               onClick={() => toggleExpand(item.name)}
                               className={`group flex items-center justify-between w-full rounded-xl border m-1.5 transition-all duration-300 shadow-sm ${
-                                isSidebarCollapsed 
+                                isCollapsed 
                                   ? 'justify-center flex-col px-1.5 py-3 gap-1.5 text-center' 
                                   : 'px-4 py-2.5 gap-3'
                               } ${
                                 isParentActive ? colors.active : colors.inactive
                               }`}
                             >
-                              <div className={`flex items-center ${isSidebarCollapsed ? 'flex-col gap-1.5' : 'gap-3'}`}>
+                              <div className={`flex items-center ${isCollapsed ? 'flex-col gap-1.5' : 'gap-3'}`}>
                                 <item.icon
                                   className={`h-5 w-5 flex-shrink-0 z-10 ${
                                     isParentActive ? colors.iconActive : colors.iconInactive
                                   }`}
                                   aria-hidden="true"
                                 />
-                                {isSidebarCollapsed ? (
+                                {isCollapsed ? (
                                   <span className="text-[9px] font-black uppercase tracking-wider leading-tight truncate w-full px-0.5 z-10">
                                     {item.name.length > 10 ? item.name.substring(0, 9) + '…' : item.name}
                                   </span>
@@ -150,7 +180,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                                   <span className="text-xs font-black uppercase tracking-wider text-left z-10">{item.name}</span>
                                 )}
                               </div>
-                              {!isSidebarCollapsed && (
+                              {!isCollapsed && (
                                 expandedItems[item.name] ? (
                                   <ChevronDown className={`h-4.5 w-4.5 ${isParentActive ? 'text-slate-950 dark:text-white' : 'text-slate-700 dark:text-gray-300 font-black'}`} />
                                 ) : (
@@ -159,7 +189,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                               )}
                             </button>
                             {/* Sub-menu items */}
-                            {expandedItems[item.name] && !isSidebarCollapsed && (
+                            {expandedItems[item.name] && !isCollapsed && (
                               <motion.div
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
@@ -175,7 +205,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                                         e.preventDefault();
                                         return;
                                       }
-                                      if (window.innerWidth <= 1024) setSidebarOpen(false);
+                                      if (window.innerWidth < 1024) setSidebarOpen(false);
                                     }}
                                     className={({ isActive }) =>
                                       `group flex items-center px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all duration-300 ${
@@ -215,12 +245,12 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                                 e.preventDefault();
                                   return;
                               }
-                              if (window.innerWidth <= 1024) setSidebarOpen(false);
+                              if (window.innerWidth < 1024) setSidebarOpen(false);
                             }}
                             className={({ isActive }) => {
                               const itemColors = getSidebarItemStyles(item.name, isActive);
                               return `group flex items-center rounded-xl border m-1.5 transition-all duration-300 shadow-sm ${
-                                isSidebarCollapsed 
+                                isCollapsed 
                                   ? 'justify-center flex-col px-1.5 py-3 gap-1.5 text-center' 
                                   : 'px-4 py-2.5 gap-3'
                               } ${
@@ -243,7 +273,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                                     }`}
                                     aria-hidden="true"
                                   />
-                                  {isSidebarCollapsed ? (
+                                  {isCollapsed ? (
                                     <span className="text-[9px] font-black uppercase tracking-wider leading-tight truncate w-full px-0.5 z-10">
                                       {item.name.length > 10 ? item.name.substring(0, 9) + '…' : item.name}
                                     </span>
@@ -267,7 +297,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
           <div className="mt-auto pt-6 border-t border-gray-100 dark:border-gray-700">
             <div 
               onClick={() => navigate('/receptionist/profile')}
-              className={`bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-all ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}
+              className={`bg-gray-50 dark:bg-gray-900/50 p-4 rounded-2xl flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-all ${isCollapsed ? 'justify-center' : 'justify-between'}`}
             >
               <div className="flex items-center min-w-0">
                 <div className="relative flex-shrink-0">
@@ -278,7 +308,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                   />
                   <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
-                {!isSidebarCollapsed && (
+                {!isCollapsed && (
                   <div className="ml-3 overflow-hidden">
                     <p className="text-sm font-black text-gray-900 dark:text-white truncate uppercase tracking-tighter">
                       {user?.name || 'Receptionist'}
@@ -289,7 +319,7 @@ const Sidebar = ({ navigation, sidebarOpen, setSidebarOpen, isSidebarCollapsed, 
                   </div>
                 )}
               </div>
-              {!isSidebarCollapsed && (
+              {!isCollapsed && (
                 <button
                   type="button"
                   onClick={(e) => {

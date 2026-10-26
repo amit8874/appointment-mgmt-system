@@ -12,7 +12,9 @@ import api, { centralDoctorApi } from '../../services/api';
 import MobileAppNavigation from '../common/MobileAppNavigation';
 
 const ReceptionistLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 1024);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  );
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -34,7 +36,7 @@ const ReceptionistLayout = () => {
   // Handle window resize to auto-hide sidebar on mobile
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth <= 1024) {
+      if (window.innerWidth < 1024) {
         setSidebarOpen(false);
       } else {
         setSidebarOpen(true);
@@ -149,8 +151,13 @@ const ReceptionistLayout = () => {
       <OnboardingTour role="receptionist" />
       {/* Sidebar */}
       <div 
-        onMouseEnter={() => setIsSidebarCollapsed(false)}
-        onMouseLeave={() => setIsSidebarCollapsed(true)}
+        className="flex-shrink-0"
+        onMouseEnter={() => {
+          if (window.innerWidth >= 1024) setIsSidebarCollapsed(false);
+        }}
+        onMouseLeave={() => {
+          if (window.innerWidth >= 1024) setIsSidebarCollapsed(true);
+        }}
       >
         <Sidebar
           navigation={navigation}
