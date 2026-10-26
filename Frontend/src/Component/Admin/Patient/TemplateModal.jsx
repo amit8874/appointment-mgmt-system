@@ -52,16 +52,17 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
   const loadExistingTemplate = async () => {
     try {
-      const orgId = user?.organization?._id || user?.organizationId || (typeof user?.organization === 'string' ? user.organization : null) || user?._id;
-      const response = await prescriptionTemplateApi.getDefault(orgId);
-      if (response && response.template) {
-        const t = response.template;
-        setTemplateName(t.name || '');
-        setIsDefault(t.isDefault || false);
-        setLayoutStyle(t.headerType === 'a4' ? 'a4' : 'default');
+      const saved = localStorage.getItem('cms_selected_prescription_template');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?._id === 'global_a4' || parsed?.headerType === 'a4') {
+          setLayoutStyle('a4');
+          return;
+        }
       }
+      setLayoutStyle('default');
     } catch (error) {
-      console.error("No existing template found or failed to load", error);
+      setLayoutStyle('default');
     }
   };
 
@@ -184,11 +185,11 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                       Layout Configuration
                     </div>
                     <div className="flex flex-col gap-3">
-                      <label className="flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${layoutStyle === 'default' ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200 hover:border-slate-300'}">
+                      <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${layoutStyle === 'default' ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
                         <input type="radio" checked={layoutStyle === 'default'} onChange={() => setLayoutStyle('default')} className="mt-1 text-indigo-600 focus:ring-indigo-500" />
                         <div>
-                          <span className="font-bold text-slate-800 block">Oviaan Default</span>
-                          <span className="text-xs text-slate-500 font-medium block mt-0.5">Standard text-based clinical header and footer</span>
+                          <span className="font-bold text-slate-800 block">Oviaan Default Template</span>
+                          <span className="text-xs text-slate-500 font-medium block mt-0.5">Oviaan official prescription layout with clinic & doctor details</span>
                         </div>
                       </label>
                       <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${!organization?.prescriptionTemplate?.templateUrl ? 'opacity-50 cursor-not-allowed' : ''} ${layoutStyle === 'a4' ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
@@ -333,95 +334,140 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                     </>
                     );
                   })() : (
-                    <div className="relative z-10 w-full h-full flex flex-col pointer-events-none">
-                      <div className="w-full border-b border-slate-200 min-h-[120px] relative">
-                        <div className="p-8 flex justify-between items-start">
-                          <div className="flex items-start gap-4 flex-1">
-                            {(organization?.branding?.logo || user?.organization?.branding?.logo) && (
-                              <div className="w-16 h-16 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
-                                <img
-                                  src={getImageUrl(organization?.branding?.logo || user?.organization?.branding?.logo)}
-                                  alt="Clinic Logo"
-                                  className="max-h-full max-w-full object-contain p-1"
-                                />
+                    <div className="relative z-10 w-full h-full flex flex-col justify-between p-6 pointer-events-none text-slate-800 text-xs box-border">
+                      <div>
+                        {/* 1. Header: Clinic left, Doctor right */}
+                        <div className="flex justify-between items-start gap-4 pb-2 border-b border-slate-200">
+                          <div className="flex items-start gap-3 flex-1 max-w-[55%]">
+                            {(organization?.branding?.logo || user?.organization?.branding?.logo) ? (
+                              <img
+                                src={getImageUrl(organization?.branding?.logo || user?.organization?.branding?.logo)}
+                                alt="Clinic Logo"
+                                className="w-14 h-14 object-contain rounded-full border border-slate-200 p-0.5 bg-white shrink-0"
+                              />
+                            ) : (
+                              <div className="w-14 h-14 rounded-full border-4 border-indigo-500/40 flex items-center justify-center bg-indigo-50 shrink-0">
+                                <span className="font-black text-indigo-800 text-sm">{organization?.name ? organization.name.charAt(0) : 'C'}</span>
                               </div>
                             )}
-                            <div className="flex flex-col">
-                              <h2 className="text-2xl font-black text-slate-800 leading-tight tracking-tight uppercase">
-                                {organization?.name || user?.organization?.name || "Clinic Name"}
+                            <div className="flex flex-col text-left">
+                              <h2 className="text-base font-black text-indigo-950 leading-tight">
+                                {organization?.name || user?.organization?.name || "Clinic"}
                               </h2>
-                              <div className="text-[10px] font-bold text-slate-500 mt-2 space-y-1">
-                                <p className="max-w-[300px] leading-relaxed uppercase">
-                                  {[
-                                    organization?.address?.street,
-                                    organization?.address?.city,
-                                    organization?.address?.state,
-                                    (organization?.address?.zipCode || organization?.address?.zip)
-                                  ].filter(p => p && String(p).trim() !== '').join(', ') || "Clinic Address Not Set"}
-                                </p>
-                                <div className="flex items-center gap-3">
-                                  <span className="flex items-center gap-1"><Phone size={10} className="text-slate-400" /> {organization?.phone || user?.phone || "N/A"}</span>
-                                  {organization?.email && <span className="flex items-center gap-1"><Mail size={10} className="text-slate-400" /> {organization?.email}</span>}
-                                </div>
+                              <div className="text-[10px] text-slate-600 mt-0.5 space-y-0.5 font-medium leading-tight">
+                                {[organization?.address?.street, organization?.address?.city, organization?.address?.state].filter(Boolean).length > 0 && (
+                                  <p>{[organization?.address?.street, organization?.address?.city, organization?.address?.state].filter(Boolean).join(', ')}</p>
+                                )}
+                                {organization?.website && <p>Website: <span className="font-bold text-slate-800">{organization.website}</span></p>}
+                                {(organization?.phone || user?.phone) && <p className="font-bold text-red-600">Contact: {organization?.phone || user?.phone}</p>}
                               </div>
                             </div>
                           </div>
 
-                          <div className="text-right flex-1 flex flex-col items-end">
-                            <h1 className="text-2xl font-black text-indigo-700 leading-tight tracking-tighter uppercase">
-                              {user?.name || "Doctor Name"}
-                            </h1>
-                            <div className="text-[11px] font-black text-indigo-500/90 mt-1.5 uppercase tracking-widest border-b-2 border-indigo-100 pb-0.5 mb-1.5">
-                              {user?.qualification || "Qualifications"}
-                            </div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                              {user?.specialization || user?.specialty || "Specialization"}
-                            </p>
+                          <div className="flex flex-col text-right flex-1 max-w-[45%] items-end">
+                            {user?.name && (
+                              <h1 className="text-base font-black text-indigo-950 leading-tight">
+                                {user.name.toLowerCase().startsWith('dr') ? user.name : `Dr. ${user.name}`}
+                              </h1>
+                            )}
+                            {user?.qualification && (
+                              <div className="text-[11px] font-bold text-red-600 mt-0.5">
+                                {user.qualification}
+                              </div>
+                            )}
+                            {user?.specialization && (
+                              <div className="text-[9px] text-slate-600 mt-0.5 font-medium">
+                                {user.specialization}
+                              </div>
+                            )}
                           </div>
+                        </div>
+
+                        {/* Patient Info Box */}
+                        <div className="border border-slate-300 rounded-lg p-2 mb-2.5 text-[11px] bg-white">
+                          <div className="grid grid-cols-3 gap-2 pb-1 border-b border-slate-100">
+                            <div><span className="font-bold text-slate-700">Patient ID: </span><span className="font-semibold text-slate-900">20261001</span></div>
+                            <div><span className="font-bold text-slate-700">Name: </span><span className="font-semibold text-slate-900">Patient Name</span></div>
+                            <div><span className="font-bold text-slate-700">Age/Gender: </span><span className="font-semibold text-slate-900">25Y / Male</span></div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 pt-1">
+                            <div><span className="font-bold text-slate-700">M No: </span><span className="font-semibold text-slate-900">Phone Number</span></div>
+                            <div><span className="font-bold text-slate-700">Consultation Dt: </span><span className="font-semibold text-slate-900">{new Date().toLocaleDateString('en-GB')}</span></div>
+                            <div></div>
+                          </div>
+                        </div>
+
+                        {/* Clinical Notes */}
+                        <div className="space-y-1 mb-2.5 text-[11px] leading-tight">
+                          <div><span className="font-bold text-slate-900 underline">Diagnosis:</span> <span className="font-medium text-slate-800">Apical Periodontitis</span></div>
+                          <div><span className="font-bold text-slate-900 underline">Complaints:</span> <span className="font-medium text-slate-800">Tooth pain (2 days)</span></div>
+                        </div>
+
+                        {/* Rx */}
+                        <div className="mb-1 font-bold text-sm text-slate-900">Rx:</div>
+
+                        {/* Medication Table */}
+                        <table className="w-full text-left text-[11px] mb-2.5 border-collapse border border-slate-700">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-700 text-slate-900 font-bold text-[10px]">
+                              <th className="py-1 px-1.5 border-r border-slate-700 text-center w-[6%]">#</th>
+                              <th className="py-1 px-2 border-r border-slate-700 w-[38%]">Medicine Name</th>
+                              <th className="py-1 px-2 border-r border-slate-700 text-center w-[14%]">Frequency</th>
+                              <th className="py-1 px-2 border-r border-slate-700 w-[30%]">Instruction</th>
+                              <th className="py-1 px-2 text-center w-[12%]">Duration</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-700">
+                            <tr className="border-b border-slate-700">
+                              <td className="py-1.5 px-1.5 border-r border-slate-700 text-center font-bold">1</td>
+                              <td className="py-1.5 px-2 border-r border-slate-700">
+                                <div className="font-bold text-slate-900">Augmentin 625mg</div>
+                              </td>
+                              <td className="py-1.5 px-2 border-r border-slate-700 text-center font-bold whitespace-nowrap">1 - 0 - 1</td>
+                              <td className="py-1.5 px-2 border-r border-slate-700 text-slate-800">After Food</td>
+                              <td className="py-1.5 px-2 text-center font-bold whitespace-nowrap">5 Days</td>
+                            </tr>
+                          </tbody>
+                        </table>
+
+                        {/* Advice */}
+                        <div className="space-y-1 text-[11px] leading-tight">
+                          <div><span className="font-bold text-slate-900 underline">Advice:</span> <span className="font-medium text-slate-800">Take medicines on time.</span></div>
                         </div>
                       </div>
 
-                      <div className="bg-slate-100 px-8 py-3 flex items-center gap-6 text-sm border-b border-slate-200">
-                        <span className="font-bold text-slate-800">ID: DEMO7100</span>
-                        <span className="font-bold text-slate-800 border-l border-slate-300 pl-6">Mr. Ramesh Chandra (66y, Male)</span>
-                        <span className="font-bold text-slate-800 border-l border-slate-300 pl-6">Date: {new Date().toLocaleDateString()}</span>
-                      </div>
-
-                      <div className="flex-1 p-8 relative">
-                        <div className="relative z-10">
-                          <div className="text-sm space-y-1 mb-6 border-b border-slate-100 pb-4">
-                            <p><span className="font-bold text-slate-600">Vitals:</span> Height: 166cm, Weight: 72kg, BP: 140/80</p>
-                            <p><span className="font-bold text-slate-600">Complaints:</span> Mild Cold, Alternate Day</p>
-                            <p><span className="font-bold text-slate-600">Diagnosis:</span> Hypertension, Type 2 Diabetes</p>
+                      <div>
+                        {/* Doctor Signature & Stamp */}
+                        <div className="flex justify-end mb-2">
+                          <div className="flex flex-col items-center text-center min-w-[180px]">
+                            {user?.name && (
+                              <div className="text-[11px] font-bold text-slate-900">
+                                {user.name.toLowerCase().startsWith('dr') ? user.name : `Dr. ${user.name}`}
+                              </div>
+                            )}
+                            {user?.registrationNumber && (
+                              <div className="text-[9px] text-slate-600 font-medium">
+                                Medical Registration Number : {user.registrationNumber}
+                              </div>
+                            )}
                           </div>
-                          <div className="mb-4">
-                            <span className="text-2xl font-serif italic text-slate-800">Rx</span>
-                          </div>
-                          <table className="w-full text-left text-sm">
-                            <thead>
-                              <tr className="bg-slate-100">
-                                <th className="py-2 px-3 font-bold text-slate-600">#</th>
-                                <th className="py-2 px-3 font-bold text-slate-600">Medicine</th>
-                                <th className="py-2 px-3 font-bold text-slate-600">Dose</th>
-                                <th className="py-2 px-3 font-bold text-slate-600">Timing & Freq</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              <tr>
-                                <td className="py-3 px-3 text-slate-500">1</td>
-                                <td className="py-3 px-3 font-bold text-slate-800">NOVOMIX 30 IU</td>
-                                <td className="py-3 px-3 font-medium">12 - 0 - 12</td>
-                                <td className="py-3 px-3 text-slate-600">Before Food - Daily</td>
-                              </tr>
-                            </tbody>
-                          </table>
                         </div>
-                      </div>
 
-                      <div className="w-full border-t border-slate-200 min-h-[80px] mt-auto relative">
-                        <div className="p-4 text-center opacity-50">
-                          <p className="text-xs font-bold text-slate-400">Powered by Oviaan - www.oviaan.com</p>
-                          <p className="text-[10px] text-slate-400 mt-1">Diabetes | Thyroid Disorders | Hypertension | Lipid Disorders</p>
+                        {/* Footer Bar: Barcode (conditional) + Custom Footer Text */}
+                        <div className="pt-2 border-t border-slate-200 flex items-center justify-between w-full">
+                          <div className="w-16 h-16 flex items-center justify-start shrink-0">
+                            {organization?.prescriptionTemplate?.footerBarcode ? (
+                              <img
+                                src={getImageUrl(organization.prescriptionTemplate.footerBarcode)}
+                                alt="Barcode"
+                                className="w-14 h-14 object-contain border border-slate-200 p-0.5 rounded bg-white"
+                              />
+                            ) : null}
+                          </div>
+                          <div className="flex-1 text-center font-bold text-slate-600 text-[10px] tracking-wider uppercase leading-tight px-4">
+                            {organization?.prescriptionTemplate?.footerText || ''}
+                          </div>
+                          <div className="w-16 shrink-0"></div>
                         </div>
                       </div>
                     </div>

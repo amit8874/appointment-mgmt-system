@@ -2096,14 +2096,6 @@ export const generatePrescriptionPDF = async (prescriptionData, patientData, org
 };
 
 async function getPrescriptionHtml(prescriptionData, patientData, org, template, doctorDetails = {}) {
-  const logoBase64 = (template?.headerType === 'custom' && template?.headerImage) 
-    ? await getBase64Image(template.headerImage) 
-    : (org?.branding?.logo ? await getBase64Image(org.branding.logo) : (org?.logo ? await getBase64Image(org.logo) : null));
-    
-  const signatureBase64 = (template?.footerType === 'custom' && template?.footerImage)
-    ? await getBase64Image(template.footerImage)
-    : (org?.doctorSignature ? await getBase64Image(org.doctorSignature) : null);
-  
   let parsedData = null;
   let rawContent = prescriptionData;
 
@@ -2124,109 +2116,76 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     console.error('[PDF Service] Error parsing prescription content:', e.message);
   }
 
-  // Doctor Details
-  const doctorName = doctorDetails.doctorName || prescriptionData?.doctorName || parsedData?.doctorName || 'Doctor';
-  const doctorQualification = doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || doctorDetails.qualification || '';
-  let rawPrescSpec = doctorDetails.doctorSpecialization || doctorDetails.specialty || prescriptionData?.doctorSpecialization || prescriptionData?.specialty || parsedData?.doctorSpecialization || parsedData?.specialty || '';
+  // Doctor Details Lookup (Real DB lookup)
+  let docObj = null;
+  const docIdToSearch = doctorDetails?._id || doctorDetails?.doctorId || prescriptionData?.doctorId;
+  if (docIdToSearch) {
+    try {
+      const Doctor = mongoose.models.Doctor || (await import('../models/Doctor.js')).default;
+      docObj = await Doctor.findOne({
+        $or: [
+          { doctorId: docIdToSearch },
+          { _id: mongoose.Types.ObjectId.isValid(docIdToSearch) ? docIdToSearch : null }
+        ]
+      }).lean();
+    } catch (e) {
+      console.error('[PDF Service] Error fetching doctor:', e.message);
+    }
+  }
+
+  // Doctor credentials resolution - REAL DATA ONLY, NO MOCK FALLBACKS
+  const rawDocName = docObj?.name || doctorDetails.doctorName || prescriptionData?.doctorName || parsedData?.doctorName || '';
+  const doctorFormattedName = rawDocName ? (rawDocName.toLowerCase().startsWith('dr') ? rawDocName : `Dr. ${rawDocName}`) : '';
+  const doctorLastName = rawDocName ? rawDocName.replace(/^dr\.?\s+/i, '').split(' ').pop() : '';
+  const doctorQual = docObj?.qualification || doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || '';
+  
+  let rawPrescSpec = docObj?.specialization || doctorDetails.doctorSpecialization || doctorDetails.specialty || prescriptionData?.doctorSpecialization || prescriptionData?.specialty || parsedData?.doctorSpecialization || '';
   if (rawPrescSpec.trim().toLowerCase() === 'dental' || rawPrescSpec.trim().toLowerCase() === 'dentist') {
     rawPrescSpec = 'Dental Surgeon';
   }
   const doctorSpecialization = rawPrescSpec;
-  const doctorEmail = doctorDetails.doctorEmail || prescriptionData?.doctorEmail || '';
+  const doctorRegNo = docObj?.registrationNumber || docObj?.regNo || '';
+  
+  const doctorSubCreds = Array.isArray(docObj?.education) && docObj.education.length > 0 
+    ? docObj.education.map(ed => typeof ed === 'string' ? ed : `${ed.degree || ''} ${ed.institution ? `- ${ed.institution}` : ''}`.trim()).filter(Boolean)
+    : [];
 
-  // Organization & Clinic Details
-  const clinicName = org?.branding?.clinicName || org?.clinicName || org?.name || 'Clinic Name';
+  const doctorRegionalTitle = docObj?.regionalSpecialization || '';
+  const visitingConsultantText = docObj?.visitingConsultant || '';
+  const bannerText = doctorSpecialization ? `CONSULTANT ${doctorSpecialization.toUpperCase()}` : '';
+
+  // Organization & Clinic Details - REAL DATA ONLY
+  const clinicName = org?.branding?.clinicName || org?.clinicName || org?.name || '';
   const clinicAddress = formatAddress(org?.address || org?.location);
   const clinicContact = org?.phone || org?.branding?.phone || '';
+  const clinicEmail = org?.email || org?.branding?.email || doctorDetails.doctorEmail || prescriptionData?.doctorEmail || '';
+  const clinicWebsite = org?.website || org?.branding?.website || '';
 
   const isDefaultV2 = template?._id === 'default_v2';
 
   // Template background image resolution (A4)
   const orgTemplateUrl = org?.prescriptionTemplate?.templateUrl || org?.prescriptionTemplateUrl || template?.orgTemplateUrl || template?.templateUrl;
   const templateBase64 = orgTemplateUrl ? await getBase64Image(orgTemplateUrl) : null;
-  const isA4 = Boolean(templateBase64) || template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4';
+  const isA4 = (template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4') && Boolean(templateBase64) && (org?.prescriptionTemplate?.enabled !== false);
 
   const printableArea = template?.printableArea || org?.prescriptionTemplate?.printableArea;
   const margins = printableArea || { top: 55, left: 15, right: 15, bottom: 25 };
 
-  // Patient Name Formatter
-  const formattedPatientName = (() => {
-    let name = patientData?.fullName || patientData?.name || `${patientData?.firstName || ''} ${patientData?.lastName || ''}`.trim() || 'Unknown';
-    const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
-    let parts = name.split(/\s+/);
-    while (parts.length > 1) {
-      const p0 = parts[0].toUpperCase().replace(/\./g, '');
-      const p1 = parts[1].toUpperCase().replace(/\./g, '');
-      if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
-        parts.shift();
-      } else {
-        break;
-      }
-    }
-    return parts.join(' ');
-  })();
+  // Assets
+  const logoPath = (template?.headerType === 'custom' && template?.headerImage) 
+    ? template.headerImage 
+    : (org?.branding?.logo || org?.logo || null);
+  const logoBase64 = logoPath ? await getBase64Image(logoPath) : null;
 
-  const dateStr = prescriptionData?.date ? new Date(prescriptionData.date).toLocaleDateString() : new Date().toLocaleDateString();
-  const timeStr = prescriptionData?.time ? `| ${prescriptionData.time}` : '';
+  const docSigPath = docObj?.doctorSignature || doctorDetails?.doctorSignature || (template?.footerType === 'custom' ? template?.footerImage : null) || org?.doctorSignature;
+  const signatureBase64 = docSigPath ? await getBase64Image(docSigPath) : null;
 
-  // Header HTML (Only used when !isA4)
-  let headerHtml = '';
-  if (isDefaultV2) {
-    headerHtml = `
-      <div style="display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 16px; width: 100%;">
-        ${logoBase64 ? `<img src="${logoBase64}" style="height: 80px; width: 80px; object-fit: contain; margin-bottom: 8px;" />` : ''}
-        <h2 style="font-size: 24px; font-weight: 900; color: #047857; margin: 0; line-height: 1.25;">${clinicName}</h2>
-        <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 4px;">
-          ${clinicAddress ? `<p style="max-width: 600px; margin: 0; line-height: 1.25;">${clinicAddress}</p>` : ''}
-          ${clinicContact ? `<p style="margin: 2px 0 0 0;">Contact: ${clinicContact}</p>` : ''}
-        </div>
-      </div>
-    `;
-  } else if (template?.headerType === 'custom' && template?.headerImage && logoBase64) {
-    headerHtml = `<div style="min-height: 120px;"><img src="${logoBase64}" style="width: 100%; height: auto; object-fit: contain;" /></div>`;
-  } else {
-    const formattedDocHeader = doctorName?.toLowerCase().startsWith('dr') ? doctorName : `Dr. ${doctorName}`;
-    headerHtml = `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
-        <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
-          ${logoBase64 ? `<img src="${logoBase64}" style="height: 96px; width: 96px; object-fit: contain;" />` : ''}
-          <div style="display: flex; flex-direction: column;">
-            <h2 style="font-size: 24px; font-weight: 900; color: #047857; margin: 0; line-height: 1.25;">${clinicName}</h2>
-            <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 4px;">
-              ${clinicAddress ? `<p style="max-width: 400px; margin: 0; line-height: 1.25;">${clinicAddress}</p>` : ''}
-              ${clinicContact ? `<p style="margin: 2px 0 0 0;">Contact: ${clinicContact}</p>` : ''}
-            </div>
-          </div>
-        </div>
-        <div style="text-align: right; flex: 1; display: flex; flex-direction: column; align-items: flex-end;">
-          <h1 style="font-size: 28px; font-weight: 900; color: #1e40af; margin: 0; line-height: 1.25;">${formattedDocHeader}</h1>
-          ${doctorQualification ? `<div style="font-size: 11px; font-weight: 900; color: rgba(37, 99, 235, 0.8); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em;">${doctorQualification}</div>` : ''}
-          ${doctorSpecialization ? `<p style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 2px 0 0 0;">${doctorSpecialization}</p>` : ''}
-          <div style="font-size: 10px; color: #94a3b8; margin-top: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">
-            ${doctorEmail ? `<p style="margin: 0;">E-Mail: ${doctorEmail}</p>` : ''}
-            ${clinicContact ? `<p style="margin: 2px 0 0 0;">Contact: ${clinicContact}</p>` : ''}
-          </div>
-        </div>
-      </div>
-      <div style="height: 4px; background-color: #e2e8f0; width: 100%; border-radius: 9999px; opacity: 0.5;"></div>
-    `;
-  }
+  const docStampPath = docObj?.doctorStamp || doctorDetails?.doctorStamp;
+  const stampBase64 = docStampPath ? await getBase64Image(docStampPath) : null;
 
-  // Footer HTML (Only used when !isA4)
-  let footerHtml = '';
-  if (isDefaultV2) {
-    footerHtml = `
-      <div style="padding: 16px 32px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box;">
-        <div style="font-size: 9px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Dr. ${doctorName}</div>
-        <div style="text-align: center; opacity: 0.7;"><p style="font-size: 10px; font-weight: 700; color: #94a3b8; margin: 0;">Powered by Oviaan</p></div>
-        <div style="width: 80px;"></div>
-      </div>
-    `;
-  } else if (template?.footerType === 'custom' && template?.footerImage && signatureBase64) {
-    footerHtml = `<img src="${signatureBase64}" style="width: 100%; height: 100%; object-fit: contain;" />`;
-  } else {
-    footerHtml = `<div style="padding: 16px; text-align: center; opacity: 0.7; border-top: 1px solid #e2e8f0;"><p style="font-size: 12px; font-weight: 700; color: #94a3b8; margin: 0;">Powered by Oviaan</p></div>`;
-  }
+  const footerBarcodePath = org?.prescriptionTemplate?.footerBarcode || org?.branding?.footerBarcode || org?.footerBarcode;
+  const footerBarcodeBase64 = footerBarcodePath ? await getBase64Image(footerBarcodePath) : null;
+  const footerText = prescriptionData?.customFooterText || prescriptionData?.footerText || parsedNotes?.customFooterText || parsedNotes?.footerText || org?.prescriptionTemplate?.footerText || org?.branding?.footerText || org?.footerText || '';
 
   // Custom Watermark / Body Background
   let bodyBgStyle = '';
@@ -2237,102 +2196,232 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     }
   }
 
-  // Clinical Content HTML
-  let contentHtml = '';
-  if (parsedData) {
-    contentHtml = `
-      <div style="position: relative; z-index: 10;">
-        ${(parsedData.vitals || parsedData.complaints || parsedData.diagnosis || parsedData.treatmentPlans || parsedData.dentalTreatments) ? `
-          <div style="font-size: 14px; margin-bottom: 24px; border-bottom: 1px solid #f1f5f9; padding-bottom: 16px;">
-            ${(parsedData.vitals && Object.values(parsedData.vitals).some(v => v)) ? `<p style="margin: 4px 0;"><span style="font-weight: 700; color: #475569;">Vitals:</span> ${Object.entries(parsedData.vitals).filter(([_,v]) => v).map(([k,v]) => `${k.replace('_', ' ')}: ${v}`).join(', ')}</p>` : ''}
-            ${parsedData.complaints?.length > 0 ? `<p style="margin: 4px 0;"><span style="font-weight: 700; color: #475569;">Complaints:</span> ${parsedData.complaints.map(c => typeof c === 'string' ? c : c.name).join(', ')}</p>` : ''}
-            ${parsedData.diagnosis?.length > 0 ? `<p style="margin: 4px 0;"><span style="font-weight: 700; color: #475569;">Diagnosis:</span> ${parsedData.diagnosis.map(d => typeof d === 'string' ? d : d.name).join(', ')}</p>` : ''}
-            ${(parsedData.treatmentPlans?.length > 0 || parsedData.dentalTreatments?.length > 0) ? (() => {
-              const rawList = parsedData.treatmentPlans || parsedData.dentalTreatments || [];
-              const names = Array.from(new Set(rawList.map(t => typeof t === 'string' ? t : (t.procedure || t.name || t.treatmentName)).filter(Boolean)));
-              if (!names.length) return '';
-              return `<p style="margin: 4px 0;"><span style="font-weight: 700; color: #475569;">Treatment:</span> ${names.join(', ')}</p>`;
-            })() : ''}
-          </div>
-        ` : ''}
+  // Patient Info Formatting
+  const patientDisplayFullName = (() => {
+    let raw = patientData?.fullName || patientData?.name || `${patientData?.firstName || ''} ${patientData?.lastName || ''}`.trim() || parsedData?.patientName || 'Patient';
+    const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
+    let parts = raw.split(/\s+/);
+    while (parts.length > 1) {
+      const p0 = parts[0].toUpperCase().replace(/\./g, '');
+      const p1 = parts[1].toUpperCase().replace(/\./g, '');
+      if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
+        parts.shift();
+      } else {
+        break;
+      }
+    }
+    const clean = parts.join(' ').trim();
+    const gender = (patientData?.gender || '').toLowerCase();
+    const prefix = gender === 'female' ? 'Mrs.' : 'Mr.';
+    const hasExistingPrefix = prefixes.some(p => clean.toUpperCase().startsWith(p));
+    return hasExistingPrefix ? clean : `${prefix} ${clean}`;
+  })();
 
-        ${parsedData.medications?.length > 0 ? `
-          <div style="margin-bottom: 16px;">
-            <span style="font-size: 30px; font-family: Georgia, serif; font-style: italic; font-weight: bold; color: #1e293b;">Rx</span>
-          </div>
-          <table style="width: 100%; text-align: left; font-size: 13px; margin-bottom: 32px; border-collapse: collapse;">
-            <thead>
-              <tr style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
-                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">#</th>
-                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Medicine</th>
-                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Dose</th>
-                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Timing</th>
-                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Frequency</th>
-                <th style="padding: 10px 12px; font-weight: 900; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: right;">Duration</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${parsedData.medications.map((m, i) => `
-                <tr style="border-bottom: 1px solid #f1f5f9;">
-                  <td style="padding: 16px 12px; color: #94a3b8; font-weight: bold;">${String(i + 1).padStart(2, '0')}</td>
-                  <td style="padding: 16px 12px;">
-                    <div style="font-weight: 900; color: #0f172a; font-size: 14px;">${m.name}</div>
-                    ${(m.composition || m.genericName) ? `<div style="font-size: 10px; color: #64748b; font-weight: 500; margin-top: 2px;">${m.composition || m.genericName}</div>` : ''}
-                  </td>
-                  <td style="padding: 16px 12px; font-weight: 900; color: #334155;">${m.dose || ''}</td>
-                  <td style="padding: 16px 12px; font-weight: 700; color: #475569;">${m.when || ''}</td>
-                  <td style="padding: 16px 12px; font-weight: 700; color: #475569;">${m.frequency || ''}</td>
-                  <td style="padding: 16px 12px; font-weight: 900; color: #0f172a; text-align: right;">${m.duration || '-'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        ` : ''}
+  // Real Patient ID without artificial OPD prefix or mock fallbacks
+  const displayPatientId = patientData?.customPatientId || patientData?.patientId || prescriptionData?.patientId || parsedData?.patientId || '';
+  const patientDisplayAgeGender = `${patientData?.age ? `${patientData.age}Y` : '--'} / ${patientData?.gender || '--'}`;
+  const patientMobile = patientData?.mobile || patientData?.phone || patientData?.contactNumber || patientData?.patientPhone || prescriptionData?.patientPhone || '';
+  
+  const consultationDateStr = (() => {
+    const rawDate = prescriptionData?.date || prescriptionData?.consultationDate || prescriptionData?.createdAt || new Date();
+    try {
+      const d = new Date(rawDate);
+      if (isNaN(d.getTime())) return new Date().toLocaleDateString('en-GB');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    } catch (e) {
+      return new Date().toLocaleDateString('en-GB');
+    }
+  })();
 
-        ${parsedData.testsRequested?.length > 0 ? `
-          <div style="margin-bottom: 32px;">
-            <p style="font-weight: 900; color: #0f172a; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 12px 0; border-left: 4px solid #4f46e5; padding-left: 12px;">Tests Required:</p>
-            <div style="font-size: 14px; color: #334155;">
-              ${parsedData.testsRequested.map((t, i) => `
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-                  <span style="font-size: 9px; font-weight: 900; color: #4f46e5; background-color: #eef2ff; padding: 4px 8px; border-radius: 4px; border: 1px solid #e0e7ff; min-width: 24px; text-align: center;">${String(i + 1).padStart(2, '0')}</span>
-                  <span style="font-weight: 700; color: #1e293b;">${typeof t === 'string' ? t : (t.name || t)}</span>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        ` : ''}
+  // 1. Context / Title
+  const contextTitle = prescriptionData?.title || (parsedData?.isDental ? 'Dental Examination & Prescription' : '');
 
-        ${parsedData.advice ? `
-          <div style="margin-bottom: 24px;">
-            <p style="font-weight: 700; color: #1e293b; margin: 0 0 8px 0;">Clinical Advice:</p>
-            <p style="font-size: 14px; color: #334155; white-space: pre-wrap; margin: 0; line-height: 1.6;">${parsedData.advice}</p>
-          </div>
-        ` : ''}
-      </div>
-    `;
-  } else {
-    contentHtml = `<div style="font-size: 14px; line-height: 1.8; white-space: pre-wrap; color: #334155;">${prescriptionData?.notes || prescriptionData?.description || ''}</div>`;
-  }
+  // 2. Medical & Dental History
+  const medicalHistoryText = parsedData?.medicalDentalHistory || parsedData?.medicalHistory || '';
 
-  const patientMobile = patientData?.mobile || patientData?.phone || patientData?.contactNumber || patientData?.patientPhone || prescriptionData?.patientPhone || 'N/A';
+  // 3. Oral Examination Findings
+  const activeOralExamItems = (() => {
+    if (!parsedData?.oralExamination) return [];
+    if (typeof parsedData.oralExamination === 'string') {
+      return [parsedData.oralExamination];
+    }
+    const labelMap = {
+      stains: 'Stains',
+      calculus: 'Calculus',
+      decayedTeeth: 'Decayed Teeth',
+      grosslyDecayedTeeth: 'Grossly Decayed Teeth',
+      mobileTeeth: 'Mobile Teeth',
+      top: 'Tenderness on Percussion (TOP)',
+      otherFindings: 'Other Findings'
+    };
+    const items = [];
+    Object.entries(parsedData.oralExamination).forEach(([key, val]) => {
+      if (val && (val.active || (typeof val === 'string' && val.trim() !== ''))) {
+        const label = labelMap[key] || key;
+        const severity = val.severity ? ` (${val.severity})` : '';
+        const notes = val.notes ? `: ${val.notes}` : '';
+        items.push(`${label}${severity}${notes}`);
+      }
+    });
+    return items;
+  })();
 
-  // Build Patient Info HTML
-  const patientInfoHtml = `
-    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: normal; color: #1e293b; margin-bottom: 16px; padding: 4px 0;">
-      ${isDefaultV2 ? `
-        <span>Name: ${formattedPatientName}</span>
-        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px;">Mobile: ${patientMobile}</span>
-        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px;">Age: ${patientData?.age || '--'} Years</span>
-        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px; margin-left: auto;">Date: ${dateStr}</span>
-      ` : `
-        <span>Name: ${formattedPatientName}</span>
-        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px;">Mobile: ${patientMobile}</span>
-        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px;">Age/Sex: ${patientData?.age || '--'}Y / ${patientData?.gender || '--'}</span>
-        <span style="border-left: 1px solid #cbd5e1; padding-left: 16px; margin-left: auto;">Date: ${dateStr}</span>
-      `}
-    </div>
-  `;
+  // 4. Affected Teeth / Odontogram Findings & Procedures (Grouped cleanly)
+  const teethChartItems = (() => {
+    if (Array.isArray(parsedData?.selectedTeeth) && parsedData.selectedTeeth.length > 0) {
+      const groups = new Map();
+      parsedData.selectedTeeth.forEach(t => {
+        const proc = t.procedure || t.condition || 'Procedure';
+        const notes = t.notes ? ` (${t.notes})` : '';
+        const key = `${proc}:::${notes}`;
+        if (!groups.has(key)) groups.set(key, { proc, notes, teeth: [] });
+        groups.get(key).teeth.push(String(t.toothId || t.toothNumber));
+      });
+
+      return Array.from(groups.values()).map(({ proc, notes, teeth }) => {
+        if (teeth.length >= 28) {
+          return `Full Mouth (All Teeth): ${proc}${notes}`;
+        }
+        if (teeth.length > 1) {
+          return `Teeth #${teeth.join(', #')}: ${proc}${notes}`;
+        }
+        return `Tooth #${teeth[0]}: ${proc}${notes}`;
+      });
+    }
+    return [];
+  })();
+
+  // 5. Done Today / Treatment Performed Today
+  const treatmentPerformedToday = parsedData?.treatmentPerformedToday || parsedData?.procedureDone || '';
+
+  // 6. Treatment Planned / Treatment
+  const treatmentPlannedText = (() => {
+    if (parsedData?.treatmentPlanned) return parsedData.treatmentPlanned;
+    if (Array.isArray(parsedData?.treatmentPlans) && parsedData.treatmentPlans.length > 0) {
+      return parsedData.treatmentPlans.map(t => typeof t === 'string' ? t : (t.procedure || t.name || t.treatmentName)).filter(Boolean).join(', ');
+    }
+    if (Array.isArray(parsedData?.dentalTreatments) && parsedData.dentalTreatments.length > 0) {
+      return parsedData.dentalTreatments.map(t => typeof t === 'string' ? t : (t.procedure || t.name || t.treatmentName)).filter(Boolean).join(', ');
+    }
+    return '';
+  })();
+
+  // 7. Diagnosis Text
+  const diagnosisList = (() => {
+    if (Array.isArray(parsedData?.diagnosis) && parsedData.diagnosis.length > 0) {
+      return parsedData.diagnosis.map(d => typeof d === 'string' ? d : (d.name || '')).filter(Boolean);
+    }
+    if (typeof parsedData?.diagnosis === 'string' && parsedData.diagnosis.trim()) {
+      return [parsedData.diagnosis.trim()];
+    }
+    if (prescriptionData?.diagnosis) {
+      return Array.isArray(prescriptionData.diagnosis) ? prescriptionData.diagnosis : [prescriptionData.diagnosis];
+    }
+    return [];
+  })();
+
+  // 8. Complaints List
+  const complaintsList = (() => {
+    if (Array.isArray(parsedData?.complaints) && parsedData.complaints.length > 0) {
+      return parsedData.complaints.map(c => {
+        if (typeof c === 'string') return c;
+        const dur = c.duration ? ` (${c.duration})` : (parsedData?.complaintDuration ? ` (${parsedData.complaintDuration})` : '');
+        return `${c.name || ''}${dur}`.trim();
+      }).filter(Boolean);
+    }
+    if (typeof parsedData?.complaints === 'string' && parsedData.complaints.trim()) {
+      const dur = parsedData?.complaintDuration ? ` (${parsedData.complaintDuration})` : '';
+      return [`${parsedData.complaints.trim()}${dur}`];
+    }
+    if (prescriptionData?.complaints?.length) {
+      return prescriptionData.complaints.map(c => typeof c === 'string' ? c : (c.name || '')).filter(Boolean);
+    }
+    if (parsedData?.chiefComplaint) {
+      const dur = parsedData?.complaintDuration ? ` (${parsedData.complaintDuration})` : '';
+      return [`${parsedData.chiefComplaint}${dur}`];
+    }
+    if (prescriptionData?.chiefComplaint) return [prescriptionData.chiefComplaint];
+    if (prescriptionData?.symptoms) return [prescriptionData.symptoms];
+    return [];
+  })();
+
+  // 9. Examination List (General / Physical / Vitals)
+  const examinationList = (() => {
+    if (Array.isArray(parsedData?.examination) && parsedData.examination.length > 0) {
+      return parsedData.examination.map(e => typeof e === 'string' ? e : (e.name || '')).filter(Boolean);
+    }
+    if (typeof parsedData?.examination === 'string' && parsedData.examination.trim()) {
+      return [parsedData.examination.trim()];
+    }
+    if (parsedData?.physicalExamination) {
+      return [parsedData.physicalExamination];
+    }
+    if (parsedData?.vitals && Object.values(parsedData.vitals).some(v => v)) {
+      const vStr = Object.entries(parsedData.vitals).filter(([_,v]) => v).map(([k,v]) => `${k.replace('_', ' ')}: ${v}`).join(', ');
+      return [`Vitals: ${vStr}`];
+    }
+    return [];
+  })();
+
+  // 10. Advice
+  const adviceText = parsedData?.advice || prescriptionData?.advice || '';
+
+  // 11. Next Visit / Follow Up
+  const nextVisitText = (() => {
+    const nv = parsedData?.nextAppointmentDate || parsedData?.followUpDate || prescriptionData?.followUpDate;
+    if (!nv) return '';
+    try {
+      const d = new Date(nv);
+      const dStr = !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : String(nv);
+      const notes = parsedData?.nextAppointmentNotes ? ` (${parsedData.nextAppointmentNotes})` : '';
+      return `${dStr}${notes}`;
+    } catch (e) {
+      return String(nv);
+    }
+  })();
+
+  // 12. Investigation List
+  const investigationList = (() => {
+    if (Array.isArray(parsedData?.testsRequested) && parsedData.testsRequested.length > 0) {
+      return parsedData.testsRequested.map(t => typeof t === 'string' ? t : (t.name || t));
+    }
+    if (Array.isArray(parsedData?.investigation) && parsedData.investigation.length > 0) {
+      return parsedData.investigation.map(i => typeof i === 'string' ? i : (i.name || i));
+    }
+    if (typeof parsedData?.investigation === 'string' && parsedData.investigation.trim()) {
+      return [parsedData.investigation.trim()];
+    }
+    return [];
+  })();
+
+  // 13. Medications List
+  const medicationsList = parsedData?.medications || prescriptionData?.medications || [];
+
+  const formatFrequencyDashes = (freq) => {
+    if (!freq) return '-';
+    const clean = String(freq).trim();
+    if (clean === '1-0-1') return '1 - 0 - 1';
+    if (clean === '1-0-0') return '1 - 0 - 0';
+    if (clean === '0-0-1') return '0 - 0 - 1';
+    if (clean === '0-1-0') return '0 - 1 - 0';
+    if (clean === '1-1-1') return '1 - 1 - 1';
+    if (clean === '1-1-1-1') return '1 - 1 - 1 - 1';
+    return clean;
+  };
+
+  const formatDuration = (dur) => {
+    if (!dur) return '-';
+    const clean = String(dur).trim();
+    if (/^\d+$/.test(clean)) return `${clean} Day(S)`;
+    if (/^\d+\s*d(ays?)?$/i.test(clean)) {
+      const num = clean.match(/\d+/)[0];
+      return `${num} Day(S)`;
+    }
+    return clean;
+  };
 
   return `
     <!DOCTYPE html>
@@ -2388,6 +2477,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
           max-height: 297mm;
           display: flex;
           flex-direction: column;
+          justify-content: space-between;
           overflow: hidden;
           ${isA4 ? `
             padding-top: ${margins.top || 55}mm;
@@ -2395,14 +2485,8 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
             padding-left: ${margins.left || 15}mm;
             padding-right: ${margins.right || 15}mm;
           ` : `
-            padding: 0;
+            padding: 24px 32px;
           `}
-        }
-        .body-content {
-          flex: 1;
-          position: relative;
-          padding: ${isA4 ? '8px 0' : '32px'};
-          min-height: 400px;
         }
         .watermark {
           position: absolute;
@@ -2423,27 +2507,327 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
         ` : ''}
 
         <div class="content-wrapper">
-          ${!isA4 ? `
-            <div style="padding: 32px 32px 10px 32px; width: 100%; box-sizing: border-box;">
-              ${headerHtml}
+          <div class="watermark"></div>
+
+          ${isA4 ? `
+            <!-- A4 Overlaid Content -->
+            <div style="font-size: 12px; color: #1e293b; padding-bottom: 8px; border-bottom: 1px solid #cbd5e1; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span><b>Name:</b> ${patientDisplayFullName}</span>
+                <span><b>Patient ID:</b> ${displayPatientId}</span>
+                <span><b>Mobile:</b> ${patientMobile}</span>
+                <span><b>Age/Sex:</b> ${patientDisplayAgeGender}</span>
+                <span><b>Date:</b> ${consultationDateStr}</span>
+              </div>
             </div>
-            <div style="padding: 0 32px; width: 100%; box-sizing: border-box;">
-              ${patientInfoHtml}
+
+            <div style="flex: 1;">
+              ${complaintsList.length > 0 ? `
+                <div style="margin-bottom: 8px; font-size: 12px;">
+                  <b>Chief Complaints:</b> ${complaintsList.join(', ')}
+                </div>
+              ` : ''}
+
+              ${medicationsList.length > 0 ? `
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid #334155; font-size: 12px; margin-bottom: 12px;">
+                  <thead>
+                    <tr style="background-color: #f8fafc; border-bottom: 1px solid #334155;">
+                      <th style="padding: 6px; border-right: 1px solid #334155; text-align: center; width: 5%;">#</th>
+                      <th style="padding: 6px 10px; border-right: 1px solid #334155; text-align: left; width: 35%;">Medicine</th>
+                      <th style="padding: 6px 8px; border-right: 1px solid #334155; text-align: center; width: 12%;">Dose</th>
+                      <th style="padding: 6px 8px; border-right: 1px solid #334155; text-align: left; width: 16%;">Timing</th>
+                      <th style="padding: 6px 8px; border-right: 1px solid #334155; text-align: center; width: 16%;">Frequency</th>
+                      <th style="padding: 6px 8px; text-align: center; width: 16%;">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${medicationsList.map((m, idx) => `
+                      <tr style="border-bottom: 1px solid #334155;">
+                        <td style="padding: 6px; border-right: 1px solid #334155; text-align: center; font-weight: bold;">${idx + 1}</td>
+                        <td style="padding: 6px 10px; border-right: 1px solid #334155;">
+                          <div style="font-weight: bold; color: #0f172a;">${m.name}</div>
+                          ${(m.composition || m.genericName) ? `<div style="font-size: 10px; color: #64748b; font-style: italic;">${m.composition || m.genericName}</div>` : ''}
+                          ${m.instructions ? `<div style="font-size: 10px; color: #64748b; margin-top: 2px;">${m.instructions}</div>` : ''}
+                        </td>
+                        <td style="padding: 6px 8px; border-right: 1px solid #334155; text-align: center;">${m.dose || m.form || '-'}</td>
+                        <td style="padding: 6px 8px; border-right: 1px solid #334155;">${m.when || '-'}</td>
+                        <td style="padding: 6px 8px; border-right: 1px solid #334155; text-align: center; font-weight: bold;">${m.frequency ? formatFrequencyDashes(m.frequency) : '-'}</td>
+                        <td style="padding: 6px 8px; text-align: center; font-weight: bold;">${m.duration ? formatDuration(m.duration) : '-'}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              ` : ''}
+
+              ${adviceText ? `
+                <div style="font-size: 12px; margin-bottom: 8px;">
+                  <b>Advice:</b> ${adviceText}
+                </div>
+              ` : ''}
             </div>
           ` : `
-            ${patientInfoHtml}
-          `}
+            <!-- OVIAAN DEFAULT TEMPLATE (REAL DATA ONLY) -->
+            <div>
+              <!-- 1. TOP HEADER (Clinic on Left, Doctor on Right) -->
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">
+                <!-- Left Column: Clinic Details -->
+                <div style="display: flex; align-items: flex-start; gap: 14px; flex: 1; max-width: 55%;">
+                  ${logoBase64 ? `
+                    <img src="${logoBase64}" alt="Clinic Logo" style="width: 64px; height: 64px; object-fit: contain; border-radius: 50%; border: 1px solid #e2e8f0; padding: 2px; background-color: #ffffff; flex-shrink: 0;" />
+                  ` : `
+                    <div style="width: 64px; height: 64px; border-radius: 50%; border: 4px solid rgba(99, 102, 241, 0.4); display: flex; align-items: center; justify-content: center; background: #eef2ff; flex-shrink: 0;">
+                      <span style="font-weight: 900; color: #312e81; font-size: 20px;">${clinicName ? clinicName.charAt(0) : 'C'}</span>
+                    </div>
+                  `}
+                  <div style="display: flex; flex-direction: column; text-align: left;">
+                    <h2 style="font-size: 18px; font-weight: 900; color: #1e1b4b; margin: 0; line-height: 1.2;">${clinicName || 'Clinic'}</h2>
+                    <div style="font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.4; font-weight: 500;">
+                      ${clinicAddress ? `<div>${clinicAddress}</div>` : ''}
+                      ${clinicWebsite ? `<div>Website: <span style="font-weight: bold; color: #1e293b;">${clinicWebsite}</span></div>` : ''}
+                      ${clinicEmail ? `<div>${clinicEmail}</div>` : ''}
+                      ${clinicContact ? `<div style="font-weight: bold; color: #dc2626;">Contact: ${clinicContact}</div>` : ''}
+                    </div>
+                  </div>
+                </div>
 
-          <div class="body-content">
-            <div class="watermark"></div>
-            ${contentHtml}
-          </div>
+                <!-- Right Column: Doctor Details -->
+                <div style="display: flex; flex-direction: column; text-align: right; align-items: flex-end; flex: 1; max-width: 45%;">
+                  ${doctorFormattedName ? `
+                    <h1 style="font-size: 18px; font-weight: 900; color: #1e1b4b; margin: 0; line-height: 1.2;">${doctorFormattedName}</h1>
+                  ` : ''}
+                  ${doctorQual ? `
+                    <div style="font-size: 12px; font-weight: bold; color: #dc2626; margin-top: 2px;">${doctorQual}</div>
+                  ` : ''}
+                  ${doctorSubCreds.length > 0 ? `
+                    <div style="font-size: 10px; color: #475569; margin-top: 4px; line-height: 1.3; font-weight: 500;">
+                      ${doctorSubCreds.map(c => `<div>${c}</div>`).join('')}
+                    </div>
+                  ` : ''}
+                  ${doctorRegionalTitle ? `
+                    <div style="font-weight: bold; color: #dc2626; font-size: 11px; margin-top: 2px;">${doctorRegionalTitle}</div>
+                  ` : ''}
+                </div>
+              </div>
 
-          ${!isA4 ? `
-            <div style="width: 100%; min-height: 80px; margin-top: auto; position: relative; z-index: 10;">
-              ${footerHtml}
+              <!-- Visiting Consultant Line (ONLY if present) -->
+              ${visitingConsultantText ? `
+                <div style="padding: 4px 0; text-align: center; font-size: 10px; font-weight: 700; color: #475569;">
+                  ${visitingConsultantText}
+                </div>
+              ` : ''}
+
+              <!-- Specialty Banner Bar (ONLY if present) -->
+              ${bannerText ? `
+                <div style="background-color: #a83244; color: #ffffff; padding: 4px 16px; border-radius: 6px; text-align: center; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
+                  ${bannerText}
+                </div>
+              ` : ''}
+
+              <!-- Patient Information Box -->
+              <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 12px; color: #1e293b; background-color: #ffffff;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 3px 0; width: 33%;"><span style="font-weight: 700; color: #334155;">Patient ID: </span><span style="font-weight: 600; color: #0f172a;">${displayPatientId || '--'}</span></td>
+                    <td style="padding: 3px 0; width: 33%;"><span style="font-weight: 700; color: #334155;">Name: </span><span style="font-weight: 600; color: #0f172a;">${patientDisplayFullName}</span></td>
+                    <td style="padding: 3px 0; width: 34%;"><span style="font-weight: 700; color: #334155;">Age/Gender: </span><span style="font-weight: 600; color: #0f172a;">${patientDisplayAgeGender}</span></td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0 2px 0;"><span style="font-weight: 700; color: #334155;">M No: </span><span style="font-weight: 600; color: #0f172a;">${patientMobile || '--'}</span></td>
+                    <td style="padding: 4px 0 2px 0;"><span style="font-weight: 700; color: #334155;">Consultation Dt: </span><span style="font-weight: 600; color: #0f172a;">${consultationDateStr}</span></td>
+                    <td style="padding: 4px 0 2px 0;"></td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- Context / Title (if present) -->
+              ${contextTitle ? `
+                <div style="font-size: 11px; font-weight: bold; color: #64748b; margin-bottom: 8px;">
+                  Context: <span style="color: #0f172a;">${contextTitle}</span>
+                </div>
+              ` : ''}
+
+              <!-- Clinical Findings & Diagnosis (ALL details) -->
+              <div style="margin-bottom: 10px; font-size: 12px; line-height: 1.4; color: #1e293b;">
+                ${diagnosisList.length > 0 ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Diagnosis:</span>
+                    <span style="font-weight: 600; color: #1e293b; margin-left: 4px;">${diagnosisList.join(', ')}</span>
+                  </div>
+                ` : ''}
+
+                ${complaintsList.length > 0 ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Complaints:</span>
+                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${complaintsList.join(', ')}</span>
+                  </div>
+                ` : ''}
+
+                ${medicalHistoryText ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Med History:</span>
+                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${medicalHistoryText}</span>
+                  </div>
+                ` : ''}
+
+                ${activeOralExamItems.length > 0 ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Oral Exam:</span>
+                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${activeOralExamItems.join(', ')}</span>
+                  </div>
+                ` : ''}
+
+                ${teethChartItems.length > 0 ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Teeth Chart:</span>
+                    <span style="font-weight: bold; color: #0f172a; margin-left: 4px;">${teethChartItems.join(', ')}</span>
+                  </div>
+                ` : ''}
+
+                ${treatmentPerformedToday ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Done Today:</span>
+                    <span style="font-weight: 600; color: #065f46; margin-left: 4px;">${treatmentPerformedToday}</span>
+                  </div>
+                ` : ''}
+
+                ${treatmentPlannedText ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Treatment:</span>
+                    <span style="font-weight: 600; color: #1e293b; margin-left: 4px;">${treatmentPlannedText}</span>
+                  </div>
+                ` : ''}
+
+                ${examinationList.length > 0 ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Examination:</span>
+                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${examinationList.join(', ')}</span>
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- Rx Heading -->
+              <div style="margin-bottom: 6px; font-weight: bold; font-size: 16px; color: #0f172a;">Rx:</div>
+
+              <!-- Medications Table -->
+              ${medicationsList.length > 0 ? `
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid #334155; font-size: 12px; margin-bottom: 12px;">
+                  <thead>
+                    <tr style="background-color: #f8fafc; border-bottom: 1px solid #334155; color: #0f172a; font-weight: bold; font-size: 11px;">
+                      <th style="padding: 6px 8px; border-right: 1px solid #334155; text-align: center; width: 5%;">#</th>
+                      <th style="padding: 6px 10px; border-right: 1px solid #334155; text-align: left; width: 35%;">Medicine</th>
+                      <th style="padding: 6px 8px; border-right: 1px solid #334155; text-align: center; width: 12%;">Dose</th>
+                      <th style="padding: 6px 8px; border-right: 1px solid #334155; text-align: left; width: 16%;">Timing</th>
+                      <th style="padding: 6px 8px; border-right: 1px solid #334155; text-align: center; width: 16%;">Frequency</th>
+                      <th style="padding: 6px 8px; text-align: center; width: 16%;">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${medicationsList.map((m, idx) => `
+                      <tr style="border-bottom: 1px solid #334155;">
+                        <td style="padding: 8px 6px; border-right: 1px solid #334155; text-align: center; font-weight: bold; color: #334155; vertical-align: top;">${idx + 1}</td>
+                        <td style="padding: 8px 10px; border-right: 1px solid #334155; vertical-align: top;">
+                          <div style="font-weight: bold; color: #0f172a; font-size: 12px;">${m.name}</div>
+                          ${(m.composition || m.genericName) ? `<div style="font-size: 10px; color: #475569; font-style: italic; margin-top: 2px;">${m.composition || m.genericName}</div>` : ''}
+                          ${m.instructions ? `<div style="font-size: 10px; color: #64748b; margin-top: 2px;">${m.instructions}</div>` : ''}
+                        </td>
+                        <td style="padding: 8px 8px; border-right: 1px solid #334155; text-align: center; font-weight: 600; vertical-align: top;">${m.dose || m.form || '-'}</td>
+                        <td style="padding: 8px 8px; border-right: 1px solid #334155; vertical-align: top;">${m.when || '-'}</td>
+                        <td style="padding: 8px 8px; border-right: 1px solid #334155; text-align: center; font-weight: bold; color: #0f172a; white-space: nowrap; vertical-align: top;">${m.frequency ? formatFrequencyDashes(m.frequency) : '-'}</td>
+                        <td style="padding: 8px 8px; text-align: center; font-weight: bold; color: #0f172a; white-space: nowrap; vertical-align: top;">${m.duration ? formatDuration(m.duration) : '-'}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              ` : `
+                <div style="padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; font-size: 12px; color: #64748b; font-style: italic; margin-bottom: 12px;">
+                  ${prescriptionData?.notes || 'No medications listed.'}
+                </div>
+              `}
+
+              <!-- Advice, Next Visit & Investigation -->
+              <div style="margin-bottom: 10px; font-size: 12px; line-height: 1.4; color: #1e293b;">
+                ${adviceText ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Advice:</span>
+                    <span style="font-medium: 500; color: #1e293b; font-style: italic; margin-left: 4px;">"${adviceText}"</span>
+                  </div>
+                ` : ''}
+
+                ${nextVisitText ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Next Visit:</span>
+                    <span style="font-weight: bold; color: #1e1b4b; margin-left: 4px;">${nextVisitText}</span>
+                  </div>
+                ` : ''}
+
+                ${investigationList.length > 0 ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Investigation:</span>
+                    <span style="font-medium: 500; color: #1e293b; margin-left: 4px;">${investigationList.join(', ')}</span>
+                  </div>
+                ` : ''}
+              </div>
             </div>
-          ` : ''}
+
+            <div>
+              <!-- Doctor Signature & Stamp Area (Bottom Right) -->
+              <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+                <div style="display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 200px;">
+                  ${signatureBase64 ? `
+                    <img src="${signatureBase64}" alt="Signature" style="height: 48px; object-fit: contain; margin-bottom: 4px;" />
+                  ` : doctorLastName ? `
+                    <div style="font-family: Georgia, serif; font-style: italic; font-size: 24px; color: #1e293b; font-weight: bold; transform: rotate(-3deg); margin-bottom: 4px;">
+                      ${doctorLastName}
+                    </div>
+                  ` : ''}
+                  
+                  ${doctorFormattedName ? `
+                    <div style="font-size: 12px; font-weight: bold; color: #0f172a;">
+                      ${doctorFormattedName}
+                    </div>
+                  ` : ''}
+                  ${doctorRegNo ? `
+                    <div style="font-size: 10px; color: #475569; font-weight: 500;">
+                      Medical Registration Number : ${doctorRegNo}
+                    </div>
+                  ` : ''}
+
+                  ${stampBase64 ? `
+                    <img src="${stampBase64}" alt="Doctor Stamp" style="height: 60px; object-fit: contain; margin-top: 4px;" />
+                  ` : doctorFormattedName ? `
+                    <div style="margin-top: 4px; border: 1px dashed #60a5fa; color: #1e40af; border-radius: 4px; padding: 6px; font-size: 9px; font-weight: bold; line-height: 1.25; text-transform: uppercase; background-color: rgba(239, 246, 255, 0.4);">
+                      <div>${doctorFormattedName.toUpperCase()}</div>
+                      ${doctorQual ? `<div style="font-size: 8px; font-weight: normal;">${doctorQual}</div>` : ''}
+                      ${clinicName ? `<div style="font-size: 8px; font-weight: normal;">${clinicName}</div>` : ''}
+                      ${doctorRegNo ? `<div style="font-size: 8px; font-weight: bold;">Reg. No: ${doctorRegNo}</div>` : ''}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+
+              <!-- Footer Bar (Barcode on Left ONLY if uploaded + Custom Footer Text) -->
+              <div style="padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box;">
+                <!-- Barcode on Left: ONLY if uploaded by admin -->
+                <div style="width: 80px; height: 80px; display: flex; align-items: center; justify-content: flex-start; flex-shrink: 0;">
+                  ${footerBarcodeBase64 ? `
+                    <img src="${footerBarcodeBase64}" alt="Prescription Barcode" style="width: 76px; height: 76px; object-fit: contain; border: 1px solid #e2e8f0; padding: 4px; border-radius: 4px; background-color: #ffffff;" />
+                  ` : ''}
+                </div>
+
+                <!-- Custom Footer Text - ONLY if configured by clinic, styled like reference image -->
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 16px;">
+                  ${footerText ? `
+                    <div style="display: inline-block; border: 1px solid #fecaca; background-color: #fef2f2; border-radius: 4px; padding: 4px 12px; max-width: 440px;">
+                      <div style="font-size: 10px; font-weight: 700; color: #dc2626; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.35; white-space: pre-line;">${footerText}</div>
+                    </div>
+                  ` : ''}
+                </div>
+
+                <!-- Right Spacer for balance -->
+                <div style="width: 80px; flex-shrink: 0;"></div>
+              </div>
+            </div>
+          `}
         </div>
       </div>
     </body>

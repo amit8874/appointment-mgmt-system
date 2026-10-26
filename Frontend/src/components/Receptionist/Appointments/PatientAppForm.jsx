@@ -280,7 +280,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
           date: localDate,
           time: time,
           reason: 'Initial Consultation',
-          status: 'pending',
+          status: 'confirmed',
           patientDetails: {
             firstName: formData.firstName,
             lastName: formData.lastName,
@@ -407,7 +407,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
 
           {/* Name Fields Container with Suggestions Dropdown */}
           <div className="relative w-full flex flex-wrap gap-2" ref={nameSearchRef}>
-            <div className="w-28">
+            <div className="w-32">
               <label className="block text-xs font-medium text-gray-700">Patient ID</label>
               <input
                 type="text"
@@ -426,7 +426,7 @@ const PatientAppointmentForm = ({ onSuccess }) => {
               <input type="text" name="firstName" value={formData.firstName} onChange={handleChange}
                 className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500" required autoComplete="off" />
             </div>
-            <div className="w-28">
+            <div className="w-32">
               <label className="block text-xs font-medium text-gray-700">Last *</label>
               <input type="text" name="lastName" value={formData.lastName} onChange={handleChange}
                 className="w-full px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500" required autoComplete="off" />

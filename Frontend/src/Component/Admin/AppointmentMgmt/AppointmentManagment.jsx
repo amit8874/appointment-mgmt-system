@@ -78,7 +78,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
     const getStatus = (a) => (a.resource?.status || '').toLowerCase();
     return {
       total: appointments.length,
-      confirmed: appointments.filter(a => ['confirmed', 'completed', 'arrived'].includes(getStatus(a))).length,
+      confirmed: appointments.filter(a => ['confirmed', 'completed', 'arrived', 'waiting', 'in-progress', 'with-doctor'].includes(getStatus(a))).length,
       pending: appointments.filter(a => getStatus(a) === 'pending').length,
       cancelled: appointments.filter(a => getStatus(a) === 'cancelled').length,
       waitlistCount: waitlist.length
@@ -346,7 +346,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
       // Status mapping: 'confirmed' filter shows both 'confirmed' and 'completed' appointments
       let matchesStatus = statusFilter === 'all';
       if (statusFilter === 'confirmed') {
-        matchesStatus = ['confirmed', 'completed', 'arrived'].includes(status);
+        matchesStatus = ['confirmed', 'completed', 'arrived', 'waiting', 'in-progress', 'with-doctor'].includes(status);
       } else if (statusFilter !== 'all') {
         matchesStatus = status === statusFilter.toLowerCase();
       }

@@ -352,6 +352,7 @@ export const getDoctorSlots = async (req, res) => {
   try {
     const { id } = req.params;
     const { date } = req.query;
+    const allowPast = req.query.allowPast === 'true' || req.query.allowPast === true;
 
     if (!date) {
       return res.status(400).json({ message: 'Date parameter is required' });
@@ -390,6 +391,11 @@ export const getDoctorSlots = async (req, res) => {
       workingHours = doctor.workingHours && doctor.workingHours.length > 0
         ? doctor.workingHours
         : [{ start: '09:00', end: '17:00' }];
+
+      // If staff is booking with allowPast, allow fallback working hours even if off-day was set
+      if (!isAvailable && allowPast) {
+        isAvailable = true;
+      }
     }
 
     // Check availability
@@ -499,12 +505,15 @@ export const getDoctorSlots = async (req, res) => {
       if (ampm === 'AM' && sHours === 12) slot24hHours = 0;
 
       const isBooked = bookedSlots12h.includes(`${startTimeStr} ${ampm}`);
-      const isPast = isToday && (slot24hHours < currentHours || (slot24hHours === currentHours && sMinutes < currentMinutes));
+      const isPastTime = isToday && (slot24hHours < currentHours || (slot24hHours === currentHours && sMinutes < currentMinutes));
+      const isPastDate = date < todayIstStr;
+      const isTimePassed = isPastDate || isPastTime;
+      const shouldDisablePast = !allowPast && isTimePassed;
 
       return {
         time: slot, // "10:00-10:30 AM"
-        isBooked: isBooked || isPast, // Disable if booked OR past
-        isPast: isPast
+        isBooked: isBooked || shouldDisablePast, // Disable if booked OR (past and allowPast not set)
+        isPast: isTimePassed
       };
     });
 

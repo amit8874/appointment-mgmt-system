@@ -348,6 +348,13 @@ const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user, onNa
           <InfoItem label="Gender" value={data.gender} />
           <InfoItem label="Blood Group" value={data.bloodGroup} />
           <InfoItem label="Age" value={data.age ? `${data.age} ${data.ageType || 'Year'}` : 'N/A'} />
+          <InfoItem label="Appointment Date" value={(() => {
+            const d = data.appointmentDate || data.lastVisit || (appointments && appointments[0]?.date);
+            if (!d) return 'N/A';
+            try {
+              return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch(e) { return d; }
+          })()} />
         </div>
 
         <div className="flex items-center justify-between mb-6">
@@ -411,7 +418,7 @@ const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user, onNa
                     </button>
 
                     <span className="px-2 py-0.5 bg-emerald-100 text-emerald-600 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
-                      {appt.status || 'Upcoming'}
+                      {appt.status?.toLowerCase() === 'pending' ? 'Confirmed' : (appt.status || 'Confirmed')}
                     </span>
 
                     {/* Dropdown Menu */}
@@ -640,8 +647,43 @@ const TextArea = ({ label, value, onChange }) => (
 );
 
 // --- Edit Profile Modal ---
-const EditProfileModal = ({ data, onClose, onSave }) => {
+const EditProfileModal = ({ data, appointments = [], onClose, onSave }) => {
+  const activeAppt = (appointments && appointments.length > 0)
+    ? (appointments.find(a => ['confirmed', 'pending', 'scheduled'].includes(a.status?.toLowerCase())) || appointments[0])
+    : null;
+
+  const initialApptDate = (() => {
+    if (activeAppt?.date) {
+      try {
+        const d = new Date(activeAppt.date);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      } catch (e) {}
+      return activeAppt.date;
+    }
+    if (data.appointmentDate) {
+      try {
+        const d = new Date(data.appointmentDate);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      } catch (e) {}
+      return data.appointmentDate;
+    }
+    if (data.lastVisit) {
+      try {
+        const d = new Date(data.lastVisit);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      } catch (e) {}
+      return data.lastVisit;
+    }
+    return '';
+  })();
+
+  const initialApptTime = activeAppt?.time || data.appointmentTime || '';
+  const initialApptId = activeAppt?._id || '';
+
   const [form, setForm] = useState({
+    appointmentDate: initialApptDate,
+    appointmentTime: initialApptTime,
+    appointmentId: initialApptId,
     patientId: data.patientId || '',
     designation: data.designation || '',
     firstName: data.firstName || '',
@@ -676,6 +718,10 @@ const EditProfileModal = ({ data, onClose, onSave }) => {
       const updated = await patientApi.update(data._id, {
         ...form,
         patientId: form.patientId ? form.patientId.trim() : data.patientId,
+        appointmentDate: form.appointmentDate,
+        appointmentTime: form.appointmentTime,
+        appointmentId: form.appointmentId,
+        lastVisit: form.appointmentDate,
         fullName: (() => {
           const designation = form.designation ? form.designation.trim() : '';
           let firstName = form.firstName.trim();
@@ -730,6 +776,29 @@ const EditProfileModal = ({ data, onClose, onSave }) => {
               <Field label="Age Type" value={form.ageType} onChange={set('ageType')} options={['Year', 'Month', 'Days']} />
               <Field label="Blood Group" value={form.bloodGroup} onChange={set('bloodGroup')} options={['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']} />
             </div>
+          </section>
+
+          <section>
+            <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <CalendarIcon size={14} /> Appointment Details
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field 
+                label="Appointment Date (Previous, Today, or Future)" 
+                value={form.appointmentDate} 
+                onChange={set('appointmentDate')} 
+                type="date" 
+              />
+              <Field 
+                label="Appointment Time" 
+                value={form.appointmentTime} 
+                onChange={set('appointmentTime')} 
+                placeholder="e.g. 10:30 AM" 
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2 font-medium">
+              Select any date (previous/back-dated, today, or future) to update or correct this patient's appointment.
+            </p>
           </section>
 
           <section>
@@ -1159,21 +1228,28 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
               value={selectedTemplate?._id || 'default'} 
               onChange={(e) => {
                 if (e.target.value === 'default') {
-                  setSelectedTemplate(null);
+                  const t = { _id: 'default', templateName: 'Oviaan Default Template' };
+                  setSelectedTemplate(t);
+                  try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
                 } else if (e.target.value === 'default_v2') {
-                  setSelectedTemplate({ _id: 'default_v2', templateName: 'Oviaan Default Template 2' });
+                  const t = { _id: 'default_v2', templateName: 'Oviaan Default Template 2' };
+                  setSelectedTemplate(t);
+                  try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
                 } else {
                   const t = templates.find(temp => temp._id === e.target.value);
-                  setSelectedTemplate(t);
+                  if (t) {
+                    setSelectedTemplate(t);
+                    try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
+                  }
                 }
               }}
               className="bg-white border-2 border-indigo-100 rounded-xl px-4 py-1.5 text-[11px] font-bold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer hover:border-indigo-300 transition-all min-w-[180px]"
             >
-              <option value="default">Oviaan System Default</option>
+              <option value="default">Oviaan Default Template (Default)</option>
               <option value="default_v2">Oviaan Default Template 2</option>
               {templates.filter(t => t._id && (t.templateName || t.name)).map(t => (
                 <option key={t._id} value={t._id}>
-                  {t.templateName || t.name} {t.isDefault ? '(Default)' : ''}
+                  {t.templateName || t.name}
                 </option>
               ))}
             </select>
@@ -1456,11 +1532,11 @@ const TabAppointments = ({ appointments, onRebook }) => {
           </div>
         </div>
         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${appt.status?.toLowerCase() === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
-          appt.status?.toLowerCase() === 'pending' ? 'bg-amber-100 text-amber-700' :
+          appt.status?.toLowerCase() === 'pending' ? 'bg-emerald-100 text-emerald-700' :
             appt.status?.toLowerCase() === 'completed' ? 'bg-blue-100 text-blue-700' :
               'bg-slate-100 text-slate-700'
           }`}>
-          {appt.status}
+          {appt.status?.toLowerCase() === 'pending' ? 'Confirmed' : appt.status}
         </span>
       </div>
       <p className="text-sm text-slate-600 italic bg-white/50 p-2 rounded-lg border border-slate-50 mb-4">"{appt.reason || 'No reason specified'}"</p>
@@ -4186,7 +4262,13 @@ const PatientProfile = () => {
   const [selectedNotes, setSelectedNotes] = useState('');
   const [defaultTemplate, setDefaultTemplate] = useState(null);
   const [templates, setTemplates] = useState([]);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cms_selected_prescription_template');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { _id: 'default', templateName: 'Oviaan Default Template' };
+  });
   const [printingPrescription, setPrintingPrescription] = useState(null);
   const [printingInvoice, setPrintingInvoice] = useState(null);
   const [invoiceTemplates, setInvoiceTemplates] = useState([]);
@@ -4267,13 +4349,31 @@ const PatientProfile = () => {
             loadedTemplates = [{
               _id: 'global_a4',
               templateName: 'A4 Full Template (Admin Settings)',
-              isDefault: true
+              isDefault: false
             }, ...loadedTemplates];
           }
           setTemplates(loadedTemplates);
-          const def = loadedTemplates.find(t => t.isDefault) || loadedTemplates[0];
-          setDefaultTemplate(def);
-          setSelectedTemplate(def);
+
+          // By default, ALWAYS use Oviaan Default Template unless doctor explicitly chose another template
+          let currentSelection = { _id: 'default', templateName: 'Oviaan Default Template' };
+          try {
+            const saved = localStorage.getItem('cms_selected_prescription_template');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (parsed?._id === 'global_a4') {
+                const match = loadedTemplates.find(t => t._id === 'global_a4');
+                if (match) currentSelection = match;
+              } else if (parsed?._id === 'default_v2') {
+                currentSelection = { _id: 'default_v2', templateName: 'Oviaan Default Template 2' };
+              } else if (parsed?._id && parsed._id !== 'default') {
+                const match = loadedTemplates.find(t => t._id === parsed._id);
+                if (match) currentSelection = match;
+              }
+            }
+          } catch (e) {}
+
+          setDefaultTemplate({ _id: 'default', templateName: 'Oviaan Default Template' });
+          setSelectedTemplate(currentSelection);
         }
       } catch (error) {
         console.error("Failed to fetch templates", error);
@@ -4671,6 +4771,7 @@ const PatientProfile = () => {
           p.qualification = doctor.qualification || p.qualification;
           p.specialty = doctor.specialization || p.specialty || doctor.specialty;
           if (doctor.name) p.doctorName = doctor.name;
+          p.doctor = doctor;
         }
       }
     } catch (error) {
@@ -4701,6 +4802,20 @@ const PatientProfile = () => {
         const logoPath = orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo;
         if (logoPath) {
           urlsToPreload.push(getImageUrl(logoPath));
+        }
+
+        // Footer Barcode / QR Code
+        const footerBarcode = orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.branding?.footerBarcode || orgDetails?.footerBarcode;
+        if (footerBarcode) {
+          urlsToPreload.push(getImageUrl(footerBarcode));
+        }
+
+        // Doctor Signature & Stamp
+        if (p.doctor?.doctorSignature) {
+          urlsToPreload.push(getImageUrl(p.doctor.doctorSignature));
+        }
+        if (p.doctor?.doctorStamp) {
+          urlsToPreload.push(getImageUrl(p.doctor.doctorStamp));
         }
       }
 
@@ -5666,7 +5781,17 @@ const PatientProfile = () => {
         </div>
       </div>
 
-        {showEditModal && <EditProfileModal data={data} onClose={() => setShowEditModal(false)} onSave={(updated) => setData(prev => ({ ...prev, ...updated }))} />}
+        {showEditModal && (
+            <EditProfileModal 
+              data={data} 
+              appointments={appointments} 
+              onClose={() => setShowEditModal(false)} 
+              onSave={(updated) => {
+                setData(prev => ({ ...prev, ...updated }));
+                fetchData(false);
+              }} 
+            />
+          )}
         <DentalConsentFormModal 
           isOpen={showConsentModal} 
           onClose={() => setShowConsentModal(false)} 
@@ -5711,14 +5836,17 @@ const PatientProfile = () => {
           isOpen={showTemplateModal} 
           onClose={() => setShowTemplateModal(false)} 
           onSaveSuccess={(layout) => {
-            fetchTemplates();
             if (layout === 'a4') {
-              setSelectedTemplate({
+              const t = {
                 _id: 'global_a4',
                 templateName: 'A4 Full Template (Admin Settings)'
-              });
-            } else if (layout === 'default') {
-              setSelectedTemplate(null);
+              };
+              setSelectedTemplate(t);
+              try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
+            } else {
+              const t = { _id: 'default', templateName: 'Oviaan Default Template' };
+              setSelectedTemplate(t);
+              try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
             }
           }} 
         />
@@ -5770,6 +5898,7 @@ const PatientProfile = () => {
             clinicName={orgDetails?.name || user?.organization?.name || user?.clinicName}
             clinicContact={orgDetails?.phone || user?.organization?.phone || user?.phone}
             clinicEmail={orgDetails?.email || user?.organization?.email || user?.email}
+            clinicWebsite={orgDetails?.website || user?.organization?.website || ''}
             clinicAddress={
               (() => {
                 const addr = orgDetails?.address || user?.organization?.address || user?.organizationId?.address || {};
@@ -5778,6 +5907,9 @@ const PatientProfile = () => {
               })()
             }
             clinicLogo={orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo}
+            footerBarcode={orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.branding?.footerBarcode || orgDetails?.footerBarcode}
+            footerText={printingPrescription?.parsedNotes?.customFooterText || printingPrescription?.parsedNotes?.footerText || printingPrescription?.footerText || orgDetails?.prescriptionTemplate?.footerText || orgDetails?.branding?.footerText || orgDetails?.footerText || ''}
+            doctor={printingPrescription?.doctor}
           />
         </div>
       )}

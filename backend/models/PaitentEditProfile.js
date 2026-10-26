@@ -131,6 +131,16 @@ const patientSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  appointmentDate: {
+    type: String, // Stored as YYYY-MM-DD
+    default: null,
+    trim: true
+  },
+  appointmentTime: {
+    type: String,
+    default: null,
+    trim: true
+  },
   lastVisit: {
     type: String, // Stored as YYYY-MM-DD for easy filtering
     default: null

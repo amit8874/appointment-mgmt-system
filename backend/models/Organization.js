@@ -65,6 +65,14 @@ const organizationSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
+    footerBarcode: {
+      type: String,
+      default: ''
+    },
+    footerText: {
+      type: String,
+      default: ''
+    },
   },
   // New clinic fields
   clinicType: {
@@ -230,6 +238,14 @@ const organizationSchema = new mongoose.Schema({
     enabled: {
       type: Boolean,
       default: false
+    },
+    footerBarcode: {
+      type: String,
+      default: ''
+    },
+    footerText: {
+      type: String,
+      default: ''
     },
     templateMode: {
       type: String,

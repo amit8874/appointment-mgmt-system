@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar as CalendarIcon, Loader2, Plus, Save, ChevronDown, Mic, MicOff, RotateCcw } from 'lucide-react';
+import { X, Calendar as CalendarIcon, Loader2, Plus, Save, ChevronDown, Mic, MicOff, RotateCcw, Mail, Droplet, MapPin, PhoneCall, ShieldAlert, FileText, Check } from 'lucide-react';
 import api, { whatsappApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
@@ -43,7 +43,45 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     symptoms: '',
     skipBilling: false,
     paymentMode: 'Pending',
+    email: '',
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+    bloodGroup: '',
+    alternateMobile: '',
+    emergencyContact: '',
+    emergencyPhone: '',
+    allergies: '',
+    pastMedicalHistory: '',
   });
+
+  const [activeExtraFields, setActiveExtraFields] = useState({
+    email: false,
+    bloodGroup: false,
+    address: false,
+    alternateMobile: false,
+    emergencyContact: false,
+    medicalHistory: false,
+  });
+
+  const toggleExtraField = (fieldKey) => {
+    setActiveExtraFields(prev => ({
+      ...prev,
+      [fieldKey]: !prev[fieldKey]
+    }));
+  };
+
+  const addAllExtraFields = () => {
+    setActiveExtraFields({
+      email: true,
+      bloodGroup: true,
+      address: true,
+      alternateMobile: true,
+      emergencyContact: true,
+      medicalHistory: true,
+    });
+  };
 
   // Handle Voice-to-Text Conversational Loop
   const stopVoiceAgent = () => {
@@ -253,7 +291,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     setAvailableSlots([]);
     setSlotError('');
     try {
-      const response = await api.get(`/doctors/${formData.doctor}/slots?date=${formData.appointmentDate}`);
+      const response = await api.get(`/doctors/${formData.doctor}/slots?date=${formData.appointmentDate}&allowPast=true`);
       const data = response.data;
       if (response.status === 200 && data.available && data.slots && data.slots.length > 0) {
         setAvailableSlots(data.slots);
@@ -324,6 +362,18 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
   const handleUseExistingPatient = (p) => {
     setSelectedExistingId(p.patientId || p._id);
     const displayName = p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
+    
+    // Automatically enable any extra fields present on this patient
+    setActiveExtraFields(prev => ({
+      ...prev,
+      email: !!p.email || prev.email,
+      bloodGroup: !!p.bloodGroup || prev.bloodGroup,
+      address: !!(p.address || p.city || p.state || p.zip) || prev.address,
+      alternateMobile: !!(p.alternateMobile || p.alternatePhone) || prev.alternateMobile,
+      emergencyContact: !!(p.emergencyContact || p.emergencyPhone) || prev.emergencyContact,
+      medicalHistory: !!(p.pastMedicalHistory || p.allergies) || prev.medicalHistory,
+    }));
+
     setFormData(prev => ({
       ...prev,
       fullName: displayName,
@@ -332,6 +382,17 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       gender: p.gender || 'Male',
       patientId: p.patientId || prev.patientId,
       designation: p.designation || 'MR.',
+      email: p.email || '',
+      address: p.address || '',
+      city: p.city || '',
+      state: p.state || '',
+      zip: p.zip || '',
+      bloodGroup: p.bloodGroup || '',
+      alternateMobile: p.alternateMobile || p.alternatePhone || '',
+      emergencyContact: p.emergencyContact || '',
+      emergencyPhone: p.emergencyPhone || '',
+      allergies: p.allergies || '',
+      pastMedicalHistory: p.pastMedicalHistory || '',
     }));
     setExistingPatients([]);
     toast.info(`Using existing record for ${displayName}`);
@@ -386,12 +447,24 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
           ageType: formData.ageType,
           gender: formData.gender,
           phone: formData.phone,
+          email: formData.email,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zip,
+          bloodGroup: formData.bloodGroup,
+          alternateMobile: formData.alternateMobile,
+          emergencyContact: formData.emergencyContact,
+          emergencyPhone: formData.emergencyPhone,
+          allergies: formData.allergies,
+          pastMedicalHistory: formData.pastMedicalHistory,
         },
         reason: formData.symptoms,
         symptoms: formData.symptoms,
         skipBilling: formData.skipBilling || false,
         paymentStatus,
-        paymentMethod
+        paymentMethod,
+        status: 'confirmed'
       };
 
       const response = await api.post('/appointments/book-patient', appointmentData);
@@ -533,7 +606,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
                 if (selectedExistingId) setSelectedExistingId(null);
                 setFormData(prev => ({ ...prev, patientId: val }));
               }}
-              placeholder="e.g. 000312"
+              placeholder="e.g. 20261001"
               className="w-full border border-blue-400 dark:border-blue-500 p-2 rounded-lg text-sm font-bold text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-center tracking-wide"
             />
           </div>
@@ -667,6 +740,308 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
           </div>
         )}
 
+        {/* Additional Patient Details (+ Add More) */}
+        <div className="bg-slate-50/80 dark:bg-gray-800/50 p-4 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                Additional Patient Details
+              </span>
+              <span className="text-[11px] text-gray-400 font-normal italic">(Click to add on-the-spot)</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => toggleExtraField('email')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                  activeExtraFields.email
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                }`}
+              >
+                <Mail className="w-3 h-3 text-blue-500" />
+                Email
+                {activeExtraFields.email && <Check className="w-3 h-3 ml-0.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleExtraField('bloodGroup')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                  activeExtraFields.bloodGroup
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                }`}
+              >
+                <Droplet className="w-3 h-3 text-red-500" />
+                Blood Group
+                {activeExtraFields.bloodGroup && <Check className="w-3 h-3 ml-0.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleExtraField('address')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                  activeExtraFields.address
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                }`}
+              >
+                <MapPin className="w-3 h-3 text-emerald-500" />
+                Address
+                {activeExtraFields.address && <Check className="w-3 h-3 ml-0.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleExtraField('alternateMobile')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                  activeExtraFields.alternateMobile
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                }`}
+              >
+                <PhoneCall className="w-3 h-3 text-indigo-500" />
+                Alt Mobile
+                {activeExtraFields.alternateMobile && <Check className="w-3 h-3 ml-0.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleExtraField('emergencyContact')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                  activeExtraFields.emergencyContact
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                }`}
+              >
+                <ShieldAlert className="w-3 h-3 text-amber-500" />
+                Emergency
+                {activeExtraFields.emergencyContact && <Check className="w-3 h-3 ml-0.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleExtraField('medicalHistory')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                  activeExtraFields.medicalHistory
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                }`}
+              >
+                <FileText className="w-3 h-3 text-purple-500" />
+                Medical / Allergies
+                {activeExtraFields.medicalHistory && <Check className="w-3 h-3 ml-0.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={addAllExtraFields}
+                className="px-2 py-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 hover:underline cursor-pointer"
+              >
+                + Show All
+              </button>
+            </div>
+          </div>
+
+          {/* Active Field Inputs Grid */}
+          {(activeExtraFields.email || activeExtraFields.bloodGroup || activeExtraFields.alternateMobile || activeExtraFields.address || activeExtraFields.emergencyContact || activeExtraFields.medicalHistory) && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+              {activeExtraFields.email && (
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-gray-700 dark:text-gray-300 font-bold flex items-center gap-1">
+                      <Mail className="w-3 h-3 text-blue-500" /> Email Address
+                    </label>
+                    <button type="button" onClick={() => toggleExtraField('email')} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                  </div>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="patient@example.com"
+                    className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                  />
+                </div>
+              )}
+
+              {activeExtraFields.bloodGroup && (
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-gray-700 dark:text-gray-300 font-bold flex items-center gap-1">
+                      <Droplet className="w-3 h-3 text-red-500" /> Blood Group
+                    </label>
+                    <button type="button" onClick={() => toggleExtraField('bloodGroup')} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                  </div>
+                  <div className="relative">
+                    <select
+                      name="bloodGroup"
+                      value={formData.bloodGroup}
+                      onChange={handleChange}
+                      className="w-full border border-gray-300 p-2 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800 pr-8"
+                    >
+                      <option value="">Select Blood Group</option>
+                      {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
+                        <option key={bg} value={bg}>{bg}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 absolute right-3 top-3 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
+              {activeExtraFields.alternateMobile && (
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-gray-700 dark:text-gray-300 font-bold flex items-center gap-1">
+                      <PhoneCall className="w-3 h-3 text-indigo-500" /> Alternate Mobile
+                    </label>
+                    <button type="button" onClick={() => toggleExtraField('alternateMobile')} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                  </div>
+                  <input
+                    type="tel"
+                    name="alternateMobile"
+                    value={formData.alternateMobile}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setFormData(prev => ({ ...prev, alternateMobile: value }));
+                    }}
+                    placeholder="Alternate 10-digit number"
+                    className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                  />
+                </div>
+              )}
+
+              {activeExtraFields.emergencyContact && (
+                <>
+                  <div className="flex flex-col">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-gray-700 dark:text-gray-300 font-bold flex items-center gap-1">
+                        <ShieldAlert className="w-3 h-3 text-amber-500" /> Emergency Person
+                      </label>
+                      <button type="button" onClick={() => toggleExtraField('emergencyContact')} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                    </div>
+                    <input
+                      type="text"
+                      name="emergencyContact"
+                      value={formData.emergencyContact}
+                      onChange={handleChange}
+                      placeholder="Relation / Name"
+                      className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-bold flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3 text-amber-500" /> Emergency Phone
+                    </label>
+                    <input
+                      type="tel"
+                      name="emergencyPhone"
+                      value={formData.emergencyPhone}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setFormData(prev => ({ ...prev, emergencyPhone: value }));
+                      }}
+                      placeholder="Emergency contact number"
+                      className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                    />
+                  </div>
+                </>
+              )}
+
+              {activeExtraFields.address && (
+                <>
+                  <div className="flex flex-col md:col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-gray-700 dark:text-gray-300 font-bold flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-emerald-500" /> Street Address
+                      </label>
+                      <button type="button" onClick={() => toggleExtraField('address')} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                    </div>
+                    <input
+                      type="text"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      placeholder="Flat, House no., Building, Street"
+                      className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-bold">City</label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleChange}
+                      placeholder="City"
+                      className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-bold">State & PIN</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        name="state"
+                        value={formData.state}
+                        onChange={handleChange}
+                        placeholder="State"
+                        className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                      />
+                      <input
+                        type="text"
+                        name="zip"
+                        value={formData.zip}
+                        onChange={handleChange}
+                        placeholder="PIN Code"
+                        className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeExtraFields.medicalHistory && (
+                <>
+                  <div className="flex flex-col md:col-span-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-gray-700 dark:text-gray-300 font-bold flex items-center gap-1">
+                        <FileText className="w-3 h-3 text-purple-500" /> Past Medical History
+                      </label>
+                      <button type="button" onClick={() => toggleExtraField('medicalHistory')} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                    </div>
+                    <input
+                      type="text"
+                      name="pastMedicalHistory"
+                      value={formData.pastMedicalHistory}
+                      onChange={handleChange}
+                      placeholder="e.g. Hypertension, Diabetes, Thyroid"
+                      className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                    />
+                  </div>
+                  <div className="flex flex-col md:col-span-2">
+                    <label className="text-xs text-gray-700 dark:text-gray-300 mb-1 font-bold flex items-center gap-1 text-rose-500">
+                      Known Allergies
+                    </label>
+                    <input
+                      type="text"
+                      name="allergies"
+                      value={formData.allergies}
+                      onChange={handleChange}
+                      placeholder="e.g. Penicillin, Sulfa, Dust"
+                      className="w-full border border-gray-300 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Row 2: Gender, Dept, Doctor, Date */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
           <div>
@@ -763,7 +1138,6 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
                 name="appointmentDate" 
                 value={formData.appointmentDate} 
                 onChange={handleChange} 
-                min={new Date().toISOString().split('T')[0]} 
                 className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 pl-9 bg-white dark:bg-gray-800" 
               />
               <CalendarIcon className="w-4 h-4 text-gray-400 absolute left-3 top-3.5 pointer-events-none" />

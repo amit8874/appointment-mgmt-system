@@ -130,6 +130,9 @@ Connect Database
 
 connectDB().then(() => {
   seedGlobalComplaints();
+  import("./utils/idGenerator.js").then(m => m.migrateAllOrganizationsToMonthlyFormat()).catch(err => {
+    console.error("Initial patient ID migration error:", err.message);
+  });
 });
 
 

@@ -188,9 +188,9 @@ export const generatePdf = async (req, res) => {
     
     // Fetch template (specified or default)
     let template = null;
-    if (templateId === 'system_default') {
-      console.log("[generatePdf] Explicitly requested system default. Skipping custom templates.");
-      template = { _id: 'system_default' };
+    if (templateId === 'system_default' || templateId === 'default') {
+      console.log("[generatePdf] Explicitly requested Oviaan Default Template. Skipping custom templates.");
+      template = { _id: 'default', templateName: 'Oviaan Default Template' };
     } else if (templateId === 'default_v2') {
       console.log("[generatePdf] Explicitly requested default template V2.");
       template = { _id: 'default_v2', templateName: 'Oviaan Default Template 2' };
@@ -201,9 +201,8 @@ export const generatePdf = async (req, res) => {
       template = await PrescriptionTemplate.findById(templateId);
       console.log("[generatePdf] Found template by ID:", template ? template._id : "Not Found");
     } else {
-      // Fallback to organization's custom default if no specific template is requested
-      template = await PrescriptionTemplate.findOne({ organizationId, isDefault: true });
-      console.log("[generatePdf] Using default template:", template ? template._id : "None");
+      template = { _id: 'default', templateName: 'Oviaan Default Template' };
+      console.log("[generatePdf] Using default template:", template._id);
     }
     
     // Fetch organization for logo and name

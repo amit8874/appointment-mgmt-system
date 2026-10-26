@@ -9,7 +9,7 @@ import Billing from '../models/Billing.js';
 import DentalTreatment from '../models/DentalTreatment.js';
 import Notification from '../models/Notification.js';
 import MedicalRecord from '../models/MedicalRecord.js';
-import { generatePatientId } from '../utils/idGenerator.js';
+import { generatePatientId, getMonthlyPrefix } from '../utils/idGenerator.js';
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 import { syncPatientDataToDependents } from '../utils/patientSync.js';
@@ -338,7 +338,9 @@ export const createPatient = async (req, res) => {
         organizationId: req.tenantId,
         patientId: finalPatientId
       });
-      if (existingWithId) {
+      if (existingWithId && finalPatientId.startsWith(getMonthlyPrefix())) {
+        finalPatientId = await generatePatientId(req.tenantId);
+      } else if (existingWithId) {
         return res.status(400).json({
           message: `Patient ID "${finalPatientId}" is already registered. Please enter a different Patient ID.`
         });
@@ -498,6 +500,17 @@ export const updatePatient = async (req, res) => {
 
     if (updateData.alternateMobile !== undefined) {
       filteredUpdateData.alternateMobile = updateData.alternateMobile;
+    }
+
+    if (updateData.appointmentDate !== undefined) {
+      filteredUpdateData.appointmentDate = updateData.appointmentDate;
+      filteredUpdateData.lastVisit = updateData.appointmentDate;
+    }
+    if (updateData.appointmentTime !== undefined) {
+      filteredUpdateData.appointmentTime = updateData.appointmentTime;
+    }
+    if (updateData.appointmentId !== undefined) {
+      filteredUpdateData.appointmentId = updateData.appointmentId;
     }
 
     let patient = await Patient.findOne({ organizationId: req.tenantId, _id: paramId });

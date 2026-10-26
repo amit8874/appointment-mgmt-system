@@ -14,7 +14,9 @@ import {
   Sparkles,
   Zap,
   FileText,
-  MoreVertical
+  MoreVertical,
+  UserCheck,
+  Clock
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { getSocketUrl } from '../../../services/api';
@@ -248,7 +250,7 @@ const TrackAppointmentView = () => {
     if (!doctorId || !date) return;
     setSlotsLoading(true);
     try {
-      const res = await api.get(`/doctors/${doctorId}/slots?date=${date}`);
+      const res = await api.get(`/doctors/${doctorId}/slots?date=${date}&allowPast=true`);
       if (res.status === 200 && res.data.available) {
         setAvailableSlots(res.data.slots.map(s => typeof s === 'string' ? s : s.time));
       } else {
@@ -300,20 +302,67 @@ const TrackAppointmentView = () => {
   };
 
   const getStatusInfo = (app) => {
-    if (app.status === 'completed' || app.status === 'arrived') return { label: 'Arrived', color: 'green', bg: 'bg-green-100 text-green-700' };
-    if (app.status === 'missed') return { label: 'Missed', color: 'red', bg: 'bg-red-100 text-red-700' };
-    if (app.status === 'in-progress' || app.status === 'confirmed') return { label: 'CONFIRMED', color: 'green', bg: 'bg-green-100 text-green-700' };
-    if (app.status === 'cancelled') return { label: 'Cancelled', color: 'slate', bg: 'bg-slate-100 text-slate-700' };
+    const status = (app.status || '').toLowerCase();
+
+    if (status === 'completed' || status === 'checkout') {
+      return { 
+        label: 'Checked Out', 
+        shortLabel: 'Checkout', 
+        color: 'emerald', 
+        bg: 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+      };
+    }
+    if (status === 'in-progress' || status === 'with-doctor') {
+      return { 
+        label: 'With Dr', 
+        shortLabel: 'With Dr', 
+        color: 'purple', 
+        bg: 'bg-purple-50 text-purple-700 border border-purple-200' 
+      };
+    }
+    if (status === 'arrived' || status === 'waiting') {
+      return { 
+        label: 'Arrived', 
+        shortLabel: 'Arrived', 
+        color: 'amber', 
+        bg: 'bg-amber-50 text-amber-700 border border-amber-200' 
+      };
+    }
+    if (status === 'cancelled') {
+      return { 
+        label: 'Cancelled', 
+        shortLabel: 'Cancelled', 
+        color: 'slate', 
+        bg: 'bg-slate-100 text-slate-600 border border-slate-200' 
+      };
+    }
+    if (status === 'missed') {
+      return { 
+        label: 'Missed', 
+        shortLabel: 'Missed', 
+        color: 'rose', 
+        bg: 'bg-rose-50 text-rose-700 border border-rose-200' 
+      };
+    }
 
     const startTime = parseTime(app.time);
     const now = currentTime.getTime();
 
-    // If more than 10 minutes past start time and still pending/confirmed
-    if (startTime > 0 && now > startTime + (10 * 60 * 1000)) {
-      return { label: 'Missed', color: 'red', bg: 'bg-red-100 text-red-700' };
+    if (startTime > 0 && now > startTime + (20 * 60 * 1000) && status === 'pending') {
+      return { 
+        label: 'Missed', 
+        shortLabel: 'Missed', 
+        color: 'rose', 
+        bg: 'bg-rose-50 text-rose-700 border border-rose-200' 
+      };
     }
 
-    return { label: 'Upcoming', color: 'yellow', bg: 'bg-yellow-100 text-yellow-700' };
+    return { 
+      label: 'Confirmed', 
+      shortLabel: 'Confirmed', 
+      color: 'blue', 
+      bg: 'bg-blue-50 text-blue-700 border border-blue-200' 
+    };
   };
 
   // Check if date is in the future (after today)
@@ -327,8 +376,9 @@ const TrackAppointmentView = () => {
   };
 
   const isCurrentApp = (app) => {
-    if (app.status === 'in-progress') return true;
-    if (app.status === 'completed' || app.status === 'cancelled' || app.status === 'missed') return false;
+    const status = (app.status || '').toLowerCase();
+    if (status === 'in-progress' || status === 'with-doctor') return true;
+    if (status === 'completed' || status === 'cancelled' || status === 'missed') return false;
 
     const startTime = parseTime(app.time);
     const now = currentTime.getTime();
@@ -336,6 +386,19 @@ const TrackAppointmentView = () => {
 
     return startTime > 0 && now >= startTime && now < startTime + duration;
   };
+
+  const counts = useMemo(() => {
+    return {
+      all: appointments.length,
+      confirmed: appointments.filter(a => {
+        const s = (a.status || '').toLowerCase();
+        return !s || s === 'confirmed' || s === 'pending';
+      }).length,
+      arrived: appointments.filter(a => ['arrived', 'waiting'].includes((a.status || '').toLowerCase())).length,
+      withDr: appointments.filter(a => ['in-progress', 'with-doctor'].includes((a.status || '').toLowerCase())).length,
+      completed: appointments.filter(a => ['completed', 'checkout'].includes((a.status || '').toLowerCase())).length,
+    };
+  }, [appointments]);
 
   const processedAppointments = useMemo(() => {
     return appointments
@@ -348,10 +411,15 @@ const TrackAppointmentView = () => {
 
         if (!matchesSearch) return false;
 
+        const s = (app.status || '').toLowerCase();
+
         // Tab Filter
         if (activeFilter === 'all') return true;
-        if (activeFilter === 'confirmed') return app.status === 'completed';
-        if (activeFilter === 'cancelled') return app.status === 'cancelled';
+        if (activeFilter === 'confirmed') return !s || s === 'confirmed' || s === 'pending';
+        if (activeFilter === 'arrived') return s === 'arrived' || s === 'waiting';
+        if (activeFilter === 'withDr') return s === 'in-progress' || s === 'with-doctor';
+        if (activeFilter === 'completed') return s === 'completed' || s === 'checkout';
+        if (activeFilter === 'cancelled') return s === 'cancelled';
         if (activeFilter === 'missed') return getStatusInfo(app).label === 'Missed';
         if (activeFilter === 'rescheduled') return app.isRescheduled === true;
 
@@ -407,7 +475,36 @@ const TrackAppointmentView = () => {
           </div>
         </div>
 
-
+        {/* Workflow Tabs / Quick Filters */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none md:pl-10">
+          {[
+            { id: 'all', label: 'All', count: counts.all, color: 'text-slate-700 bg-slate-100 hover:bg-slate-200' },
+            { id: 'confirmed', label: 'Confirmed', count: counts.confirmed, color: 'text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200' },
+            { id: 'arrived', label: 'Arrived', count: counts.arrived, color: 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200' },
+            { id: 'withDr', label: 'With Dr', count: counts.withDr, color: 'text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200' },
+            { id: 'completed', label: 'Checked Out', count: counts.completed, color: 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200' },
+          ].map((tab) => {
+            const isActive = activeFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveFilter(tab.id)}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap border ${
+                  isActive
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-[1.02]'
+                    : `${tab.color} border-transparent`
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-black/5 text-inherit'
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
         {/* Appointments Grid */}
         {loading ? (
@@ -456,6 +553,60 @@ const TrackAppointmentView = () => {
 
 
                               <div className="flex flex-col">
+                                {/* Quick Status Overrides */}
+                                <div className="px-3 py-1 text-[9px] font-black uppercase tracking-widest text-gray-400 bg-slate-50 border-b border-gray-100">
+                                  Set Status
+                                </div>
+                                {app.status !== 'arrived' && app.status !== 'waiting' && (
+                                  <button
+                                    onClick={() => {
+                                      handleStatusUpdate(app._id, 'arrived');
+                                      setOpenActionId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50 flex items-center gap-2 transition-colors"
+                                  >
+                                    <UserCheck size={13} className="text-amber-600" />
+                                    <span>Mark Arrived</span>
+                                  </button>
+                                )}
+                                {app.status !== 'in-progress' && app.status !== 'with-doctor' && (
+                                  <button
+                                    onClick={() => {
+                                      handleStatusUpdate(app._id, 'in-progress');
+                                      setOpenActionId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 flex items-center gap-2 transition-colors"
+                                  >
+                                    <Stethoscope size={13} className="text-indigo-600" />
+                                    <span>Mark With Dr</span>
+                                  </button>
+                                )}
+                                {app.status !== 'completed' && app.status !== 'checkout' && (
+                                  <button
+                                    onClick={() => {
+                                      handleStatusUpdate(app._id, 'completed');
+                                      setOpenActionId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 transition-colors"
+                                  >
+                                    <CheckCircle size={13} className="text-emerald-600" />
+                                    <span>Mark Checkout</span>
+                                  </button>
+                                )}
+                                {app.status && app.status !== 'confirmed' && (
+                                  <button
+                                    onClick={() => {
+                                      handleStatusUpdate(app._id, 'confirmed');
+                                      setOpenActionId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 flex items-center gap-2 transition-colors"
+                                  >
+                                    <Clock size={13} className="text-blue-600" />
+                                    <span>Reset to Confirmed</span>
+                                  </button>
+                                )}
+                                <div className="border-t border-gray-100 my-1" />
+
                                 {app.status !== 'completed' && app.status !== 'cancelled' && (
                                   <button
                                     onClick={() => {
@@ -549,22 +700,72 @@ const TrackAppointmentView = () => {
                     </div>
                   </div>
                   
-                  {/* Card Footer (Status) */}
+                  {/* Card Footer (Status & Next Step Button) */}
                   <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-3">
                     <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${status.bg} text-nowrap`}>
                       {status.label}
                     </span>
+
                     <div className="flex items-center gap-1.5">
-                      {app.status !== 'completed' && app.status !== 'cancelled' && !isFutureDate(app.date) && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStatusUpdate(app._id, 'completed');
-                          }}
-                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-[9px] font-black uppercase tracking-wider transition-colors shadow-sm shadow-blue-100"
-                        >
-                          Mark Arrived
-                        </button>
+                      {/* Sequential Workflow Button: Arrived -> With Dr -> Checkout */}
+                      {app.status !== 'cancelled' && (
+                        <>
+                          {/* 1. Confirmed / Pending -> Click Arrived */}
+                          {(!app.status || app.status === 'pending' || app.status === 'confirmed') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusUpdate(app._id, 'arrived');
+                              }}
+                              disabled={processingId === (app._id || app.id)?.toString()}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm shadow-blue-100 flex items-center gap-1 active:scale-95"
+                              title="Mark Arrived (Patient in waiting area)"
+                            >
+                              <UserCheck size={11} />
+                              <span>Arrived</span>
+                            </button>
+                          )}
+
+                          {/* 2. Arrived / Waiting -> Click With Dr */}
+                          {(app.status === 'arrived' || app.status === 'waiting') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusUpdate(app._id, 'in-progress');
+                              }}
+                              disabled={processingId === (app._id || app.id)?.toString()}
+                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm shadow-indigo-100 flex items-center gap-1 active:scale-95 animate-pulse"
+                              title="Send With Doctor (Treatment / Consultation)"
+                            >
+                              <Stethoscope size={11} />
+                              <span>With Dr</span>
+                            </button>
+                          )}
+
+                          {/* 3. With Dr (in-progress) -> Click Checkout */}
+                          {(app.status === 'in-progress' || app.status === 'with-doctor') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusUpdate(app._id, 'completed');
+                              }}
+                              disabled={processingId === (app._id || app.id)?.toString()}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm shadow-emerald-100 flex items-center gap-1 active:scale-95"
+                              title="Checkout (Treatment Finished)"
+                            >
+                              <CheckCircle size={11} />
+                              <span>Checkout</span>
+                            </button>
+                          )}
+
+                          {/* 4. Completed / Checked Out */}
+                          {(app.status === 'completed' || app.status === 'checkout') && (
+                            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                              <CheckCircle size={10} className="text-emerald-600" />
+                              <span>Done</span>
+                            </span>
+                          )}
+                        </>
                       )}
                       {app.status === 'completed' && app.visitNotes && (
                         <button
@@ -821,10 +1022,8 @@ const TrackAppointmentView = () => {
       )}
 
 
-    </div>
+              </div>
   );
 };
-
-
 
 export default TrackAppointmentView;

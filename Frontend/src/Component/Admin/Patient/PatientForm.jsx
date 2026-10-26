@@ -210,7 +210,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 date: localDate,
                 time: time,
                 reason: 'Initial Consultation',
-                status: 'pending',
+                status: 'confirmed',
                 patientDetails: {
                   firstName: firstName,
                   lastName: lastName,
@@ -327,7 +327,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 <span className="text-xs font-bold text-blue-600 self-center">PERSONAL</span>
               </div>
 
-              <div className="w-28">
+              <div className="w-32">
                 <label className="block text-xs font-medium text-gray-700">Patient ID</label>
                 <input type="text" name="patientId" value={formData.patientId} onChange={handleChange}
                   placeholder="Auto / Custom"
@@ -375,13 +375,13 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 <span className="text-xs font-bold text-blue-600 self-center">CONTACT</span>
               </div>
 
-              <div className="w-28">
+              <div className="w-32">
                 <label className="block text-xs font-medium text-gray-700">Phone (Main)</label>
                 <input type="tel" name="contactNumber" value={formData.contactNumber} onChange={handleChange}
                   className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500"
                   placeholder="10 digits" maxLength="10" />
               </div>
-              <div className="w-28">
+              <div className="w-32">
                 <label className="block text-xs font-medium text-gray-700">Alt. Phone</label>
                 <input type="tel" name="alternateMobile" value={formData.alternateMobile} onChange={handleChange}
                   className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500"
@@ -423,7 +423,7 @@ const PatientForm = ({ isOpen, onClose, onSuccess, patient, onBillingComplete })
                 <input type="text" name="emergencyContact" value={formData.emergencyContact} onChange={handleChange}
                   className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" />
               </div>
-              <div className="w-28">
+              <div className="w-32">
                 <label className="block text-xs font-medium text-gray-700">Emergency Phone</label>
                 <input type="tel" name="emergencyPhone" value={formData.emergencyPhone} onChange={handleChange}
                   className="w-full px-2 py-1 text-xs border rounded-none focus:ring-1 focus:ring-blue-500" maxLength="10" />

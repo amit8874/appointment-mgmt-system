@@ -17,9 +17,11 @@ import {
     Zap,
     SlidersHorizontal,
     Layers,
-    Info
+    Info,
+    QrCode
 } from 'lucide-react';
 import organizationApi from '../../../api/organizationApi';
+import { commonApi } from '../../../services/api';
 
 const PrescriptionTemplateTab = () => {
     const [settings, setSettings] = useState({
@@ -31,8 +33,12 @@ const PrescriptionTemplateTab = () => {
         bodyArea: { top: 75, bottom: 25, left: 12, right: 12 },
         aiHeaderArea: { top: 45, left: 10, right: 10, height: 25 },
         aiBodyArea: { top: 75, bottom: 25, left: 12, right: 12 },
-        fontSize: 12
+        fontSize: 12,
+        footerBarcode: '',
+        footerText: ''
     });
+    const [uploadingBarcode, setUploadingBarcode] = useState(false);
+    const barcodeInputRef = React.useRef(null);
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [analyzingAI, setAnalyzingAI] = useState(false);
@@ -78,7 +84,9 @@ const PrescriptionTemplateTab = () => {
                     bodyArea: d.bodyArea || defaultBody,
                     aiHeaderArea: d.aiHeaderArea || defaultHeader,
                     aiBodyArea: d.aiBodyArea || defaultBody,
-                    fontSize: d.fontSize || 12
+                    fontSize: d.fontSize || 12,
+                    footerBarcode: d.footerBarcode || '',
+                    footerText: d.footerText || ''
                 });
             }
         } catch (error) {
@@ -101,7 +109,9 @@ const PrescriptionTemplateTab = () => {
                 bodyArea: dataToSave.bodyArea,
                 aiHeaderArea: dataToSave.aiHeaderArea,
                 aiBodyArea: dataToSave.aiBodyArea,
-                fontSize: dataToSave.fontSize
+                fontSize: dataToSave.fontSize,
+                footerBarcode: dataToSave.footerBarcode || '',
+                footerText: dataToSave.footerText || ''
             });
             const modeLabel = dataToSave.templateMode === 'ai_vision' ? 'AI Vision Auto-Detect' : 'Manual Margins';
             showNotification(`Settings saved successfully! (${modeLabel} active for print)`);
@@ -133,6 +143,37 @@ const PrescriptionTemplateTab = () => {
         } finally {
             setUploading(false);
         }
+    };
+
+    const handleBarcodeUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setUploadingBarcode(true);
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+            const res = await commonApi.uploadImage(formData);
+            if (res?.imageUrl) {
+                const updated = { ...settings, footerBarcode: res.imageUrl };
+                setSettings(updated);
+                await handleSave(updated);
+                showNotification('Prescription footer barcode uploaded successfully!');
+            }
+        } catch (err) {
+            console.error('Failed to upload barcode:', err);
+            showNotification('Failed to upload barcode image', 'error');
+        } finally {
+            setUploadingBarcode(false);
+            if (barcodeInputRef.current) barcodeInputRef.current.value = '';
+        }
+    };
+
+    const handleRemoveBarcode = async () => {
+        const updated = { ...settings, footerBarcode: '' };
+        setSettings(updated);
+        await handleSave(updated);
+        showNotification('Footer barcode removed from prescription');
     };
 
     const handleDelete = async () => {
@@ -422,6 +463,127 @@ const PrescriptionTemplateTab = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    {/* Prescription Footer Barcode / QR Code Section */}
+                    <div className="space-y-3 pt-4 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <QrCode size={18} className="text-indigo-600" />
+                                <label className="text-sm font-bold text-slate-800">Prescription Footer Barcode / QR Code</label>
+                            </div>
+                            {settings.footerBarcode && (
+                                <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                                    <CheckCircle size={13} /> Active in Footer
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                            Upload your clinic's QR Code or Barcode to display on the bottom-left of the prescription footer. <strong>If no barcode is uploaded, nothing will show in the footer.</strong>
+                        </p>
+
+                        {!settings.footerBarcode ? (
+                            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-2xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                                <div className="flex flex-col items-center justify-center pt-3 pb-4">
+                                    {uploadingBarcode ? (
+                                        <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-indigo-600"></div>
+                                    ) : (
+                                        <>
+                                            <QrCode className="w-7 h-7 text-indigo-500 mb-1.5" />
+                                            <p className="mb-0.5 text-xs text-slate-700 font-bold"><span className="text-indigo-600">Click to upload Barcode / QR Code</span></p>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">PNG, JPG up to 2MB (Square)</p>
+                                        </>
+                                    )}
+                                </div>
+                                <input 
+                                    ref={barcodeInputRef}
+                                    type="file" 
+                                    className="hidden" 
+                                    accept="image/*" 
+                                    onChange={handleBarcodeUpload} 
+                                    disabled={uploadingBarcode} 
+                                />
+                            </label>
+                        ) : (
+                            <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm">
+                                <div className="relative w-20 h-20 bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 flex-shrink-0 flex items-center justify-center p-1.5">
+                                    <img src={settings.footerBarcode} alt="Footer Barcode" className="w-full h-full object-contain" />
+                                </div>
+                                <div className="flex-1 text-center sm:text-left min-w-0">
+                                    <h4 className="text-xs font-bold text-slate-800 truncate">Prescription Footer Barcode</h4>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Displayed at bottom-left in Oviaan template</p>
+                                    <div className="flex items-center justify-center sm:justify-start gap-1 text-[10px] text-emerald-600 font-bold mt-1">
+                                        <CheckCircle size={12} /> Ready for Print & PDF
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 flex-shrink-0 w-full sm:w-auto">
+                                    <label className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-50 transition-colors shadow-sm">
+                                        <Upload size={14} className="text-slate-500" /> Replace
+                                        <input ref={barcodeInputRef} type="file" className="hidden" accept="image/*" onChange={handleBarcodeUpload} />
+                                    </label>
+                                    <button 
+                                        type="button"
+                                        onClick={handleRemoveBarcode}
+                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors shadow-sm cursor-pointer"
+                                    >
+                                        <Trash2 size={14} /> Remove
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Prescription Footer Text / Notice Section */}
+                    <div className="space-y-3 pt-4 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Info size={18} className="text-indigo-600" />
+                                <label className="text-sm font-bold text-slate-800">Prescription Footer Notice / Instructions</label>
+                            </div>
+                            {settings.footerText && (
+                                <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                                    <CheckCircle size={13} /> Active in Footer
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                            Write any text, instructions, or notice you want to print in the prescription footer (next to the barcode). <strong>If left empty, no text will be printed in the footer.</strong>
+                        </p>
+                        <div className="space-y-2">
+                            <textarea
+                                rows={3}
+                                value={settings.footerText}
+                                onChange={(e) => setSettings(prev => ({ ...prev, footerText: e.target.value }))}
+                                placeholder="e.g.&#10;SCAN FOR USEFUL INFORMATION AND APPOINTMENTS&#10;PRESCRIPTION VALID FOR 7 DAYS&#10;Emergency / WhatsApp: +91 98765 43210"
+                                className="w-full text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl p-3 outline-none transition-all placeholder:text-slate-400 leading-relaxed"
+                            />
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-wrap gap-1.5">
+                                    {[
+                                        "SCAN FOR USEFUL INFORMATION AND APPOINTMENTS\nPRESCRIPTION VALID FOR 7 DAYS",
+                                        "PRESCRIPTION VALID FOR 7 DAYS",
+                                        "FOR APPOINTMENTS & EMERGENCY CONTACT CLINIC DESK"
+                                    ].map((preset, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => setSettings(prev => ({ ...prev, footerText: preset }))}
+                                            className="text-[10px] font-bold px-2 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 cursor-pointer transition-colors shadow-2xs"
+                                        >
+                                            + Sample {idx + 1}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSave()}
+                                    disabled={loading}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                                >
+                                    <Save size={13} /> Save Footer Text
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     {/* ========================================================================= */}

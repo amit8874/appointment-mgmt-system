@@ -303,6 +303,7 @@ const ProfilePage = () => {
 
         if (user?.role === 'doctor') {
             list.push({ id: 'public-profile', label: 'Public Profile', icon: Stethoscope });
+            list.push({ id: 'prescription', label: 'Prescription Template', icon: Activity });
         }
 
         if (['admin', 'orgadmin', 'superadmin'].includes(user?.role)) {

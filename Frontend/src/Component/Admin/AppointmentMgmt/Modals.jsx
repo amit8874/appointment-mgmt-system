@@ -84,7 +84,7 @@ function BookAppointmentModal({
       setSlotsLoading(true);
       setSlotsError('');
       try {
-        const res = await api.get(`/doctors/${doctorId}/slots?date=${date}`);
+        const res = await api.get(`/doctors/${doctorId}/slots?date=${date}&allowPast=true`);
         const data = res.data;
         if (res.status !== 200) {
           setSlotsError(data.message || 'Failed to load slots');

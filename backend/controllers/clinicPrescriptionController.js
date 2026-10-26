@@ -92,7 +92,11 @@ export const getSettings = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: templateData
+      data: {
+        ...templateData,
+        footerBarcode: templateData.footerBarcode || org.prescriptionTemplate?.footerBarcode || org.branding?.footerBarcode || org.footerBarcode || "",
+        footerText: templateData.footerText || org.prescriptionTemplate?.footerText || org.branding?.footerText || org.footerText || ""
+      }
     });
   } catch (error) {
     console.error("Get Template Settings Error:", error);
@@ -108,7 +112,7 @@ export const updateSettings = async (req, res) => {
       return res.status(400).json({ success: false, message: "Organization ID is required" });
     }
 
-    const { enabled, templateMode, printableArea, headerArea, bodyArea, aiHeaderArea, aiBodyArea, fontSize } = req.body;
+    const { enabled, templateMode, printableArea, headerArea, bodyArea, aiHeaderArea, aiBodyArea, fontSize, footerBarcode, footerText } = req.body;
 
     const org = await Organization.findById(organizationId);
     if (!org) {
@@ -122,6 +126,16 @@ export const updateSettings = async (req, res) => {
     if (enabled !== undefined) org.prescriptionTemplate.enabled = enabled;
     if (templateMode !== undefined) org.prescriptionTemplate.templateMode = templateMode;
     if (fontSize !== undefined) org.prescriptionTemplate.fontSize = fontSize;
+    if (footerBarcode !== undefined) {
+      org.prescriptionTemplate.footerBarcode = footerBarcode;
+      org.footerBarcode = footerBarcode;
+    }
+    if (footerText !== undefined) {
+      org.prescriptionTemplate.footerText = footerText;
+      if (!org.branding) org.branding = {};
+      org.branding.footerText = footerText;
+      org.footerText = footerText;
+    }
     
     if (printableArea) {
       if (!org.prescriptionTemplate.printableArea) org.prescriptionTemplate.printableArea = {};

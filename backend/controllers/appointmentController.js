@@ -10,7 +10,7 @@ import Doctor from '../models/Doctor.js';
 import User from '../models/User.js';
 import Counter from '../models/Counter.js';
 import { incrementUsage } from '../middleware/subscription.js';
-import { generatePatientId } from '../utils/idGenerator.js';
+import { generatePatientId, getMonthlyPrefix } from '../utils/idGenerator.js';
 import Organization from '../models/Organization.js';
 import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
@@ -34,7 +34,7 @@ export const getDoctorAppointments = async (req, res) => {
 
     const all = [
       ...pending.map(app => ({ ...app.toObject(), status: 'pending' })),
-      ...confirmed.map(app => ({ ...app.toObject(), status: 'confirmed' })),
+      ...confirmed.map(app => ({ ...app.toObject(), status: app.status || 'confirmed' })),
       ...cancelled.map(app => ({ ...app.toObject(), status: 'cancelled' })),
       ...oldAppointments.map(app => ({ ...app.toObject() }))
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -117,10 +117,10 @@ export const getPatientSummary = async (req, res) => {
     };
 
     const allAppointments = [
-      ...pending.map(app => formatAppt(app, 'pending')),
-      ...confirmed.map(app => formatAppt(app, 'confirmed')),
+      ...pending.map(app => formatAppt(app, app.status === 'cancelled' ? 'cancelled' : 'confirmed')),
+      ...confirmed.map(app => formatAppt(app, app.status || 'confirmed')),
       ...cancelled.map(app => formatAppt(app, 'cancelled')),
-      ...oldAppointments.map(app => formatAppt(app))
+      ...oldAppointments.map(app => formatAppt(app, app.status === 'cancelled' ? 'cancelled' : (app.status || 'confirmed')))
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     // Enrich appointments with Doctor qualification & specialization
@@ -189,7 +189,7 @@ export const bookPatientAppointment = async (req, res) => {
     }
 
     // If caller explicitly indicated this is a new patient registration, do not overwrite an existing patient record with this ID
-    if (isNewPatient && existingPatient) {
+    if (isNewPatient && existingPatient && !candidateId.startsWith(getMonthlyPrefix())) {
       return res.status(400).json({
         message: `Patient ID "${candidateId}" is already registered to ${existingPatient.fullName || existingPatient.firstName}. Please use a different Patient ID.`
       });
@@ -199,7 +199,9 @@ export const bookPatientAppointment = async (req, res) => {
       let newPatientId = '';
       if (candidateId && candidateId !== 'Loading...') {
         const dup = await Patient.findOne({ organizationId, patientId: candidateId });
-        if (dup) {
+        if (dup && candidateId.startsWith(getMonthlyPrefix())) {
+          newPatientId = await generatePatientId(organizationId || req.tenantId);
+        } else if (dup) {
           return res.status(400).json({
             message: `Patient ID "${candidateId}" is already registered to ${dup.fullName || dup.firstName}. Please use a different Patient ID.`
           });
@@ -219,6 +221,15 @@ export const bookPatientAppointment = async (req, res) => {
         mobile: patientDetails.phone || '',
         email: patientDetails.email || '',
         address: patientDetails.address || '',
+        city: patientDetails.city || '',
+        state: patientDetails.state || '',
+        zip: patientDetails.zip || '',
+        bloodGroup: patientDetails.bloodGroup || undefined,
+        alternateMobile: patientDetails.alternateMobile || '',
+        emergencyContact: patientDetails.emergencyContact || '',
+        emergencyPhone: patientDetails.emergencyPhone || '',
+        allergies: patientDetails.allergies || '',
+        pastMedicalHistory: patientDetails.pastMedicalHistory || '',
         age: patientDetails.age,
         ageType: patientDetails.ageType || 'Year',
         gender: patientDetails.gender ? (patientDetails.gender.charAt(0).toUpperCase() + patientDetails.gender.slice(1).toLowerCase()) : undefined,
@@ -239,6 +250,17 @@ export const bookPatientAppointment = async (req, res) => {
       if (!existingPatient.organizationId) {
         existingPatient.organizationId = organizationId;
       }
+      if (patientDetails.email) existingPatient.email = patientDetails.email;
+      if (patientDetails.address) existingPatient.address = patientDetails.address;
+      if (patientDetails.city) existingPatient.city = patientDetails.city;
+      if (patientDetails.state) existingPatient.state = patientDetails.state;
+      if (patientDetails.zip) existingPatient.zip = patientDetails.zip;
+      if (patientDetails.bloodGroup) existingPatient.bloodGroup = patientDetails.bloodGroup;
+      if (patientDetails.alternateMobile) existingPatient.alternateMobile = patientDetails.alternateMobile;
+      if (patientDetails.emergencyContact) existingPatient.emergencyContact = patientDetails.emergencyContact;
+      if (patientDetails.emergencyPhone) existingPatient.emergencyPhone = patientDetails.emergencyPhone;
+      if (patientDetails.allergies) existingPatient.allergies = patientDetails.allergies;
+      if (patientDetails.pastMedicalHistory) existingPatient.pastMedicalHistory = patientDetails.pastMedicalHistory;
     }
     
     // Always update the Patient's assigned doctor to the latest booked doctor
@@ -255,7 +277,9 @@ export const bookPatientAppointment = async (req, res) => {
     const shortId = (baseId + counter.value).toString();
     
     existingPatient.lastShortId = shortId;
-    existingPatient.lastVisit = date;
+    if (!existingPatient.lastVisit || new Date(date) >= new Date(existingPatient.lastVisit)) {
+      existingPatient.lastVisit = date;
+    }
     await existingPatient.save();
     
     const patientIdToUse = existingPatient.patientId || existingPatient._id.toString();
@@ -274,7 +298,8 @@ export const bookPatientAppointment = async (req, res) => {
     const normalizedPaymentStatus = (paymentStatus || '').toLowerCase();
     const isPaid = normalizedPaymentStatus === 'paid';
     
-    const AppointmentModel = isPaid ? ConfirmedAppointment : PendingAppointment;
+    // Doctor appointments are always confirmed bookings
+    const AppointmentModel = ConfirmedAppointment;
 
     const appointment = new AppointmentModel({
       shortId,
@@ -301,7 +326,7 @@ export const bookPatientAppointment = async (req, res) => {
       amount: finalAmount,
       paymentStatus: paymentStatus || 'pending',
       paymentMethod: paymentMethod || 'N/A',
-      ...(isPaid ? { status: 'confirmed' } : {})
+      status: 'confirmed'
     });
 
     await appointment.save();
@@ -705,7 +730,7 @@ export const bookAppointment = async (req, res) => {
       }
     }
 
-    if (isNewPatient && existingPatient) {
+    if (isNewPatient && existingPatient && !candidateId.startsWith(getMonthlyPrefix())) {
       return res.status(400).json({
         message: `Patient ID "${candidateId}" is already registered to ${existingPatient.fullName || existingPatient.firstName}. Please use a different Patient ID.`
       });
@@ -715,7 +740,9 @@ export const bookAppointment = async (req, res) => {
       let newPatientId = '';
       if (candidateId && candidateId !== 'Loading...') {
         const dup = await Patient.findOne({ organizationId: req.tenantId, patientId: candidateId });
-        if (dup) {
+        if (dup && candidateId.startsWith(getMonthlyPrefix())) {
+          newPatientId = await generatePatientId(organizationId || req.tenantId);
+        } else if (dup) {
           return res.status(400).json({
             message: `Patient ID "${candidateId}" is already registered to ${dup.fullName || dup.firstName}. Please use a different Patient ID.`
           });
@@ -972,8 +999,8 @@ export const updateAppointmentStatus = async (req, res) => {
 
     if (status && status !== appointment.status) {
       let newModel;
-      if (status === 'confirmed' || status === 'in-progress') newModel = ConfirmedAppointment;
-      else if (status === 'completed' || status === 'missed') newModel = OldAppointment;
+      if (status === 'confirmed' || status === 'in-progress' || status === 'arrived' || status === 'waiting' || status === 'with-doctor') newModel = ConfirmedAppointment;
+      else if (status === 'completed' || status === 'checkout' || status === 'missed') newModel = OldAppointment;
       else if (status === 'cancelled') newModel = CancelledAppointment;
       else if (status === 'pending') newModel = PendingAppointment;
 
@@ -1375,11 +1402,12 @@ export const getAvailableSlots = async (req, res) => {
       return res.json({ available: false, availableSlots: [], message: 'Doctor is not available' });
     }
 
+    const allowPast = req.query.allowPast === 'true' || req.query.allowPast === true;
     const appointmentDate = new Date(date);
     const dayOfWeek = appointmentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
     const dayAvailability = doctor.availability?.[dayOfWeek];
-    if (!dayAvailability) {
+    if (!dayAvailability && !allowPast) {
       return res.json({
         available: false,
         availableSlots: [],
@@ -1867,7 +1895,7 @@ export const getTodayAppointments = async (req, res) => {
 
     const all = [
       ...pending.map(a => ({ ...a.toObject(), status: 'pending' })),
-      ...confirmed.map(a => ({ ...a.toObject(), status: 'confirmed' })),
+      ...confirmed.map(a => ({ ...a.toObject(), status: a.status || 'confirmed' })),
       ...cancelled.map(a => ({ ...a.toObject(), status: 'cancelled' })),
       ...old.map(a => ({ ...a.toObject() }))
     ];
@@ -1901,8 +1929,8 @@ export const patchAppointmentStatus = async (req, res) => {
 
     // 2. Determine the target collection for the new status
     let newModel;
-    if (status === 'confirmed' || status === 'in-progress') newModel = ConfirmedAppointment;
-    else if (status === 'completed' || status === 'missed') newModel = OldAppointment;
+    if (status === 'confirmed' || status === 'in-progress' || status === 'arrived' || status === 'waiting' || status === 'with-doctor') newModel = ConfirmedAppointment;
+    else if (status === 'completed' || status === 'checkout' || status === 'missed') newModel = OldAppointment;
     else if (status === 'cancelled') newModel = CancelledAppointment;
     else if (status === 'pending') newModel = PendingAppointment;
 
@@ -2115,7 +2143,18 @@ export const bookWalkInAppointment = async (req, res) => {
       billingStatus,
       paymentMode,
       sendWhatsApp = false,
-      skipBilling = false
+      skipBilling = false,
+      email,
+      address,
+      city,
+      state,
+      zip,
+      bloodGroup,
+      alternateMobile,
+      emergencyContact,
+      emergencyPhone,
+      allergies,
+      pastMedicalHistory
     } = req.body;
 
     const organizationId = req.tenantId;
@@ -2130,7 +2169,7 @@ export const bookWalkInAppointment = async (req, res) => {
 
     if (candidateId && candidateId !== 'Loading...') {
       existingPatient = await Patient.findOne({ organizationId, patientId: candidateId });
-      if (isNewPatient && existingPatient) {
+      if (isNewPatient && existingPatient && !candidateId.startsWith(getMonthlyPrefix())) {
         return res.status(400).json({
           message: `Patient ID "${candidateId}" is already registered to ${existingPatient.fullName || existingPatient.firstName}. Please use a different Patient ID.`
         });
@@ -2145,7 +2184,9 @@ export const bookWalkInAppointment = async (req, res) => {
       let newPatientId = '';
       if (candidateId && candidateId !== 'Loading...') {
         const dup = await Patient.findOne({ organizationId, patientId: candidateId });
-        if (dup) {
+        if (dup && candidateId.startsWith(getMonthlyPrefix())) {
+          newPatientId = await generatePatientId(organizationId || req.tenantId);
+        } else if (dup) {
           return res.status(400).json({
             message: `Patient ID "${candidateId}" is already registered to ${dup.fullName || dup.firstName}. Please use a different Patient ID.`
           });
@@ -2163,6 +2204,17 @@ export const bookWalkInAppointment = async (req, res) => {
         lastName: lastName || '',
         fullName: formatPatientFullName(designation, firstName, lastName),
         mobile: mobileNumber || '',
+        email: email || '',
+        address: address || '',
+        city: city || '',
+        state: state || '',
+        zip: zip || '',
+        bloodGroup: bloodGroup || undefined,
+        alternateMobile: alternateMobile || '',
+        emergencyContact: emergencyContact || '',
+        emergencyPhone: emergencyPhone || '',
+        allergies: allergies || '',
+        pastMedicalHistory: pastMedicalHistory || '',
         age: age,
         ageType: ageType || 'Year',
         gender: gender ? (gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase()) : undefined,
@@ -2174,14 +2226,31 @@ export const bookWalkInAppointment = async (req, res) => {
       if (age) existingPatient.age = age;
       if (ageType) existingPatient.ageType = ageType;
       if (gender) existingPatient.gender = gender ? (gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase()) : undefined;
+      if (email) existingPatient.email = email;
+      if (address) existingPatient.address = address;
+      if (city) existingPatient.city = city;
+      if (state) existingPatient.state = state;
+      if (zip) existingPatient.zip = zip;
+      if (bloodGroup) existingPatient.bloodGroup = bloodGroup;
+      if (alternateMobile) existingPatient.alternateMobile = alternateMobile;
+      if (emergencyContact) existingPatient.emergencyContact = emergencyContact;
+      if (emergencyPhone) existingPatient.emergencyPhone = emergencyPhone;
+      if (allergies) existingPatient.allergies = allergies;
+      if (pastMedicalHistory) existingPatient.pastMedicalHistory = pastMedicalHistory;
       await existingPatient.save();
     }
 
-    // 2. Setup Visit Details (Now)
+    // 2. Setup Visit Details (Supports past/custom date if provided)
+    const visitDate = req.body.date || req.body.visitDate || req.body.appointmentDate;
+    const visitTime = req.body.time || req.body.appointmentTime;
+
     const today = new Date();
     const istTime = new Date(today.getTime() + (5.5 * 60 * 60 * 1000));
-    const date = istTime.getFullYear() + '-' + String(istTime.getMonth() + 1).padStart(2, '0') + '-' + String(istTime.getDate()).padStart(2, '0');
-    const time = String(istTime.getHours()).padStart(2, '0') + ':' + String(istTime.getMinutes()).padStart(2, '0');
+    const defaultDate = istTime.getFullYear() + '-' + String(istTime.getMonth() + 1).padStart(2, '0') + '-' + String(istTime.getDate()).padStart(2, '0');
+    const defaultTime = String(istTime.getHours()).padStart(2, '0') + ':' + String(istTime.getMinutes()).padStart(2, '0');
+
+    const date = visitDate || defaultDate;
+    const time = visitTime || defaultTime;
 
     // 3. Generate ShortID
     const counter = await Counter.findOneAndUpdate(
@@ -2203,7 +2272,7 @@ export const bookWalkInAppointment = async (req, res) => {
 
     const normalizedBillingStatus = (billingStatus || '').toLowerCase();
     const isPaid = normalizedBillingStatus === 'paid';
-    const AppointmentModel = isPaid ? ConfirmedAppointment : PendingAppointment;
+    const AppointmentModel = ConfirmedAppointment;
 
     const appointment = new AppointmentModel({
       shortId,
@@ -2214,6 +2283,7 @@ export const bookWalkInAppointment = async (req, res) => {
       lastName: lastName || existingPatient.lastName,
       patientName: existingPatient.fullName,
       patientPhone: mobileNumber || '',
+      patientEmail: email || existingPatient.email || '',
       patientAge: age || existingPatient.age,
       ageType: ageType || existingPatient.ageType,
       doctorId: docObj ? docObj.doctorId : doctorId || '',
@@ -2224,7 +2294,7 @@ export const bookWalkInAppointment = async (req, res) => {
       symptoms: symptoms || '',
       notes: administrativeNotes || '',
       visitType: 'WALK_IN',
-      status: isPaid ? 'confirmed' : 'pending',
+      status: 'confirmed',
       amount: amount,
       paymentStatus: isPaid ? 'paid' : 'pending'
     });

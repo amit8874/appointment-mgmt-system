@@ -141,8 +141,12 @@ export default function AppointmentTable({ rebookData, activeTab }) {
 
   // Handle status toggle (One-Click Arrived -> Completed)
   const handleStatusToggle = (appointment) => {
-    // If pending/confirmed/arrived -> mark as completed (Confirmed)
-    if (appointment.status !== 'completed' && appointment.status !== 'cancelled') {
+    const s = (appointment.status || '').toLowerCase();
+    if (!s || s === 'pending' || s === 'confirmed') {
+      updateAppointmentStatus(appointment._id, 'arrived');
+    } else if (s === 'arrived' || s === 'waiting') {
+      updateAppointmentStatus(appointment._id, 'in-progress');
+    } else if (s === 'in-progress' || s === 'with-doctor') {
       updateAppointmentStatus(appointment._id, 'completed');
     }
   };
@@ -203,19 +207,35 @@ export default function AppointmentTable({ rebookData, activeTab }) {
 
   // Get status badge
   const getStatusBadge = (status) => {
+    const s = (status || '').toLowerCase();
     const styles = {
-      confirmed: 'bg-green-100 text-green-800',
+      confirmed: 'bg-blue-100 text-blue-800',
       pending: 'bg-yellow-100 text-yellow-800',
       cancelled: 'bg-red-100 text-red-800',
-      completed: 'bg-green-100 text-green-800' // Show green Confirmed for completed
+      completed: 'bg-emerald-100 text-emerald-800',
+      checkout: 'bg-emerald-100 text-emerald-800',
+      arrived: 'bg-amber-100 text-amber-800',
+      waiting: 'bg-amber-100 text-amber-800',
+      'in-progress': 'bg-purple-100 text-purple-800',
+      'with-doctor': 'bg-purple-100 text-purple-800'
     };
 
-    const label = status === 'completed' ? 'Completed' :
-      status === 'confirmed' ? 'Confirmed' :
-        (status?.charAt(0).toUpperCase() + status?.slice(1));
+    const labelMap = {
+      completed: 'Completed',
+      checkout: 'Checked Out',
+      confirmed: 'Confirmed',
+      pending: 'Pending',
+      cancelled: 'Cancelled',
+      arrived: 'Arrived',
+      waiting: 'Waiting',
+      'in-progress': 'With Dr',
+      'with-doctor': 'With Dr'
+    };
+
+    const label = labelMap[s] || (s.charAt(0).toUpperCase() + s.slice(1));
 
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status] || styles.pending}`}>
+      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${styles[s] || styles.pending}`}>
         {label}
       </span>
     );
@@ -593,18 +613,25 @@ export default function AppointmentTable({ rebookData, activeTab }) {
                                 <Eye className="w-4 h-4" />
                               </button>
 
-                              {/* One-Click Arrive Button - Hidden for future dates */}
-                              {appointment.status !== 'completed' && appointment.status !== 'cancelled' && appointment.visitType !== 'WALK_IN' && !isFutureDate(appointment.date) && (
+                              {/* Workflow Step Button: Arrived -> With Dr -> Checkout */}
+                              {appointment.status !== 'completed' && appointment.status !== 'cancelled' && !isFutureDate(appointment.date) && (
                                 <button
                                   onClick={() => handleStatusToggle(appointment)}
                                   disabled={updatingId === appointment._id}
-                                  className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
-                                  title="Mark as Arrived"
+                                  className="px-2 py-1 text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 border shadow-xs"
+                                  title={
+                                    (!appointment.status || appointment.status === 'confirmed' || appointment.status === 'pending') ? "Mark Arrived" :
+                                    (appointment.status === 'arrived' || appointment.status === 'waiting') ? "Send With Doctor" : "Checkout"
+                                  }
                                 >
                                   {updatingId === appointment._id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />
+                                  ) : (!appointment.status || appointment.status === 'confirmed' || appointment.status === 'pending') ? (
+                                    <span className="text-blue-600 bg-blue-50 border-blue-200 px-1.5 py-0.5 rounded font-black uppercase text-[9px]">Arrived</span>
+                                  ) : (appointment.status === 'arrived' || appointment.status === 'waiting') ? (
+                                    <span className="text-purple-600 bg-purple-50 border-purple-200 px-1.5 py-0.5 rounded font-black uppercase text-[9px]">With Dr</span>
                                   ) : (
-                                    <CheckCircle className="w-4 h-4" />
+                                    <span className="text-emerald-600 bg-emerald-50 border-emerald-200 px-1.5 py-0.5 rounded font-black uppercase text-[9px]">Checkout</span>
                                   )}
                                 </button>
                               )}

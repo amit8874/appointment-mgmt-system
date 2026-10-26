@@ -26,7 +26,7 @@ import { format, addDays } from 'date-fns';
 import { useAuth } from '../../../context/AuthContext';
 import { medicalRecordApi, appointmentApi, patientApi } from '../../../services/api';
 import { getUpperArchTeeth, getLowerArchTeeth, getToothDisplayName, getToothLabel } from './dentalUtils';
-import DentalMedicineAutocomplete, { CLINIC_PAD_MEDICINES } from './DentalMedicineAutocomplete';
+import DentalMedicineAutocomplete, { CLINIC_PAD_MEDICINES, saveDoctorCustomMedicine } from './DentalMedicineAutocomplete';
 import RealisticDentalOdontogram from './RealisticDentalOdontogram';
 
 // Common dental medicines presets
@@ -64,22 +64,14 @@ const DentalPrescriptionModal = ({
   const [duration, setDuration] = useState('');
   const [medicalDentalHistory, setMedicalDentalHistory] = useState('');
 
-  // Section 3: Oral Examination findings
-  const [oralExam, setOralExam] = useState({
-    stains: { active: false, severity: 'Moderate', notes: '' },
-    calculus: { active: false, severity: 'Subgingival', notes: '' },
-    decayedTeeth: { active: false, severity: 'Deep caries', notes: '' },
-    grosslyDecayedTeeth: { active: false, severity: 'Root stumps', notes: '' },
-    mobileTeeth: { active: false, severity: 'Grade I', notes: '' },
-    top: { active: false, severity: 'Positive (+)', notes: '' },
-    otherFindings: { active: false, severity: 'Mild', notes: '' }
-  });
+  // Section 3: Oral Examination findings (Text Bar + Recommendations)
+  const [oralExamText, setOralExamText] = useState('');
 
-  // Section 4: Interactive Tooth Selection (Odontogram)
-  const [selectedTeeth, setSelectedTeeth] = useState([]); // array of { toothId, condition, notes }
-  const [activeToothModal, setActiveToothModal] = useState(null); // tooth object currently being edited
-  const [activeToothCondition, setActiveToothCondition] = useState('Deep Caries');
-  const [activeToothNotes, setActiveToothNotes] = useState('');
+  // Section 4: Interactive Tooth Selection (Odontogram with Multi-Teeth & Procedure Prompts)
+  const [selectedTeeth, setSelectedTeeth] = useState([]); // array of { toothId, procedure, condition, notes }
+  const [activeSelectedTeethIds, setActiveSelectedTeethIds] = useState([]); // tooth IDs currently clicked/selected
+  const [toothProcedureText, setToothProcedureText] = useState('Full mouth cleaning');
+  const [toothProcedureNotes, setToothProcedureNotes] = useState('');
 
   // Section 5: Diagnosis and Treatment Plan
   const [diagnosis, setDiagnosis] = useState('');
@@ -93,6 +85,7 @@ const DentalPrescriptionModal = ({
   const [advice, setAdvice] = useState('');
   const [nextAppointmentDate, setNextAppointmentDate] = useState('');
   const [nextAppointmentNotes, setNextAppointmentNotes] = useState('');
+  const [customFooterText, setCustomFooterText] = useState('');
 
   // Prepopulate patient information on load
   useEffect(() => {
@@ -127,7 +120,22 @@ const DentalPrescriptionModal = ({
           if (parsed.complaintDuration) setDuration(parsed.complaintDuration);
           if (parsed.duration) setDuration(parsed.duration);
           if (parsed.medicalDentalHistory) setMedicalDentalHistory(parsed.medicalDentalHistory);
-          if (parsed.oralExamination) setOralExam(prev => ({ ...prev, ...parsed.oralExamination }));
+          if (parsed.oralExamination) {
+            if (typeof parsed.oralExamination === 'string') {
+              setOralExamText(parsed.oralExamination);
+            } else if (typeof parsed.oralExamination === 'object') {
+              const items = [];
+              Object.entries(parsed.oralExamination).forEach(([k, v]) => {
+                if (v && (v.active || typeof v === 'string')) {
+                  const label = k === 'stains' ? 'Stains' : k === 'calculus' ? 'Calculus' : k === 'decayedTeeth' ? 'Decayed teeth' : k === 'grosslyDecayedTeeth' ? 'Grossly decayed teeth' : k === 'mobileTeeth' ? 'Mobile teeth' : k === 'top' ? 'Tenderness on percussion (TOP)' : k;
+                  const sev = v.severity ? ` (${v.severity})` : '';
+                  const notes = v.notes ? `: ${v.notes}` : '';
+                  items.push(`${label}${sev}${notes}`);
+                }
+              });
+              setOralExamText(items.join(', '));
+            }
+          }
           if (parsed.selectedTeeth) setSelectedTeeth(parsed.selectedTeeth);
           if (parsed.diagnosis?.length) {
             setDiagnosis(parsed.diagnosis.map(d => typeof d === 'string' ? d : d.name).join(', '));
@@ -146,6 +154,7 @@ const DentalPrescriptionModal = ({
           if (parsed.nextAppointmentDate) setNextAppointmentDate(parsed.nextAppointmentDate);
           if (parsed.nextAppointmentNotes) setNextAppointmentNotes(parsed.nextAppointmentNotes);
           if (parsed.examinationDate) setExaminationDate(parsed.examinationDate);
+          if (parsed.customFooterText || parsed.footerText) setCustomFooterText(parsed.customFooterText || parsed.footerText);
         }
       } catch (e) {
         console.warn("Could not parse prescription edit data:", e);
@@ -153,35 +162,70 @@ const DentalPrescriptionModal = ({
     }
   }, [editData]);
 
-  // Tooth Click in Odontogram
+  // Tooth Click in Odontogram (Multi-Tooth Selection & Procedure Prompts)
   const handleToothClick = (toothId) => {
-    const existing = selectedTeeth.find(t => t.toothId === toothId);
-    setActiveToothModal(toothId);
-    if (existing) {
-      setActiveToothCondition(existing.condition || 'Deep Caries');
-      setActiveToothNotes(existing.notes || '');
-    } else {
-      setActiveToothCondition('Deep Caries');
-      setActiveToothNotes('');
-    }
-  };
-
-  const handleSaveToothCondition = () => {
-    if (!activeToothModal) return;
-    const toothId = activeToothModal;
-    const updated = selectedTeeth.filter(t => t.toothId !== toothId);
-    updated.push({
-      toothId,
-      condition: activeToothCondition,
-      notes: activeToothNotes
+    const sId = String(toothId);
+    setActiveSelectedTeethIds(prev => {
+      const exists = prev.includes(sId);
+      const next = exists ? prev.filter(id => id !== sId) : [...prev, sId];
+      if (!exists) {
+        const existingRecord = selectedTeeth.find(t => String(t.toothId) === sId);
+        if (existingRecord) {
+          setToothProcedureText(existingRecord.procedure || existingRecord.condition || 'Full mouth cleaning');
+          setToothProcedureNotes(existingRecord.notes || '');
+        }
+      }
+      return next;
     });
-    setSelectedTeeth(updated);
-    setActiveToothModal(null);
   };
 
-  const handleRemoveToothCondition = (toothId) => {
-    setSelectedTeeth(selectedTeeth.filter(t => t.toothId !== toothId));
-    if (activeToothModal === toothId) setActiveToothModal(null);
+  const handleSelectAllTeeth = () => {
+    const all32 = [
+      '18','17','16','15','14','13','12','11',
+      '21','22','23','24','25','26','27','28',
+      '48','47','46','45','44','43','42','41',
+      '31','32','33','34','35','36','37','38'
+    ];
+    setActiveSelectedTeethIds(all32);
+    setToothProcedureText('Full mouth cleaning');
+  };
+
+  const handleSelectUpperArch = () => {
+    const upper = ['18','17','16','15','14','13','12','11','21','22','23','24','25','26','27','28'];
+    setActiveSelectedTeethIds(upper);
+  };
+
+  const handleSelectLowerArch = () => {
+    const lower = ['48','47','46','45','44','43','42','41','31','32','33','34','35','36','37','38'];
+    setActiveSelectedTeethIds(lower);
+  };
+
+  const handleClearTeethSelection = () => {
+    setActiveSelectedTeethIds([]);
+  };
+
+  const handleSaveTeethProcedure = () => {
+    if (!activeSelectedTeethIds.length) return;
+    const procedure = (toothProcedureText || 'Full mouth cleaning').trim();
+    const notes = (toothProcedureNotes || '').trim();
+
+    const selectedSet = new Set(activeSelectedTeethIds.map(String));
+    const retained = selectedTeeth.filter(t => !selectedSet.has(String(t.toothId)));
+
+    const newlyAdded = activeSelectedTeethIds.map(id => ({
+      toothId: String(id),
+      procedure,
+      condition: procedure,
+      notes
+    }));
+
+    setSelectedTeeth([...retained, ...newlyAdded]);
+    setActiveSelectedTeethIds([]);
+  };
+
+  const handleRemoveTeethGroup = (teethIdsToRemove) => {
+    const removeSet = new Set((Array.isArray(teethIdsToRemove) ? teethIdsToRemove : [teethIdsToRemove]).map(String));
+    setSelectedTeeth(selectedTeeth.filter(t => !removeSet.has(String(t.toothId))));
   };
 
   // Medicine table handlers
@@ -244,27 +288,6 @@ const DentalPrescriptionModal = ({
     });
   };
 
-  // Oral exam toggle
-  const toggleOralExamItem = (key) => {
-    setOralExam(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        active: !prev[key].active
-      }
-    }));
-  };
-
-  const updateOralExamItem = (key, field, value) => {
-    setOralExam(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        [field]: value
-      }
-    }));
-  };
-
   // SAVE PRESCRIPTION RECORD
   const handleSaveRecord = async (triggerPrint = false) => {
     if (!patient?._id) {
@@ -272,12 +295,23 @@ const DentalPrescriptionModal = ({
       return;
     }
 
-    const docId = patient?.assignedDoctorId || user?._id || null;
+    const docId = patient?.assignedDoctorId || user?._id || user?.id || null;
     const docName = patient?.assignedDoctor || user?.name || user?.fullName || 'Dental Surgeon';
 
     setIsSaving(true);
     try {
       const activeMeds = medications.filter(m => m.name && m.name.trim() !== '');
+
+      // Auto-save any custom medicine written by doctor so it shows in suggestions next time
+      try {
+        activeMeds.forEach(m => {
+          if (m.name && m.name.trim()) {
+            saveDoctorCustomMedicine(m, docId || 'default');
+          }
+        });
+      } catch (e) {
+        console.warn("Could not auto-save doctor custom medicine:", e);
+      }
 
       const detailedData = {
         isDental: true,
@@ -289,7 +323,7 @@ const DentalPrescriptionModal = ({
         complaintDuration: duration,
         complaints: chiefComplaint ? [{ name: chiefComplaint, duration }] : [],
         medicalDentalHistory,
-        oralExamination: oralExam,
+        oralExamination: oralExamText.trim(),
         selectedTeeth,
         diagnosis: diagnosis ? [{ name: diagnosis }] : [],
         treatmentPlanned,
@@ -300,7 +334,9 @@ const DentalPrescriptionModal = ({
         advice,
         nextAppointmentDate,
         nextAppointmentNotes,
-        followUpDate: nextAppointmentDate
+        followUpDate: nextAppointmentDate,
+        footerText: customFooterText.trim() || undefined,
+        customFooterText: customFooterText.trim() || undefined
       };
 
       const recordData = {
@@ -558,211 +594,293 @@ const DentalPrescriptionModal = ({
             </div>
 
             {/* ============================================================== */}
-            {/* 3. ORAL EXAMINATION */}
+            {/* 3. ORAL EXAMINATION (Text Bar + Options Below) */}
             {/* ============================================================== */}
-            <div className="space-y-4 pt-2 border-t border-slate-800/80">
-              <div>
-                <h3 className="text-sm font-black text-slate-200 tracking-wide uppercase flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-xs">3</span>
-                  Oral examination
-                </h3>
-                <p className="text-xs text-slate-400 mt-1 font-semibold">Each finding should be selectable, with optional notes and severity.</p>
+            <div className="space-y-3 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-slate-200 tracking-wide uppercase flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-xs">3</span>
+                    Oral examination
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5 font-semibold">Write findings in text bar or click quick recommendation options below.</p>
+                </div>
+                <span className="text-[10px] text-slate-500 font-bold">Quick suggestions:</span>
               </div>
 
-              <div className="space-y-2.5">
+              {/* Text Bar */}
+              <input
+                type="text"
+                value={oralExamText}
+                onChange={(e) => setOralExamText(e.target.value)}
+                placeholder="Enter oral examination findings (e.g. Stains (Moderate), Calculus (Subgingival), Deep caries #16)"
+                className="w-full bg-[#121824] border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white outline-none transition-colors"
+              />
+
+              {/* Options shown below the text bar */}
+              <div className="flex flex-wrap gap-1.5">
                 {[
-                  { key: 'stains', label: 'Stains', severities: ['Mild', 'Moderate', 'Severe'], defaultNote: 'Generalized' },
-                  { key: 'calculus', label: 'Calculus', severities: ['Supragingival', 'Subgingival', 'Generalized'], defaultNote: 'Lower anteriors' },
-                  { key: 'decayedTeeth', label: 'Decayed teeth', severities: ['Enamel caries', 'Dentin caries', 'Deep caries'], defaultNote: '#16 occlusal' },
-                  { key: 'grosslyDecayedTeeth', label: 'Grossly decayed teeth', severities: ['Root stumps', 'Crown destroyed'], defaultNote: '#36 root stump' },
-                  { key: 'mobileTeeth', label: 'Mobile teeth', severities: ['Grade I', 'Grade II', 'Grade III'], defaultNote: '#31, #41' },
-                  { key: 'top', label: 'Tenderness on percussion (TOP)', severities: ['Positive (+)', 'Negative (-)'], defaultNote: 'Tender on bite' },
-                  { key: 'otherFindings', label: 'Other findings', severities: ['Mild', 'Moderate', 'Severe'], defaultNote: '' }
-                ].map(({ key, label, severities, defaultNote }) => {
-                  const item = oralExam[key];
-                  return (
-                    <div
-                      key={key}
-                      className={`p-3 rounded-2xl border transition-all ${
-                        item.active 
-                          ? 'bg-[#121824] border-teal-500/40 shadow-sm' 
-                          : 'bg-[#0E131F]/50 border-slate-800/80 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                        <label className="flex items-center gap-3 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={item.active}
-                            onChange={() => toggleOralExamItem(key)}
-                            className="sr-only"
-                          />
-                          <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
-                            item.active ? 'bg-teal-500 border-teal-500 text-black font-black' : 'border-slate-600 bg-slate-900'
-                          }`}>
-                            {item.active && <Check size={12} strokeWidth={3} />}
-                          </div>
-                          <span className={`text-sm font-bold ${item.active ? 'text-teal-300' : 'text-slate-300'}`}>
-                            {label}
-                          </span>
-                        </label>
-
-                        {/* If active, show severity & notes controls */}
-                        {item.active && (
-                          <div className="flex flex-1 items-center justify-end gap-2 pl-8 sm:pl-0">
-                            {severities?.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                {severities.map(sev => (
-                                  <button
-                                    key={sev}
-                                    type="button"
-                                    onClick={() => updateOralExamItem(key, 'severity', sev)}
-                                    className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-colors ${
-                                      item.severity === sev 
-                                        ? 'bg-teal-500/25 border-teal-500 text-teal-300' 
-                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                                    }`}
-                                  >
-                                    {sev}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-
-                            <input
-                              type="text"
-                              value={item.notes}
-                              onChange={(e) => updateOralExamItem(key, 'notes', e.target.value)}
-                              placeholder="Select / Add notes"
-                              className="w-44 sm:w-56 bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-xl px-2.5 py-1 text-xs font-semibold text-white outline-none"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                  'Stains (Mild)',
+                  'Stains (Moderate)',
+                  'Stains (Severe)',
+                  'Calculus (Supragingival)',
+                  'Calculus (Subgingival)',
+                  'Calculus (Generalized)',
+                  'Enamel Caries',
+                  'Dentin Caries',
+                  'Deep Caries',
+                  'Grossly Decayed / Root Stumps',
+                  'Mobile Teeth (Grade I)',
+                  'Mobile Teeth (Grade II)',
+                  'Tenderness on Percussion (+)',
+                  'Gingival Bleeding / Inflammation',
+                  'Halitosis (Bad Breath)',
+                  'Plaque Accumulation',
+                  'Abrasion / Attrition',
+                  'Sensitivity / Hypersensitivity'
+                ].map(opt => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setOralExamText(prev => prev ? `${prev}, ${opt}` : opt)}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-teal-300 hover:border-teal-500/50 transition-colors cursor-pointer"
+                  >
+                    + {opt}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* ============================================================== */}
-            {/* 4. TOOTH CHART (ODONTOGRAM) */}
+            {/* 4. TOOTH CHART (ODONTOGRAM & PROCEDURE SELECTOR) */}
             {/* ============================================================== */}
             <div className="space-y-4 pt-2 border-t border-slate-800/80">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-black text-slate-200 tracking-wide uppercase flex items-center gap-2">
                     <span className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-xs">4</span>
                     Tooth chart (odontogram)
                   </h3>
-                  <p className="text-xs text-slate-400 mt-1 font-semibold">Interactive tooth selection — Select a tooth, record its condition, and add treatment notes.</p>
+                  <p className="text-xs text-slate-400 mt-0.5 font-semibold">Select tooth or multiple teeth to specify the procedure being performed.</p>
                 </div>
-                {selectedTeeth.length > 0 && (
+
+                {/* Quick Multi-Teeth Batch Selectors */}
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => setSelectedTeeth([])}
-                    className="text-[11px] font-bold text-rose-400 hover:text-rose-300"
+                    onClick={handleSelectAllTeeth}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-teal-500/20 border border-teal-500/40 text-teal-300 hover:bg-teal-500/30 transition-colors cursor-pointer"
                   >
-                    Clear Chart
+                    + Full Mouth (All Teeth)
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={handleSelectUpperArch}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    Upper Arch
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSelectLowerArch}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    Lower Arch
+                  </button>
+                  {selectedTeeth.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTeeth([])}
+                      className="text-[10px] font-bold px-2 py-1 rounded-lg bg-rose-950/30 border border-rose-900/50 text-rose-400 hover:text-rose-300 transition-colors cursor-pointer ml-1"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Realistic Anatomical Odontogram Chart */}
               <RealisticDentalOdontogram
-                selectedTeeth={selectedTeeth}
+                selectedTeeth={[
+                  ...selectedTeeth,
+                  ...activeSelectedTeethIds.map(id => ({ toothId: id, condition: toothProcedureText || 'Selected' }))
+                ]}
                 onToothClick={handleToothClick}
                 onBatchSelect={(newIds) => {
-                  const existingMap = new Map(selectedTeeth.map(t => [String(t.toothId), t]));
-                  const updated = newIds.map(id => existingMap.get(String(id)) || { toothId: String(id), condition: 'Deep Caries', notes: '' });
-                  setSelectedTeeth(updated);
+                  setActiveSelectedTeethIds(newIds.map(String));
                 }}
                 theme="dark"
               />
 
-              {/* Tooth Details Quick Editor */}
-              {activeToothModal && (
-                <div className="p-4 bg-gradient-to-r from-teal-950/40 via-slate-900 to-teal-950/40 rounded-2xl border border-teal-500/40 space-y-3 animate-in fade-in">
+              {/* Tooth Procedure Action Prompt (Shown when 1 or more teeth are selected) */}
+              {activeSelectedTeethIds.length > 0 && (
+                <div className="p-4 bg-gradient-to-r from-teal-950/50 via-slate-900 to-indigo-950/50 rounded-2xl border-2 border-teal-500/50 space-y-3.5 shadow-xl animate-in fade-in zoom-in-95">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-teal-300 uppercase tracking-wide">
-                      Selected Tooth #{activeToothModal} ({getToothDisplayName(activeToothModal)})
-                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black text-teal-300 uppercase tracking-wide flex items-center gap-1.5">
+                        <Sparkles size={14} className="text-teal-400" />
+                        What are you doing on {activeSelectedTeethIds.length === 32 ? 'Full Mouth (All 32 Teeth)' : activeSelectedTeethIds.length === 1 ? `Tooth #${activeSelectedTeethIds[0]}` : `Selected Teeth (${activeSelectedTeethIds.length})`}?
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 border border-teal-500/40">
+                        {activeSelectedTeethIds.length === 32 ? 'All Teeth Selected' : `Teeth #${activeSelectedTeethIds.join(', #')}`}
+                      </span>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setActiveToothModal(null)}
-                      className="text-slate-400 hover:text-white"
+                      onClick={handleClearTeethSelection}
+                      className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Close"
                     >
-                      <X size={14} />
+                      <X size={15} />
                     </button>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5">
-                    {[
-                      'Deep Caries',
-                      'Carious',
-                      'RCT Needed',
-                      'RCT Done',
-                      'Crown Fitted',
-                      'Missing',
-                      'Fractured',
-                      'Mobile',
-                      'Restoration Needed',
-                      'Impacted'
-                    ].map(cond => (
-                      <button
-                        key={cond}
-                        type="button"
-                        onClick={() => setActiveToothCondition(cond)}
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-colors ${
-                          activeToothCondition === cond
-                            ? 'bg-teal-500 border-teal-500 text-black font-black'
-                            : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'
-                        }`}
-                      >
-                        {cond}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-2">
+                  {/* Free-typing Text Bar */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>Procedure / Action being performed:</span>
+                      <span className="text-[10px] text-slate-500">Type freely or click recommendation below</span>
+                    </label>
                     <input
                       type="text"
-                      value={activeToothNotes}
-                      onChange={(e) => setActiveToothNotes(e.target.value)}
-                      placeholder="Add treatment note for this tooth (e.g. Access opening done / Class II Composite)"
-                      className="flex-1 bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-xl px-3 py-1.5 text-xs text-white outline-none"
+                      value={toothProcedureText}
+                      onChange={(e) => setToothProcedureText(e.target.value)}
+                      placeholder="e.g. Full mouth cleaning, Root Canal Treatment, Composite filling..."
+                      className="w-full bg-[#121824] border border-teal-500/60 focus:border-teal-400 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none shadow-inner"
                     />
-                    <button
-                      type="button"
-                      onClick={handleSaveToothCondition}
-                      className="px-4 py-1.5 bg-teal-500 hover:bg-teal-400 text-black font-black text-xs rounded-xl shadow transition-colors cursor-pointer"
-                    >
-                      Save Tooth
-                    </button>
+                  </div>
+
+                  {/* Comprehensive Recommendations / Procedures ("show all type") */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">
+                      Procedure Recommendations:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto custom-scrollbar p-0.5">
+                      {[
+                        'Full Mouth Cleaning',
+                        'Scaling & Polishing',
+                        'Root Canal Treatment (RCT)',
+                        'Composite Tooth Restoration',
+                        'Biomechanical Preparation (BMP)',
+                        'Canal Obturation',
+                        'Painless Tooth Extraction',
+                        'Surgical Extraction / Impaction',
+                        'Crown Preparation',
+                        'Crown & Bridge Fitting',
+                        'Zirconia Crown',
+                        'Cavity / Deep Caries Filling',
+                        'Bleaching / Teeth Whitening',
+                        'GIC Restoration',
+                        'Dental Implant Placement',
+                        'Post & Core Buildup',
+                        'Gingival Curettage / Flap Surgery',
+                        'Temporary Dressing',
+                        'Topical Fluoride Application',
+                        'Tooth Sensitivity Treatment',
+                        'Orthodontic Wire Adjustment',
+                        'Missing Tooth'
+                      ].map(proc => (
+                        <button
+                          key={proc}
+                          type="button"
+                          onClick={() => setToothProcedureText(proc)}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                            toothProcedureText === proc
+                              ? 'bg-teal-500 border-teal-500 text-black font-black shadow-sm'
+                              : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-teal-300 hover:border-teal-500/40'
+                          }`}
+                        >
+                          + {proc}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Notes / Clinical Observations */}
+                  <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                    <input
+                      type="text"
+                      value={toothProcedureNotes}
+                      onChange={(e) => setToothProcedureNotes(e.target.value)}
+                      placeholder="Optional details / notes (e.g. Supragingival calculus removed, Class II mesio-occlusal)"
+                      className="flex-1 bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveTeethProcedure}
+                        className="px-5 py-2 bg-teal-500 hover:bg-teal-400 text-black font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Check size={14} strokeWidth={3} /> Save Procedure
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearTeethSelection}
+                        className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Recorded Teeth List */}
+              {/* Recorded Teeth List (Grouped Cleanly by Procedure) */}
               {selectedTeeth.length > 0 && (
-                <div className="space-y-1.5">
-                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Recorded Teeth in Plan:</span>
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                      Recorded Procedures in Treatment Plan ({selectedTeeth.length} teeth):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTeeth([])}
+                      className="text-[10px] font-bold text-rose-400 hover:text-rose-300 cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
-                    {selectedTeeth.map(t => (
-                      <div
-                        key={t.toothId}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-teal-500/40 text-xs font-bold text-teal-300 shadow-sm"
-                      >
-                        <span>#{t.toothId}: <span className="text-white">{t.condition}</span> {t.notes && `(${t.notes})`}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveToothCondition(t.toothId)}
-                          className="text-slate-400 hover:text-rose-400 ml-1"
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
+                    {(() => {
+                      const groups = new Map();
+                      selectedTeeth.forEach(t => {
+                        const proc = t.procedure || t.condition || 'Procedure';
+                        const notes = t.notes ? ` (${t.notes})` : '';
+                        const key = `${proc}:::${notes}`;
+                        if (!groups.has(key)) groups.set(key, { proc, notes, teeth: [] });
+                        groups.get(key).teeth.push(String(t.toothId));
+                      });
+
+                      return Array.from(groups.values()).map(({ proc, notes, teeth }, gIdx) => {
+                        const isFullMouth = teeth.length >= 28;
+                        const label = isFullMouth
+                          ? 'Full Mouth (All Teeth)'
+                          : teeth.length > 1
+                          ? `Teeth #${teeth.join(', #')}`
+                          : `Tooth #${teeth[0]}`;
+
+                        return (
+                          <div
+                            key={gIdx}
+                            className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-teal-500/40 text-xs font-bold text-teal-300 shadow-sm"
+                          >
+                            <span>
+                              <span className="text-white">{label}:</span>{' '}
+                              <span className="text-teal-400">{proc}</span>
+                              {notes && <span className="text-slate-400 font-normal"> {notes}</span>}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTeethGroup(teeth)}
+                              className="text-slate-500 hover:text-rose-400 ml-1 p-0.5 rounded transition-colors cursor-pointer"
+                              title="Remove"
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}
@@ -978,6 +1096,7 @@ const DentalPrescriptionModal = ({
                       <div className="col-span-12 sm:col-span-6 relative z-20">
                         <DentalMedicineAutocomplete
                           value={med.name}
+                          doctorId={user?._id || user?.id || patient?.assignedDoctorId || 'default'}
                           onChange={(val) => handleMedicationChange(idx, 'name', val)}
                           onSelect={(selected) => handleSelectMedicationItem(idx, selected)}
                           placeholder="Type 1-2 chars (Caremox, Yenfenac, Densoform...)"
@@ -1023,6 +1142,20 @@ const DentalPrescriptionModal = ({
                     </div>
 
                     <div className="flex gap-2">
+                      <select
+                        value={med.frequency || ''}
+                        onChange={(e) => handleMedicationChange(idx, 'frequency', e.target.value)}
+                        className="w-36 bg-slate-900 border border-slate-800/80 focus:border-teal-500 rounded-xl px-2.5 py-1 text-[11px] font-semibold text-slate-300 outline-none"
+                      >
+                        <option value="">No Frequency</option>
+                        <option value="1-0-1">1-0-1 (Twice daily)</option>
+                        <option value="1-0-0">1-0-0 (Morning)</option>
+                        <option value="0-0-1">0-0-1 (Night)</option>
+                        <option value="0-1-0">0-1-0 (Afternoon)</option>
+                        <option value="1-1-1">1-1-1 (Thrice daily)</option>
+                        <option value="SOS">SOS (As needed)</option>
+                        <option value="1-1-1-1">1-1-1-1 (4 times)</option>
+                      </select>
                       <input
                         type="text"
                         value={med.instructions}
@@ -1113,6 +1246,22 @@ const DentalPrescriptionModal = ({
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Optional Custom Footer Notice for this prescription */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-400">
+                    Prescription Footer Notice <span className="text-[10px] text-slate-500 font-normal">(Optional - leave blank to use clinic default footer)</span>
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  value={customFooterText}
+                  onChange={(e) => setCustomFooterText(e.target.value)}
+                  placeholder="e.g. SCAN FOR APPOINTMENTS • PRESCRIPTION VALID FOR 7 DAYS"
+                  className="w-full bg-[#121824] border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-300 outline-none placeholder:text-slate-600 transition-colors"
+                />
               </div>
             </div>
           </div>

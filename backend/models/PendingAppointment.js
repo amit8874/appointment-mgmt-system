@@ -99,7 +99,7 @@ const pendingAppointmentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'in-progress', 'missed'],
+    enum: ['pending', 'confirmed', 'in-progress', 'missed', 'arrived', 'waiting', 'with-doctor', 'completed', 'checkout'],
     default: 'pending',
   },
   visitType: {

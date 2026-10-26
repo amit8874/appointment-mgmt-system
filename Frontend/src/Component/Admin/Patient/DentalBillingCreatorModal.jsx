@@ -39,7 +39,7 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
     }
   });
   const [overallDiscount, setOverallDiscount] = useState(0);
-  const [discountType, setDiscountType] = useState('fixed'); // 'fixed' or 'percentage'
+  const [discountType, setDiscountType] = useState('percentage'); // 'percentage' or 'fixed'
   const [taxRate, setTaxRate] = useState(0);
   const [amountPaid, setAmountPaid] = useState('');
   const [paymentMode, setPaymentMode] = useState('UPI');
@@ -72,11 +72,13 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
       const updated = [...prev];
       updated[index][field] = value;
 
-      // Calculate item subtotal
+      // Calculate item subtotal with percentage discount
       const qty = parseFloat(updated[index].qty) || 0;
       const price = parseFloat(updated[index].price) || 0;
-      const discount = parseFloat(updated[index].discount) || 0;
-      updated[index].subtotal = Math.max(0, (qty * price) - discount);
+      const discountPercent = parseFloat(updated[index].discount) || 0;
+      const basePrice = qty * price;
+      const discountAmount = (basePrice * discountPercent) / 100;
+      updated[index].subtotal = Math.max(0, parseFloat((basePrice - discountAmount).toFixed(2)));
 
       return updated;
     });
@@ -108,7 +110,12 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
   };
 
   const calculateItemsDiscount = () => {
-    return items.reduce((sum, item) => sum + (parseFloat(item.discount) || 0), 0);
+    return items.reduce((sum, item) => {
+      const qty = parseFloat(item.qty) || 0;
+      const price = parseFloat(item.price) || 0;
+      const discountPercent = parseFloat(item.discount) || 0;
+      return sum + ((qty * price * discountPercent) / 100);
+    }, 0);
   };
 
   const calculateOverallDiscountValue = () => {
@@ -226,14 +233,19 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
       }] : [],
       items: items.map(item => {
         const qtyVal = parseInt(item.qty) || 1;
+        const priceVal = parseFloat(item.price) || 0;
+        const discountPct = parseFloat(item.discount) || 0;
+        const discountRupees = parseFloat(((qtyVal * priceVal * discountPct) / 100).toFixed(2));
         return {
           description: item.description,
           qty: qtyVal,
           quantity: qtyVal,
-          unitPrice: item.price,
-          cost: item.price,
-          price: item.price,
-          discount: item.discount,
+          unitPrice: priceVal,
+          cost: priceVal,
+          price: priceVal,
+          discountPercent: discountPct,
+          discount: discountRupees,
+          discountAmount: discountRupees,
           subtotal: item.subtotal,
           total: item.subtotal
         };
@@ -357,94 +369,129 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {items.map((item, idx) => (
-                <div key={idx} className="flex flex-col md:flex-row md:items-center gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-150 relative">
-                  {/* Select Preset */}
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="text-[9px] font-bold text-black uppercase tracking-widest mb-1.5 block">Procedure / Cap / Service</label>
-                    <div className="flex gap-2">
-                      <select
-                        onChange={(e) => handlePresetSelect(idx, e.target.value)}
-                        className="border border-slate-350 rounded-xl px-3 py-2 text-xs font-black text-black outline-none bg-white max-w-[150px] shrink-0"
-                        defaultValue=""
-                      >
-                        <option value="" disabled>Presets...</option>
-                        {mergedPresets.map(proc => (
-                          <option key={proc.name} value={proc.name}>
-                            {proc.name.replace(/ Treatment| Placement| Surgery/g, '')}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="text"
-                        placeholder="Or type custom item description..."
-                        required
-                        value={item.description}
-                        onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
-                        className="border border-slate-350 rounded-xl px-4 py-2 text-xs font-black text-black outline-none focus:ring-2 focus:ring-indigo-500 bg-white flex-1 min-w-0 placeholder:text-slate-400"
-                      />
+                <div key={idx} className="bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3 relative hover:border-indigo-200 transition-colors">
+                  {/* TOP ROW: Procedure Label + Presets Selector + Delete Button */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      <label className="text-[10px] font-black text-slate-800 uppercase tracking-wider">
+                        Procedure / Cap / Clinical Service
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      {/* Preset selector */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-indigo-600 whitespace-nowrap hidden sm:inline">Presets:</span>
+                        <select
+                          onChange={(e) => handlePresetSelect(idx, e.target.value)}
+                          className="border border-slate-300 hover:border-indigo-400 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none bg-white cursor-pointer shadow-2xs max-w-[220px]"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select from Presets...</option>
+                          {mergedPresets.map(proc => (
+                            <option key={proc.name} value={proc.name}>
+                              {proc.name.replace(/ Treatment| Placement| Surgery/g, '')}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Remove Button */}
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(idx)}
+                          className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-rose-100"
+                          title="Remove line item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Quantity */}
-                  <div className="w-20">
-                    <label className="text-[9px] font-bold text-black uppercase tracking-widest mb-1.5 block">Qty</label>
+                  {/* FULL WIDTH BIG TEXT INPUT FOR PROCEDURE DESCRIPTION */}
+                  <div>
                     <input
-                      type="number"
+                      type="text"
+                      placeholder="Type procedure name, cap specification, tooth #, or custom treatment description..."
                       required
-                      min="1"
-                      value={item.qty}
-                      onChange={(e) => handleItemChange(idx, 'qty', e.target.value === '' ? '' : (parseInt(e.target.value) || 0))}
-                      className="border border-slate-350 rounded-xl px-3 py-2 text-xs font-black text-black outline-none text-center bg-white w-full"
+                      value={item.description}
+                      onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                      className="w-full border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 outline-none bg-white shadow-inner placeholder:text-slate-400 transition-all leading-normal"
                     />
                   </div>
 
-                  {/* Price */}
-                  <div className="w-32">
-                    <label className="text-[9px] font-bold text-black uppercase tracking-widest mb-1.5 block">Price (₹)</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      value={item.price || ''}
-                      placeholder="0"
-                      onChange={(e) => handleItemChange(idx, 'price', parseFloat(e.target.value) || 0)}
-                      className="border border-slate-350 rounded-xl px-3.5 py-2 text-xs font-black text-black outline-none bg-white w-full placeholder:text-slate-400"
-                    />
-                  </div>
+                  {/* BOTTOM ROW: Financials (Qty, Price, Discount, Subtotal) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200/80 items-end">
+                    {/* Quantity */}
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1 block">Qty</label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={item.qty}
+                        onChange={(e) => handleItemChange(idx, 'qty', e.target.value === '' ? '' : (parseInt(e.target.value) || 0))}
+                        className="border border-slate-300 focus:border-indigo-600 rounded-xl px-3 py-2 text-xs font-black text-slate-900 outline-none text-center bg-white w-full shadow-2xs"
+                      />
+                    </div>
 
-                  {/* Discount */}
-                  <div className="w-28">
-                    <label className="text-[9px] font-bold text-black uppercase tracking-widest mb-1.5 block">Discount (₹)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={item.discount || ''}
-                      placeholder="0"
-                      onChange={(e) => handleItemChange(idx, 'discount', parseFloat(e.target.value) || 0)}
-                      className="border border-slate-350 rounded-xl px-3.5 py-2 text-xs font-black text-black outline-none bg-white w-full placeholder:text-slate-400"
-                    />
-                  </div>
+                    {/* Price */}
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1 block">Price (₹)</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        value={item.price || ''}
+                        placeholder="0"
+                        onChange={(e) => handleItemChange(idx, 'price', parseFloat(e.target.value) || 0)}
+                        className="border border-slate-300 focus:border-indigo-600 rounded-xl px-3.5 py-2 text-xs font-black text-slate-900 outline-none bg-white w-full placeholder:text-slate-400 shadow-2xs"
+                      />
+                    </div>
 
-                  {/* Total */}
-                  <div className="w-32">
-                    <label className="text-[9px] font-bold text-black uppercase tracking-widest mb-1.5 block">Subtotal</label>
-                    <p className="px-3.5 py-2 bg-slate-100 text-xs font-black text-indigo-950 border border-slate-200 rounded-xl text-right">
-                      ₹{item.subtotal}
-                    </p>
-                  </div>
+                    {/* Discount (%) */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Discount (%)</label>
+                        {item.discount > 0 && item.price > 0 && (
+                          <span className="text-[9px] font-bold text-emerald-600">
+                            -₹{(((parseFloat(item.qty) || 1) * (parseFloat(item.price) || 0) * (parseFloat(item.discount) || 0)) / 100).toFixed(0)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={item.discount || ''}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                            handleItemChange(idx, 'discount', Math.min(100, Math.max(0, isNaN(val) ? 0 : val)));
+                          }}
+                          className="border border-slate-300 focus:border-indigo-600 rounded-xl px-3.5 py-2 pr-7 text-xs font-black text-slate-900 outline-none bg-white w-full placeholder:text-slate-400 shadow-2xs"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">
+                          %
+                        </span>
+                      </div>
+                    </div>
 
-                  {/* Delete */}
-                  <div className="pt-5 shrink-0 self-end md:self-center">
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(idx)}
-                      className="p-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-all cursor-pointer border border-red-100 flex items-center justify-center"
-                      title="Remove item"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {/* Subtotal */}
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1 block text-right">Subtotal</label>
+                      <div className="px-3.5 py-2 bg-indigo-50/80 text-xs font-black text-indigo-950 border border-indigo-100 rounded-xl text-right shadow-2xs">
+                        ₹{item.subtotal}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -461,25 +508,40 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
                 {/* Overall Discount */}
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <label className="text-[9px] font-bold text-black uppercase tracking-widest mb-1.5 block">Overall Discount</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={overallDiscount || ''}
-                      placeholder="Enter discount"
-                      onChange={(e) => setOverallDiscount(parseFloat(e.target.value) || 0)}
-                      className="border border-slate-350 rounded-xl px-4 py-2 text-xs font-black text-black outline-none bg-white w-full placeholder:text-slate-400"
-                    />
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[9px] font-bold text-black uppercase tracking-widest block">Overall Discount</label>
+                      {discountType === 'percentage' && overallDiscount > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-600">
+                          = -₹{calculateOverallDiscountValue()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max={discountType === 'percentage' ? 100 : undefined}
+                        value={overallDiscount || ''}
+                        placeholder={discountType === 'percentage' ? "e.g. 10%" : "Enter discount (₹)"}
+                        onChange={(e) => setOverallDiscount(parseFloat(e.target.value) || 0)}
+                        className="border border-slate-350 rounded-xl px-4 py-2 text-xs font-black text-black outline-none bg-white w-full placeholder:text-slate-400"
+                      />
+                      {discountType === 'percentage' && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">
+                          %
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="w-28">
                     <label className="text-[9px] font-bold text-black uppercase tracking-widest mb-1.5 block">Disc. Type</label>
                     <select
                       value={discountType}
                       onChange={(e) => setDiscountType(e.target.value)}
-                      className="border border-slate-350 rounded-xl px-3 py-2 text-xs font-black text-black outline-none bg-white w-full"
+                      className="border border-slate-350 rounded-xl px-3 py-2 text-xs font-black text-black outline-none bg-white w-full cursor-pointer"
                     >
-                      <option value="fixed">Fixed (₹)</option>
                       <option value="percentage">Percent (%)</option>
+                      <option value="fixed">Fixed (₹)</option>
                     </select>
                   </div>
                 </div>

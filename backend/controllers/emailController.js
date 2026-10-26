@@ -49,10 +49,14 @@ export const sendPrescriptionMail = async (req, res) => {
                 let template = null;
                 if (templateId === 'global_a4') {
                     template = { headerType: 'a4', layoutType: 'a4' };
-                } else if (templateId && templateId !== 'default' && mongoose.Types.ObjectId.isValid(templateId)) {
+                } else if (templateId === 'default' || templateId === 'system_default') {
+                    template = { _id: 'default', templateName: 'Oviaan Default Template' };
+                } else if (templateId === 'default_v2') {
+                    template = { _id: 'default_v2', templateName: 'Oviaan Default Template 2' };
+                } else if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
                     template = await PrescriptionTemplate.findById(templateId);
                 } else {
-                    template = await PrescriptionTemplate.findOne({ organizationId: orgId, isDefault: true });
+                    template = { _id: 'default', templateName: 'Oviaan Default Template' };
                 }
                 
                 // 3. Generate PDF using unified service

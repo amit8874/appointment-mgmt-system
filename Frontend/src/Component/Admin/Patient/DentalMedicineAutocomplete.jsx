@@ -342,10 +342,82 @@ export const COMMON_DENTAL_EXTRAS = [
 const ALL_LOCAL_PRESETS = [...CLINIC_PAD_MEDICINES, ...COMMON_DENTAL_EXTRAS];
 
 /**
+ * Storage helpers for doctor custom medicines:
+ * Automatically saves custom medicines written by the doctor so they show in suggestions next time.
+ */
+export const getDoctorCustomMedicines = (doctorId = 'default') => {
+  try {
+    const key = `custom_medicines_${doctorId || 'default'}`;
+    const generalKey = `custom_medicines_all`;
+    const specific = JSON.parse(localStorage.getItem(key) || '[]');
+    const general = JSON.parse(localStorage.getItem(generalKey) || '[]');
+    const map = new Map();
+    [...specific, ...general].forEach(m => {
+      if (m && m.name) {
+        map.set(m.name.trim().toLowerCase(), {
+          ...m,
+          isDoctorCustom: true
+        });
+      }
+    });
+    return Array.from(map.values());
+  } catch (e) {
+    return [];
+  }
+};
+
+export const saveDoctorCustomMedicine = (medObj, doctorId = 'default') => {
+  if (!medObj || !medObj.name || !medObj.name.trim()) return;
+  const trimmedName = medObj.name.trim();
+  try {
+    const key = `custom_medicines_${doctorId || 'default'}`;
+    const generalKey = `custom_medicines_all`;
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
+    const existingIdx = list.findIndex(m => m.name.toLowerCase() === trimmedName.toLowerCase());
+    const newEntry = {
+      name: trimmedName,
+      genericName: medObj.genericName || medObj.composition || trimmedName,
+      composition: medObj.composition || medObj.genericName || '',
+      form: medObj.form || 'Tab',
+      type: medObj.type || medObj.form || 'Tablet',
+      dose: medObj.dose || '1 Tab',
+      frequency: medObj.frequency || '',
+      when: medObj.when || 'After Food',
+      duration: medObj.duration || '5 days',
+      category: 'Doctor Custom',
+      instructions: medObj.instructions || '',
+      isDoctorCustom: true
+    };
+    if (existingIdx >= 0) {
+      list[existingIdx] = { ...list[existingIdx], ...newEntry };
+    } else {
+      list.unshift(newEntry);
+    }
+    localStorage.setItem(key, JSON.stringify(list.slice(0, 100)));
+
+    const genList = JSON.parse(localStorage.getItem(generalKey) || '[]');
+    const genIdx = genList.findIndex(m => m.name.toLowerCase() === trimmedName.toLowerCase());
+    if (genIdx >= 0) {
+      genList[genIdx] = { ...genList[genIdx], ...newEntry };
+    } else {
+      genList.unshift(newEntry);
+    }
+    localStorage.setItem(generalKey, JSON.stringify(genList.slice(0, 100)));
+
+    // Fire-and-forget background sync to DB
+    if (medicineApi?.bulkSave) {
+      medicineApi.bulkSave([trimmedName]).catch(() => {});
+    }
+  } catch (e) {
+    console.warn("Could not save doctor custom medicine:", e);
+  }
+};
+
+/**
  * DentalMedicineAutocomplete
  * 
  * Provides instantaneous recommendations on 1st/2nd character:
- * - 0ms instant local match against 16 clinic handwritten medicines + common dental drugs
+ * - 0ms instant local match against Doctor Saved medicines + 16 clinic handwritten medicines + common dental drugs
  * - Debounced API search across 773+ database medicines
  * - Keyboard navigation (Up/Down/Enter/Escape)
  * - Auto-fill of form, dose, frequency, when, duration, instructions
@@ -355,7 +427,8 @@ const DentalMedicineAutocomplete = ({
   onChange,
   onSelect,
   placeholder = 'Medicine name (e.g. Caremox, Yenfenac, Densoform...)',
-  className = ''
+  className = '',
+  doctorId = 'default'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState(value || '');
@@ -371,13 +444,15 @@ const DentalMedicineAutocomplete = ({
     setQuery(value || '');
   }, [value]);
 
-  // Helper: filter local items instantaneously
+  // Helper: filter local items instantaneously (merging doctor's custom saved medicines)
   const filterLocal = (q) => {
+    const doctorCustomMeds = getDoctorCustomMedicines(doctorId);
+    const combinedPresets = [...doctorCustomMeds, ...ALL_LOCAL_PRESETS];
     if (!q || q.trim() === '') {
-      return CLINIC_PAD_MEDICINES;
+      return [...doctorCustomMeds, ...CLINIC_PAD_MEDICINES];
     }
     const clean = q.trim().toLowerCase();
-    return ALL_LOCAL_PRESETS.filter(item => {
+    return combinedPresets.filter(item => {
       const name = (item.name || '').toLowerCase();
       const generic = (item.genericName || '').toLowerCase();
       const comp = (item.composition || '').toLowerCase();
@@ -389,6 +464,9 @@ const DentalMedicineAutocomplete = ({
       const bStarts = bName.startsWith(clean);
       if (aStarts && !bStarts) return -1;
       if (!aStarts && bStarts) return 1;
+      // Highest priority: doctor's custom saved medicines
+      if (a.isDoctorCustom && !b.isDoctorCustom) return -1;
+      if (!a.isDoctorCustom && b.isDoctorCustom) return 1;
       // Prioritize clinic pad medicines
       if (a.isClinicPad && !b.isClinicPad) return -1;
       if (!a.isClinicPad && b.isClinicPad) return 1;
@@ -467,6 +545,9 @@ const DentalMedicineAutocomplete = ({
     const selection = typeof item === 'string' ? { name: item } : item;
     setQuery(selection.name);
     setIsOpen(false);
+    if (selection.name && selection.name.trim()) {
+      saveDoctorCustomMedicine(selection, doctorId);
+    }
     if (onSelect) {
       onSelect(selection);
     } else if (onChange) {
@@ -577,6 +658,13 @@ const DentalMedicineAutocomplete = ({
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-extrabold uppercase border ${getFormBadgeColor(item.form || item.type)}`}>
                           {item.form || item.type || 'Tab'}
                         </span>
+
+                        {/* Doctor Custom Tag */}
+                        {item.isDoctorCustom && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-0.5">
+                            <Star size={9} className="fill-amber-400 text-amber-400" /> My Medicine
+                          </span>
+                        )}
 
                         {/* Clinic Pad Tag */}
                         {isClinic && (
