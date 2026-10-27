@@ -41,7 +41,7 @@ const dentalQuotationSchema = new mongoose.Schema({
     index: true,
   },
   patientId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'Patient',
     required: true,
     index: true,

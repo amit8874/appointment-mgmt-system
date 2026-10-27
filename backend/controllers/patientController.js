@@ -90,9 +90,11 @@ export const getAllPatients = async (req, res) => {
 
     // Fetch billing data, dental treatment plans, and appointment data for this page of patients
     const patientIds = patients.map(p => p.patientId).filter(Boolean);
-    const patientObjectIds = patients.map(p => p._id.toString()).filter(Boolean);
+    const patientObjectIds = patients.map(p => p._id ? p._id.toString() : null).filter(Boolean);
     const allQueryIds = [...new Set([...patientIds, ...patientObjectIds])];
-    const validObjectIds = [...new Set([...patientObjectIds, ...patientIds])].filter(id => mongoose.Types.ObjectId.isValid(id) && String(id).length === 24);
+    const validObjectIds = patientObjectIds
+      .filter(id => mongoose.Types.ObjectId.isValid(id) && String(id).length === 24)
+      .map(id => new mongoose.Types.ObjectId(id));
 
     const [bills, treatments, appointments] = await Promise.all([
       Billing.find({ 

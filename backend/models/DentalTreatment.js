@@ -7,7 +7,7 @@ const dentalTreatmentSchema = new mongoose.Schema({
     required: true,
   },
   patientId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed, // Supports both MongoDB ObjectId and custom String patient ID
     ref: 'Patient',
     required: true,
   },
