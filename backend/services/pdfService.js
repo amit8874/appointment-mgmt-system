@@ -2097,6 +2097,7 @@ export const generatePrescriptionPDF = async (prescriptionData, patientData, org
 
 async function getPrescriptionHtml(prescriptionData, patientData, org, template, doctorDetails = {}) {
   let parsedData = null;
+  let parsedNotes = null;
   let rawContent = prescriptionData;
 
   if (typeof prescriptionData === 'object' && prescriptionData !== null) {
@@ -2112,6 +2113,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     } else if (typeof rawContent === 'object' && rawContent !== null) {
       parsedData = rawContent;
     }
+    parsedNotes = parsedData;
   } catch (e) {
     console.error('[PDF Service] Error parsing prescription content:', e.message);
   }
@@ -2177,15 +2179,15 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     : (org?.branding?.logo || org?.logo || null);
   const logoBase64 = logoPath ? await getBase64Image(logoPath) : null;
 
-  const docSigPath = docObj?.doctorSignature || doctorDetails?.doctorSignature || (template?.footerType === 'custom' ? template?.footerImage : null) || org?.doctorSignature;
+  const docSigPath = docObj?.doctorSignature || doctorDetails?.doctorSignature || prescriptionData?.doctorSignature || null;
   const signatureBase64 = docSigPath ? await getBase64Image(docSigPath) : null;
 
-  const docStampPath = docObj?.doctorStamp || doctorDetails?.doctorStamp;
+  const docStampPath = docObj?.doctorStamp || doctorDetails?.doctorStamp || prescriptionData?.doctorStamp || null;
   const stampBase64 = docStampPath ? await getBase64Image(docStampPath) : null;
 
   const footerBarcodePath = org?.prescriptionTemplate?.footerBarcode || org?.branding?.footerBarcode || org?.footerBarcode;
   const footerBarcodeBase64 = footerBarcodePath ? await getBase64Image(footerBarcodePath) : null;
-  const footerText = prescriptionData?.customFooterText || prescriptionData?.footerText || parsedNotes?.customFooterText || parsedNotes?.footerText || org?.prescriptionTemplate?.footerText || org?.branding?.footerText || org?.footerText || '';
+  const footerText = prescriptionData?.customFooterText || prescriptionData?.footerText || parsedData?.customFooterText || parsedData?.footerText || org?.prescriptionTemplate?.footerText || org?.branding?.footerText || org?.footerText || '';
 
   // Custom Watermark / Body Background
   let bodyBgStyle = '';
@@ -2775,10 +2777,6 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                 <div style="display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 200px;">
                   ${signatureBase64 ? `
                     <img src="${signatureBase64}" alt="Signature" style="height: 48px; object-fit: contain; margin-bottom: 4px;" />
-                  ` : doctorLastName ? `
-                    <div style="font-family: Georgia, serif; font-style: italic; font-size: 24px; color: #1e293b; font-weight: bold; transform: rotate(-3deg); margin-bottom: 4px;">
-                      ${doctorLastName}
-                    </div>
                   ` : ''}
                   
                   ${doctorFormattedName ? `
@@ -2794,13 +2792,6 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
 
                   ${stampBase64 ? `
                     <img src="${stampBase64}" alt="Doctor Stamp" style="height: 60px; object-fit: contain; margin-top: 4px;" />
-                  ` : doctorFormattedName ? `
-                    <div style="margin-top: 4px; border: 1px dashed #60a5fa; color: #1e40af; border-radius: 4px; padding: 6px; font-size: 9px; font-weight: bold; line-height: 1.25; text-transform: uppercase; background-color: rgba(239, 246, 255, 0.4);">
-                      <div>${doctorFormattedName.toUpperCase()}</div>
-                      ${doctorQual ? `<div style="font-size: 8px; font-weight: normal;">${doctorQual}</div>` : ''}
-                      ${clinicName ? `<div style="font-size: 8px; font-weight: normal;">${clinicName}</div>` : ''}
-                      ${doctorRegNo ? `<div style="font-size: 8px; font-weight: bold;">Reg. No: ${doctorRegNo}</div>` : ''}
-                    </div>
                   ` : ''}
                 </div>
               </div>

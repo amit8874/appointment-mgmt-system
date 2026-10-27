@@ -4,14 +4,9 @@ import Appointment from '../models/Appointment.js';
 import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import CancelledAppointment from '../models/CancelledAppointment.js';
-import DentalTreatment from '../models/DentalTreatment.js';
-import DentalImage from '../models/DentalImage.js';
-import MedicalRecord from '../models/MedicalRecord.js';
-import PatientClinicalNote from '../models/PatientClinicalNote.js';
-import PatientProgressImage from '../models/PatientProgressImage.js';
-import PatientProgressComparison from '../models/PatientProgressComparison.js';
-import FollowUpReminder from '../models/FollowUpReminder.js';
 import DentalLabCase from '../models/DentalLabCase.js';
+import DentalLabExpense from '../models/DentalLabExpense.js';
+import FollowUpReminder from '../models/FollowUpReminder.js';
 
 import { cleanPatientName } from './nameUtils.js';
 
@@ -19,24 +14,43 @@ import { cleanPatientName } from './nameUtils.js';
  * Synchronizes updated patient data to billing records and all appointment records.
  * @param {string} tenantId - The organization/tenant ID
  * @param {string} patientIdStr - The custom sequential patient ID (e.g. "000311")
- * @param {string} patientDbId - The MongoDB ObjectId of the patient
+ * @param {string|mongoose.Types.ObjectId} patientDbId - The MongoDB ObjectId of the patient
  * @param {object} updateFields - The fields that were updated
  */
 export const syncPatientDataToDependents = async (tenantId, patientIdStr, patientDbId, updateFields) => {
   try {
+    const promises = [];
     const billingUpdate = {};
     const appointmentUpdate = {};
 
-    // Sync Custom Patient ID
-    if (updateFields.patientId && String(updateFields.patientId).trim() !== String(patientIdStr).trim()) {
+    const queryIds = [patientIdStr, patientDbId?.toString()].filter(Boolean);
+    if (queryIds.length === 0) return;
+
+    const billingQuery = { organizationId: tenantId, patientId: { $in: queryIds } };
+    const appointmentQuery = { organizationId: tenantId, patientId: { $in: queryIds } };
+
+    // Sync Custom Patient ID across models that store string patientId
+    const isPatientIdChanged = updateFields.patientId && String(updateFields.patientId).trim() !== String(patientIdStr).trim();
+    if (isPatientIdChanged) {
       const newCustomId = String(updateFields.patientId).trim();
       billingUpdate.patientId = newCustomId;
       appointmentUpdate.patientId = newCustomId;
+
+      // DentalLabExpense also stores patientId as a string
+      if (DentalLabExpense) {
+        promises.push(
+          DentalLabExpense.updateMany(
+            { organizationId: tenantId, patientId: { $in: queryIds } },
+            { $set: { patientId: newCustomId } }
+          )
+        );
+      }
     }
 
     // Sync Patient Name
+    let cleanName = null;
     if (updateFields.fullName) {
-      const cleanName = cleanPatientName(updateFields.fullName);
+      cleanName = cleanPatientName(updateFields.fullName);
       billingUpdate.patientName = cleanName;
       appointmentUpdate.patientName = cleanName;
       
@@ -46,11 +60,43 @@ export const syncPatientDataToDependents = async (tenantId, patientIdStr, patien
     } else if (updateFields.firstName || updateFields.lastName) {
       const first = updateFields.firstName || '';
       const last = updateFields.lastName || '';
-      const constructedName = cleanPatientName(`${first} ${last}`);
-      billingUpdate.patientName = constructedName;
-      appointmentUpdate.patientName = constructedName;
+      cleanName = cleanPatientName(`${first} ${last}`);
+      billingUpdate.patientName = cleanName;
+      appointmentUpdate.patientName = cleanName;
       appointmentUpdate.firstName = first;
       appointmentUpdate.lastName = last;
+    }
+
+    if (cleanName) {
+      // Sync patient name to DentalLabExpense (stores string patientId)
+      if (DentalLabExpense) {
+        promises.push(
+          DentalLabExpense.updateMany(
+            { organizationId: tenantId, patientId: { $in: queryIds } },
+            { $set: { patientName: cleanName } }
+          )
+        );
+      }
+
+      // Sync patient name to DentalLabCase & FollowUpReminder using valid ObjectId
+      if (patientDbId && mongoose.Types.ObjectId.isValid(patientDbId)) {
+        if (DentalLabCase) {
+          promises.push(
+            DentalLabCase.updateMany(
+              { organizationId: tenantId, patientId: patientDbId },
+              { $set: { patientName: cleanName } }
+            )
+          );
+        }
+        if (FollowUpReminder) {
+          promises.push(
+            FollowUpReminder.updateMany(
+              { organizationId: tenantId, patientId: patientDbId },
+              { $set: { customPatientName: cleanName } }
+            )
+          );
+        }
+      }
     }
 
     // Sync Patient Phone
@@ -75,6 +121,19 @@ export const syncPatientDataToDependents = async (tenantId, patientIdStr, patien
     // Sync Patient Email
     if (updateFields.email) {
       appointmentUpdate.patientEmail = updateFields.email;
+    }
+
+    // Queue Billing updates
+    if (Object.keys(billingUpdate).length > 0) {
+      promises.push(Billing.updateMany(billingQuery, { $set: billingUpdate }));
+    }
+
+    // Queue Appointment updates
+    if (Object.keys(appointmentUpdate).length > 0) {
+      promises.push(Appointment.updateMany(appointmentQuery, { $set: appointmentUpdate }));
+      promises.push(PendingAppointment.updateMany(appointmentQuery, { $set: appointmentUpdate }));
+      promises.push(ConfirmedAppointment.updateMany(appointmentQuery, { $set: appointmentUpdate }));
+      promises.push(CancelledAppointment.updateMany(appointmentQuery, { $set: appointmentUpdate }));
     }
 
     // Sync Appointment Date & Time if updated
@@ -127,48 +186,9 @@ export const syncPatientDataToDependents = async (tenantId, patientIdStr, patien
       promises.push(syncAppointments());
     }
 
-    const queryIds = [patientIdStr, patientDbId?.toString()].filter(Boolean);
-    if (queryIds.length === 0) return;
-
-    const billingQuery = { organizationId: tenantId, patientId: { $in: queryIds } };
-    const appointmentQuery = { organizationId: tenantId, patientId: { $in: queryIds } };
-
-    const promises = [];
-
-    if (Object.keys(billingUpdate).length > 0) {
-      promises.push(Billing.updateMany(billingQuery, { $set: billingUpdate }));
-    }
-
-    if (Object.keys(appointmentUpdate).length > 0) {
-      promises.push(Appointment.updateMany(appointmentQuery, { $set: appointmentUpdate }));
-      promises.push(PendingAppointment.updateMany(appointmentQuery, { $set: appointmentUpdate }));
-      promises.push(ConfirmedAppointment.updateMany(appointmentQuery, { $set: appointmentUpdate }));
-      promises.push(CancelledAppointment.updateMany(appointmentQuery, { $set: appointmentUpdate }));
-    }
-
-    // If patientId itself was changed, update other clinical record collections too
-    if (updateFields.patientId && String(updateFields.patientId).trim() !== String(patientIdStr).trim()) {
-      const newCustomId = String(updateFields.patientId).trim();
-      const clinicalModels = [
-        DentalTreatment,
-        DentalImage,
-        MedicalRecord,
-        PatientClinicalNote,
-        PatientProgressImage,
-        PatientProgressComparison,
-        FollowUpReminder,
-        DentalLabCase
-      ];
-      for (const model of clinicalModels) {
-        if (model) {
-          promises.push(model.updateMany({ organizationId: tenantId, patientId: { $in: queryIds } }, { $set: { patientId: newCustomId } }));
-        }
-      }
-    }
-
     if (promises.length > 0) {
       await Promise.all(promises);
-      console.log(`[SYNC SUCCESS] Propagated patient profile updates (patientId: ${patientIdStr} -> ${updateFields.patientId || patientIdStr}, _id: ${patientDbId}) to dependent Billing, Appointments & Clinical records.`);
+      console.log(`[SYNC SUCCESS] Propagated patient profile updates (patientId: ${patientIdStr} -> ${updateFields.patientId || patientIdStr}, _id: ${patientDbId}) to dependent Billing, Appointments & records.`);
     }
   } catch (error) {
     console.error('[SYNC ERROR] Failed to sync patient data to dependents:', error);

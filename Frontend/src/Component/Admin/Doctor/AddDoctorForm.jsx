@@ -475,15 +475,49 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                                                             ) : formData.photo ? (
                                                                 <img src={formData.photo} alt="Doc" className="w-full h-full object-cover" />
                                                             ) : (
-                                                                <div className="text-center p-2">
+                                                                <div className="text-center p-2 pointer-events-none">
                                                                     <ImageIcon size={18} className="text-slate-300 mx-auto mb-1" />
                                                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Upload Photo</span>
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <input type="file" onChange={(e) => handleFileUpload(e, 'photo')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                        {formData.photo ? (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        setFormData(prev => ({ ...prev, photo: '' }));
+                                                                    }}
+                                                                    className="absolute -top-1.5 -right-1.5 z-20 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-all active:scale-95 cursor-pointer"
+                                                                    title="Remove Photo"
+                                                                >
+                                                                    <X size={11} />
+                                                                </button>
+                                                                <label className="absolute inset-0 opacity-0 cursor-pointer" title="Change Photo">
+                                                                    <input type="file" onChange={(e) => handleFileUpload(e, 'photo')} className="hidden" accept="image/*" disabled={uploading} />
+                                                                </label>
+                                                            </>
+                                                        ) : (
+                                                            <input type="file" onChange={(e) => handleFileUpload(e, 'photo')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                        )}
                                                         {uploadError.photo && <p className="absolute top-full left-0 w-32 text-[9px] text-red-500 font-bold mt-1 leading-tight">{uploadError.photo}</p>}
                                                     </div>
+                                                    {formData.photo && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                setFormData(prev => ({ ...prev, photo: '' }));
+                                                            }}
+                                                            className="mt-1 text-[10px] text-rose-500 hover:text-rose-600 font-bold flex items-center gap-0.5 cursor-pointer"
+                                                        >
+                                                            <Trash2 size={10} />
+                                                            Remove
+                                                        </button>
+                                                    )}
                                                 </div>
 
                                                 {/* Doctor Stamp */}
@@ -501,15 +535,49 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                                                                     <img src={getImageUrl(formData.doctorStamp)} alt="Stamp" className="w-full h-full object-contain" />
                                                                 </div>
                                                             ) : (
-                                                                <div className="text-center p-2">
+                                                                <div className="text-center p-2 pointer-events-none">
                                                                     <Upload size={18} className="text-indigo-400 mx-auto mb-1" />
                                                                     <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-tighter">Upload Stamp</span>
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <input type="file" onChange={(e) => handleFileUpload(e, 'doctorStamp')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                        {formData.doctorStamp ? (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        setFormData(prev => ({ ...prev, doctorStamp: '' }));
+                                                                    }}
+                                                                    className="absolute -top-1.5 -right-1.5 z-20 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-all active:scale-95 cursor-pointer"
+                                                                    title="Remove Stamp"
+                                                                >
+                                                                    <X size={11} />
+                                                                </button>
+                                                                <label className="absolute inset-0 opacity-0 cursor-pointer" title="Change Stamp">
+                                                                    <input type="file" onChange={(e) => handleFileUpload(e, 'doctorStamp')} className="hidden" accept="image/*" disabled={uploading} />
+                                                                </label>
+                                                            </>
+                                                        ) : (
+                                                            <input type="file" onChange={(e) => handleFileUpload(e, 'doctorStamp')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                        )}
                                                         {uploadError.doctorStamp && <p className="absolute top-full left-0 w-32 text-[9px] text-red-500 font-bold mt-1 leading-tight">{uploadError.doctorStamp}</p>}
                                                     </div>
+                                                    {formData.doctorStamp && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                setFormData(prev => ({ ...prev, doctorStamp: '' }));
+                                                            }}
+                                                            className="mt-1 text-[10px] text-rose-500 hover:text-rose-600 font-bold flex items-center gap-0.5 cursor-pointer"
+                                                        >
+                                                            <Trash2 size={10} />
+                                                            Remove
+                                                        </button>
+                                                    )}
                                                 </div>
 
                                                 {/* Doctor Signature */}
@@ -527,15 +595,49 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                                                                     <img src={getImageUrl(formData.doctorSignature)} alt="Signature" className="w-full h-full object-contain" />
                                                                 </div>
                                                             ) : (
-                                                                <div className="text-center p-2">
+                                                                <div className="text-center p-2 pointer-events-none">
                                                                     <Upload size={18} className="text-slate-300 mx-auto mb-1" />
                                                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Upload Signature</span>
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <input type="file" onChange={(e) => handleFileUpload(e, 'doctorSignature')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                        {formData.doctorSignature ? (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        setFormData(prev => ({ ...prev, doctorSignature: '' }));
+                                                                    }}
+                                                                    className="absolute -top-1.5 -right-1.5 z-20 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-all active:scale-95 cursor-pointer"
+                                                                    title="Remove Signature"
+                                                                >
+                                                                    <X size={11} />
+                                                                </button>
+                                                                <label className="absolute inset-0 opacity-0 cursor-pointer" title="Change Signature">
+                                                                    <input type="file" onChange={(e) => handleFileUpload(e, 'doctorSignature')} className="hidden" accept="image/*" disabled={uploading} />
+                                                                </label>
+                                                            </>
+                                                        ) : (
+                                                            <input type="file" onChange={(e) => handleFileUpload(e, 'doctorSignature')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={uploading} />
+                                                        )}
                                                         {uploadError.doctorSignature && <p className="absolute top-full left-0 w-32 text-[9px] text-red-500 font-bold mt-1 leading-tight">{uploadError.doctorSignature}</p>}
                                                     </div>
+                                                    {formData.doctorSignature && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                setFormData(prev => ({ ...prev, doctorSignature: '' }));
+                                                            }}
+                                                            className="mt-1 text-[10px] text-rose-500 hover:text-rose-600 font-bold flex items-center gap-0.5 cursor-pointer"
+                                                        >
+                                                            <Trash2 size={10} />
+                                                            Remove
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
 

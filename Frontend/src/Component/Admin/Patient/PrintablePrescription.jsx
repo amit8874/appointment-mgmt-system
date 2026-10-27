@@ -705,13 +705,10 @@ const PrintablePrescription = ({
             {/* Doctor Signature & Stamp Area (Bottom Right) */}
             <div className="flex justify-end mb-2">
               <div className="flex flex-col items-center text-center min-w-[200px]">
-                {doctorSignatureUrl ? (
+                {/* Doctor Signature (ONLY if uploaded) */}
+                {doctorSignatureUrl && (
                   <img src={doctorSignatureUrl} alt="Signature" className="h-12 object-contain mb-1" />
-                ) : doctorLastName ? (
-                  <div className="font-serif italic text-2xl text-slate-800 font-bold -rotate-3 select-none mb-1">
-                    {doctorLastName}
-                  </div>
-                ) : null}
+                )}
                 
                 {doctorFormattedName && (
                   <div className="text-xs font-bold text-slate-900">
@@ -724,16 +721,10 @@ const PrintablePrescription = ({
                   </div>
                 )}
 
-                {doctorStampUrl ? (
+                {/* Doctor Stamp (ONLY if uploaded) */}
+                {doctorStampUrl && (
                   <img src={doctorStampUrl} alt="Doctor Stamp" className="h-16 object-contain mt-1" />
-                ) : doctorFormattedName ? (
-                  <div className="mt-1 border border-dashed border-blue-400 text-blue-800 rounded p-1.5 text-[9px] font-bold leading-tight uppercase bg-blue-50/40">
-                    <div>{doctorFormattedName.toUpperCase()}</div>
-                    {doctorQual && <div className="text-[8px] font-normal">{doctorQual}</div>}
-                    {clinicName && <div className="text-[8px] font-normal">{clinicName}</div>}
-                    {doctorRegNo && <div className="text-[8px] font-bold">Reg. No: {doctorRegNo}</div>}
-                  </div>
-                ) : null}
+                )}
               </div>
             </div>
 

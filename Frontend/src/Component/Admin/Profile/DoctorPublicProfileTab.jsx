@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Stethoscope, Award, GraduationCap, Briefcase, IndianRupee, FileText, Image as ImageIcon, Trash2, Plus, Loader2, AlertCircle, Info } from 'lucide-react';
+import { Stethoscope, Award, GraduationCap, Briefcase, IndianRupee, FileText, Image as ImageIcon, Trash2, Plus, Loader2, AlertCircle, Info, X } from 'lucide-react';
 import { commonApi } from '../../../services/api';
 
 const getImageUrl = (path) => {
@@ -252,8 +252,13 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Doctor Stamp Upload */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Doctor Stamp</label>
-                <div className="relative group rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50/80 p-4 flex flex-col items-center justify-center min-h-[120px] transition-all">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Doctor Stamp</label>
+                  {formData.doctorStamp && (
+                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Uploaded</span>
+                  )}
+                </div>
+                <div className="relative group rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50/80 p-4 flex flex-col items-center justify-center min-h-[140px] transition-all">
                   {stampUploading ? (
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="animate-spin text-indigo-600" size={20} />
@@ -261,32 +266,74 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
                     </div>
                   ) : formData.doctorStamp ? (
                     <div className="relative w-full flex flex-col items-center">
-                      <div className="bg-white p-2 rounded-xl border border-slate-100 shadow-sm flex items-center justify-center">
+                      <div className="relative bg-white p-2.5 rounded-xl border border-indigo-100 shadow-sm flex items-center justify-center min-h-[85px] w-full max-w-[220px]">
                         <img src={getImageUrl(formData.doctorStamp)} alt="Doctor Stamp" className="max-h-24 max-w-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setFormData(p => ({ ...p, doctorStamp: '' }));
+                          }}
+                          className="absolute -top-2 -right-2 z-20 w-6 h-6 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-all active:scale-95 cursor-pointer"
+                          title="Remove Stamp"
+                        >
+                          <X size={13} />
+                        </button>
                       </div>
-                      <button 
-                        type="button" 
-                        onClick={() => setFormData(p => ({ ...p, doctorStamp: '' }))}
-                        className="mt-2 text-xs text-rose-600 font-bold hover:underline"
-                      >
-                        Remove Stamp
-                      </button>
+                      <div className="mt-3 flex items-center gap-2">
+                        <label className="cursor-pointer px-3 py-1.5 bg-white hover:bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-bold transition-all shadow-sm">
+                          Change Stamp
+                          <input
+                            type="file"
+                            onChange={(e) => handleStampUpload(e, 'doctorStamp')}
+                            className="hidden"
+                            accept="image/*"
+                            disabled={stampUploading}
+                          />
+                        </label>
+                        <button 
+                          type="button" 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setFormData(p => ({ ...p, doctorStamp: '' }));
+                          }}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                        >
+                          <Trash2 size={12} />
+                          Remove Stamp
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <div className="text-center">
-                      <FileText size={24} className="text-indigo-400 mx-auto mb-1" />
-                      <span className="text-xs font-bold text-indigo-600 block">Click to Upload Stamp</span>
-                      <span className="text-[10px] text-slate-400">PNG / JPG up to 2MB</span>
-                    </div>
+                    <>
+                      <div className="text-center pointer-events-none">
+                        <FileText size={24} className="text-indigo-400 mx-auto mb-1" />
+                        <span className="text-xs font-bold text-indigo-600 block">Click to Upload Stamp</span>
+                        <span className="text-[10px] text-slate-400">PNG / JPG up to 2MB</span>
+                      </div>
+                      <input 
+                        type="file" 
+                        onChange={(e) => handleStampUpload(e, 'doctorStamp')} 
+                        className="absolute inset-0 opacity-0 cursor-pointer" 
+                        accept="image/*" 
+                        disabled={stampUploading} 
+                      />
+                    </>
                   )}
-                  <input type="file" onChange={(e) => handleStampUpload(e, 'doctorStamp')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={stampUploading} />
                 </div>
               </div>
 
               {/* Doctor Signature Upload */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Doctor Signature</label>
-                <div className="relative group rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 p-4 flex flex-col items-center justify-center min-h-[120px] transition-all">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Doctor Signature</label>
+                  {formData.doctorSignature && (
+                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Uploaded</span>
+                  )}
+                </div>
+                <div className="relative group rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 p-4 flex flex-col items-center justify-center min-h-[140px] transition-all">
                   {stampUploading ? (
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="animate-spin text-indigo-600" size={20} />
@@ -294,25 +341,62 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
                     </div>
                   ) : formData.doctorSignature ? (
                     <div className="relative w-full flex flex-col items-center">
-                      <div className="bg-white p-2 rounded-xl border border-slate-100 shadow-sm flex items-center justify-center">
+                      <div className="relative bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center min-h-[85px] w-full max-w-[220px]">
                         <img src={getImageUrl(formData.doctorSignature)} alt="Doctor Signature" className="max-h-24 max-w-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setFormData(p => ({ ...p, doctorSignature: '' }));
+                          }}
+                          className="absolute -top-2 -right-2 z-20 w-6 h-6 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-md transition-all active:scale-95 cursor-pointer"
+                          title="Remove Signature"
+                        >
+                          <X size={13} />
+                        </button>
                       </div>
-                      <button 
-                        type="button" 
-                        onClick={() => setFormData(p => ({ ...p, doctorSignature: '' }))}
-                        className="mt-2 text-xs text-rose-600 font-bold hover:underline"
-                      >
-                        Remove Signature
-                      </button>
+                      <div className="mt-3 flex items-center gap-2">
+                        <label className="cursor-pointer px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-all shadow-sm">
+                          Change Signature
+                          <input
+                            type="file"
+                            onChange={(e) => handleStampUpload(e, 'doctorSignature')}
+                            className="hidden"
+                            accept="image/*"
+                            disabled={stampUploading}
+                          />
+                        </label>
+                        <button 
+                          type="button" 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setFormData(p => ({ ...p, doctorSignature: '' }));
+                          }}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                        >
+                          <Trash2 size={12} />
+                          Remove Signature
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <div className="text-center">
-                      <FileText size={24} className="text-slate-300 mx-auto mb-1" />
-                      <span className="text-xs font-bold text-slate-600 block">Click to Upload Signature</span>
-                      <span className="text-[10px] text-slate-400">PNG / JPG up to 2MB</span>
-                    </div>
+                    <>
+                      <div className="text-center pointer-events-none">
+                        <FileText size={24} className="text-slate-300 mx-auto mb-1" />
+                        <span className="text-xs font-bold text-slate-600 block">Click to Upload Signature</span>
+                        <span className="text-[10px] text-slate-400">PNG / JPG up to 2MB</span>
+                      </div>
+                      <input 
+                        type="file" 
+                        onChange={(e) => handleStampUpload(e, 'doctorSignature')} 
+                        className="absolute inset-0 opacity-0 cursor-pointer" 
+                        accept="image/*" 
+                        disabled={stampUploading} 
+                      />
+                    </>
                   )}
-                  <input type="file" onChange={(e) => handleStampUpload(e, 'doctorSignature')} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" disabled={stampUploading} />
                 </div>
               </div>
             </div>
@@ -374,6 +458,19 @@ const DoctorPublicProfileTab = ({ doctor, onUpdate, loading }) => {
                 </label>
               )}
             </div>
+          </div>
+
+          {/* Bottom Save Bar */}
+          <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button 
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading || uploading || stampUploading}
+              className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
+            >
+              {loading && <Loader2 size={16} className="animate-spin" />}
+              {loading ? 'Saving Changes...' : 'Save Changes'}
+            </button>
           </div>
         </div>
       </div>
