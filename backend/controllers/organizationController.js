@@ -493,10 +493,13 @@ export const getOrganization = async (req, res) => {
         return res.status(404).json({ message: 'Organization not found' });
       }
 
+      let hasOrgUrlUpdates = false;
+
       if (organization.prescriptionTemplate && organization.prescriptionTemplate.templateUrl) {
-        const freshUrl = await resolveS3UrlIfNeeded(organization.prescriptionTemplate.templateUrl);
+        const freshUrl = await resolveS3UrlIfNeeded(organization.prescriptionTemplate.templateUrl, 604800);
         if (freshUrl && freshUrl !== organization.prescriptionTemplate.templateUrl) {
           organization.prescriptionTemplate.templateUrl = freshUrl;
+          hasOrgUrlUpdates = true;
 
           // For backwards compatibility
           if (!organization.prescriptionTemplate.templatePublicId) {
@@ -511,12 +514,36 @@ export const getOrganization = async (req, res) => {
               }
             } catch (e) {}
           }
-
-          await Organization.updateOne(
-            { _id: organization._id },
-            { $set: { prescriptionTemplate: organization.prescriptionTemplate } }
-          );
         }
+      }
+
+      if (organization.prescriptionTemplate && organization.prescriptionTemplate.footerBarcode) {
+        const freshBarcode = await resolveS3UrlIfNeeded(organization.prescriptionTemplate.footerBarcode, 604800);
+        if (freshBarcode && freshBarcode !== organization.prescriptionTemplate.footerBarcode) {
+          organization.prescriptionTemplate.footerBarcode = freshBarcode;
+          organization.footerBarcode = freshBarcode;
+          hasOrgUrlUpdates = true;
+        }
+      } else if (organization.footerBarcode) {
+        const freshBarcode = await resolveS3UrlIfNeeded(organization.footerBarcode, 604800);
+        if (freshBarcode && freshBarcode !== organization.footerBarcode) {
+          organization.footerBarcode = freshBarcode;
+          if (!organization.prescriptionTemplate) organization.prescriptionTemplate = {};
+          organization.prescriptionTemplate.footerBarcode = freshBarcode;
+          hasOrgUrlUpdates = true;
+        }
+      }
+
+      if (hasOrgUrlUpdates) {
+        await Organization.updateOne(
+          { _id: organization._id },
+          { 
+            $set: { 
+              prescriptionTemplate: organization.prescriptionTemplate,
+              footerBarcode: organization.prescriptionTemplate?.footerBarcode || organization.footerBarcode || ''
+            } 
+          }
+        );
       }
 
       const resolvedOrg = await resolveOrganizationUrls(organization);

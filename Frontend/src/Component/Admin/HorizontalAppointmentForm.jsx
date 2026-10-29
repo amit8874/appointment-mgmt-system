@@ -398,6 +398,31 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       extraUpdates = { patientId: generatedPatientIdRef.current };
     }
 
+    // Gender changes should automatically synchronize the salutation/designation
+    if (name === 'gender') {
+      const g = (value || '').toLowerCase();
+      const currentDes = (formData.designation || '').toUpperCase().replace(/\./g, '');
+      if (g === 'female' && (currentDes === 'MR' || currentDes === 'SHRI')) {
+        extraUpdates.designation = 'MS.';
+      } else if (g === 'male' && ['MS', 'MRS', 'MISS', 'SMT'].includes(currentDes)) {
+        extraUpdates.designation = 'MR.';
+      }
+    }
+
+    // Full name typing with salutation/prefix should automatically select appropriate designation and gender
+    if (name === 'fullName' && value) {
+      const firstWord = value.trim().split(/\s+/)[0]?.toUpperCase()?.replace(/\./g, '');
+      if (['MISS', 'MRS', 'MS', 'SMT'].includes(firstWord)) {
+        extraUpdates.designation = firstWord === 'MISS' ? 'MISS' : `${firstWord}.`;
+        extraUpdates.gender = 'Female';
+      } else if (['MR', 'SHRI'].includes(firstWord)) {
+        extraUpdates.designation = `${firstWord}.`;
+        extraUpdates.gender = 'Male';
+      } else if (['DR', 'PROF'].includes(firstWord)) {
+        extraUpdates.designation = `${firstWord}.`;
+      }
+    }
+
     setFormData(prev => ({ 
       ...prev, 
       [name]: value,

@@ -225,7 +225,9 @@ async function getQuotationHtml(quotation, org, doctorDetails = null) {
   const formatDate = (d) => {
     if (!d) return 'N/A';
     try {
-      return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return 'N/A';
+      return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
     } catch (e) {
       return 'N/A';
     }
@@ -2154,7 +2156,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
 
   const doctorRegionalTitle = docObj?.regionalSpecialization || '';
   const visitingConsultantText = docObj?.visitingConsultant || '';
-  const bannerText = doctorSpecialization ? `CONSULTANT ${doctorSpecialization.toUpperCase()}` : '';
+  const bannerText = 'PRESCRIPTION';
 
   // Organization & Clinic Details - REAL DATA ONLY
   const clinicName = org?.branding?.clinicName || org?.clinicName || org?.name || '';
@@ -2201,22 +2203,46 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   // Patient Info Formatting
   const patientDisplayFullName = (() => {
     let raw = patientData?.fullName || patientData?.name || `${patientData?.firstName || ''} ${patientData?.lastName || ''}`.trim() || parsedData?.patientName || 'Patient';
-    const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
-    let parts = raw.split(/\s+/);
-    while (parts.length > 1) {
-      const p0 = parts[0].toUpperCase().replace(/\./g, '');
-      const p1 = parts[1].toUpperCase().replace(/\./g, '');
-      if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
-        parts.shift();
+    const prefixRegex = /^(MR|MRS|MS|MISS|DR|PROF|SHRI|SMT|BABY|MASTER)\.?$/i;
+    let parts = raw.split(/\s+/).filter(Boolean);
+    
+    let embeddedPrefix = '';
+    while (parts.length > 0 && prefixRegex.test(parts[0])) {
+      if (!embeddedPrefix) {
+        embeddedPrefix = parts[0].replace(/\./g, '').toUpperCase();
+      }
+      parts.shift();
+    }
+    
+    const cleanName = parts.length > 0 ? parts.join(' ') : raw;
+    let des = (patientData?.designation || '').trim().replace(/\./g, '').toUpperCase();
+    const gender = (patientData?.gender || '').toLowerCase();
+    
+    if (!des) {
+      des = embeddedPrefix;
+    } else if (gender === 'female' && (des === 'MR' || des === 'SHRI')) {
+      if (['MISS', 'MRS', 'MS', 'SMT'].includes(embeddedPrefix)) {
+        des = embeddedPrefix;
       } else {
-        break;
+        des = 'MS';
       }
     }
-    const clean = parts.join(' ').trim();
-    const gender = (patientData?.gender || '').toLowerCase();
-    const prefix = gender === 'female' ? 'Mrs.' : 'Mr.';
-    const hasExistingPrefix = prefixes.some(p => clean.toUpperCase().startsWith(p));
-    return hasExistingPrefix ? clean : `${prefix} ${clean}`;
+    
+    const titleMap = {
+      'MR': 'Mr.',
+      'MRS': 'Mrs.',
+      'MS': 'Ms.',
+      'MISS': 'Miss',
+      'DR': 'Dr.',
+      'PROF': 'Prof.',
+      'SHRI': 'Shri',
+      'SMT': 'Smt.',
+      'BABY': 'Baby',
+      'MASTER': 'Master'
+    };
+    
+    const formattedPrefix = des ? (titleMap[des] || des) : '';
+    return formattedPrefix ? `${formattedPrefix} ${cleanName}` : cleanName;
   })();
 
   // Real Patient ID without artificial OPD prefix or mock fallbacks
@@ -2225,7 +2251,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   const patientMobile = patientData?.mobile || patientData?.phone || patientData?.contactNumber || patientData?.patientPhone || prescriptionData?.patientPhone || '';
   
   const consultationDateStr = (() => {
-    const rawDate = prescriptionData?.date || prescriptionData?.consultationDate || prescriptionData?.createdAt || new Date();
+    const rawDate = prescriptionData?.date || parsedData?.examinationDate || prescriptionData?.consultationDate || prescriptionData?.createdAt || new Date();
     try {
       const d = new Date(rawDate);
       if (isNaN(d.getTime())) return new Date().toLocaleDateString('en-GB');
@@ -2243,6 +2269,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
 
   // 2. Medical & Dental History
   const medicalHistoryText = parsedData?.medicalDentalHistory || parsedData?.medicalHistory || '';
+  const kcoMedicationText = parsedData?.kcoMedication || parsedData?.kco || '';
 
   // 3. Oral Examination Findings
   const activeOralExamItems = (() => {
@@ -2377,9 +2404,12 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     if (!nv) return '';
     try {
       const d = new Date(nv);
-      const dStr = !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : String(nv);
+      if (isNaN(d.getTime())) return String(nv);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
       const notes = parsedData?.nextAppointmentNotes ? ` (${parsedData.nextAppointmentNotes})` : '';
-      return `${dStr}${notes}`;
+      return `${dd}/${mm}/${yyyy}${notes}`;
     } catch (e) {
       return String(nv);
     }
@@ -2575,10 +2605,10 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                 <!-- Left Column: Clinic Details -->
                 <div style="display: flex; align-items: flex-start; gap: 14px; flex: 1; max-width: 55%;">
                   ${logoBase64 ? `
-                    <img src="${logoBase64}" alt="Clinic Logo" style="width: 64px; height: 64px; object-fit: contain; border-radius: 50%; border: 1px solid #e2e8f0; padding: 2px; background-color: #ffffff; flex-shrink: 0;" />
+                    <img src="${logoBase64}" alt="Clinic Logo" style="width: 96px; height: 96px; max-width: 100px; max-height: 100px; object-fit: contain; border-radius: 50%; border: 1px solid #e2e8f0; padding: 2px; background-color: #ffffff; flex-shrink: 0;" />
                   ` : `
-                    <div style="width: 64px; height: 64px; border-radius: 50%; border: 4px solid rgba(99, 102, 241, 0.4); display: flex; align-items: center; justify-content: center; background: #eef2ff; flex-shrink: 0;">
-                      <span style="font-weight: 900; color: #312e81; font-size: 20px;">${clinicName ? clinicName.charAt(0) : 'C'}</span>
+                    <div style="width: 96px; height: 96px; border-radius: 50%; border: 4px solid rgba(99, 102, 241, 0.4); display: flex; align-items: center; justify-content: center; background: #eef2ff; flex-shrink: 0;">
+                      <span style="font-weight: 900; color: #312e81; font-size: 28px;">${clinicName ? clinicName.charAt(0) : 'C'}</span>
                     </div>
                   `}
                   <div style="display: flex; flex-direction: column; text-align: left;">
@@ -2587,7 +2617,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                       ${clinicAddress ? `<div>${clinicAddress}</div>` : ''}
                       ${clinicWebsite ? `<div>Website: <span style="font-weight: bold; color: #1e293b;">${clinicWebsite}</span></div>` : ''}
                       ${clinicEmail ? `<div>${clinicEmail}</div>` : ''}
-                      ${clinicContact ? `<div style="font-weight: bold; color: #dc2626;">Contact: ${clinicContact}</div>` : ''}
+                      ${clinicContact ? `<div style="font-weight: bold; color: #dc2626;">Contact NO.: ${clinicContact}</div>` : ''}
                     </div>
                   </div>
                 </div>
@@ -2599,6 +2629,9 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                   ` : ''}
                   ${doctorQual ? `
                     <div style="font-size: 12px; font-weight: bold; color: #dc2626; margin-top: 2px;">${doctorQual}</div>
+                  ` : ''}
+                  ${doctorSpecialization && (!doctorQual || !doctorQual.toLowerCase().includes(doctorSpecialization.toLowerCase())) ? `
+                    <div style="font-size: 11px; font-weight: 600; color: #334155; margin-top: 2px;">${doctorSpecialization}</div>
                   ` : ''}
                   ${doctorSubCreds.length > 0 ? `
                     <div style="font-size: 10px; color: #475569; margin-top: 4px; line-height: 1.3; font-weight: 500;">
@@ -2634,7 +2667,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                     <td style="padding: 3px 0; width: 34%;"><span style="font-weight: 700; color: #334155;">Age/Gender: </span><span style="font-weight: 600; color: #0f172a;">${patientDisplayAgeGender}</span></td>
                   </tr>
                   <tr>
-                    <td style="padding: 4px 0 2px 0;"><span style="font-weight: 700; color: #334155;">M No: </span><span style="font-weight: 600; color: #0f172a;">${patientMobile || '--'}</span></td>
+                    <td style="padding: 4px 0 2px 0;"><span style="font-weight: 700; color: #334155;">Mobile No.: </span><span style="font-weight: 600; color: #0f172a;">${patientMobile || '--'}</span></td>
                     <td style="padding: 4px 0 2px 0;"><span style="font-weight: 700; color: #334155;">Consultation Dt: </span><span style="font-weight: 600; color: #0f172a;">${consultationDateStr}</span></td>
                     <td style="padding: 4px 0 2px 0;"></td>
                   </tr>
@@ -2668,6 +2701,13 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                   <div style="margin-bottom: 3px;">
                     <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Med History:</span>
                     <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${medicalHistoryText}</span>
+                  </div>
+                ` : ''}
+
+                ${kcoMedicationText ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">K/C/O - Medication:</span>
+                    <span style="font-weight: 600; color: #1e293b; margin-left: 4px;">${kcoMedicationText}</span>
                   </div>
                 ` : ''}
 
@@ -2799,9 +2839,9 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
               <!-- Footer Bar (Barcode on Left ONLY if uploaded + Custom Footer Text) -->
               <div style="padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box;">
                 <!-- Barcode on Left: ONLY if uploaded by admin -->
-                <div style="width: 80px; height: 80px; display: flex; align-items: center; justify-content: flex-start; flex-shrink: 0;">
+                <div style="width: 110px; height: 110px; display: flex; align-items: center; justify-content: flex-start; flex-shrink: 0;">
                   ${footerBarcodeBase64 ? `
-                    <img src="${footerBarcodeBase64}" alt="Prescription Barcode" style="width: 76px; height: 76px; object-fit: contain; border: 1px solid #e2e8f0; padding: 4px; border-radius: 4px; background-color: #ffffff;" />
+                    <img src="${footerBarcodeBase64}" alt="Prescription Barcode" style="width: 105px; height: 105px; object-fit: contain; border: 1px solid #e2e8f0; padding: 4px; border-radius: 4px; background-color: #ffffff;" />
                   ` : ''}
                 </div>
 
@@ -2815,7 +2855,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                 </div>
 
                 <!-- Right Spacer for balance -->
-                <div style="width: 80px; flex-shrink: 0;"></div>
+                <div style="width: 110px; flex-shrink: 0;"></div>
               </div>
             </div>
           `}

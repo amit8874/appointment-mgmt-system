@@ -68,7 +68,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { getToothLabel } from './dentalUtils';
 import { format } from 'date-fns';
-import { calculateInvoiceTotals } from '../../../utils/billingCalculations';
+import { calculateInvoiceTotals, formatDateDMY } from '../../../utils/billingCalculations';
 import { normalizePharmacyInvoice } from '../../../utils/pharmacyInvoiceCalculator';
 import PrescriptionModal from './PrescriptionModal';
 import DentalPrescriptionModal from './DentalPrescriptionModal';
@@ -344,16 +344,14 @@ const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user, onNa
         </div>
         <div className="space-y-4 mb-8">
           <InfoItem label="Full Name" value={data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim()} />
-          <InfoItem label="Date of Birth" value={data.dateOfBirth ? new Date(data.dateOfBirth).toLocaleDateString() : 'N/A'} />
+          <InfoItem label="Date of Birth" value={data.dateOfBirth ? formatDateDMY(data.dateOfBirth) : 'N/A'} />
           <InfoItem label="Gender" value={data.gender} />
           <InfoItem label="Blood Group" value={data.bloodGroup} />
           <InfoItem label="Age" value={data.age ? `${data.age} ${data.ageType || 'Year'}` : 'N/A'} />
           <InfoItem label="Appointment Date" value={(() => {
             const d = data.appointmentDate || data.lastVisit || (appointments && appointments[0]?.date);
             if (!d) return 'N/A';
-            try {
-              return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            } catch(e) { return d; }
+            return formatDateDMY(d);
           })()} />
         </div>
 
@@ -1281,7 +1279,7 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
                     <Pill size={18} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-slate-800 tracking-tight">{new Date(p.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                    <p className="text-sm font-bold text-slate-800 tracking-tight">{formatDateDMY(p.date)}</p>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                       {p.doctorName?.toLowerCase().startsWith('dr') ? '' : 'Dr. '}{p.doctorName}
                     </p>
@@ -1690,7 +1688,7 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
             </div>
             <div className="space-y-1 text-right">
               <p className="text-[10px] font-black text-black uppercase tracking-widest">Invoice Date</p>
-              <p className="text-lg font-black text-black">{new Date(bill.date || bill.createdAt).toLocaleDateString()}</p>
+              <p className="text-lg font-black text-black">{formatDateDMY(bill.date || bill.billDate || bill.createdAt)}</p>
               <div className="flex justify-end mt-2">
                 <span className={`px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full border border-black ${
                   bill.status === 'Paid' ? 'bg-emerald-100 text-emerald-900 border-emerald-400' : 'bg-rose-100 text-rose-900 border-rose-400'
@@ -1749,7 +1747,7 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                   <tbody className="divide-y divide-black text-black">
                     {paymentHistory.map((inst, index) => (
                       <tr key={index} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-2 font-bold border-r border-slate-200">{new Date(inst.date).toLocaleDateString('en-GB')}</td>
+                        <td className="p-2 font-bold border-r border-slate-200">{formatDateDMY(inst.date)}</td>
                         <td className="p-2 border-r border-slate-200">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase border ${
                             inst.paymentMethod === 'Cash' ? 'bg-orange-100 text-orange-900 border-orange-300' :
@@ -1948,90 +1946,318 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
 };
 
 const BillEditModal = ({ bill, onClose, onSave }) => {
-  const [formData, setFormData] = useState({
-    _id: bill?._id,
-    billId: bill?.billId,
-    status: bill?.status || 'Pending',
-    paymentMethod: bill?.paymentMethod || 'Cash',
-    amount: bill?.amount || 0,
-    paidAmount: bill?.paidAmount || 0,
-    dueAmount: bill?.dueAmount || 0,
-    notes: bill?.notes || '',
-    items: bill?.items || [],
-    discount: bill?.discount || 0
+  const formatToYMD = (d) => {
+    if (!d) return new Date().toISOString().split('T')[0];
+    try {
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return new Date().toISOString().split('T')[0];
+      return dt.toISOString().split('T')[0];
+    } catch {
+      return new Date().toISOString().split('T')[0];
+    }
+  };
+
+  const [formData, setFormData] = useState(() => {
+    const rawItems = bill?.items && bill.items.length > 0 ? bill.items : [];
+    const initialItems = rawItems.length > 0
+      ? rawItems.map(it => ({
+          _id: it._id,
+          productId: it.productId,
+          description: it.description || it.procedureName || '',
+          toothNumber: it.toothNumber || '',
+          qty: it.qty ?? it.quantity ?? 1,
+          price: it.price ?? it.unitPrice ?? 0,
+          discount: it.discount ?? it.discountAmount ?? 0,
+          subtotal: it.subtotal ?? it.total ?? ((it.qty || 1) * (it.price || it.unitPrice || 0) - (it.discount || 0))
+        }))
+      : [{
+          description: 'Consultation / Dental Treatment',
+          toothNumber: '',
+          qty: 1,
+          price: bill?.amount || 0,
+          discount: bill?.discount || 0,
+          subtotal: bill?.amount || 0
+        }];
+
+    return {
+      _id: bill?._id,
+      billId: bill?.billId,
+      date: formatToYMD(bill?.date || bill?.billDate || bill?.createdAt),
+      status: bill?.status || 'Pending',
+      paymentMethod: bill?.paymentMethod || 'Cash',
+      amount: bill?.amount || 0,
+      paidAmount: bill?.paidAmount || 0,
+      dueAmount: bill?.dueAmount || 0,
+      notes: bill?.notes || '',
+      items: initialItems,
+      discount: bill?.discount || bill?.discountAmount || 0
+    };
   });
+
   const [loading, setLoading] = useState(false);
+
+  // Recalculates gross, discount, grand total and due from current state
+  const recalculateTotals = (itemsList, overallDiscountVal, paidAmountVal) => {
+    let gross = 0;
+    let itemDiscountSum = 0;
+
+    itemsList.forEach(it => {
+      const q = parseFloat(it.qty) || 1;
+      const p = parseFloat(it.price) || 0;
+      const d = parseFloat(it.discount) || 0;
+      gross += (q * p);
+      itemDiscountSum += d;
+    });
+
+    const ovDisc = parseFloat(overallDiscountVal) || 0;
+    const totalDiscount = ovDisc > 0 ? ovDisc : itemDiscountSum;
+    const grandTotal = Math.max(0, gross - totalDiscount);
+    const paid = parseFloat(paidAmountVal) || 0;
+    const due = Math.max(0, grandTotal - paid);
+
+    return {
+      grossAmount: Math.round(gross * 100) / 100,
+      discountAmount: Math.round(totalDiscount * 100) / 100,
+      taxableAmount: Math.round(grandTotal * 100) / 100,
+      grandTotal: Math.round(grandTotal * 100) / 100,
+      paidAmount: paid,
+      dueAmount: Math.round(due * 100) / 100
+    };
+  };
+
+  const handleItemFieldChange = (index, field, value) => {
+    setFormData(prev => {
+      const updated = [...prev.items];
+      updated[index] = { ...updated[index], [field]: value };
+
+      const q = parseFloat(field === 'qty' ? value : updated[index].qty) || 1;
+      const p = parseFloat(field === 'price' ? value : updated[index].price) || 0;
+      const d = parseFloat(field === 'discount' ? value : updated[index].discount) || 0;
+      updated[index].subtotal = Math.max(0, Math.round(((q * p) - d) * 100) / 100);
+
+      const totals = recalculateTotals(updated, prev.discount, prev.paidAmount);
+      return {
+        ...prev,
+        items: updated,
+        amount: totals.grandTotal,
+        dueAmount: totals.dueAmount
+      };
+    });
+  };
+
+  const handleAddItem = () => {
+    setFormData(prev => {
+      const updated = [...prev.items, { description: '', toothNumber: '', qty: 1, price: 0, discount: 0, subtotal: 0 }];
+      const totals = recalculateTotals(updated, prev.discount, prev.paidAmount);
+      return {
+        ...prev,
+        items: updated,
+        amount: totals.grandTotal,
+        dueAmount: totals.dueAmount
+      };
+    });
+  };
+
+  const handleRemoveItem = (index) => {
+    setFormData(prev => {
+      if (prev.items.length <= 1) {
+        toast.warning("A bill must contain at least one treatment / item");
+        return prev;
+      }
+      const updated = prev.items.filter((_, i) => i !== index);
+      const totals = recalculateTotals(updated, prev.discount, prev.paidAmount);
+      return {
+        ...prev,
+        items: updated,
+        amount: totals.grandTotal,
+        dueAmount: totals.dueAmount
+      };
+    });
+  };
+
+  const handleOverallDiscountChange = (val) => {
+    const num = val === '' ? 0 : parseFloat(val);
+    setFormData(prev => {
+      const totals = recalculateTotals(prev.items, num, prev.paidAmount);
+      let paidAmt = prev.paidAmount;
+      if (prev.status === 'Paid') {
+        paidAmt = totals.grandTotal;
+      }
+      const dueAmt = prev.status === 'Paid' ? 0 : Math.max(0, totals.grandTotal - paidAmt);
+      return {
+        ...prev,
+        discount: num,
+        amount: totals.grandTotal,
+        paidAmount: paidAmt,
+        dueAmount: dueAmt
+      };
+    });
+  };
+
+  const handleStatusChange = (newStatus) => {
+    setFormData(prev => {
+      const totals = recalculateTotals(prev.items, prev.discount, prev.paidAmount);
+      let newPaid = prev.paidAmount;
+      if (newStatus === 'Paid') {
+        newPaid = totals.grandTotal;
+      } else if (newStatus === 'Pending') {
+        newPaid = 0;
+      }
+      const newDue = newStatus === 'Paid' ? 0 : Math.max(0, totals.grandTotal - newPaid);
+      return {
+        ...prev,
+        status: newStatus,
+        paidAmount: newPaid,
+        dueAmount: newDue
+      };
+    });
+  };
+
+  const handlePaidAmountChange = (val) => {
+    const num = val === '' ? 0 : parseFloat(val);
+    setFormData(prev => {
+      const totals = recalculateTotals(prev.items, prev.discount, num);
+      let status = prev.status;
+      if (num >= totals.grandTotal && totals.grandTotal > 0) {
+        status = 'Paid';
+      } else if (num > 0) {
+        status = 'Partial';
+      } else if (status === 'Paid') {
+        status = 'Due';
+      }
+      return {
+        ...prev,
+        status,
+        paidAmount: num,
+        dueAmount: totals.dueAmount
+      };
+    });
+  };
 
   const handleUpdate = async () => {
     setLoading(true);
     try {
-      const totals = calculateInvoiceTotals(formData);
-      const updatedData = { 
-        ...formData,
-        amount: totals.grandTotal, // The 'amount' field in the DB usually stores the net payable
-        grossAmount: totals.grossAmount,
-        discountAmount: totals.discountAmount,
-        taxAmount: totals.taxAmount,
-        taxableAmount: totals.taxableAmount,
-        dueAmount: totals.dueAmount,
-        paidAmount: totals.paidAmount
-      };
-      
-      // Auto-adjust status based on payments
-      if (totals.paidAmount >= totals.grandTotal && totals.grandTotal > 0) {
-        updatedData.status = 'Paid';
-      } else if (totals.paidAmount > 0) {
-        updatedData.status = 'Partial';
-      } else if (updatedData.status === 'Paid' && totals.paidAmount < totals.grandTotal) {
-        updatedData.status = 'Due';
+      const totals = recalculateTotals(formData.items, formData.discount, formData.paidAmount);
+
+      let status = formData.status;
+      let finalPaid = parseFloat(formData.paidAmount) || 0;
+      let finalDue = Math.max(0, totals.grandTotal - finalPaid);
+
+      // If user chose Paid status OR entered full payment, guarantee Paid with 0 due
+      if (status === 'Paid' || finalPaid >= totals.grandTotal) {
+        status = 'Paid';
+        finalPaid = totals.grandTotal;
+        finalDue = 0;
+      } else if (finalPaid > 0) {
+        status = 'Partial';
+      } else if (status !== 'Cancelled') {
+        status = 'Due';
       }
 
+      const formattedItems = formData.items.map(it => {
+        const q = parseFloat(it.qty) || 1;
+        const p = parseFloat(it.price) || 0;
+        const d = parseFloat(it.discount) || 0;
+        const sub = Math.max(0, Math.round(((q * p) - d) * 100) / 100);
+        return {
+          productId: it.productId,
+          description: it.description || 'Treatment Procedure',
+          procedureName: it.description || 'Treatment Procedure',
+          toothNumber: it.toothNumber ? String(it.toothNumber).trim() : undefined,
+          qty: q,
+          quantity: q,
+          unitPrice: p,
+          price: p,
+          cost: p,
+          discount: d,
+          discountAmount: d,
+          subtotal: sub,
+          total: sub
+        };
+      });
+
+      const updatedData = {
+        date: formData.date ? new Date(formData.date) : new Date(),
+        billDate: formData.date,
+        status,
+        paymentMethod: formData.paymentMethod,
+        items: formattedItems,
+        amount: totals.grandTotal,
+        grossAmount: totals.grossAmount,
+        discount: totals.discountAmount,
+        discountAmount: totals.discountAmount,
+        taxableAmount: totals.taxableAmount,
+        paidAmount: finalPaid,
+        dueAmount: finalDue,
+        notes: formData.notes
+      };
+
       await billingApi.update(bill._id, updatedData);
-      toast.success("Bill updated successfully");
+      toast.success("Bill and treatments updated successfully");
       onSave();
       onClose();
     } catch (error) {
-      toast.error("Failed to update bill");
+      console.error("Error updating bill:", error);
+      toast.error(error.response?.data?.message || "Failed to update bill");
     } finally {
       setLoading(false);
     }
   };
 
+  const computedTotals = recalculateTotals(formData.items, formData.discount, formData.paidAmount);
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-          <h3 className="text-xl font-bold text-slate-800">Edit Bill</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
-            <X size={20} className="text-slate-400" />
+        <div className="p-5 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
+          <div>
+            <h3 className="text-lg font-bold">Edit Bill & Treatments</h3>
+            <p className="text-xs text-indigo-100 font-medium">Invoice #{formData.billId || bill?._id}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer text-white">
+            <X size={20} />
           </button>
         </div>
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
+          {/* Top metadata grid: Date, Status, Payment Mode */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-100 p-4 rounded-2xl">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Status</label>
+              <label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1">
+                <Calendar size={12} className="text-indigo-600" /> Bill Date (Past / Present / Future)
+              </label>
+              <input 
+                type="date"
+                value={formData.date}
+                onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none shadow-2xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Status</label>
               <select 
                 value={formData.status}
-                onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}
-                className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                onChange={e => handleStatusChange(e.target.value)}
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
               >
                 <option value="Pending">Pending</option>
                 <option value="Paid">Paid</option>
                 <option value="Due">Due</option>
                 <option value="Partial">Partial</option>
+                <option value="Cancelled">Cancelled</option>
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Payment Mode</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Payment Mode</label>
               <select 
                 value={formData.paymentMethod}
                 onChange={e => setFormData(p => ({ ...p, paymentMethod: e.target.value }))}
-                className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
               >
                 <option value="Cash">Cash</option>
                 <option value="UPI">UPI</option>
@@ -2042,67 +2268,189 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Total Amount (₹)</label>
-              <input 
-                type="number" 
-                value={formData.amount || ''}
-                onChange={e => setFormData(p => ({ ...p, amount: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
-                className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
+          {/* Treatments & Line Items Section */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <div>
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Treatments & Procedures</h4>
+                <p className="text-[11px] text-slate-500">Edit procedure name, tooth number, quantity, price, or add/remove items</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+              >
+                <Plus size={14} /> Add Treatment
+              </button>
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Paid Amount (₹)</label>
-              <input 
-                type="number" 
-                value={formData.paidAmount || ''}
-                onChange={e => setFormData(p => ({ ...p, paidAmount: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
-                className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
+
+            <div className="space-y-2.5">
+              {formData.items.map((item, idx) => (
+                <div key={idx} className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex flex-col sm:flex-row gap-2.5 items-start sm:items-center">
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                    {idx + 1}
+                  </span>
+                  
+                  {/* Procedure description */}
+                  <div className="flex-1 w-full min-w-[160px]">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Procedure / Item</label>
+                    <input 
+                      type="text"
+                      placeholder="e.g. Root Canal Treatment, Filling..."
+                      value={item.description}
+                      onChange={e => handleItemFieldChange(idx, 'description', e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {/* Tooth number */}
+                  <div className="w-full sm:w-20">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Tooth #</label>
+                    <input 
+                      type="text"
+                      placeholder="Tooth #"
+                      value={item.toothNumber || ''}
+                      onChange={e => handleItemFieldChange(idx, 'toothNumber', e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 text-center"
+                      title="Tooth Number (e.g. 18, 36, or All)"
+                    />
+                  </div>
+
+                  {/* Qty */}
+                  <div className="w-full sm:w-16">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Qty</label>
+                    <input 
+                      type="number"
+                      min="1"
+                      placeholder="Qty"
+                      value={item.qty}
+                      onChange={e => handleItemFieldChange(idx, 'qty', e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 text-center"
+                    />
+                  </div>
+
+                  {/* Price */}
+                  <div className="w-full sm:w-28">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Price (₹)</label>
+                    <input 
+                      type="number"
+                      min="0"
+                      placeholder="Price"
+                      value={item.price}
+                      onChange={e => handleItemFieldChange(idx, 'price', e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                    />
+                  </div>
+
+                  {/* Item Discount */}
+                  <div className="w-full sm:w-24">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Disc (₹)</label>
+                    <input 
+                      type="number"
+                      min="0"
+                      placeholder="Disc"
+                      value={item.discount}
+                      onChange={e => handleItemFieldChange(idx, 'discount', e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                      title="Item discount in ₹"
+                    />
+                  </div>
+
+                  {/* Subtotal */}
+                  <div className="w-full sm:w-24 text-right">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Subtotal</label>
+                    <div className="p-2 text-xs font-black text-indigo-700">
+                      ₹{(item.subtotal || 0).toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* Delete button */}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveItem(idx)}
+                    disabled={formData.items.length <= 1}
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                    title="Remove item"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Financial summary: Subtotal, Discount, Grand Total, Paid, Due */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-100 p-4 rounded-2xl">
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Discount (₹)</label>
-              <input 
-                type="number" 
-                value={formData.discount || ''}
-                onChange={e => setFormData(p => ({ ...p, discount: e.target.value === '' ? 0 : parseFloat(e.target.value) }))}
-                className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Final Total (₹)</label>
-              <div className="w-full p-3 bg-slate-100 border border-slate-100 rounded-xl text-sm font-bold text-indigo-600">
-                ₹{calculateInvoiceTotals(formData).grandTotal.toLocaleString()}
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gross Total</label>
+              <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-900">
+                ₹{computedTotals.grossAmount.toLocaleString()}
               </div>
             </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overall Discount (₹)</label>
+              <input 
+                type="number" 
+                min="0"
+                value={formData.discount || ''}
+                onChange={e => handleOverallDiscountChange(e.target.value)}
+                placeholder="0"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Grand Total (₹)</label>
+              <div className="p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-black text-indigo-700">
+                ₹{computedTotals.grandTotal.toLocaleString()}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Paid Amount (₹)</label>
+              <input 
+                type="number" 
+                min="0"
+                value={formData.paidAmount || ''}
+                onChange={e => handlePaidAmountChange(e.target.value)}
+                placeholder="0"
+                className="w-full p-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+
+            <div className="col-span-2 sm:col-span-4 flex justify-between items-center pt-2 border-t border-slate-200">
+              <span className="text-xs font-bold text-slate-500">Balance / Due Amount:</span>
+              <span className={`text-sm font-black ${computedTotals.dueAmount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                ₹{computedTotals.dueAmount.toLocaleString()} {computedTotals.dueAmount === 0 ? '(Fully Paid)' : ''}
+              </span>
+            </div>
           </div>
 
+          {/* Notes */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Additional Notes</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Additional Notes</label>
             <textarea 
               value={formData.notes}
               onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
-              rows="3"
-              className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-              placeholder="Internal notes or remarks..."
+              rows="2"
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+              placeholder="Clinical or billing notes..."
             />
           </div>
         </div>
-        <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+
+        <div className="p-5 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
           <button 
             onClick={handleUpdate}
             disabled={loading}
-            className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+            className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 cursor-pointer"
           >
-            {loading ? <Loader2 size={20} className="animate-spin mx-auto" /> : 'Update Bill Details'}
+            {loading ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Save Bill & Treatment Changes'}
           </button>
           <button 
             onClick={onClose}
-            className="px-6 py-3 border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-white transition-colors"
+            className="px-6 py-3 border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-white transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -2149,7 +2497,8 @@ const TabBilling = ({
     setLoading(true);
     try {
       const billType = billingTab === 'Consultant' ? 'General' : (billingTab === 'Pharmacy' ? 'Pharmacy' : 'Dental');
-      const response = await billingApi.getByPatient(patient.patientId || patient._id, { 
+      const lookupId = patient?._id || patient?.patientId || '';
+      const response = await billingApi.getByPatient(lookupId, { 
         page, 
         limit: 10,
         search: searchQuery,
@@ -2249,7 +2598,7 @@ const TabBilling = ({
           <div style="border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 20px; overflow: hidden;">
             <div style="background: #f8fafc; padding: 10px 15px; display: flex; justify-between; border-bottom: 1px solid #e2e8f0;">
               <span style="font-weight: bold;">Invoice: ${bill.invoiceNumber || bill.billId}</span>
-              <span style="font-size: 12px; color: #64748b; margin-left: auto;">${new Date(bill.date || bill.createdAt).toLocaleDateString()}</span>
+              <span style="font-size: 12px; color: #64748b; margin-left: auto;">${formatDateDMY(bill.date || bill.createdAt)}</span>
             </div>
             <div style="padding: 15px;">
               <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
@@ -2308,7 +2657,7 @@ const TabBilling = ({
                 </div>
                 <div style="text-align: right;">
                   <h2 style="margin: 0; color: #4f46e5; font-size: 18px; font-weight: 900;">${clinicInfo.clinicName || clinicInfo.name || "Clinic"}</h2>
-                  <p style="margin: 5px 0 0; font-size: 11px; color: #64748b;">Generated on: ${new Date().toLocaleDateString()}</p>
+                  <p style="margin: 5px 0 0; font-size: 11px; color: #64748b;">Generated on: ${formatDateDMY(new Date())}</p>
                 </div>
               </div>
 
@@ -2657,7 +3006,7 @@ const TabBilling = ({
                               )}
                             </div>
                             <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-tighter">
-                              {new Date(bill.createdAt || bill.date).toLocaleDateString(undefined, { dateStyle: 'long' })} • Dr. {bill.doctorName}
+                              {formatDateDMY(bill.date || bill.billDate || bill.createdAt)} • Dr. {bill.doctorName}
                             </p>
                           </div>
                         </div>
@@ -4320,24 +4669,27 @@ const PatientProfile = () => {
         let templateData = null;
         try {
           const settings = await organizationApi.getPrescriptionTemplateSettings();
-          if (settings?.data?.templateUrl && settings?.data?.enabled !== false) {
-            hasA4 = true;
+          if (settings?.data) {
             templateData = settings.data;
+            if (settings.data.templateUrl && settings.data.enabled !== false) {
+              hasA4 = true;
+            }
           }
         } catch (e) {
-          console.error("Failed to fetch A4 settings", e);
+          console.error("Failed to fetch prescription template settings", e);
         }
 
         if (templateData) {
           setOrgDetails(prev => {
-            if (prev) {
-              return {
-                ...prev,
-                prescriptionTemplate: templateData
-              };
-            }
+            const mergedTemplate = {
+              ...(prev?.prescriptionTemplate || {}),
+              ...templateData
+            };
             return {
-              prescriptionTemplate: templateData
+              ...(prev || {}),
+              prescriptionTemplate: mergedTemplate,
+              footerBarcode: templateData.footerBarcode || prev?.footerBarcode || '',
+              footerText: templateData.footerText || prev?.footerText || ''
             };
           });
         }
@@ -4435,9 +4787,20 @@ const PatientProfile = () => {
   };
 
   const handleTodayApptClick = (apptPatientId) => {
+    let resolvedId = apptPatientId;
+    if (allPatients && allPatients.length > 0) {
+      const match = allPatients.find(p => 
+        (p._id && p._id.toString() === String(apptPatientId)) ||
+        (p.patientId && String(p.patientId) === String(apptPatientId)) ||
+        (p.id && String(p.id) === String(apptPatientId))
+      );
+      if (match && match._id) {
+        resolvedId = match._id;
+      }
+    }
     const isAdmin = location.pathname.startsWith('/admin');
     const pathPrefix = isAdmin ? '/admin/patient/' : '/receptionist/patient/';
-    navigate(`${pathPrefix}${apptPatientId}?tab=${activeTab}`);
+    navigate(`${pathPrefix}${resolvedId}?tab=${activeTab}`);
   };
 
   const fetchAllPatients = async (page = 1, searchQuery = '') => {
@@ -4517,7 +4880,16 @@ const PatientProfile = () => {
         try {
           const settingsData = await organizationApi.getPrescriptionTemplateSettings();
           if (settingsData && settingsData.data) {
-            org.prescriptionTemplate = settingsData.data;
+            org.prescriptionTemplate = {
+              ...(org.prescriptionTemplate || {}),
+              ...settingsData.data
+            };
+            if (settingsData.data.footerBarcode) {
+              org.footerBarcode = settingsData.data.footerBarcode;
+            }
+            if (settingsData.data.footerText) {
+              org.footerText = settingsData.data.footerText;
+            }
           }
         } catch (settingsError) {
           console.error("Failed to fetch prescription template settings in fetchOrgDetails", settingsError);
@@ -4765,14 +5137,26 @@ const PatientProfile = () => {
 
   const handlePrint = async (p) => {
     try {
-      if (p.doctorId) {
-        const doctor = await centralDoctorApi.getById(p.doctorId);
-        if (doctor) {
-          p.qualification = doctor.qualification || p.qualification;
-          p.specialty = doctor.specialization || p.specialty || doctor.specialty;
-          if (doctor.name) p.doctorName = doctor.name;
-          p.doctor = doctor;
+      let doctor = p.doctor || null;
+      if (!doctor && p.doctorId) {
+        if (user?._id === p.doctorId || user?.id === p.doctorId) {
+          doctor = user;
         }
+        try {
+          const fetched = await centralDoctorApi.getById(p.doctorId);
+          if (fetched) doctor = { ...(doctor || {}), ...fetched };
+        } catch (err) {
+          console.warn("Could not fetch central doctor:", err);
+        }
+      }
+      if (!doctor && (user?.role === 'doctor' || user?.isDoctor || user?.specialization || user?.qualification)) {
+        doctor = user;
+      }
+      if (doctor) {
+        p.qualification = doctor.qualification || p.qualification || '';
+        p.specialty = doctor.specialization || doctor.specialty || p.specialty || '';
+        if (doctor.name) p.doctorName = doctor.name;
+        p.doctor = doctor;
       }
     } catch (error) {
       console.error("Failed to fetch doctor details for print", error);
@@ -5018,10 +5402,32 @@ const PatientProfile = () => {
       }
       const patientData = await patientApi.getById(id);
       setData(patientData);
-      const summaryResponse = await appointmentApi.getSummary(id);
-      setAppointments(summaryResponse);
-      const records = await medicalRecordApi.getByPatient(id);
-      setMedicalRecords(records);
+
+      const canonicalPatientId = patientData?._id || id;
+
+      // If the URL parameter was a sequential ID (like "20261001"),
+      // update browser URL bar to the canonical MongoDB _id without interrupting component state
+      if (patientData?._id && String(id) !== String(patientData._id)) {
+        const isAdmin = location.pathname.startsWith('/admin');
+        const pathPrefix = isAdmin ? '/admin/patient/' : '/receptionist/patient/';
+        try {
+          window.history.replaceState(null, '', `${pathPrefix}${patientData._id}?tab=${activeTab}`);
+        } catch (e) {}
+      }
+
+      const [summaryResponse, records] = await Promise.all([
+        appointmentApi.getSummary(canonicalPatientId).catch(err => {
+          console.warn('Could not fetch appointment summary:', err);
+          return [];
+        }),
+        medicalRecordApi.getByPatient(canonicalPatientId).catch(err => {
+          console.warn('Could not fetch medical records:', err);
+          return [];
+        })
+      ]);
+
+      setAppointments(summaryResponse || []);
+      setMedicalRecords(records || []);
     } catch (error) {
       console.error('Error fetching patient profile data:', error);
     } finally {
@@ -5259,7 +5665,13 @@ const PatientProfile = () => {
                       return (
                         <button
                           key={appt._id}
-                          onClick={() => handleTodayApptClick(appt.patientId)}
+                          onClick={() => {
+                            const matched = allPatients?.find(p => 
+                              (p.patientId && String(p.patientId) === String(appt.patientId)) ||
+                              (p.mobile && String(p.mobile) === String(appt.patientPhone))
+                            );
+                            handleTodayApptClick(matched?._id || appt.patient?._id || appt.patient || appt.patientId);
+                          }}
                           className={`w-full text-left p-3 rounded-xl border transition-all duration-200 flex flex-col gap-1.5 shadow-sm group relative ${
                             isActive 
                               ? 'bg-indigo-50/30 border-indigo-200 border-l-4 border-l-indigo-600' 
@@ -5333,7 +5745,7 @@ const PatientProfile = () => {
                       return (
                         <button
                           key={pat._id || pat.id}
-                          onClick={() => handleTodayApptClick(pat.patientId || pat.id)}
+                          onClick={() => handleTodayApptClick(pat._id || pat.id || pat.patientId)}
                           className={`w-full text-left p-3 rounded-xl border transition-all duration-200 flex flex-col gap-1.5 shadow-sm group relative ${
                             isActive 
                               ? 'bg-indigo-50/30 border-indigo-200 border-l-4 border-l-indigo-600' 
@@ -5728,7 +6140,7 @@ const PatientProfile = () => {
                   {activeTab === 'appointments' && <TabAppointments appointments={appointments} onRebook={handleRebook} selectedVisitDate={selectedVisitDate} />}
                   {activeTab === 'billing' && (
                     <TabBilling
-                      key={billingRefreshKey}
+                      key={`${billingRefreshKey}-${data?._id || id}`}
                       patient={data}
                       onPrint={handleBillingPrint}
                       onDownload={handleBillingDownload}
@@ -5755,11 +6167,11 @@ const PatientProfile = () => {
                       onPrintReport={(comp) => setPrintingClinicalReport(comp)}
                     />
                   )}
-                  {activeTab === 'dental-chart' && <DentalChart patientId={id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
-                  {activeTab === 'treatment-plan' && <DentalTreatmentTab patientId={id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
-                  {activeTab === 'dental-images' && <DentalImagesTab patientId={id} selectedVisitDate={selectedVisitDate} />}
-                  {activeTab === 'tooth-history' && <ToothHistoryTab patientId={id} selectedVisitDate={selectedVisitDate} />}
-                  {activeTab === 'lab-work' && <LabWorkTab patientId={id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'dental-chart' && <DentalChart patientId={data?._id || id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'treatment-plan' && <DentalTreatmentTab patientId={data?._id || id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'dental-images' && <DentalImagesTab patientId={data?._id || id} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'tooth-history' && <ToothHistoryTab patientId={data?._id || id} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'lab-work' && <LabWorkTab patientId={data?._id || id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
                   {activeTab === 'follow-ups' && (
                     <TabFollowUps 
                        patient={data}
@@ -5811,21 +6223,29 @@ const PatientProfile = () => {
           isOpen={showDentalPrescriptionModal}
           onClose={() => { setShowDentalPrescriptionModal(false); setEditingPrescription(null); }}
           patient={data}
-          onSaveSuccess={() => { fetchData(false); setEditingPrescription(null); }}
+          onSaveSuccess={async () => {
+            await fetchData(false);
+            setBillingRefreshKey(prev => prev + 1);
+            setEditingPrescription(null);
+          }}
           editData={editingPrescription}
           onSwitchToGeneral={() => {
             setShowDentalPrescriptionModal(false);
             setShowPrescriptionModal(true);
           }}
-          onPrintDirect={(prescriptionToPrint) => {
-            setPrintingPrescription(prescriptionToPrint);
+          onPrintDirect={async (prescriptionToPrint) => {
+            await handlePrint(prescriptionToPrint);
           }}
         />
         <PrescriptionModal 
           isOpen={showPrescriptionModal} 
           onClose={() => { setShowPrescriptionModal(false); setEditingPrescription(null); }} 
           patient={data} 
-          onSaveSuccess={() => { fetchData(false); setEditingPrescription(null); }} 
+          onSaveSuccess={async () => {
+            await fetchData(false);
+            setBillingRefreshKey(prev => prev + 1);
+            setEditingPrescription(null);
+          }} 
           editData={editingPrescription}
           onSwitchToDental={() => {
             setShowPrescriptionModal(false);
@@ -5907,9 +6327,9 @@ const PatientProfile = () => {
               })()
             }
             clinicLogo={orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo}
-            footerBarcode={orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.branding?.footerBarcode || orgDetails?.footerBarcode}
+            footerBarcode={orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.footerBarcode || orgDetails?.branding?.footerBarcode || user?.organization?.prescriptionTemplate?.footerBarcode || user?.organization?.footerBarcode}
             footerText={printingPrescription?.parsedNotes?.customFooterText || printingPrescription?.parsedNotes?.footerText || printingPrescription?.footerText || orgDetails?.prescriptionTemplate?.footerText || orgDetails?.branding?.footerText || orgDetails?.footerText || ''}
-            doctor={printingPrescription?.doctor}
+            doctor={printingPrescription?.doctor || (printingPrescription?.doctorId === user?._id || printingPrescription?.doctorId === user?.id || !printingPrescription?.doctorId ? user : undefined)}
           />
         </div>
       )}
@@ -6082,11 +6502,11 @@ const PrintableInvoice = ({ bill, patient, orgDetails, user }) => {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Invoice Date</h3>
-            <p className="font-bold text-slate-900">{new Date(bill.createdAt || bill.date).toLocaleDateString()}</p>
+            <p className="font-bold text-slate-900">{formatDateDMY(bill.date || bill.billDate || bill.createdAt)}</p>
           </div>
           <div>
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Due Date</h3>
-            <p className="font-bold text-slate-900">{new Date(bill.createdAt || bill.date).toLocaleDateString()}</p>
+            <p className="font-bold text-slate-900">{formatDateDMY(bill.date || bill.billDate || bill.createdAt)}</p>
           </div>
           <div>
             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Payment Mode</h3>
@@ -6117,10 +6537,13 @@ const PrintableInvoice = ({ bill, patient, orgDetails, user }) => {
           <tbody className="border-b border-slate-200">
             {bill.items?.map((item, idx) => (
               <tr key={idx} className="border-b border-slate-50 last:border-0">
-                <td className="py-4 px-4 font-bold text-slate-800">{item.description}</td>
+                <td className="py-4 px-4 font-bold text-slate-800">
+                  {item.description || item.procedureName || 'Dental Procedure'}
+                  {item.toothNumber ? <span className="text-xs text-indigo-600 ml-2 font-semibold font-mono">(Tooth #{item.toothNumber})</span> : null}
+                </td>
                 <td className="py-4 px-4 text-center text-slate-600 font-medium">{item.qty || item.quantity || 1}</td>
                 <td className="py-4 px-4 text-right text-slate-600 font-medium">₹{(item.unitPrice || item.price || item.rate || 0).toFixed(2)}</td>
-                <td className="py-4 px-4 text-right font-bold text-slate-900">₹{(item.subtotal || item.amount || 0).toFixed(2)}</td>
+                <td className="py-4 px-4 text-right font-bold text-slate-900">₹{(item.subtotal || item.total || item.amount || 0).toFixed(2)}</td>
               </tr>
             )) || (
               <tr>
@@ -6282,7 +6705,7 @@ const PrintableStatement = ({ bills, patient, clinicInfo }) => {
                 <span className="text-sm font-bold text-slate-900">{bill.invoiceNumber || bill.billId}</span>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-xs font-bold text-slate-500">{new Date(bill.date || bill.createdAt).toLocaleDateString()}</span>
+                <span className="text-xs font-bold text-slate-500">{formatDateDMY(bill.date || bill.createdAt)}</span>
                 <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest rounded-full ${
                   bill.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                 }`}>

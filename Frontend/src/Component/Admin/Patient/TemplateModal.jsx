@@ -343,11 +343,11 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                               <img
                                 src={getImageUrl(organization?.branding?.logo || user?.organization?.branding?.logo)}
                                 alt="Clinic Logo"
-                                className="w-14 h-14 object-contain rounded-full border border-slate-200 p-0.5 bg-white shrink-0"
+                                className="w-20 h-20 object-contain rounded-full border border-slate-200 p-1 bg-white shrink-0"
                               />
                             ) : (
-                              <div className="w-14 h-14 rounded-full border-4 border-indigo-500/40 flex items-center justify-center bg-indigo-50 shrink-0">
-                                <span className="font-black text-indigo-800 text-sm">{organization?.name ? organization.name.charAt(0) : 'C'}</span>
+                              <div className="w-20 h-20 rounded-full border-4 border-indigo-500/40 flex items-center justify-center bg-indigo-50 shrink-0">
+                                <span className="font-black text-indigo-800 text-lg">{organization?.name ? organization.name.charAt(0) : 'C'}</span>
                               </div>
                             )}
                             <div className="flex flex-col text-left">
@@ -359,7 +359,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                                   <p>{[organization?.address?.street, organization?.address?.city, organization?.address?.state].filter(Boolean).join(', ')}</p>
                                 )}
                                 {organization?.website && <p>Website: <span className="font-bold text-slate-800">{organization.website}</span></p>}
-                                {(organization?.phone || user?.phone) && <p className="font-bold text-red-600">Contact: {organization?.phone || user?.phone}</p>}
+                                {(organization?.phone || user?.phone) && <p className="font-bold text-red-600">Contact NO.: {organization?.phone || user?.phone}</p>}
                               </div>
                             </div>
                           </div>
@@ -383,6 +383,11 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                           </div>
                         </div>
 
+                        {/* Prescription Banner Bar */}
+                        <div className="bg-[#a83244] text-white py-0.5 px-3 rounded text-center text-[10px] font-bold uppercase tracking-wider mb-2">
+                          PRESCRIPTION
+                        </div>
+
                         {/* Patient Info Box */}
                         <div className="border border-slate-300 rounded-lg p-2 mb-2.5 text-[11px] bg-white">
                           <div className="grid grid-cols-3 gap-2 pb-1 border-b border-slate-100">
@@ -391,7 +396,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                             <div><span className="font-bold text-slate-700">Age/Gender: </span><span className="font-semibold text-slate-900">25Y / Male</span></div>
                           </div>
                           <div className="grid grid-cols-3 gap-2 pt-1">
-                            <div><span className="font-bold text-slate-700">M No: </span><span className="font-semibold text-slate-900">Phone Number</span></div>
+                            <div><span className="font-bold text-slate-700">Mobile No.: </span><span className="font-semibold text-slate-900">Phone Number</span></div>
                             <div><span className="font-bold text-slate-700">Consultation Dt: </span><span className="font-semibold text-slate-900">{new Date().toLocaleDateString('en-GB')}</span></div>
                             <div></div>
                           </div>
@@ -455,19 +460,19 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
                         {/* Footer Bar: Barcode (conditional) + Custom Footer Text */}
                         <div className="pt-2 border-t border-slate-200 flex items-center justify-between w-full">
-                          <div className="w-16 h-16 flex items-center justify-start shrink-0">
+                          <div className="w-24 h-24 flex items-center justify-start shrink-0">
                             {organization?.prescriptionTemplate?.footerBarcode ? (
                               <img
                                 src={getImageUrl(organization.prescriptionTemplate.footerBarcode)}
                                 alt="Barcode"
-                                className="w-14 h-14 object-contain border border-slate-200 p-0.5 rounded bg-white"
+                                className="w-20 h-20 object-contain border border-slate-200 p-1 rounded bg-white shadow-2xs"
                               />
                             ) : null}
                           </div>
                           <div className="flex-1 text-center font-bold text-slate-600 text-[10px] tracking-wider uppercase leading-tight px-4">
                             {organization?.prescriptionTemplate?.footerText || ''}
                           </div>
-                          <div className="w-16 shrink-0"></div>
+                          <div className="w-24 shrink-0"></div>
                         </div>
                       </div>
                     </div>

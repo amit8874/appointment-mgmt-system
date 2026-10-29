@@ -24,7 +24,7 @@ import {
 import { toast } from 'react-toastify';
 import { format, addDays } from 'date-fns';
 import { useAuth } from '../../../context/AuthContext';
-import { medicalRecordApi, appointmentApi, patientApi } from '../../../services/api';
+import { medicalRecordApi, appointmentApi, patientApi, centralDoctorApi } from '../../../services/api';
 import { getUpperArchTeeth, getLowerArchTeeth, getToothDisplayName, getToothLabel } from './dentalUtils';
 import DentalMedicineAutocomplete, { CLINIC_PAD_MEDICINES, saveDoctorCustomMedicine } from './DentalMedicineAutocomplete';
 import RealisticDentalOdontogram from './RealisticDentalOdontogram';
@@ -40,6 +40,18 @@ const COMMON_DENTAL_MEDS = [
   { name: 'Chlorhexidine 0.2% Mouthwash', form: 'Mouthwash', dose: '10 ml', frequency: '1-0-1', duration: '7 days', instructions: 'Rinse for 1 min, do not eat/drink for 30 mins' },
   { name: 'Choline Salicylate Gel', form: 'Gel', dose: 'Pea-size', frequency: '1-1-1', duration: '5 days', instructions: 'Apply locally over ulcer/painful area' }
 ];
+
+// Helper to format date in Day/Month/Year (DD/MM/YYYY)
+const formatDateDMY = (dateVal) => {
+  if (!dateVal) return '';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    return format(d, 'dd/MM/yyyy');
+  } catch (e) {
+    return String(dateVal);
+  }
+};
 
 const DentalPrescriptionModal = ({
   isOpen,
@@ -59,10 +71,11 @@ const DentalPrescriptionModal = ({
   const [ageSex, setAgeSex] = useState('');
   const [examinationDate, setExaminationDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
 
-  // Section 2: Chief Complaint and History
+  // Section 2: Chief Complaint, History & K/C/O
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [duration, setDuration] = useState('');
   const [medicalDentalHistory, setMedicalDentalHistory] = useState('');
+  const [kcoMedication, setKcoMedication] = useState('');
 
   // Section 3: Oral Examination findings (Text Bar + Recommendations)
   const [oralExamText, setOralExamText] = useState('');
@@ -120,6 +133,8 @@ const DentalPrescriptionModal = ({
           if (parsed.complaintDuration) setDuration(parsed.complaintDuration);
           if (parsed.duration) setDuration(parsed.duration);
           if (parsed.medicalDentalHistory) setMedicalDentalHistory(parsed.medicalDentalHistory);
+          if (parsed.kcoMedication) setKcoMedication(parsed.kcoMedication);
+          else if (parsed.kco) setKcoMedication(parsed.kco);
           if (parsed.oralExamination) {
             if (typeof parsed.oralExamination === 'string') {
               setOralExamText(parsed.oralExamination);
@@ -323,6 +338,8 @@ const DentalPrescriptionModal = ({
         complaintDuration: duration,
         complaints: chiefComplaint ? [{ name: chiefComplaint, duration }] : [],
         medicalDentalHistory,
+        kcoMedication: kcoMedication.trim(),
+        kco: kcoMedication.trim(),
         oralExamination: oralExamText.trim(),
         selectedTeeth,
         diagnosis: diagnosis ? [{ name: diagnosis }] : [],
@@ -368,12 +385,40 @@ const DentalPrescriptionModal = ({
       if (onSaveSuccess) onSaveSuccess();
 
       if (triggerPrint && onPrintDirect) {
-        onPrintDirect({
+        let doctorObj = null;
+        if (docId) {
+          try {
+            doctorObj = await centralDoctorApi.getById(docId);
+          } catch (e) {
+            console.warn("Could not fetch doctor info in modal:", e);
+          }
+        }
+        if (!doctorObj && (user?._id === docId || user?.id === docId || !docId)) {
+          doctorObj = user;
+        }
+
+        const prescriptionPayload = {
           ...recordData,
           _id: savedRecord?._id || editData?.id,
+          id: savedRecord?._id || editData?.id,
           notes: recordData.description,
-          description: recordData.description
-        });
+          description: recordData.description,
+          parsedNotes: detailedData,
+          doctor: doctorObj || user,
+          doctorId: docId,
+          doctorName: doctorObj?.name || docName,
+          qualification: doctorObj?.qualification || user?.qualification || '',
+          specialty: doctorObj?.specialization || doctorObj?.specialty || user?.specialization || 'Dental Surgeon',
+          doctorQualification: doctorObj?.qualification || user?.qualification || '',
+          doctorSpecialization: doctorObj?.specialization || doctorObj?.specialty || user?.specialization || 'Dental Surgeon',
+          doctorSignature: doctorObj?.doctorSignature || user?.doctorSignature,
+          doctorStamp: doctorObj?.doctorStamp || user?.doctorStamp,
+          registrationNumber: doctorObj?.registrationNumber || doctorObj?.licenseNumber || user?.registrationNumber,
+          date: examinationDate ? new Date(examinationDate) : new Date(),
+          ...detailedData
+        };
+
+        await onPrintDirect(prescriptionPayload);
       }
 
       onClose();
@@ -389,17 +434,17 @@ const DentalPrescriptionModal = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-        {/* Main Dialog Window */}
+      <div className="fixed inset-0 z-[9999] flex flex-col p-0 bg-black/90 backdrop-blur-md overflow-hidden">
+        {/* Main Dialog Window - Full Desktop Edge-to-Edge */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 15 }}
+          initial={{ opacity: 0, scale: 0.99 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.99 }}
           transition={{ duration: 0.2 }}
-          className="bg-[#0A0D14] border border-slate-800 rounded-3xl w-full max-w-4xl text-slate-100 shadow-2xl overflow-hidden flex flex-col my-auto max-h-[94vh]"
+          className="bg-[#0A0D14] w-full h-full text-slate-100 shadow-2xl overflow-hidden flex flex-col rounded-none border-0"
         >
           {/* Top Header Bar */}
-          <div className="p-5 sm:p-6 border-b border-slate-800/80 bg-gradient-to-r from-slate-950 via-[#0E131F] to-slate-950 flex items-center justify-between gap-4 sticky top-0 z-30">
+          <div className="px-6 py-4 sm:px-8 sm:py-4 border-b border-slate-800/80 bg-gradient-to-r from-slate-950 via-[#0E131F] to-slate-950 flex items-center justify-between gap-4 sticky top-0 z-30 shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-teal-500/15 border border-teal-500/30 text-teal-400 flex items-center justify-center shadow-inner">
                 <ClipboardCheck size={20} />
@@ -440,7 +485,7 @@ const DentalPrescriptionModal = ({
           </div>
 
           {/* Form Scrollable Content */}
-          <div className="p-5 sm:p-7 space-y-8 overflow-y-auto custom-scrollbar">
+          <div className="flex-1 p-5 sm:p-8 lg:p-10 space-y-8 overflow-y-auto custom-scrollbar w-full">
             {/* ============================================================== */}
             {/* 1. PATIENT INFORMATION */}
             {/* ============================================================== */}
@@ -485,13 +530,23 @@ const DentalPrescriptionModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1.5">Examination date</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-400">Examination date</label>
+                    {examinationDate && (
+                      <span className="text-[11px] font-bold text-teal-400 bg-teal-950/60 border border-teal-500/30 px-2 py-0.5 rounded-md">
+                        {formatDateDMY(examinationDate)}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="date"
                     value={examinationDate}
                     onChange={(e) => setExaminationDate(e.target.value)}
                     className="w-full bg-[#121824] border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white outline-none transition-colors"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1 font-semibold">
+                    Format: <span className="text-teal-300 font-bold">{formatDateDMY(examinationDate)}</span> (Day/Month/Year)
+                  </p>
                 </div>
               </div>
             </div>
@@ -586,6 +641,56 @@ const DentalPrescriptionModal = ({
                         className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-teal-300 hover:border-teal-500/50 transition-colors"
                       >
                         + {alert}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* K/C/O - Medication , Under Medication Section */}
+                <div className="p-4 bg-slate-900/90 rounded-2xl border border-indigo-500/30 space-y-3 mt-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-indigo-300 uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                      K/C/O - Medication , Under Medication
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-bold">Quick prefill chips:</span>
+                  </div>
+
+                  <textarea
+                    rows={3}
+                    value={kcoMedication}
+                    onChange={(e) => setKcoMedication(e.target.value)}
+                    placeholder="Enter ongoing medication details, dosage, or medical conditions in text format (e.g. Under Medication: Tab Telmisartan 40mg OD, Tab Metformin 500mg BD)"
+                    className="w-full bg-[#121824] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white outline-none transition-colors"
+                  />
+
+                  {/* Chips for Medication, Under Medication, and Common K/C/O Conditions */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: 'Under Medication', text: 'Under Medication: ' },
+                      { label: 'Medication', text: 'Medication: ' },
+                      { label: 'No Active Medication', text: 'Not under any active medication' },
+                      { label: 'K/C/O HTN', text: 'K/C/O Hypertension (Under Medication)' },
+                      { label: 'K/C/O Diabetes', text: 'K/C/O Diabetes Mellitus (Under Medication)' },
+                      { label: 'K/C/O Thyroid', text: 'K/C/O Hypothyroidism (Under Medication)' },
+                      { label: 'K/C/O Cardiac', text: 'K/C/O Cardiac condition (Under Medication)' },
+                      { label: 'K/C/O Asthma', text: 'K/C/O Bronchial Asthma' },
+                      { label: 'Blood Thinners', text: 'Under Medication: Blood Thinners (Aspirin / Clopidogrel)' },
+                      { label: 'Penicillin Allergy', text: 'Drug Allergy: Penicillin' }
+                    ].map((chip) => (
+                      <button
+                        key={chip.label}
+                        type="button"
+                        onClick={() => {
+                          setKcoMedication(prev => {
+                            if (!prev || !prev.trim()) return chip.text;
+                            if (chip.text.endsWith(': ')) return `${prev.trim()}\n${chip.text}`;
+                            return `${prev.trim()}, ${chip.text}`;
+                          });
+                        }}
+                        className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-slate-950 border border-indigo-900/60 text-indigo-300 hover:text-white hover:bg-indigo-900/60 hover:border-indigo-400 transition-colors shadow-2xs"
+                      >
+                        + {chip.label}
                       </button>
                     ))}
                   </div>
@@ -1206,7 +1311,14 @@ const DentalPrescriptionModal = ({
                     <Calendar size={14} className="text-teal-400" />
                     Next Appointment Date & Follow-Up
                   </label>
-                  <span className="text-[10px] font-bold text-slate-400">Quick selection:</span>
+                  <div className="flex items-center gap-2">
+                    {nextAppointmentDate && (
+                      <span className="text-[11px] font-bold text-teal-300 bg-teal-900/60 border border-teal-500/40 px-2 py-0.5 rounded-md">
+                        {formatDateDMY(nextAppointmentDate)}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-bold text-slate-400">Quick selection:</span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1217,6 +1329,9 @@ const DentalPrescriptionModal = ({
                       onChange={(e) => setNextAppointmentDate(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none"
                     />
+                    <p className="text-[10px] text-teal-300/90 font-bold mt-1">
+                      Follow-Up Date: <span className="text-teal-200">{formatDateDMY(nextAppointmentDate) || 'Not scheduled'}</span> (Day/Month/Year)
+                    </p>
                     <div className="flex items-center gap-1.5 mt-2">
                       {[
                         { label: 'Tomorrow', days: 1 },
@@ -1267,7 +1382,7 @@ const DentalPrescriptionModal = ({
           </div>
 
           {/* Bottom Action Footer Bar */}
-          <div className="p-4 sm:p-5 border-t border-slate-800/80 bg-slate-950 flex flex-col sm:flex-row items-center justify-between gap-3 sticky bottom-0 z-30">
+          <div className="px-6 py-4 sm:px-8 sm:py-4 border-t border-slate-800/80 bg-slate-950 flex flex-col sm:flex-row items-center justify-between gap-3 sticky bottom-0 z-30 shrink-0">
             <div className="text-xs text-slate-400 font-semibold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
               Dental Form calibrated for letterhead prescription printing

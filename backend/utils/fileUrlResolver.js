@@ -66,9 +66,33 @@ export const resolveOrganizationUrls = async (org) => {
   
   if (orgObj.prescriptionTemplate && orgObj.prescriptionTemplate.templateUrl) {
     try {
-      orgObj.prescriptionTemplate.templateUrl = await resolveS3UrlIfNeeded(orgObj.prescriptionTemplate.templateUrl);
+      orgObj.prescriptionTemplate.templateUrl = await resolveS3UrlIfNeeded(orgObj.prescriptionTemplate.templateUrl, 604800);
     } catch (err) {
       console.warn('[resolveOrganizationUrls] Failed to resolve template URL:', err.message);
+    }
+  }
+  
+  if (orgObj.prescriptionTemplate && orgObj.prescriptionTemplate.footerBarcode) {
+    try {
+      orgObj.prescriptionTemplate.footerBarcode = await resolveS3UrlIfNeeded(orgObj.prescriptionTemplate.footerBarcode, 604800);
+    } catch (err) {
+      console.warn('[resolveOrganizationUrls] Failed to resolve footer barcode:', err.message);
+    }
+  }
+
+  if (orgObj.footerBarcode) {
+    try {
+      orgObj.footerBarcode = await resolveS3UrlIfNeeded(orgObj.footerBarcode, 604800);
+    } catch (err) {
+      console.warn('[resolveOrganizationUrls] Failed to resolve org footer barcode:', err.message);
+    }
+  }
+
+  if (orgObj.branding && orgObj.branding.footerBarcode) {
+    try {
+      orgObj.branding.footerBarcode = await resolveS3UrlIfNeeded(orgObj.branding.footerBarcode, 604800);
+    } catch (err) {
+      console.warn('[resolveOrganizationUrls] Failed to resolve branding footer barcode:', err.message);
     }
   }
   

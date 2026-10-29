@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dentistApi } from '../../../services/api';
-import { Smile, AlertCircle, Plus, Info, Trash2, Award, Pencil, Check, X, IndianRupee, CheckSquare, Square, FileText } from 'lucide-react';
+import { Smile, AlertCircle, Plus, Info, Trash2, Award, Pencil, Check, X, IndianRupee, CheckSquare, Square, FileText, Calendar } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -42,6 +42,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   const [initialPaidAmount, setInitialPaidAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [priority, setPriority] = useState('Medium');
+  const [procedureDate, setProcedureDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [saving, setSaving] = useState(false);
 
   // RCT sub-options state
@@ -368,6 +369,7 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
               procedure: item.name,
               estimatedCost: item.cost,
               paidAmount: itemPaid,
+              date: procedureDate ? new Date(procedureDate) : new Date(),
               notes: notes.trim(),
               priority,
               status: itemPaid >= itemCost && itemCost > 0 ? 'Completed' : 'Planned'
@@ -1115,8 +1117,19 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                       </div>
                     </div>
 
-                    {/* priority and clinical diagnosis notes */}
+                    {/* Date and Priority inputs */}
                     <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-indigo-600" /> Procedure Date
+                        </label>
+                        <input
+                          type="date"
+                          value={procedureDate}
+                          onChange={(e) => setProcedureDate(e.target.value)}
+                          className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-black text-slate-950 outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-2xs"
+                        />
+                      </div>
                       <div className="flex flex-col gap-1">
                         <label className="text-[9px] font-black text-slate-950 uppercase tracking-widest">
                           Priority

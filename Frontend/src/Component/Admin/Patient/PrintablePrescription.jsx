@@ -42,6 +42,7 @@ const PrintablePrescription = ({
 
   // 2. Medical & Dental History
   const medicalHistoryText = parsedNotes?.medicalDentalHistory || parsedNotes?.medicalHistory || '';
+  const kcoMedicationText = parsedNotes?.kcoMedication || parsedNotes?.kco || '';
 
   // 3. Oral Examination Findings
   const activeOralExamItems = (() => {
@@ -179,9 +180,12 @@ const PrintablePrescription = ({
     if (!nv) return '';
     try {
       const d = new Date(nv);
-      const dStr = !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : String(nv);
+      if (isNaN(d.getTime())) return String(nv);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
       const notes = parsedNotes?.nextAppointmentNotes ? ` (${parsedNotes.nextAppointmentNotes})` : '';
-      return `${dStr}${notes}`;
+      return `${dd}/${mm}/${yyyy}${notes}`;
     } catch (e) {
       return String(nv);
     }
@@ -243,24 +247,62 @@ const PrintablePrescription = ({
 
   const baseFontSize = fontSize || 12;
 
-  // Format Patient Name
-  const formattedPatientName = (() => {
-    let name = patient?.fullName || `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || parsedNotes?.patientName || 'Patient';
-    const prefixes = ['MR', 'MS', 'MRS', 'MISS', 'DR', 'SHRI', 'SMT'];
-    let parts = name.split(/\s+/);
-    while (parts.length > 1) {
-      const p0 = parts[0].toUpperCase().replace(/\./g, '');
-      const p1 = parts[1].toUpperCase().replace(/\./g, '');
-      if (prefixes.includes(p0) && (p0 === p1 || p1.startsWith(p0))) {
-        parts.shift();
+  // Format Patient Name & Designation cleanly without double titles
+  const { formattedPatientName, patientDisplayFullName } = (() => {
+    const rawFullName = patient?.fullName || '';
+    const rawFirst = patient?.firstName || '';
+    const rawLast = patient?.lastName || '';
+    const rawPatientName = parsedNotes?.patientName || '';
+    
+    let name = rawFullName.trim() || `${rawFirst} ${rawLast}`.trim() || rawPatientName.trim() || 'Patient';
+    
+    const prefixRegex = /^(MR|MRS|MS|MISS|DR|PROF|SHRI|SMT|BABY|MASTER)\.?$/i;
+    let parts = name.split(/\s+/).filter(Boolean);
+    
+    let embeddedPrefix = '';
+    while (parts.length > 0 && prefixRegex.test(parts[0])) {
+      if (!embeddedPrefix) {
+        embeddedPrefix = parts[0].replace(/\./g, '').toUpperCase();
+      }
+      parts.shift();
+    }
+    
+    const cleanName = parts.length > 0 ? parts.join(' ') : name;
+    
+    let des = (patient?.designation || '').trim().replace(/\./g, '').toUpperCase();
+    const gender = (patient?.gender || '').toLowerCase();
+    
+    if (!des) {
+      des = embeddedPrefix;
+    } else if (gender === 'female' && (des === 'MR' || des === 'SHRI')) {
+      if (['MISS', 'MRS', 'MS', 'SMT'].includes(embeddedPrefix)) {
+        des = embeddedPrefix;
       } else {
-        break;
+        des = 'MS';
       }
     }
-    return parts.join(' ');
+    
+    const titleMap = {
+      'MR': 'Mr.',
+      'MRS': 'Mrs.',
+      'MS': 'Ms.',
+      'MISS': 'Miss',
+      'DR': 'Dr.',
+      'PROF': 'Prof.',
+      'SHRI': 'Shri',
+      'SMT': 'Smt.',
+      'BABY': 'Baby',
+      'MASTER': 'Master'
+    };
+    
+    const formattedPrefix = des ? (titleMap[des] || des) : '';
+    const fullDisplayName = formattedPrefix ? `${formattedPrefix} ${cleanName}` : cleanName;
+    
+    return {
+      formattedPatientName: cleanName,
+      patientDisplayFullName: fullDisplayName
+    };
   })();
-
-  const patientDisplayFullName = (patient?.designation ? `${patient.designation} ` : '') + formattedPatientName;
   const patientDisplayAgeGender = `${patient?.age || '--'} ${patient?.ageType || 'Year'}(s)/${patient?.gender || '--'}`;
   
   // Real Patient ID without artificial OPD prefix or mock fallbacks
@@ -269,37 +311,54 @@ const PrintablePrescription = ({
   // Real patient phone
   const patientMobile = patient?.mobile || patient?.phone || patient?.contactNumber || patient?.patientPhone || prescription?.patientPhone || '';
   
-  const consultationDateStr = prescription?.date 
-    ? new Date(prescription.date).toLocaleDateString('en-GB') 
-    : new Date().toLocaleDateString('en-GB');
+  const rawDate = prescription?.date || parsedNotes?.examinationDate || parsedNotes?.date;
+  const consultationDateStr = (() => {
+    if (!rawDate) {
+      const now = new Date();
+      return `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+    }
+    try {
+      const d = new Date(rawDate);
+      if (isNaN(d.getTime())) return String(rawDate);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    } catch (e) {
+      return String(rawDate);
+    }
+  })();
 
   // Doctor details - REAL DATA ONLY, NO MOCK FALLBACKS
-  const doctorRawName = doctor?.name || prescription?.doctorName || '';
+  const doctorObj = doctor || prescription?.doctor || null;
+  const doctorRawName = doctorObj?.name || prescription?.doctorName || '';
   const doctorFormattedName = doctorRawName 
     ? (doctorRawName.toLowerCase().startsWith('dr') ? doctorRawName : `Dr. ${doctorRawName}`) 
     : '';
-  const doctorQual = doctor?.qualification || prescription?.doctorQualification || prescription?.qualification || '';
-  const doctorSpecialization = doctor?.specialization || prescription?.doctorSpecialization || prescription?.specialty || '';
-  const doctorRegNo = doctor?.registrationNumber || doctor?.licenseNumber || '';
-  const doctorSignatureUrl = getImageUrl(doctor?.doctorSignature || prescription?.doctorSignature);
-  const doctorStampUrl = getImageUrl(doctor?.doctorStamp || prescription?.doctorStamp);
-  const footerBarcodeUrl = getImageUrl(footerBarcode);
+  const doctorQual = doctorObj?.qualification || prescription?.doctorQualification || prescription?.qualification || '';
+  const doctorSpecialization = doctorObj?.specialization || doctorObj?.specialty || prescription?.doctorSpecialization || prescription?.specialty || '';
+  const doctorRegNo = doctorObj?.registrationNumber || doctorObj?.licenseNumber || prescription?.registrationNumber || '';
+  const doctorSignatureUrl = getImageUrl(doctorObj?.doctorSignature || prescription?.doctorSignature);
+  const doctorStampUrl = getImageUrl(doctorObj?.doctorStamp || prescription?.doctorStamp);
+  const footerBarcodeUrl = getImageUrl(footerBarcode || prescription?.footerBarcode);
 
   // Sub-qualifications / credentials lines - only real doctor education
   const doctorSubCreds = (() => {
-    if (doctor?.education && Array.isArray(doctor.education) && doctor.education.length > 0) {
-      return doctor.education.map(e => `${e.degree || ''}${e.university ? `: ${e.university}` : ''}`).filter(Boolean);
+    const edu = doctorObj?.education || prescription?.education;
+    if (edu && Array.isArray(edu) && edu.length > 0) {
+      return edu.map(e => `${e.degree || ''}${e.university ? `: ${e.university}` : ''}`).filter(Boolean);
     }
-    if (doctor?.bio) {
-      const lines = doctor.bio.split('\n').map(l => l.trim()).filter(Boolean);
+    const bio = doctorObj?.bio || prescription?.bio;
+    if (bio) {
+      const lines = bio.split('\n').map(l => l.trim()).filter(Boolean);
       if (lines.length > 0) return lines.slice(0, 4);
     }
     return [];
   })();
 
-  const doctorRegionalTitle = doctor?.specializationHindi || doctor?.secondaryTitle || '';
-  const visitingConsultantText = doctor?.visitingConsultant || doctor?.affiliations || '';
-  const bannerText = doctorSpecialization ? `CONSULTANT ${doctorSpecialization.toUpperCase()}` : '';
+  const doctorRegionalTitle = doctorObj?.specializationHindi || doctorObj?.secondaryTitle || prescription?.specializationHindi || '';
+  const visitingConsultantText = doctorObj?.visitingConsultant || doctorObj?.affiliations || prescription?.visitingConsultant || '';
+  const bannerText = 'PRESCRIPTION';
 
   // Doctor last name for digital signature fallback
   const doctorLastName = (() => {
@@ -463,11 +522,11 @@ const PrintablePrescription = ({
                   <img 
                     src={getImageUrl(clinicLogo)} 
                     alt="Clinic Logo" 
-                    className="w-16 h-16 object-contain rounded-full flex-shrink-0 mt-0.5 border border-slate-200 p-0.5 bg-white" 
+                    className="w-24 h-24 max-w-[100px] max-h-[100px] object-contain rounded-full flex-shrink-0 mt-0.5 border border-slate-200 p-1 bg-white shadow-xs" 
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-full flex-shrink-0 mt-0.5 border-4 border-indigo-500/40 flex items-center justify-center p-1 bg-gradient-to-br from-indigo-50 to-blue-100">
-                    <span className="font-black text-indigo-800 text-base">{clinicName ? clinicName.charAt(0) : 'C'}</span>
+                  <div className="w-24 h-24 rounded-full flex-shrink-0 mt-0.5 border-4 border-indigo-500/40 flex items-center justify-center p-1 bg-gradient-to-br from-indigo-50 to-blue-100 shadow-xs">
+                    <span className="font-black text-indigo-800 text-2xl">{clinicName ? clinicName.charAt(0) : 'C'}</span>
                   </div>
                 )}
                 <div className="flex flex-col text-left">
@@ -478,7 +537,7 @@ const PrintablePrescription = ({
                     {clinicAddress && <p>{clinicAddress}</p>}
                     {clinicWebsite && <p>Website: <span className="font-bold text-slate-800">{clinicWebsite}</span></p>}
                     {clinicEmail && <p>{clinicEmail}</p>}
-                    {clinicContact && <p className="font-bold text-red-600">Contact: {clinicContact}</p>}
+                    {clinicContact && <p className="font-bold text-red-600">Contact NO.: {clinicContact}</p>}
                   </div>
                 </div>
               </div>
@@ -493,6 +552,11 @@ const PrintablePrescription = ({
                 {doctorQual && (
                   <div className="text-xs font-bold text-red-600 mt-0.5">
                     {doctorQual}
+                  </div>
+                )}
+                {doctorSpecialization && (!doctorQual || !doctorQual.toLowerCase().includes(doctorSpecialization.toLowerCase())) && (
+                  <div className="text-[11px] font-bold text-slate-700 mt-0.5">
+                    {doctorSpecialization}
                   </div>
                 )}
                 {doctorSubCreds.length > 0 && (
@@ -540,7 +604,7 @@ const PrintablePrescription = ({
               </div>
               <div className="grid grid-cols-3 gap-2 pt-1.5">
                 <div>
-                  <span className="font-bold text-slate-700">M No: </span>
+                  <span className="font-bold text-slate-700">Mobile No.: </span>
                   <span className="font-semibold text-slate-900">{patientMobile || '--'}</span>
                 </div>
                 <div>
@@ -578,6 +642,13 @@ const PrintablePrescription = ({
                 <div>
                   <span className="font-bold text-slate-900 underline underline-offset-2">Med History:</span>{' '}
                   <span className="font-medium text-slate-800">{medicalHistoryText}</span>
+                </div>
+              )}
+
+              {kcoMedicationText && (
+                <div>
+                  <span className="font-bold text-slate-900 underline underline-offset-2">K/C/O - Medication:</span>{' '}
+                  <span className="font-semibold text-slate-800">{kcoMedicationText}</span>
                 </div>
               )}
 
@@ -731,12 +802,16 @@ const PrintablePrescription = ({
             {/* Footer Bar (Barcode on Left ONLY if uploaded + Custom Footer Text) */}
             <div className="pt-3 border-t border-slate-200 flex items-center justify-between w-full">
               {/* Barcode on Left: ONLY if uploaded by admin */}
-              <div className="w-20 h-20 flex items-center justify-start shrink-0">
+              <div className="w-28 h-28 flex items-center justify-start shrink-0">
                 {footerBarcodeUrl ? (
                   <img 
                     src={footerBarcodeUrl} 
                     alt="Prescription QR Code" 
-                    className="w-16 h-16 object-contain border border-slate-200 p-0.5 rounded bg-white shadow-xs" 
+                    crossOrigin="anonymous"
+                    className="w-24 h-24 object-contain border border-slate-200 p-1 rounded bg-white shadow-xs" 
+                    onError={(e) => {
+                      console.warn("Failed to load footer barcode image:", footerBarcodeUrl);
+                    }}
                   />
                 ) : null}
               </div>
@@ -753,7 +828,7 @@ const PrintablePrescription = ({
               </div>
 
               {/* Right Spacer for balance */}
-              <div className="w-20 shrink-0"></div>
+              <div className="w-28 shrink-0"></div>
             </div>
           </div>
 

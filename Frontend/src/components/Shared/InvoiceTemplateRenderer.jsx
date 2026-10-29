@@ -200,12 +200,12 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
 
     const formatDate = (dateStr) => {
         try {
-            if (!dateStr) return format(new Date(), 'dd MMM, yyyy');
+            if (!dateStr) return format(new Date(), 'dd/MM/yyyy');
             const parsedDate = new Date(dateStr);
-            if (isNaN(parsedDate.getTime())) return format(new Date(), 'dd MMM, yyyy');
-            return format(parsedDate, 'dd MMM, yyyy');
+            if (isNaN(parsedDate.getTime())) return format(new Date(), 'dd/MM/yyyy');
+            return format(parsedDate, 'dd/MM/yyyy');
         } catch (e) {
-            return format(new Date(), 'dd MMM, yyyy');
+            return format(new Date(), 'dd/MM/yyyy');
         }
     };
 
@@ -246,7 +246,7 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
         return `RCPT${baseNum - (installments.length - 1 - index)}`;
     };
 
-    const generatedOnDate = format(new Date(), 'dd MMM, yyyy');
+    const generatedOnDate = format(new Date(), 'dd/MM/yyyy');
 
     return (
         <div className="invoice-renderer-container bg-slate-50 p-4 rounded-3xl w-full flex justify-center">
@@ -665,8 +665,9 @@ const InvoiceTemplateRenderer = ({ billData = {}, clinicInfo = {}, template = nu
                             })()}
                         </div>
                     </div>
+                </div>
 
-                    <div className="footer">
+                <div className="footer">
                         <div className="footer-left">Generated On: {generatedOnDate}</div>
                         <div className="footer-center">Computer Generated, No Signature Required Page 1 of 1</div>
                         <div className="footer-right">Powered by Oviaan</div>

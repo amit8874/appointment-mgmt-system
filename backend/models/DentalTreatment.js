@@ -59,6 +59,10 @@ const dentalTreatmentSchema = new mongoose.Schema({
     enum: ['Low', 'Medium', 'High'],
     default: 'Medium',
   },
+  date: {
+    type: Date,
+    default: Date.now,
+  },
   nextVisitDate: {
     type: Date,
   },

@@ -168,14 +168,14 @@ export const getSignedDownloadUrl = async ({
  * Resolves an S3 template URL to a fresh signed URL.
  * If the URL points to S3, we generate a new signed URL.
  */
-export const resolveS3UrlIfNeeded = async (urlStr, expiresInSeconds = 86400) => {
+export const resolveS3UrlIfNeeded = async (urlStr, expiresInSeconds = 604800) => {
   if (!urlStr || typeof urlStr !== 'string') return urlStr;
 
   try {
+    let key = null;
+
     if (urlStr.startsWith('http')) {
       const url = new URL(urlStr);
-      let key = null;
-
       const baseUrl = process.env.AWS_S3_PUBLIC_BASE_URL;
       if (baseUrl && urlStr.startsWith(baseUrl)) {
         key = urlStr.replace(baseUrl, '').replace(/^\//, '');
@@ -186,18 +186,20 @@ export const resolveS3UrlIfNeeded = async (urlStr, expiresInSeconds = 86400) => 
         }
         key = pathname;
       }
+    } else if (urlStr.startsWith('organizations/') || urlStr.startsWith('prescriptions/')) {
+      key = urlStr;
+    }
 
-      if (key) {
-        // Strip query params
-        key = key.split('?')[0];
+    if (key) {
+      // Strip query params and decode URI components
+      key = decodeURIComponent(key.split('?')[0]);
 
-        // Generate a new signed URL
-        const freshUrl = await getSignedDownloadUrl({
-          key,
-          expiresInSeconds
-        });
-        return freshUrl;
-      }
+      // Generate a new signed URL (defaults to 7 days = 604800 seconds)
+      const freshUrl = await getSignedDownloadUrl({
+        key,
+        expiresInSeconds
+      });
+      return freshUrl;
     }
   } catch (err) {
     console.warn("[resolveS3UrlIfNeeded] Failed to parse/resolve S3 URL:", err.message);

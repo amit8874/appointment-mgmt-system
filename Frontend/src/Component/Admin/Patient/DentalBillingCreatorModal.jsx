@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, IndianRupee } from 'lucide-react';
+import { X, Plus, Trash2, IndianRupee, Calendar } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../../context/AuthContext';
 import { billingApi, dentistApi } from '../../../services/api';
@@ -38,6 +38,7 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
       mergedPresets.push({ name: cp.name, defaultCost: cp.defaultCost });
     }
   });
+  const [billDate, setBillDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [overallDiscount, setOverallDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage'); // 'percentage' or 'fixed'
   const [taxRate, setTaxRate] = useState(0);
@@ -207,6 +208,8 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
       gender,
       doctorId: patientData.assignedDoctorId || user?._id || 'System',
       doctorName: patientData.assignedDoctor || user?.name || 'General Clinic',
+      date: billDate ? new Date(billDate) : new Date(),
+      billDate: billDate,
       amount: payable,
       subtotal: calculateItemsSubtotal(),
       discount: calculateTotalDiscount(),
@@ -225,7 +228,7 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
       billType: 'Dental',
       status,
       installments: paid > 0 ? [{
-        date: new Date(),
+        date: billDate ? new Date(billDate) : new Date(),
         amount: paid,
         paymentMethod: paymentMode,
         transactionId: transactionId.trim() || '',
@@ -336,7 +339,7 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
           )}
 
           {/* Patient Details Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 border border-slate-100 p-4 rounded-2xl">
             <div>
               <p className="text-[10px] font-black text-black uppercase tracking-widest">Patient Details</p>
               <p className="text-sm font-black text-black mt-1">{patientName}</p>
@@ -353,6 +356,17 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
               <p className="text-sm font-black text-black mt-1">
                 {patientData.assignedDoctor || user?.name || 'General Clinic'}
               </p>
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-indigo-600" /> Invoice / Bill Date
+              </label>
+              <input 
+                type="date"
+                value={billDate}
+                onChange={e => setBillDate(e.target.value)}
+                className="mt-1 w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+              />
             </div>
           </div>
 

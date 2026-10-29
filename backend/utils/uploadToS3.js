@@ -111,7 +111,7 @@ export const uploadToS3 = async ({
     try {
       signedUrl = await getSignedDownloadUrl({ 
         key: s3Key, 
-        expiresInSeconds: 3600,
+        expiresInSeconds: 604800, // 7 days default for long-term validity
         responseContentDisposition: finalMimeType === 'application/pdf' ? `attachment; filename="${safeOriginalName}"` : undefined
       });
     } catch (err) {

@@ -1404,7 +1404,7 @@ setDiagnosis(newArr);
 
   return (
     <AnimatePresence mode="wait">
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[9999] flex flex-col p-0">
         {/* Backdrop */}
         <motion.div 
           initial={{ opacity: 0 }}
@@ -1414,12 +1414,12 @@ setDiagnosis(newArr);
           className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
         />
 
-        {/* Modal Body */}
+        {/* Modal Body - Full Desktop Edge-to-Edge */}
         <motion.div 
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative bg-white dark:bg-slate-900 w-full max-w-7xl h-[95vh] rounded-none shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800"
+          initial={{ opacity: 0, scale: 0.99 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.99 }}
+          className="relative bg-white dark:bg-slate-900 w-full h-full rounded-none shadow-2xl overflow-hidden flex flex-col border-0"
         >
           {/* Header */}
           <div className="p-4 bg-white dark:bg-slate-900 sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 dark:border-slate-800">

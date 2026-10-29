@@ -24,12 +24,14 @@ export const calculateInvoiceTotals = (invoice) => {
     const grand = parseFloat(invoice.amount || invoice.grandTotal || 0);
     let paidAmt = parseFloat(invoice.paidAmount !== undefined ? invoice.paidAmount : (invoice.paid || 0));
     
-    if (invoice.installments && invoice.installments.length > 0) {
-      paidAmt = invoice.installments.reduce((sum, inst) => sum + parseFloat(inst.amount || 0), 0);
-    } else if (invoice.status === 'Paid' && paidAmt === 0 && grand > 0) {
+    if (invoice.status === 'Paid') {
       paidAmt = grand;
+    } else if (invoice.installments && invoice.installments.length > 0) {
+      paidAmt = invoice.installments.reduce((sum, inst) => sum + parseFloat(inst.amount || 0), 0);
+    } else if (invoice.status === 'Pending' && !invoice.paidAmount) {
+      paidAmt = 0;
     }
-    const dueAmt = Math.max(0, grand - paidAmt);
+    const dueAmt = invoice.status === 'Paid' ? 0 : Math.max(0, grand - paidAmt);
     const taxable = Math.max(0, gross - discountAmt);
 
     return {

@@ -276,7 +276,7 @@ export const getPatientTreatments = async (req, res) => {
     const treatments = await DentalTreatment.find({ 
       organizationId,
       patientId: resolvedId 
-    }).sort({ createdAt: -1 });
+    }).sort({ date: -1, createdAt: -1 });
 
     res.json(treatments);
   } catch (error) {
@@ -290,7 +290,7 @@ export const createTreatment = async (req, res) => {
   try {
     const { patientId } = req.params;
     const organizationId = req.tenantId;
-    const { toothNumber, procedure, notes, estimatedCost, discount, paidAmount, status, priority, nextVisitDate } = req.body;
+    const { toothNumber, procedure, notes, estimatedCost, discount, paidAmount, status, priority, nextVisitDate, date } = req.body;
 
     if (!toothNumber || !procedure) {
       return res.status(400).json({ message: 'Tooth number and procedure name are required' });
@@ -310,6 +310,7 @@ export const createTreatment = async (req, res) => {
       toothNumber,
       procedure,
       notes,
+      date: date ? new Date(date) : new Date(),
       estimatedCost: estimatedCost || 0,
       discount: discount || 0,
       paidAmount: paidAmount !== undefined ? paidAmount : (estimatedCost || 0),
@@ -338,7 +339,7 @@ export const updateTreatment = async (req, res) => {
   try {
     const { treatmentId } = req.params;
     const organizationId = req.tenantId;
-    const { toothNumber, procedure, notes, estimatedCost, discount, paidAmount, status, priority, nextVisitDate } = req.body;
+    const { toothNumber, procedure, notes, estimatedCost, discount, paidAmount, status, priority, nextVisitDate, date } = req.body;
 
     const treatment = await DentalTreatment.findOne({ _id: treatmentId, organizationId });
     if (!treatment) {
@@ -354,6 +355,7 @@ export const updateTreatment = async (req, res) => {
     if (status !== undefined) treatment.status = status;
     if (priority !== undefined) treatment.priority = priority;
     if (nextVisitDate !== undefined) treatment.nextVisitDate = nextVisitDate;
+    if (date !== undefined) treatment.date = date ? new Date(date) : new Date();
 
     await treatment.save();
 

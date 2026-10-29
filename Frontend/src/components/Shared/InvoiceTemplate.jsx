@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { centralDoctorApi, patientApi } from '../../services/api';
+import { formatDateDMY } from '../../utils/billingCalculations';
 
 const getImageUrl = (path) => {
     if (!path) return null;
@@ -205,14 +206,8 @@ const InvoiceTemplate = ({ invoiceData = {}, clinicInfo = {}, template = null })
     };
 
     const formatDate = (dateStr) => {
-        try {
-            if (!dateStr) return format(new Date(), 'dd MMM, yyyy');
-            const parsedDate = new Date(dateStr);
-            if (isNaN(parsedDate.getTime())) return format(new Date(), 'dd MMM, yyyy');
-            return format(parsedDate, 'dd MMM, yyyy');
-        } catch (e) {
-            return format(new Date(), 'dd MMM, yyyy');
-        }
+        if (!dateStr) return formatDateDMY(new Date());
+        return formatDateDMY(dateStr);
     };
 
     // Doctor details fallback

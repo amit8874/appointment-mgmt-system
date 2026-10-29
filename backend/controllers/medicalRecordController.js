@@ -7,19 +7,42 @@ export const getPatientRecords = async (req, res) => {
   try {
     const { patientId } = req.params;
 
-    let mongoId = patientId;
+    const organizationId = req.tenantId;
 
-    // If it's not a valid ObjectId (e.g. clinical ID like "005045"), resolve via Patient lookup
-    if (!mongoose.Types.ObjectId.isValid(patientId)) {
-      const patient = await Patient.findOne({ patientId }).select('_id').lean();
-      if (!patient) {
-        // No patient found with that clinical ID — return empty gracefully
-        return res.status(200).json([]);
-      }
-      mongoId = patient._id;
+    let patientDoc = null;
+    if (mongoose.Types.ObjectId.isValid(patientId)) {
+      patientDoc = await Patient.findOne({
+        _id: patientId,
+        ...(organizationId ? { organizationId } : {})
+      }).lean();
+    }
+    if (!patientDoc) {
+      patientDoc = await Patient.findOne({
+        patientId: patientId,
+        ...(organizationId ? { organizationId } : {})
+      }).lean();
+    }
+    if (!patientDoc && mongoose.Types.ObjectId.isValid(patientId)) {
+      patientDoc = await Patient.findById(patientId).lean();
+    }
+    if (!patientDoc) {
+      patientDoc = await Patient.findOne({ patientId: patientId }).lean();
     }
 
-    const records = await MedicalRecord.find({ patientId: mongoId }).sort({ date: -1 }).lean();
+    const matchIds = [patientId];
+    if (patientDoc) {
+      if (patientDoc._id) {
+        matchIds.push(patientDoc._id.toString());
+        matchIds.push(patientDoc._id);
+      }
+      if (patientDoc.patientId) {
+        matchIds.push(patientDoc.patientId);
+      }
+    }
+
+    const records = await MedicalRecord.find({
+      patientId: { $in: matchIds }
+    }).sort({ date: -1 }).lean();
 
     const doctorIds = [...new Set(records.map(r => r.doctorId).filter(Boolean))];
     if (doctorIds.length > 0) {
@@ -73,8 +96,19 @@ export const createRecord = async (req, res) => {
       return res.status(400).json({ message: 'patientId, type, and title are required' });
     }
 
+    let resolvedPatientId = patientId;
+    if (!mongoose.Types.ObjectId.isValid(patientId)) {
+      const pDoc = await Patient.findOne({
+        patientId,
+        ...(req.tenantId ? { organizationId: req.tenantId } : {})
+      }).select('_id').lean();
+      if (pDoc && pDoc._id) {
+        resolvedPatientId = pDoc._id;
+      }
+    }
+
     const newRecord = new MedicalRecord({
-      patientId,
+      patientId: resolvedPatientId,
       organizationId: organizationId?._id || organizationId,
       doctorId: doctorId?._id || doctorId,
       type,

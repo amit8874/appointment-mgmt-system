@@ -273,7 +273,7 @@ export const getBillingStats = async (req, res) => {
 
 export const createBill = async (req, res) => {
   try {
-    const { patientId, patientName, patientPhone, doctorId, doctorName, amount, items, status, notes, paymentMethod, transactionId, appointmentId, appointmentDate, appointmentTime, paidAmount, dueAmount, billType, discount, installments } = req.body;
+    const { patientId, patientName, patientPhone, doctorId, doctorName, amount, items, status, notes, paymentMethod, transactionId, appointmentId, appointmentDate, appointmentTime, paidAmount, dueAmount, billType, discount, installments, date, billDate } = req.body;
 
     console.log('[BILLING DEBUG] createBill received:', { patientId, patientName, doctorId, doctorName, amount, billType, paymentMethod, itemCount: items?.length });
 
@@ -320,6 +320,9 @@ export const createBill = async (req, res) => {
       bill.taxableAmount = totals.taxableAmount;
       bill.paidAmount = totals.paidAmount;
       bill.dueAmount = totals.dueAmount;
+      if (req.body.date || req.body.billDate) {
+        bill.date = new Date(req.body.date || req.body.billDate);
+      }
       bill.appointmentDate = appointmentDate || bill.appointmentDate;
       bill.appointmentTime = appointmentTime || bill.appointmentTime;
       bill.items = items || [];
@@ -348,10 +351,12 @@ export const createBill = async (req, res) => {
       const rcptNum = String(counter.value).padStart(6, '0');
       const receiptNumber = req.body.receiptNumber || `RCPT-${rcptNum}`;
 
+      const effectiveBillDate = (req.body.date || req.body.billDate) ? new Date(req.body.date || req.body.billDate) : new Date();
       bill = new Billing({
         billId,
         invoiceNumber: req.body.invoiceNumber || billId,
         receiptNumber,
+        date: effectiveBillDate,
         organizationId: req.tenantId,
         patientId,
         patientName,
@@ -487,6 +492,23 @@ export const updateBill = async (req, res) => {
         bill[key] = updateData[key];
       }
     });
+
+    if (updateData.date || updateData.billDate) {
+      bill.date = new Date(updateData.date || updateData.billDate);
+    }
+    if (Array.isArray(updateData.items)) {
+      bill.items = updateData.items;
+    }
+
+    // If bill status is marked Paid, ensure paidAmount equals amount and dueAmount is 0
+    if (bill.status === 'Paid' || updateData.status === 'Paid') {
+      bill.status = 'Paid';
+      bill.paidAmount = bill.amount;
+      bill.dueAmount = 0;
+    } else if (bill.paidAmount >= bill.amount && bill.amount > 0) {
+      bill.status = 'Paid';
+      bill.dueAmount = 0;
+    }
 
     // Clear PDF cache to force regeneration on next download
     bill.invoiceUrl = undefined;
@@ -822,14 +844,24 @@ export const getBillsByPatient = async (req, res) => {
     // Resolve both custom patientId and MongoDB _id
     let patientIds = [patientId];
     try {
+      let patientDoc = null;
       if (mongoose.Types.ObjectId.isValid(patientId)) {
-        const patientDoc = await Patient.findById(patientId).lean();
-        if (patientDoc && patientDoc.patientId) {
+        patientDoc = await Patient.findOne({ organizationId: req.tenantId, _id: patientId }).lean();
+        if (!patientDoc) {
+          patientDoc = await Patient.findById(patientId).lean();
+        }
+      }
+      if (!patientDoc) {
+        patientDoc = await Patient.findOne({ organizationId: req.tenantId, patientId }).lean();
+      }
+      if (!patientDoc) {
+        patientDoc = await Patient.findOne({ patientId }).lean();
+      }
+      if (patientDoc) {
+        if (patientDoc.patientId && !patientIds.includes(patientDoc.patientId)) {
           patientIds.push(patientDoc.patientId);
         }
-      } else {
-        const patientDoc = await Patient.findOne({ organizationId: req.tenantId, patientId }).lean();
-        if (patientDoc) {
+        if (patientDoc._id && !patientIds.includes(patientDoc._id.toString())) {
           patientIds.push(patientDoc._id.toString());
         }
       }

@@ -37,10 +37,13 @@ export const getSettings = async (req, res) => {
       return res.status(404).json({ success: false, message: "Organization not found" });
     }
 
+    let hasUpdatedUrls = false;
+
     if (org.prescriptionTemplate && org.prescriptionTemplate.templateUrl) {
-      const freshUrl = await resolveS3UrlIfNeeded(org.prescriptionTemplate.templateUrl);
+      const freshUrl = await resolveS3UrlIfNeeded(org.prescriptionTemplate.templateUrl, 604800);
       if (freshUrl && freshUrl !== org.prescriptionTemplate.templateUrl) {
         org.prescriptionTemplate.templateUrl = freshUrl;
+        hasUpdatedUrls = true;
 
         // For backwards compatibility: parse s3Key/pathname as templatePublicId if missing
         if (!org.prescriptionTemplate.templatePublicId) {
@@ -57,13 +60,37 @@ export const getSettings = async (req, res) => {
             // Ignore parsing errors
           }
         }
-
-        // Cache the fresh URL back to DB to minimize signing overhead next time
-        await Organization.updateOne(
-          { _id: organizationId },
-          { $set: { prescriptionTemplate: org.prescriptionTemplate } }
-        );
       }
+    }
+
+    // Refresh and permanently persist footer barcode S3 signed URL so it never expires
+    if (org.prescriptionTemplate && org.prescriptionTemplate.footerBarcode) {
+      const freshBarcodeUrl = await resolveS3UrlIfNeeded(org.prescriptionTemplate.footerBarcode, 604800);
+      if (freshBarcodeUrl && freshBarcodeUrl !== org.prescriptionTemplate.footerBarcode) {
+        org.prescriptionTemplate.footerBarcode = freshBarcodeUrl;
+        org.footerBarcode = freshBarcodeUrl;
+        hasUpdatedUrls = true;
+      }
+    } else if (org.footerBarcode) {
+      const freshBarcodeUrl = await resolveS3UrlIfNeeded(org.footerBarcode, 604800);
+      if (freshBarcodeUrl && freshBarcodeUrl !== org.footerBarcode) {
+        org.footerBarcode = freshBarcodeUrl;
+        if (!org.prescriptionTemplate) org.prescriptionTemplate = {};
+        org.prescriptionTemplate.footerBarcode = freshBarcodeUrl;
+        hasUpdatedUrls = true;
+      }
+    }
+
+    if (hasUpdatedUrls) {
+      await Organization.updateOne(
+        { _id: organizationId },
+        { 
+          $set: { 
+            prescriptionTemplate: org.prescriptionTemplate,
+            footerBarcode: org.prescriptionTemplate?.footerBarcode || org.footerBarcode || ''
+          } 
+        }
+      );
     }
 
     const templateData = org.prescriptionTemplate ? (org.prescriptionTemplate.toObject ? org.prescriptionTemplate.toObject() : { ...org.prescriptionTemplate }) : {};
@@ -129,6 +156,8 @@ export const updateSettings = async (req, res) => {
     if (footerBarcode !== undefined) {
       org.prescriptionTemplate.footerBarcode = footerBarcode;
       org.footerBarcode = footerBarcode;
+      if (!org.branding) org.branding = {};
+      org.branding.footerBarcode = footerBarcode;
     }
     if (footerText !== undefined) {
       org.prescriptionTemplate.footerText = footerText;
@@ -179,10 +208,16 @@ export const updateSettings = async (req, res) => {
 
     org.prescriptionTemplate.updatedAt = Date.now();
     
-    // We only update prescriptionTemplate, skip pre-save hooks to avoid slug issues
+    // We update prescriptionTemplate and root footerBarcode to ensure permanent persistence
     await Organization.updateOne(
       { _id: organizationId }, 
-      { $set: { prescriptionTemplate: org.prescriptionTemplate } }
+      { 
+        $set: { 
+          prescriptionTemplate: org.prescriptionTemplate,
+          footerBarcode: org.prescriptionTemplate?.footerBarcode || org.footerBarcode || '',
+          'branding.footerBarcode': org.branding?.footerBarcode || ''
+        } 
+      }
     );
 
     res.status(200).json({
