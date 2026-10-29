@@ -2144,8 +2144,9 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   const doctorQual = docObj?.qualification || doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || '';
   
   let rawPrescSpec = docObj?.specialization || doctorDetails.doctorSpecialization || doctorDetails.specialty || prescriptionData?.doctorSpecialization || prescriptionData?.specialty || parsedData?.doctorSpecialization || '';
-  if (rawPrescSpec.trim().toLowerCase() === 'dental' || rawPrescSpec.trim().toLowerCase() === 'dentist') {
-    rawPrescSpec = 'Dental Surgeon';
+  const specLower = rawPrescSpec.trim().toLowerCase();
+  if (specLower === 'dental' || specLower === 'dentist' || specLower === 'dental surgeon') {
+    rawPrescSpec = '';
   }
   const doctorSpecialization = rawPrescSpec;
   const doctorRegNo = docObj?.registrationNumber || docObj?.regNo || '';
@@ -2156,7 +2157,15 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
 
   const doctorRegionalTitle = docObj?.regionalSpecialization || '';
   const visitingConsultantText = docObj?.visitingConsultant || '';
-  const bannerText = 'PRESCRIPTION';
+  const isDental = Boolean(
+    parsedData?.isDental || 
+    prescriptionData?.isDental || 
+    (prescriptionData?.title && prescriptionData.title.toLowerCase().includes('dental')) ||
+    org?.clinicType === 'Dental' || 
+    org?.specialist === 'Dentist' || 
+    (Array.isArray(parsedData?.selectedTeeth) && parsedData.selectedTeeth.length > 0)
+  );
+  const bannerText = isDental ? 'DENTAL EXAMINATION & PRESCRIPTION' : 'PRESCRIPTION';
 
   // Organization & Clinic Details - REAL DATA ONLY
   const clinicName = org?.branding?.clinicName || org?.clinicName || org?.name || '';
@@ -2189,7 +2198,17 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
 
   const footerBarcodePath = org?.prescriptionTemplate?.footerBarcode || org?.branding?.footerBarcode || org?.footerBarcode;
   const footerBarcodeBase64 = footerBarcodePath ? await getBase64Image(footerBarcodePath) : null;
-  const footerText = prescriptionData?.customFooterText || prescriptionData?.footerText || parsedData?.customFooterText || parsedData?.footerText || org?.prescriptionTemplate?.footerText || org?.branding?.footerText || org?.footerText || '';
+  const footerText = prescriptionData?.footerText || parsedData?.footerText || org?.prescriptionTemplate?.footerText || org?.branding?.footerText || org?.footerText || '';
+  let footerSubText = prescriptionData?.footerSubText || prescriptionData?.additionalFooterNote || parsedData?.footerSubText || parsedData?.additionalFooterNote || org?.prescriptionTemplate?.footerSubText || org?.branding?.footerSubText || org?.footerSubText || '';
+  if (!footerSubText && (prescriptionData?.customFooterText || parsedData?.customFooterText)) {
+    const custom = prescriptionData?.customFooterText || parsedData?.customFooterText;
+    if (custom !== footerText) {
+      footerSubText = custom;
+    }
+  }
+  if (footerSubText === footerText) {
+    footerSubText = '';
+  }
 
   // Custom Watermark / Body Background
   let bodyBgStyle = '';
@@ -2268,7 +2287,9 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   const contextTitle = prescriptionData?.title || (parsedData?.isDental ? 'Dental Examination & Prescription' : '');
 
   // 2. Medical & Dental History
-  const medicalHistoryText = parsedData?.medicalDentalHistory || parsedData?.medicalHistory || '';
+  const finalMedicalHistoryText = parsedData?.medicalHistory || '';
+  const finalDentalHistoryText = parsedData?.dentalHistory || parsedData?.medicalDentalHistory || '';
+  const medicalHistoryText = finalMedicalHistoryText;
   const kcoMedicationText = parsedData?.kcoMedication || parsedData?.kco || '';
 
   // 3. Oral Examination Findings
@@ -2408,12 +2429,17 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
       const dd = String(d.getDate()).padStart(2, '0');
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const yyyy = d.getFullYear();
-      const notes = parsedData?.nextAppointmentNotes ? ` (${parsedData.nextAppointmentNotes})` : '';
-      return `${dd}/${mm}/${yyyy}${notes}`;
+      return `${dd}/${mm}/${yyyy}`;
     } catch (e) {
       return String(nv);
     }
   })();
+
+  const nextVisitNotesText = parsedData?.nextAppointmentNotes || 
+    parsedData?.doctorNotes || 
+    parsedData?.visitNotes || 
+    prescriptionData?.doctorNotes || 
+    (typeof prescriptionData?.notes === 'string' && !prescriptionData.notes.startsWith('{') ? prescriptionData.notes : '') || '';
 
   // 12. Investigation List
   const investigationList = (() => {
@@ -2674,36 +2700,30 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                 </table>
               </div>
 
-              <!-- Context / Title (if present) -->
-              ${contextTitle ? `
+              <!-- Context / Title (if present and NOT dental since dental is in the red banner) -->
+              ${contextTitle && !isDental ? `
                 <div style="font-size: 11px; font-weight: bold; color: #64748b; margin-bottom: 8px;">
                   Context: <span style="color: #0f172a;">${contextTitle}</span>
                 </div>
               ` : ''}
 
-              <!-- Clinical Findings & Diagnosis (ALL details) -->
+              <!-- Clinical Findings & Order (Strictly 1 to 9 as requested) -->
               <div style="margin-bottom: 10px; font-size: 12px; line-height: 1.4; color: #1e293b;">
-                ${diagnosisList.length > 0 ? `
-                  <div style="margin-bottom: 3px;">
-                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Diagnosis:</span>
-                    <span style="font-weight: 600; color: #1e293b; margin-left: 4px;">${diagnosisList.join(', ')}</span>
-                  </div>
-                ` : ''}
-
+                <!-- 1. Chief Complaints -->
                 ${complaintsList.length > 0 ? `
                   <div style="margin-bottom: 3px;">
-                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Complaints:</span>
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Chief Complaints:</span>
                     <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${complaintsList.join(', ')}</span>
                   </div>
                 ` : ''}
 
-                ${medicalHistoryText ? `
+                <!-- 2. Medical History -->
+                ${finalMedicalHistoryText ? `
                   <div style="margin-bottom: 3px;">
-                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Med History:</span>
-                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${medicalHistoryText}</span>
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Medical History:</span>
+                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${finalMedicalHistoryText}</span>
                   </div>
                 ` : ''}
-
                 ${kcoMedicationText ? `
                   <div style="margin-bottom: 3px;">
                     <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">K/C/O - Medication:</span>
@@ -2711,13 +2731,37 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                   </div>
                 ` : ''}
 
-                ${activeOralExamItems.length > 0 ? `
+                <!-- 3. Dental History -->
+                ${finalDentalHistoryText ? `
                   <div style="margin-bottom: 3px;">
-                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Oral Exam:</span>
-                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${activeOralExamItems.join(', ')}</span>
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Dental History:</span>
+                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${finalDentalHistoryText}</span>
                   </div>
                 ` : ''}
 
+                <!-- 4. Oral Examination -->
+                ${activeOralExamItems.length > 0 ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Oral Examination:</span>
+                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${activeOralExamItems.join(', ')}</span>
+                  </div>
+                ` : ''}
+                ${examinationList.length > 0 ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">General Examination:</span>
+                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${examinationList.join(', ')}</span>
+                  </div>
+                ` : ''}
+
+                <!-- 5. Diagnosis -->
+                ${diagnosisList.length > 0 ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Diagnosis:</span>
+                    <span style="font-weight: 600; color: #1e293b; margin-left: 4px;">${diagnosisList.join(', ')}</span>
+                  </div>
+                ` : ''}
+
+                <!-- 6. Teeth Chart -->
                 ${teethChartItems.length > 0 ? `
                   <div style="margin-bottom: 3px;">
                     <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Teeth Chart:</span>
@@ -2725,30 +2769,28 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                   </div>
                 ` : ''}
 
-                ${treatmentPerformedToday ? `
-                  <div style="margin-bottom: 3px;">
-                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Done Today:</span>
-                    <span style="font-weight: 600; color: #065f46; margin-left: 4px;">${treatmentPerformedToday}</span>
-                  </div>
-                ` : ''}
-
+                <!-- 7. Treatment Plan -->
                 ${treatmentPlannedText ? `
                   <div style="margin-bottom: 3px;">
-                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Treatment:</span>
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Treatment Plan:</span>
                     <span style="font-weight: 600; color: #1e293b; margin-left: 4px;">${treatmentPlannedText}</span>
                   </div>
                 ` : ''}
 
-                ${examinationList.length > 0 ? `
+                <!-- 8. Treatment Done Today -->
+                ${treatmentPerformedToday ? `
                   <div style="margin-bottom: 3px;">
-                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Examination:</span>
-                    <span style="font-weight: 500; color: #1e293b; margin-left: 4px;">${examinationList.join(', ')}</span>
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Treatment Done Today:</span>
+                    <span style="font-weight: 600; color: #065f46; margin-left: 4px;">${treatmentPerformedToday}</span>
                   </div>
                 ` : ''}
               </div>
 
-              <!-- Rx Heading -->
-              <div style="margin-bottom: 6px; font-weight: bold; font-size: 16px; color: #0f172a;">Rx:</div>
+              <!-- 9. Prescribed Medicine -->
+              <div style="margin-bottom: 6px; display: flex; align-items: baseline; gap: 8px;">
+                <span style="font-weight: bold; font-size: 16px; color: #0f172a;">Rx:</span>
+                <span style="font-weight: bold; font-size: 11px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">Prescribed Medicine</span>
+              </div>
 
               <!-- Medications Table -->
               ${medicationsList.length > 0 ? `
@@ -2802,6 +2844,13 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                   </div>
                 ` : ''}
 
+                ${nextVisitNotesText ? `
+                  <div style="margin-bottom: 3px;">
+                    <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Notes:</span>
+                    <span style="font-weight: 500; color: #334155; margin-left: 4px;">${nextVisitNotesText}</span>
+                  </div>
+                ` : ''}
+
                 ${investigationList.length > 0 ? `
                   <div style="margin-bottom: 3px;">
                     <span style="font-weight: bold; color: #0f172a; text-decoration: underline;">Investigation:</span>
@@ -2826,7 +2875,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                   ` : ''}
                   ${doctorRegNo ? `
                     <div style="font-size: 10px; color: #475569; font-weight: 500;">
-                      Medical Registration Number : ${doctorRegNo}
+                      ${isDental ? 'Dental' : 'Medical'} Registration Number : ${doctorRegNo}
                     </div>
                   ` : ''}
 
@@ -2845,12 +2894,15 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                   ` : ''}
                 </div>
 
-                <!-- Custom Footer Text - ONLY if configured by clinic, styled like reference image -->
+                <!-- Custom Footer Text (Red strip) + Footer Sub-Text (Plain black text directly below) -->
                 <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 16px;">
                   ${footerText ? `
                     <div style="display: inline-block; border: 1px solid #fecaca; background-color: #fef2f2; border-radius: 4px; padding: 4px 12px; max-width: 440px;">
                       <div style="font-size: 10px; font-weight: 700; color: #dc2626; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.35; white-space: pre-line;">${footerText}</div>
                     </div>
+                  ` : ''}
+                  ${footerSubText ? `
+                    <div style="font-size: 10px; font-weight: 500; color: #000000; line-height: 1.35; white-space: pre-line; margin-top: 4px; max-width: 440px;">${footerSubText}</div>
                   ` : ''}
                 </div>
 

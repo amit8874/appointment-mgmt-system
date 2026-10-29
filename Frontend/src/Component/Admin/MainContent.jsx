@@ -15,6 +15,7 @@ import PatientProfileModal from './PatientProfileModal.jsx';
 import DoctorProfileModal from './DoctorProfileModal.jsx';
 import AdminDoctorSchedule from './Doctor/AdminDoctorSchedule.jsx';
 import PatientPanel from './Patient/PatientPanel.jsx';
+import NotesPage from './Notes/NotesPage.jsx';
 import MessagesView from './Messaging/MessagesView.jsx';
 import IntelligenceHub from './IntelligenceHub.jsx';
 import WhatsAppCredits from '../../Pages/WhatsAppCredits.jsx';
@@ -151,6 +152,9 @@ const MainContent = ({
             onSearchChange={onPatientsSearch}
           />
         );
+      case 'Notes':
+      case 'Patient Notes':
+        return <NotesPage onBack={() => setActiveTab('Patients')} />;
       case 'Doctor':
         return (
           <DoctorPanel

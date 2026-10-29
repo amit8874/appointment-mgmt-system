@@ -456,6 +456,21 @@ const PatientPanel = ({
             </button>
 
             <button
+              onClick={() => {
+                if (typeof setActiveTab === 'function') {
+                  setActiveTab('Notes');
+                } else {
+                  navigate('/admin/notes');
+                }
+              }}
+              className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all shadow-md shadow-amber-500/20 font-bold text-xs sm:text-sm whitespace-nowrap"
+              title="Doctor & Patient Notes"
+            >
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+              Notes
+            </button>
+
+            <button
               onClick={() => setIsImportModalOpen(true)}
               className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-md shadow-blue-600/20 font-bold text-xs sm:text-sm whitespace-nowrap"
               title="Import from Excel/CSV"

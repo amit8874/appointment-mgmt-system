@@ -6,7 +6,9 @@ import {
   listNotes, 
   getNote, 
   updateNote, 
-  deleteNote 
+  deleteNote,
+  getAllClinicNotes,
+  createStandaloneNote
 } from '../controllers/clinicalNoteController.js';
 
 const router = express.Router();
@@ -16,8 +18,40 @@ router.use(authenticateToken);
 router.use(requireTenant);
 
 /**
+ * @route   GET /api/clinical-notes OR /api/patients/all-notes
+ * @desc    List all clinical & appointment notes across the organization (supports timeframe=today / all)
+ */
+router.get('/', getAllClinicNotes);
+router.get('/all-notes', getAllClinicNotes);
+
+/**
+ * @route   POST /api/clinical-notes/create OR /api/patients/notes/create
+ * @desc    Create a standalone or appointment note
+ */
+router.post('/create', createStandaloneNote);
+router.post('/notes/create', createStandaloneNote);
+
+/**
+ * @route   GET /api/clinical-notes/notes/:noteId OR /api/clinical-notes/:noteId
+ * @desc    Get note details
+ */
+router.get('/notes/:noteId', getNote);
+
+/**
+ * @route   PUT /api/clinical-notes/notes/:noteId
+ * @desc    Update a clinical note
+ */
+router.put('/notes/:noteId', updateNote);
+
+/**
+ * @route   DELETE /api/clinical-notes/notes/:noteId
+ * @desc    Delete a clinical note
+ */
+router.delete('/notes/:noteId', deleteNote);
+
+/**
  * @route   POST /api/patients/:patientId/clinical-notes
- * @desc    Create a clinical note for a patient
+ * @desc    Create a clinical note for a specific patient
  */
 router.post('/:patientId/clinical-notes', createNote);
 
@@ -44,5 +78,10 @@ router.put('/:patientId/clinical-notes/:noteId', updateNote);
  * @desc    Soft delete a clinical note
  */
 router.delete('/:patientId/clinical-notes/:noteId', deleteNote);
+
+// Fallback handlers for /:noteId directly when mounted at /api/clinical-notes
+router.get('/:noteId', getNote);
+router.put('/:noteId', updateNote);
+router.delete('/:noteId', deleteNote);
 
 export default router;

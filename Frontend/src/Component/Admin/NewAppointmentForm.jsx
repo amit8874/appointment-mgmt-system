@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar as CalendarIcon, Loader2, Plus, Save, ChevronDown, Mic, MicOff, RotateCcw, Mail, Droplet, MapPin, PhoneCall, ShieldAlert, FileText, Check } from 'lucide-react';
-import api, { whatsappApi } from '../../services/api';
+import api, { whatsappApi, clinicalNoteApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -41,6 +41,10 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     appointmentDate: new Date().toISOString().split('T')[0],
     appointmentTime: '',
     symptoms: '',
+    notes: '',
+    noteTitle: 'Appointment Note',
+    notePriority: 'medium',
+    noteType: 'appointment',
     skipBilling: false,
     paymentMode: 'Pending',
     email: '',
@@ -64,6 +68,45 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     emergencyContact: false,
     medicalHistory: false,
   });
+
+  // Small Note Popup states
+  const [isNotePopupOpen, setIsNotePopupOpen] = useState(false);
+  const [noteForm, setNoteForm] = useState({
+    title: 'Appointment Note',
+    note: '',
+    priority: 'medium',
+    noteType: 'appointment'
+  });
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [sendWhatsApp, setSendWhatsApp] = useState(false);
+  const [sendWhatsAppToDoctor, setSendWhatsAppToDoctor] = useState(false);
+
+  const handleOpenNotePopup = () => {
+    setNoteForm({
+      title: formData.noteTitle || 'Appointment Note',
+      note: formData.notes || '',
+      priority: formData.notePriority || 'medium',
+      noteType: formData.noteType || 'appointment'
+    });
+    setIsNotePopupOpen(true);
+  };
+
+  const handleSaveNotePopup = () => {
+    if (!noteForm.note.trim()) {
+      toast.warning('Please enter note text');
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      notes: noteForm.note.trim(),
+      noteTitle: noteForm.title || 'Appointment Note',
+      notePriority: noteForm.priority || 'medium',
+      noteType: noteForm.noteType || 'appointment'
+    }));
+    toast.success('Doctor note attached to appointment!');
+    setIsNotePopupOpen(false);
+  };
 
   const toggleExtraField = (fieldKey) => {
     setActiveExtraFields(prev => ({
@@ -486,7 +529,13 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
         },
         reason: formData.symptoms,
         symptoms: formData.symptoms,
+        notes: formData.notes || '',
+        noteTitle: formData.noteTitle || 'Appointment Note',
+        notePriority: formData.notePriority || 'medium',
+        noteType: formData.noteType || 'appointment',
         skipBilling: formData.skipBilling || false,
+        sendWhatsApp: sendWhatsApp,
+        sendWhatsAppToDoctor: sendWhatsAppToDoctor,
         paymentStatus,
         paymentMethod,
         status: 'confirmed'
@@ -522,6 +571,8 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
   };
 
   const departments = [...new Set(doctors.map(d => d.specialization).filter(Boolean))];
+  const selectedDoctor = doctors.find(d => d._id === formData.doctor || d.doctorId === formData.doctor);
+  const doctorHasPhone = Boolean(selectedDoctor?.phone || selectedDoctor?.mobile);
 
   return (
     <div className={`${isDashboardIntegrated ? 'bg-transparent shadow-none border-none' : 'bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800'} overflow-hidden transition-all duration-500`}>
@@ -1185,6 +1236,175 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
           ></textarea>
         </div>
 
+          {/* Doctor Note Section */}
+        <div className="bg-indigo-50/40 dark:bg-gray-800/60 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <label className="text-xs sm:text-sm font-bold text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
+                  Doctor's Notes
+                  <span className="text-[11px] font-normal text-gray-500 italic">(Saved to Notes Page)</span>
+                </label>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleOpenNotePopup}
+              className="inline-flex items-center justify-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-indigo-600/20 gap-1.5 self-start sm:self-auto"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>{formData.notes ? 'Edit Notes' : 'Notes'}</span>
+            </button>
+          </div>
+
+          {/* Note Preview or Placeholder */}
+          {formData.notes ? (
+            <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-indigo-200/80 dark:border-indigo-800/80 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  {formData.noteTitle || 'Appointment Note'}
+                </span>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
+                  {formData.notePriority || 'medium'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed line-clamp-3">
+                {formData.notes}
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-gray-400 pt-1 border-t border-gray-100 dark:border-gray-800">
+                <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                  ✓ Note will be saved to Notes Page
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, notes: '' }))}
+                  className="text-red-500 hover:text-red-700 hover:underline"
+                >
+                  Clear Note
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              No note added yet. Click <span className="font-semibold text-indigo-600">"Notes"</span> to record doctor observations, clinical findings, or instructions.
+            </p>
+          )}
+        </div>
+
+        {/* Small Note Pop-up Modal */}
+        {isNotePopupOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/50">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
+                    Doctor's Appointment Note
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsNotePopupOpen(false)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 space-y-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    Note Title
+                  </label>
+                  <input
+                    type="text"
+                    value={noteForm.title}
+                    onChange={(e) => setNoteForm(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="E.g., Appointment Note, Tooth Evaluation..."
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                      Priority
+                    </label>
+                    <select
+                      value={noteForm.priority}
+                      onChange={(e) => setNoteForm(prev => ({ ...prev, priority: e.target.value }))}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-white font-medium"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                      Category
+                    </label>
+                    <select
+                      value={noteForm.noteType}
+                      onChange={(e) => setNoteForm(prev => ({ ...prev, noteType: e.target.value }))}
+                      className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-white font-medium"
+                    >
+                      <option value="appointment">Appointment</option>
+                      <option value="general">General</option>
+                      <option value="diagnosis">Diagnosis</option>
+                      <option value="treatment">Treatment</option>
+                      <option value="follow_up">Follow-up</option>
+                      <option value="observation">Observation</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    Doctor's Note <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows="4"
+                    value={noteForm.note}
+                    onChange={(e) => setNoteForm(prev => ({ ...prev, note: e.target.value }))}
+                    placeholder="Type doctor's notes, observations, advice, or next steps here..."
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/50">
+                <button
+                  type="button"
+                  onClick={() => setIsNotePopupOpen(false)}
+                  className="px-3.5 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingNote}
+                  onClick={handleSaveNotePopup}
+                  className="inline-flex items-center px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs transition-all shadow-sm shadow-indigo-600/20 disabled:opacity-50 gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{isSavingNote ? 'Saving...' : 'Save Note'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Skip Billing and Payment Mode Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center pt-2 border-t border-gray-100 dark:border-gray-800">
           {/* Skip Billing Checkbox */}
@@ -1274,6 +1494,57 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
               <div className="p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl text-xs text-blue-600 dark:text-blue-400 italic">Please select both a doctor and a date to view current availability.</div>
             )}
           </div>
+        </div>
+
+        {/* WhatsApp Notification Options */}
+        <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+          {/* Option 1: Send Message to Patient */}
+          <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            <input
+              type="checkbox"
+              checked={sendWhatsApp}
+              onChange={(e) => setSendWhatsApp(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Send Message to Patient</span>
+              <span className="text-[10px] text-gray-400">Confirmation to {formData.phone || 'patient'}</span>
+            </div>
+          </label>
+
+          {/* Option 2: Send Message to DR. */}
+          <label className={`flex items-center gap-3 p-2 rounded-lg transition-colors ${
+            !selectedDoctor
+              ? 'opacity-60 cursor-not-allowed'
+              : !doctorHasPhone
+              ? 'opacity-70 cursor-not-allowed'
+              : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800'
+          }`}>
+            <input
+              type="checkbox"
+              checked={sendWhatsAppToDoctor}
+              disabled={!selectedDoctor || !doctorHasPhone}
+              onChange={(e) => setSendWhatsAppToDoctor(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+            />
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                Send Message to DR.
+                {selectedDoctor && (
+                  <span className="text-[11px] font-normal text-indigo-600 dark:text-indigo-400">
+                    ({selectedDoctor.name})
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] text-gray-400">
+                {!selectedDoctor
+                  ? 'Select doctor from dropdown'
+                  : !doctorHasPhone
+                  ? `No phone number for ${selectedDoctor.name}`
+                  : `Alert to ${selectedDoctor.phone || selectedDoctor.mobile}`}
+              </span>
+            </div>
+          </label>
         </div>
 
         {/* Footer Actions */}

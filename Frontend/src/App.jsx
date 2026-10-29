@@ -38,6 +38,7 @@ const AdminPatientPanel = lazy(() => import("./Component/Admin/Patient/PatientPa
 const ReceptionistPatientPanel = lazy(() => import("./components/Receptionist/Patients/PatientPanel.jsx"));
 const TrackAppointmentView = lazy(() => import("./Component/Admin/AppointmentMgmt/TrackAppointmentView.jsx"));
 const PatientProfile = lazy(() => import("./Component/Admin/Patient/PatientProfile.jsx"));
+const NotesPage = lazy(() => import("./Component/Admin/Notes/NotesPage.jsx"));
 const BillingMgmt = lazy(() => import("./components/Receptionist/Billing/BillingMgmt"));
 const DoctorGrid = lazy(() => import("./components/Receptionist/Doctors/DoctorGrid"));
 const DoctorDetail = lazy(() => import("./components/Receptionist/Doctors/DoctorDetail"));
@@ -358,6 +359,11 @@ export default function App() {
                 <PatientProfile />
               </ProtectedRoute>
             } />
+            <Route path="/admin/notes" element={
+              <ProtectedRoute allowedRoles={['admin', 'superadmin', 'orgadmin', 'doctor', 'receptionist']}>
+                <NotesPage />
+              </ProtectedRoute>
+            } />
             <Route path="/whatsapp-credits" element={
               <ProtectedRoute allowedRoles={['admin', 'orgadmin', 'receptionist', 'superadmin']}>
                 <WhatsAppCredits />
@@ -373,6 +379,7 @@ export default function App() {
               <Route path="appointments" element={<AppointmentTable />} />
               <Route path="track-appointments" element={<TrackAppointmentView />} />
               <Route path="patients" element={<ReceptionistPatientPanel />} />
+              <Route path="notes" element={<NotesPage />} />
               <Route path="messages" element={<MessagesView />} />
               <Route path="billing" element={<BillingMgmt />} />
               <Route path="doctor" element={<DoctorGrid />} />

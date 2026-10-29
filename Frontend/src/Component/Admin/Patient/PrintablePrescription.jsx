@@ -21,6 +21,8 @@ const PrintablePrescription = ({
   clinicLogo,
   footerBarcode,
   footerText,
+  footerSubText,
+  barcodeText,
   doctor
 }) => {
   if (!prescription) return null;
@@ -41,8 +43,10 @@ const PrintablePrescription = ({
   const contextTitle = prescription?.title || (parsedNotes?.isDental ? 'Dental Examination & Prescription' : '');
 
   // 2. Medical & Dental History
-  const medicalHistoryText = parsedNotes?.medicalDentalHistory || parsedNotes?.medicalHistory || '';
+  const finalMedicalHistoryText = parsedNotes?.medicalHistory || '';
   const kcoMedicationText = parsedNotes?.kcoMedication || parsedNotes?.kco || '';
+  // If user entered dentalHistory explicitly, use it; otherwise fallback to medicalDentalHistory
+  const finalDentalHistoryText = parsedNotes?.dentalHistory || parsedNotes?.medicalDentalHistory || '';
 
   // 3. Oral Examination Findings
   const activeOralExamItems = (() => {
@@ -175,7 +179,7 @@ const PrintablePrescription = ({
   const adviceText = parsedNotes?.advice || prescription?.advice || '';
 
   // 11. Next Visit / Follow Up
-  const nextVisitText = (() => {
+  const nextVisitDateStr = (() => {
     const nv = parsedNotes?.nextAppointmentDate || parsedNotes?.followUpDate || prescription?.followUpDate;
     if (!nv) return '';
     try {
@@ -184,12 +188,14 @@ const PrintablePrescription = ({
       const dd = String(d.getDate()).padStart(2, '0');
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const yyyy = d.getFullYear();
-      const notes = parsedNotes?.nextAppointmentNotes ? ` (${parsedNotes.nextAppointmentNotes})` : '';
-      return `${dd}/${mm}/${yyyy}${notes}`;
+      return `${dd}/${mm}/${yyyy}`;
     } catch (e) {
       return String(nv);
     }
   })();
+
+  const nextVisitNotesText = parsedNotes?.nextAppointmentNotes || parsedNotes?.doctorNotes || parsedNotes?.visitNotes || prescription?.doctorNotes || '';
+  const nextVisitText = nextVisitDateStr ? (nextVisitNotesText ? `${nextVisitDateStr} (${nextVisitNotesText})` : nextVisitDateStr) : '';
 
   // 12. Investigation List
   const investigationList = (() => {
@@ -336,7 +342,9 @@ const PrintablePrescription = ({
     ? (doctorRawName.toLowerCase().startsWith('dr') ? doctorRawName : `Dr. ${doctorRawName}`) 
     : '';
   const doctorQual = doctorObj?.qualification || prescription?.doctorQualification || prescription?.qualification || '';
-  const doctorSpecialization = doctorObj?.specialization || doctorObj?.specialty || prescription?.doctorSpecialization || prescription?.specialty || '';
+  const rawDocSpec = doctorObj?.specialization || doctorObj?.specialty || prescription?.doctorSpecialization || prescription?.specialty || '';
+  const specLower = rawDocSpec.trim().toLowerCase();
+  const doctorSpecialization = (specLower === 'dental' || specLower === 'dentist' || specLower === 'dental surgeon') ? '' : rawDocSpec;
   const doctorRegNo = doctorObj?.registrationNumber || doctorObj?.licenseNumber || prescription?.registrationNumber || '';
   const doctorSignatureUrl = getImageUrl(doctorObj?.doctorSignature || prescription?.doctorSignature);
   const doctorStampUrl = getImageUrl(doctorObj?.doctorStamp || prescription?.doctorStamp);
@@ -358,7 +366,37 @@ const PrintablePrescription = ({
 
   const doctorRegionalTitle = doctorObj?.specializationHindi || doctorObj?.secondaryTitle || prescription?.specializationHindi || '';
   const visitingConsultantText = doctorObj?.visitingConsultant || doctorObj?.affiliations || prescription?.visitingConsultant || '';
-  const bannerText = 'PRESCRIPTION';
+  
+  // Dental specialization detection
+  const isDental = Boolean(
+    parsedNotes?.isDental || 
+    (prescription?.title && prescription.title.toLowerCase().includes('dental')) ||
+    (doctorSpecialization && doctorSpecialization.toLowerCase().includes('dent')) ||
+    (rawDocSpec && rawDocSpec.toLowerCase().includes('dent')) ||
+    (doctorQual && (doctorQual.toLowerCase().includes('bds') || doctorQual.toLowerCase().includes('mds')))
+  );
+
+  // Red strip banner: replace with "DENTAL EXAMINATION & PRESCRIPTION" for dental
+  const bannerText = isDental ? 'DENTAL EXAMINATION & PRESCRIPTION' : (prescription?.title || 'PRESCRIPTION').toUpperCase();
+
+  // Center clinic footer notice (in red strip) and additional footer sub-text (plain black text without strip)
+  const resolvedFooterText = footerText || prescription?.footerText || parsedNotes?.footerText || '';
+  let resolvedFooterSubText = 
+    footerSubText || 
+    prescription?.footerSubText || 
+    parsedNotes?.footerSubText || 
+    prescription?.additionalFooterNote || 
+    parsedNotes?.additionalFooterNote || 
+    '';
+  if (!resolvedFooterSubText && (prescription?.customFooterText || parsedNotes?.customFooterText)) {
+    const custom = prescription?.customFooterText || parsedNotes?.customFooterText;
+    if (custom !== resolvedFooterText) {
+      resolvedFooterSubText = custom;
+    }
+  }
+  if (resolvedFooterSubText === resolvedFooterText) {
+    resolvedFooterSubText = '';
+  }
 
   // Doctor last name for digital signature fallback
   const doctorLastName = (() => {
@@ -615,36 +653,23 @@ const PrintablePrescription = ({
               </div>
             </div>
 
-            {/* Context / Title (if present) */}
-            {contextTitle && (
-              <div className="text-[11px] font-bold text-slate-500 mb-2">
-                Context: <span className="text-slate-800 font-semibold">{contextTitle}</span>
-              </div>
-            )}
-
-            {/* Clinical Findings & Diagnosis (ALL details) */}
+            {/* Clinical Findings & Order (Strictly 1 to 9 as requested) */}
             <div className="space-y-1.5 mb-3 text-xs leading-snug">
-              {diagnosisList.length > 0 && (
-                <div>
-                  <span className="font-bold text-slate-900 underline underline-offset-2">Diagnosis:</span>{' '}
-                  <span className="font-semibold text-slate-800">{diagnosisList.join(', ')}</span>
-                </div>
-              )}
-
+              {/* 1. Chief Complaints */}
               {complaintsList.length > 0 && (
                 <div>
-                  <span className="font-bold text-slate-900 underline underline-offset-2">Complaints:</span>{' '}
+                  <span className="font-bold text-slate-900 underline underline-offset-2">Chief Complaints:</span>{' '}
                   <span className="font-medium text-slate-800">{complaintsList.join(', ')}</span>
                 </div>
               )}
 
-              {medicalHistoryText && (
+              {/* 2. Medical History */}
+              {finalMedicalHistoryText && (
                 <div>
-                  <span className="font-bold text-slate-900 underline underline-offset-2">Med History:</span>{' '}
-                  <span className="font-medium text-slate-800">{medicalHistoryText}</span>
+                  <span className="font-bold text-slate-900 underline underline-offset-2">Medical History:</span>{' '}
+                  <span className="font-medium text-slate-800">{finalMedicalHistoryText}</span>
                 </div>
               )}
-
               {kcoMedicationText && (
                 <div>
                   <span className="font-bold text-slate-900 underline underline-offset-2">K/C/O - Medication:</span>{' '}
@@ -652,13 +677,37 @@ const PrintablePrescription = ({
                 </div>
               )}
 
-              {activeOralExamItems.length > 0 && (
+              {/* 3. Dental History */}
+              {finalDentalHistoryText && (
                 <div>
-                  <span className="font-bold text-slate-900 underline underline-offset-2">Oral Exam:</span>{' '}
-                  <span className="font-medium text-slate-800">{activeOralExamItems.join(', ')}</span>
+                  <span className="font-bold text-slate-900 underline underline-offset-2">Dental History:</span>{' '}
+                  <span className="font-medium text-slate-800">{finalDentalHistoryText}</span>
                 </div>
               )}
 
+              {/* 4. Oral Examination */}
+              {activeOralExamItems.length > 0 && (
+                <div>
+                  <span className="font-bold text-slate-900 underline underline-offset-2">Oral Examination:</span>{' '}
+                  <span className="font-medium text-slate-800">{activeOralExamItems.join(', ')}</span>
+                </div>
+              )}
+              {examinationList.length > 0 && (
+                <div>
+                  <span className="font-bold text-slate-900 underline underline-offset-2">General Examination:</span>{' '}
+                  <span className="font-medium text-slate-800">{examinationList.join(', ')}</span>
+                </div>
+              )}
+
+              {/* 5. Diagnosis */}
+              {diagnosisList.length > 0 && (
+                <div>
+                  <span className="font-bold text-slate-900 underline underline-offset-2">Diagnosis:</span>{' '}
+                  <span className="font-semibold text-slate-800">{diagnosisList.join(', ')}</span>
+                </div>
+              )}
+
+              {/* 6. Teeth Chart */}
               {teethChartItems.length > 0 && (
                 <div>
                   <span className="font-bold text-slate-900 underline underline-offset-2">Teeth Chart:</span>{' '}
@@ -666,31 +715,27 @@ const PrintablePrescription = ({
                 </div>
               )}
 
-              {treatmentPerformedToday && (
-                <div>
-                  <span className="font-bold text-slate-900 underline underline-offset-2">Done Today:</span>{' '}
-                  <span className="font-semibold text-emerald-900">{treatmentPerformedToday}</span>
-                </div>
-              )}
-
+              {/* 7. Treatment Plan */}
               {treatmentPlannedText && (
                 <div>
-                  <span className="font-bold text-slate-900 underline underline-offset-2">Treatment:</span>{' '}
+                  <span className="font-bold text-slate-900 underline underline-offset-2">Treatment Plan:</span>{' '}
                   <span className="font-semibold text-slate-800">{treatmentPlannedText}</span>
                 </div>
               )}
 
-              {examinationList.length > 0 && (
+              {/* 8. Treatment Done Today */}
+              {treatmentPerformedToday && (
                 <div>
-                  <span className="font-bold text-slate-900 underline underline-offset-2">Examination:</span>{' '}
-                  <span className="font-medium text-slate-800">{examinationList.join(', ')}</span>
+                  <span className="font-bold text-slate-900 underline underline-offset-2">Treatment Done Today:</span>{' '}
+                  <span className="font-semibold text-emerald-900">{treatmentPerformedToday}</span>
                 </div>
               )}
             </div>
 
-            {/* Rx Heading */}
-            <div className="mb-1.5">
+            {/* 9. Prescribed Medicine */}
+            <div className="mb-1.5 flex items-baseline gap-2">
               <span className="font-bold text-base text-slate-900">Rx:</span>
+              <span className="font-bold text-xs text-slate-700 uppercase tracking-wider">Prescribed Medicine</span>
             </div>
 
             {/* Medications Table */}
@@ -756,10 +801,17 @@ const PrintablePrescription = ({
                 </div>
               )}
 
-              {nextVisitText && (
+              {nextVisitDateStr && (
                 <div>
                   <span className="font-bold text-slate-900 underline underline-offset-2">Next Visit:</span>{' '}
-                  <span className="font-bold text-indigo-950">{nextVisitText}</span>
+                  <span className="font-bold text-indigo-950">{nextVisitDateStr}</span>
+                </div>
+              )}
+
+              {nextVisitNotesText && (
+                <div>
+                  <span className="font-bold text-slate-900 underline underline-offset-2">Notes:</span>{' '}
+                  <span className="font-medium text-slate-800 whitespace-pre-line">{nextVisitNotesText}</span>
                 </div>
               )}
 
@@ -788,7 +840,7 @@ const PrintablePrescription = ({
                 )}
                 {doctorRegNo && (
                   <div className="text-[10px] text-slate-600 font-medium">
-                    Medical Registration Number : {doctorRegNo}
+                    {isDental ? 'Dental Registration Number' : 'Medical Registration Number'} : {doctorRegNo}
                   </div>
                 )}
 
@@ -800,15 +852,14 @@ const PrintablePrescription = ({
             </div>
 
             {/* Footer Bar (Barcode on Left ONLY if uploaded + Custom Footer Text) */}
-            <div className="pt-3 border-t border-slate-200 flex items-center justify-between w-full">
+            <div className="pt-2 border-t border-slate-200 flex items-center justify-between w-full">
               {/* Barcode on Left: ONLY if uploaded by admin */}
-              <div className="w-28 h-28 flex items-center justify-start shrink-0">
+              <div className="flex flex-col items-center justify-start shrink-0 min-w-[96px] max-w-[120px] text-center">
                 {footerBarcodeUrl ? (
                   <img 
                     src={footerBarcodeUrl} 
                     alt="Prescription QR Code" 
-                    crossOrigin="anonymous"
-                    className="w-24 h-24 object-contain border border-slate-200 p-1 rounded bg-white shadow-xs" 
+                    className="w-20 h-20 object-contain border border-slate-200 p-1 rounded bg-white shadow-xs" 
                     onError={(e) => {
                       console.warn("Failed to load footer barcode image:", footerBarcodeUrl);
                     }}
@@ -816,19 +867,27 @@ const PrintablePrescription = ({
                 ) : null}
               </div>
 
-              {/* Clinic Custom Footer Text - ONLY if configured by clinic, styled like reference image */}
+              {/* Clinic Custom Footer Notice (Red strip) + Additional Footer Sub-Text (Plain black text directly below) */}
               <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-                {footerText ? (
+                {resolvedFooterText ? (
                   <div className="border border-red-200 bg-red-50/70 rounded-md py-1 px-4 max-w-lg shadow-2xs">
                     <p className="font-bold text-red-600 text-[10px] tracking-wide uppercase leading-tight whitespace-pre-line">
-                      {footerText}
+                      {resolvedFooterText}
                     </p>
                   </div>
+                ) : null}
+                {resolvedFooterSubText ? (
+                  <p 
+                    style={{ color: '#000000', fontSize: '10px', fontWeight: 500, lineHeight: 1.35, textAlign: 'center', marginTop: '4px', whiteSpace: 'pre-line', maxWidth: '440px' }}
+                    className="font-medium text-black text-[10px] leading-tight text-center mt-1 whitespace-pre-line max-w-lg"
+                  >
+                    {resolvedFooterSubText}
+                  </p>
                 ) : null}
               </div>
 
               {/* Right Spacer for balance */}
-              <div className="w-28 shrink-0"></div>
+              <div className="w-24 shrink-0"></div>
             </div>
           </div>
 

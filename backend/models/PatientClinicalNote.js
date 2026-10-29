@@ -10,20 +10,40 @@ const patientClinicalNoteSchema = new mongoose.Schema({
   patientId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Patient',
-    required: true,
+    required: false,
     index: true
+  },
+  patientName: {
+    type: String,
+    trim: true
+  },
+  patientPhone: {
+    type: String,
+    trim: true
   },
   doctorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Doctor'
   },
+  doctorName: {
+    type: String,
+    trim: true
+  },
   appointmentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Appointment'
   },
+  appointmentDate: {
+    type: String,
+    trim: true
+  },
+  appointmentTime: {
+    type: String,
+    trim: true
+  },
   noteType: {
     type: String,
-    enum: ['general', 'diagnosis', 'treatment', 'follow_up', 'observation', 'complaint', 'internal'],
+    enum: ['general', 'diagnosis', 'treatment', 'follow_up', 'observation', 'complaint', 'internal', 'appointment'],
     default: 'general',
     required: true
   },
@@ -53,7 +73,7 @@ const patientClinicalNoteSchema = new mongoose.Schema({
   },
   priority: {
     type: String,
-    enum: ['low', 'medium', 'high'],
+    enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium'
   },
   tags: [{
@@ -63,11 +83,12 @@ const patientClinicalNoteSchema = new mongoose.Schema({
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false
   },
   createdByRole: {
     type: String,
-    required: true
+    required: false,
+    default: 'doctor'
   },
   isDeleted: {
     type: Boolean,
@@ -82,6 +103,7 @@ const patientClinicalNoteSchema = new mongoose.Schema({
 patientClinicalNoteSchema.index({ organizationId: 1, patientId: 1 });
 patientClinicalNoteSchema.index({ organizationId: 1, patientId: 1, createdAt: -1 });
 patientClinicalNoteSchema.index({ organizationId: 1, doctorId: 1 });
+patientClinicalNoteSchema.index({ organizationId: 1, createdAt: -1 });
 
 const PatientClinicalNote = mongoose.model('PatientClinicalNote', patientClinicalNoteSchema);
 

@@ -1352,6 +1352,22 @@ export const translationApi = {
 };
 
 export const clinicalNoteApi = {
+  getAllNotes: async (params = {}) => {
+    const { data } = await api.get('/clinical-notes/all-notes', { params });
+    return data;
+  },
+  createStandalone: async (noteData) => {
+    const { data } = await api.post('/clinical-notes/create', noteData);
+    return data;
+  },
+  updateGeneralNote: async (noteId, noteData) => {
+    const { data } = await api.put(`/clinical-notes/notes/${noteId}`, noteData);
+    return data;
+  },
+  deleteGeneralNote: async (noteId) => {
+    const { data } = await api.delete(`/clinical-notes/notes/${noteId}`);
+    return data;
+  },
   create: async (patientId, noteData) => {
     const { data } = await api.post(`/patients/${patientId}/clinical-notes`, noteData);
     return data;

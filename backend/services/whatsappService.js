@@ -191,7 +191,7 @@ export const sendWhatsAppTemplate = async (phone, templateName, languageCode = '
 
   const parameters = bodyParameters.map((val, idx) => ({
     type: "text",
-    text: sanitizeTemplateParam(val, idx === 0 ? 13 : 0)
+    text: sanitizeTemplateParam(val, (idx === 0 && !templateName.includes('doctor')) ? 13 : 0)
   }));
 
   const components = [
@@ -326,7 +326,7 @@ export const sendWhatsAppMediaTemplate = async (phone, templateName, mediaUrl, m
 
   const bodyParams = bodyParameters.map((val, idx) => ({
     type: 'text',
-    text: sanitizeTemplateParam(val, idx === 0 ? 13 : 0)
+    text: sanitizeTemplateParam(val, (idx === 0 && !templateName.includes('doctor')) ? 13 : 0)
   }));
 
   const data = {

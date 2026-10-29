@@ -318,6 +318,15 @@ const PatientPanel = () => {
           </button>
 
           <button
+            onClick={() => navigate('/receptionist/notes')}
+            className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all shadow-md shadow-amber-500/20 font-bold text-xs sm:text-sm whitespace-nowrap"
+            title="Doctor & Patient Notes"
+          >
+            <FileText className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+            Notes
+          </button>
+
+          <button
             onClick={() => setIsRegisterModalOpen(true)}
             className="flex-1 inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md shadow-indigo-600/20 font-bold text-xs sm:text-sm whitespace-nowrap"
             title="Form 25 Daily Case Register"

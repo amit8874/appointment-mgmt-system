@@ -35,7 +35,8 @@ const PrescriptionTemplateTab = () => {
         aiBodyArea: { top: 75, bottom: 25, left: 12, right: 12 },
         fontSize: 12,
         footerBarcode: '',
-        footerText: ''
+        footerText: '',
+        footerSubText: ''
     });
     const [uploadingBarcode, setUploadingBarcode] = useState(false);
     const barcodeInputRef = React.useRef(null);
@@ -86,7 +87,8 @@ const PrescriptionTemplateTab = () => {
                     aiBodyArea: d.aiBodyArea || defaultBody,
                     fontSize: d.fontSize || 12,
                     footerBarcode: d.footerBarcode || '',
-                    footerText: d.footerText || ''
+                    footerText: d.footerText || '',
+                    footerSubText: d.footerSubText || ''
                 });
             }
         } catch (error) {
@@ -111,7 +113,8 @@ const PrescriptionTemplateTab = () => {
                 aiBodyArea: dataToSave.aiBodyArea,
                 fontSize: dataToSave.fontSize,
                 footerBarcode: dataToSave.footerBarcode || '',
-                footerText: dataToSave.footerText || ''
+                footerText: dataToSave.footerText || '',
+                footerSubText: dataToSave.footerSubText || ''
             });
             const modeLabel = dataToSave.templateMode === 'ai_vision' ? 'AI Vision Auto-Detect' : 'Manual Margins';
             showNotification(`Settings saved successfully! (${modeLabel} active for print)`);
@@ -581,6 +584,43 @@ const PrescriptionTemplateTab = () => {
                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-50"
                                 >
                                     <Save size={13} /> Save Footer Text
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Additional Footer Sub-Text (Plain Black Text without Strip) */}
+                    <div className="space-y-3 pt-4 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Info size={18} className="text-slate-600" />
+                                <label className="text-sm font-bold text-slate-800">Additional Footer Notice (Plain Black Text / No Strip)</label>
+                            </div>
+                            {settings.footerSubText && (
+                                <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                                    <CheckCircle size={13} /> Active in Footer
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                            Write any additional secondary text to show directly below the red footer notice. It will display in simple black text without any background or border strip across print preview, downloaded PDF, and WhatsApp-sent PDF.
+                        </p>
+                        <div className="space-y-2">
+                            <textarea
+                                rows={2}
+                                value={settings.footerSubText}
+                                onChange={(e) => setSettings(prev => ({ ...prev, footerSubText: e.target.value }))}
+                                placeholder="e.g. This is a computer generated prescription and does not require physical signature.&#10;Consultation valid for 7 days."
+                                className="w-full text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl p-3 outline-none transition-all placeholder:text-slate-400 leading-relaxed"
+                            />
+                            <div className="flex items-center justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => handleSave()}
+                                    disabled={loading}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                                >
+                                    <Save size={13} /> Save Additional Footer Text
                                 </button>
                             </div>
                         </div>

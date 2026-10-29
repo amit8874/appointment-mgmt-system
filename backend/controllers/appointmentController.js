@@ -9,6 +9,7 @@ import Patient from '../models/PaitentEditProfile.js';
 import Doctor from '../models/Doctor.js';
 import User from '../models/User.js';
 import Counter from '../models/Counter.js';
+import PatientClinicalNote from '../models/PatientClinicalNote.js';
 import { incrementUsage } from '../middleware/subscription.js';
 import { generatePatientId, getMonthlyPrefix } from '../utils/idGenerator.js';
 import Organization from '../models/Organization.js';
@@ -17,6 +18,181 @@ import { sanitizePhone } from '../utils/phoneUtils.js';
 import OTP from '../models/OTP.js';
 import { syncPatientDataToDependents } from '../utils/patientSync.js';
 import { formatPatientFullName, cleanPatientName } from '../utils/nameUtils.js';
+
+/**
+ * Helper to safely create or link an appointment clinical note without creating duplicates.
+ */
+const saveAppointmentClinicalNote = async ({
+  organizationId,
+  patientId,
+  doctorId,
+  doctorName,
+  appointmentId,
+  patientName,
+  patientPhone,
+  date,
+  time,
+  title,
+  note,
+  noteType,
+  priority,
+  userId,
+  userRole
+}) => {
+  if (!note || typeof note !== 'string' || !note.trim()) return null;
+  try {
+    const trimmedNote = note.trim();
+    const recentThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes
+
+    const orConditions = [];
+    if (appointmentId && mongoose.Types.ObjectId.isValid(appointmentId)) {
+      orConditions.push({ appointmentId });
+    }
+    const matchCond = {
+      note: trimmedNote,
+      createdAt: { $gte: recentThreshold }
+    };
+    if (patientId && mongoose.Types.ObjectId.isValid(patientId)) {
+      matchCond.patientId = patientId;
+    } else if (patientName) {
+      matchCond.patientName = patientName;
+    }
+    orConditions.push(matchCond);
+
+    const existingNote = await PatientClinicalNote.findOne({
+      organizationId,
+      $or: orConditions
+    });
+
+    if (existingNote) {
+      if (appointmentId && (!existingNote.appointmentId || String(existingNote.appointmentId) !== String(appointmentId))) {
+        existingNote.appointmentId = appointmentId;
+        await existingNote.save();
+      }
+      return existingNote;
+    }
+
+    return await PatientClinicalNote.create({
+      organizationId,
+      patientId: (patientId && mongoose.Types.ObjectId.isValid(patientId)) ? patientId : undefined,
+      doctorId: (doctorId && mongoose.Types.ObjectId.isValid(doctorId)) ? doctorId : undefined,
+      appointmentId: (appointmentId && mongoose.Types.ObjectId.isValid(appointmentId)) ? appointmentId : undefined,
+      patientName: patientName || '',
+      patientPhone: patientPhone || '',
+      doctorName: doctorName || '',
+      appointmentDate: date || '',
+      appointmentTime: time || '',
+      title: title || 'Appointment Note',
+      note: trimmedNote,
+      noteType: noteType || 'appointment',
+      priority: priority || 'medium',
+      createdBy: (userId && mongoose.Types.ObjectId.isValid(userId)) ? userId : undefined,
+      createdByRole: userRole || 'doctor'
+    });
+  } catch (err) {
+    console.error('[AppointmentController] Error in saveAppointmentClinicalNote:', err);
+    return null;
+  }
+};
+
+/**
+ * Helper to send a dedicated WhatsApp appointment alert to the selected doctor.
+ * Template:
+ * Hello Dr. {{1}},
+ * A new patient appointment has been scheduled for you at {{2}}.
+ * Appointment Details:
+ * • Patient Name: {{3}}
+ * • Date: {{4}}
+ * • Slot Time: {{5}}
+ * Thank You.
+ * Team Oviaan.
+ */
+const sendDoctorAppointmentWhatsApp = async ({
+  organizationId,
+  doctorId,
+  doctorName,
+  patientName,
+  date,
+  time,
+  appointmentId,
+  req
+}) => {
+  try {
+    let doctorPhone = '';
+    let targetDoctor = null;
+
+    if (doctorId && mongoose.Types.ObjectId.isValid(doctorId)) {
+      targetDoctor = await Doctor.findById(doctorId);
+    } else if (doctorId) {
+      targetDoctor = await Doctor.findOne({ organizationId, doctorId });
+    }
+
+    if (!targetDoctor && doctorName) {
+      targetDoctor = await Doctor.findOne({ organizationId, name: doctorName });
+    }
+
+    if (targetDoctor) {
+      doctorPhone = targetDoctor.phone || targetDoctor.mobile;
+      if (!doctorPhone && targetDoctor.userId) {
+        const docUser = await User.findById(targetDoctor.userId);
+        doctorPhone = docUser?.mobile || docUser?.phone;
+      }
+    }
+
+    if (!doctorPhone) {
+      console.warn(`[WhatsApp] Cannot send doctor alert: No phone number found for doctor ${doctorName || doctorId}`);
+      return null;
+    }
+
+    const sanitizedDocMobile = sanitizePhone(doctorPhone);
+    const docTemplate = process.env.WHATSAPP_DOCTOR_APPOINTMENT_TEMPLATE || 'doctor_appointment_notification';
+    const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+    const organization = await Organization.findById(organizationId);
+    const clinicName = organization?.name || 'our clinic';
+
+    const formattedDate = date ? (new Date(date).toLocaleDateString('en-US') === 'Invalid Date' ? date : new Date(date).toLocaleDateString('en-US')) : 'Not Specified';
+    const formattedTime = time || 'Not Specified';
+    const cleanDoctorName = (targetDoctor?.name || doctorName || 'Doctor').replace(/^Dr\.?\s*/i, '');
+
+    const waResponse = await sendWhatsAppTemplate(
+      sanitizedDocMobile,
+      docTemplate,
+      templateLang,
+      [
+        cleanDoctorName,          // {{1}}: Doctor Name
+        clinicName,               // {{2}}: Clinic Name
+        patientName || 'Patient', // {{3}}: Patient Name
+        formattedDate,            // {{4}}: Date
+        formattedTime             // {{5}}: Slot Time
+      ],
+      [],
+      {
+        organizationId,
+        chargeCredit: true,
+        messageType: 'DOCTOR_APPOINTMENT_ALERT',
+        relatedEntityType: 'Appointment',
+        relatedEntityId: appointmentId,
+        metadata: {
+          source: 'appointmentController',
+          templateName: docTemplate,
+          doctorId: targetDoctor?._id || doctorId,
+          doctorPhone: sanitizedDocMobile
+        },
+        io: req?.app?.get ? req.app.get('io') : undefined
+      }
+    );
+
+    if (waResponse && waResponse.messages && waResponse.messages[0] && waResponse.messages[0].id) {
+      console.log(`[WhatsApp] Doctor alert sent to ${cleanDoctorName} (${sanitizedDocMobile}). ID: ${waResponse.messages[0].id}`);
+    }
+
+    return waResponse;
+  } catch (err) {
+    console.error('Error sending doctor WhatsApp alert:', err);
+    return null;
+  }
+};
 
 export const getDoctorAppointments = async (req, res) => {
   try {
@@ -158,7 +334,7 @@ export const getPatientSummary = async (req, res) => {
 
 export const bookPatientAppointment = async (req, res) => {
   try {
-    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, paymentMethod, patientDetails, sendWhatsApp = false, skipBilling = false, isNewPatient = false } = req.body;
+    const { organizationId, patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, notes, amount, paymentStatus, paymentMethod, patientDetails, sendWhatsApp = false, sendWhatsAppToDoctor = false, skipBilling = false, isNewPatient = false } = req.body;
 
     if (!organizationId) return res.status(400).json({ message: 'Organization is required' });
     if (!patientDetails || !patientDetails.firstName) {
@@ -331,6 +507,26 @@ export const bookPatientAppointment = async (req, res) => {
 
     await appointment.save();
 
+    if (notes && notes.trim() !== '') {
+      await saveAppointmentClinicalNote({
+        organizationId,
+        patientId: existingPatient?._id,
+        doctorId: docObj ? docObj._id : (mongoose.Types.ObjectId.isValid(doctorId) ? doctorId : undefined),
+        appointmentId: appointment._id,
+        patientName,
+        patientPhone: patientDetails?.phone || '',
+        doctorName: doctorName || (docObj ? docObj.name : ''),
+        date: date || '',
+        time: time || '',
+        title: req.body.noteTitle || 'Appointment Note',
+        note: notes,
+        noteType: req.body.noteType || 'appointment',
+        priority: req.body.notePriority || 'medium',
+        userId: req.user?._id || existingPatient?._id,
+        userRole: req.user?.role || 'doctor'
+      });
+    }
+
     try {
       const staffUsers = await User.find({ organizationId, role: { $in: ['superadmin', 'orgadmin', 'admin', 'receptionist'] } });
       const notifications = staffUsers.map(user => {
@@ -449,7 +645,21 @@ export const bookPatientAppointment = async (req, res) => {
       console.error('[WhatsApp] Failed to send intake booking confirmation:', waError.message);
     }
   }
-  } catch (error) {
+
+  // 9. Send WhatsApp Alert to Selected Doctor
+  if (sendWhatsAppToDoctor) {
+    await sendDoctorAppointmentWhatsApp({
+      organizationId,
+      doctorId,
+      doctorName,
+      patientName,
+      date,
+      time,
+      appointmentId: appointment._id,
+      req
+    });
+  }
+} catch (error) {
     console.error('Error booking appointment:', error);
     res.status(500).json({ message: error.message });
   }
@@ -694,7 +904,7 @@ export const getAllAppointments = async (req, res) => {
 
 export const bookAppointment = async (req, res) => {
   try {
-    const { patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, patientDetails, amount, skipBilling = false, isNewPatient = false } = req.body;
+    const { patientId, doctorId, doctorName, specialty, date, time, reason, symptoms, patientDetails, amount, sendWhatsApp = false, sendWhatsAppToDoctor = false, skipBilling = false, isNewPatient = false } = req.body;
 
     if (!patientDetails || !patientDetails.firstName) return res.status(400).json({ message: 'Patient first name is required' });
 
@@ -841,6 +1051,26 @@ export const bookAppointment = async (req, res) => {
 
     await appointment.save();
 
+    if (notes && notes.trim() !== '') {
+      await saveAppointmentClinicalNote({
+        organizationId,
+        patientId: existingPatient?._id,
+        doctorId: docObj ? docObj._id : (mongoose.Types.ObjectId.isValid(doctorId) ? doctorId : undefined),
+        appointmentId: appointment._id,
+        patientName,
+        patientPhone: patientDetails?.phone || '',
+        doctorName: doctorName || (docObj ? docObj.name : ''),
+        date: date || '',
+        time: time || '',
+        title: req.body.noteTitle || 'Appointment Note',
+        note: notes,
+        noteType: req.body.noteType || 'appointment',
+        priority: req.body.notePriority || 'medium',
+        userId: req.user?._id || existingPatient?._id,
+        userRole: req.user?.role || 'doctor'
+      });
+    }
+
     // Update patient's lastVisit date and reference the latest appointment ID
     if (existingPatient) {
       existingPatient.lastVisit = date || '';
@@ -917,7 +1147,8 @@ export const bookAppointment = async (req, res) => {
     res.status(201).json(appointment);
 
     // 7. Send WhatsApp Confirmation Message to Patient
-    try {
+    if (sendWhatsApp) {
+      try {
       const organization = await Organization.findById(req.tenantId);
       const clinicName = organization?.name || 'our clinic';
       
@@ -966,6 +1197,21 @@ export const bookAppointment = async (req, res) => {
       }
     } catch (waError) {
       console.error('[WhatsApp] Failed to send internal booking confirmation:', waError.message);
+      }
+    }
+
+    // 8. Send WhatsApp Alert to Selected Doctor
+    if (sendWhatsAppToDoctor) {
+      await sendDoctorAppointmentWhatsApp({
+        organizationId: req.tenantId,
+        doctorId,
+        doctorName,
+        patientName,
+        date,
+        time,
+        appointmentId: appointment._id,
+        req
+      });
     }
   } catch (error) {
     console.error('Error booking appointment:', error);
@@ -1598,6 +1844,26 @@ export const bookPublicAppointment = async (req, res) => {
 
     await appointment.save();
 
+    if (notes && notes.trim() !== '') {
+      await saveAppointmentClinicalNote({
+        organizationId,
+        patientId: existingPatient?._id,
+        doctorId: docObj ? docObj._id : (mongoose.Types.ObjectId.isValid(doctorId) ? doctorId : undefined),
+        appointmentId: appointment._id,
+        patientName,
+        patientPhone: patientDetails?.phone || '',
+        doctorName: doctorName || (docObj ? docObj.name : ''),
+        date: date || '',
+        time: time || '',
+        title: req.body.noteTitle || 'Appointment Note',
+        note: notes,
+        noteType: req.body.noteType || 'appointment',
+        priority: req.body.notePriority || 'medium',
+        userId: req.user?._id || existingPatient?._id,
+        userRole: req.user?.role || 'doctor'
+      });
+    }
+
     // Update patient's lastVisit date and reference the latest appointment ID
     if (patient) {
       patient.lastVisit = date;
@@ -2014,6 +2280,26 @@ export const patchReschedule = async (req, res) => {
     
     await appointment.save();
 
+    if (notes && notes.trim() !== '') {
+      await saveAppointmentClinicalNote({
+        organizationId,
+        patientId: existingPatient?._id,
+        doctorId: docObj ? docObj._id : (mongoose.Types.ObjectId.isValid(doctorId) ? doctorId : undefined),
+        appointmentId: appointment._id,
+        patientName,
+        patientPhone: patientDetails?.phone || '',
+        doctorName: doctorName || (docObj ? docObj.name : ''),
+        date: date || '',
+        time: time || '',
+        title: req.body.noteTitle || 'Appointment Note',
+        note: notes,
+        noteType: req.body.noteType || 'appointment',
+        priority: req.body.notePriority || 'medium',
+        userId: req.user?._id || existingPatient?._id,
+        userRole: req.user?.role || 'doctor'
+      });
+    }
+
     // 4. Update patient's lastVisit date
     const patientRecord = await Patient.findOne({ 
       $or: [
@@ -2113,6 +2399,26 @@ export const updateVisitNotes = async (req, res) => {
     appointment.visitNotes = visitNotes;
     await appointment.save();
 
+    if (notes && notes.trim() !== '') {
+      await saveAppointmentClinicalNote({
+        organizationId,
+        patientId: existingPatient?._id,
+        doctorId: docObj ? docObj._id : (mongoose.Types.ObjectId.isValid(doctorId) ? doctorId : undefined),
+        appointmentId: appointment._id,
+        patientName,
+        patientPhone: patientDetails?.phone || '',
+        doctorName: doctorName || (docObj ? docObj.name : ''),
+        date: date || '',
+        time: time || '',
+        title: req.body.noteTitle || 'Appointment Note',
+        note: notes,
+        noteType: req.body.noteType || 'appointment',
+        priority: req.body.notePriority || 'medium',
+        userId: req.user?._id || existingPatient?._id,
+        userRole: req.user?.role || 'doctor'
+      });
+    }
+
     res.json({ message: 'Visit notes updated successfully', appointment });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -2143,6 +2449,7 @@ export const bookWalkInAppointment = async (req, res) => {
       billingStatus,
       paymentMode,
       sendWhatsApp = false,
+      sendWhatsAppToDoctor = false,
       skipBilling = false,
       email,
       address,
@@ -2300,6 +2607,26 @@ export const bookWalkInAppointment = async (req, res) => {
     });
 
     await appointment.save();
+
+    if (notes && notes.trim() !== '') {
+      await saveAppointmentClinicalNote({
+        organizationId,
+        patientId: existingPatient?._id,
+        doctorId: docObj ? docObj._id : (mongoose.Types.ObjectId.isValid(doctorId) ? doctorId : undefined),
+        appointmentId: appointment._id,
+        patientName,
+        patientPhone: patientDetails?.phone || '',
+        doctorName: doctorName || (docObj ? docObj.name : ''),
+        date: date || '',
+        time: time || '',
+        title: req.body.noteTitle || 'Appointment Note',
+        note: notes,
+        noteType: req.body.noteType || 'appointment',
+        priority: req.body.notePriority || 'medium',
+        userId: req.user?._id || existingPatient?._id,
+        userRole: req.user?.role || 'doctor'
+      });
+    }
 
     // 5. Create Billing Record
     let billId = null;

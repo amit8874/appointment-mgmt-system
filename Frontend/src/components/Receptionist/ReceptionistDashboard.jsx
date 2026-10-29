@@ -90,6 +90,7 @@ const ReceptionistLayout = () => {
       ]
     },
     { name: 'Patients', href: '/receptionist/patients', icon: Users },
+    { name: 'Notes', href: '/receptionist/notes', icon: FileText },
 
     { name: 'Billing', href: '/receptionist/billing', icon: FileText },
     {

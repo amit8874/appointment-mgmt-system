@@ -27,12 +27,12 @@ const extractObjectId = (value) => {
 // GET /api/clinic/prescription-template
 export const getSettings = async (req, res) => {
   try {
-    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.tenantId);
+    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.user?.organization) || extractObjectId(req.tenantId);
     if (!organizationId) {
       return res.status(400).json({ success: false, message: "Organization ID is required" });
     }
 
-    const org = await Organization.findById(organizationId).select('prescriptionTemplate');
+    const org = await Organization.findById(organizationId);
     if (!org) {
       return res.status(404).json({ success: false, message: "Organization not found" });
     }
@@ -122,7 +122,8 @@ export const getSettings = async (req, res) => {
       data: {
         ...templateData,
         footerBarcode: templateData.footerBarcode || org.prescriptionTemplate?.footerBarcode || org.branding?.footerBarcode || org.footerBarcode || "",
-        footerText: templateData.footerText || org.prescriptionTemplate?.footerText || org.branding?.footerText || org.footerText || ""
+        footerText: templateData.footerText || org.prescriptionTemplate?.footerText || org.branding?.footerText || org.footerText || "",
+        footerSubText: templateData.footerSubText || org.prescriptionTemplate?.footerSubText || org.branding?.footerSubText || org.footerSubText || ""
       }
     });
   } catch (error) {
@@ -134,12 +135,12 @@ export const getSettings = async (req, res) => {
 // PUT /api/clinic/prescription-template/settings
 export const updateSettings = async (req, res) => {
   try {
-    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.tenantId);
+    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.user?.organization) || extractObjectId(req.tenantId);
     if (!organizationId) {
       return res.status(400).json({ success: false, message: "Organization ID is required" });
     }
 
-    const { enabled, templateMode, printableArea, headerArea, bodyArea, aiHeaderArea, aiBodyArea, fontSize, footerBarcode, footerText } = req.body;
+    const { enabled, templateMode, printableArea, headerArea, bodyArea, aiHeaderArea, aiBodyArea, fontSize, footerBarcode, footerText, footerSubText } = req.body;
 
     const org = await Organization.findById(organizationId);
     if (!org) {
@@ -164,6 +165,12 @@ export const updateSettings = async (req, res) => {
       if (!org.branding) org.branding = {};
       org.branding.footerText = footerText;
       org.footerText = footerText;
+    }
+    if (footerSubText !== undefined) {
+      org.prescriptionTemplate.footerSubText = footerSubText;
+      if (!org.branding) org.branding = {};
+      org.branding.footerSubText = footerSubText;
+      org.footerSubText = footerSubText;
     }
     
     if (printableArea) {
@@ -215,7 +222,11 @@ export const updateSettings = async (req, res) => {
         $set: { 
           prescriptionTemplate: org.prescriptionTemplate,
           footerBarcode: org.prescriptionTemplate?.footerBarcode || org.footerBarcode || '',
-          'branding.footerBarcode': org.branding?.footerBarcode || ''
+          'branding.footerBarcode': org.branding?.footerBarcode || '',
+          footerText: org.prescriptionTemplate?.footerText || org.footerText || '',
+          'branding.footerText': org.branding?.footerText || '',
+          footerSubText: org.prescriptionTemplate?.footerSubText || org.footerSubText || '',
+          'branding.footerSubText': org.branding?.footerSubText || ''
         } 
       }
     );
@@ -234,7 +245,7 @@ export const updateSettings = async (req, res) => {
 // POST /api/clinic/prescription-template/ai-analyze
 export const analyzeTemplateWithAI = async (req, res) => {
   try {
-    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.tenantId);
+    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.user?.organization) || extractObjectId(req.tenantId);
     if (!organizationId) {
       return res.status(400).json({ success: false, message: "Organization ID is required" });
     }
@@ -483,7 +494,7 @@ Respond STRICTLY in JSON format:
 // POST /api/clinic/prescription-template/upload
 export const uploadTemplate = async (req, res) => {
   try {
-    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.tenantId);
+    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.user?.organization) || extractObjectId(req.tenantId);
     if (!organizationId) {
       return res.status(400).json({ success: false, message: "Organization ID is required" });
     }
@@ -549,7 +560,7 @@ export const uploadTemplate = async (req, res) => {
 // DELETE /api/clinic/prescription-template
 export const deleteTemplate = async (req, res) => {
   try {
-    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.tenantId);
+    const organizationId = extractObjectId(req.user?.organizationId) || extractObjectId(req.user?.organization) || extractObjectId(req.tenantId);
     if (!organizationId) {
       return res.status(400).json({ success: false, message: "Organization ID is required" });
     }

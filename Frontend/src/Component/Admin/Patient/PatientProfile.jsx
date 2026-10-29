@@ -968,15 +968,29 @@ const PrescriptionContent = ({ notes }) => {
       )}
 
       {/* 3.1 MEDICAL & DENTAL HISTORY */}
-      {(data.medicalDentalHistory || data.medicalHistory) && (
+      {(data.medicalDentalHistory || data.medicalHistory || data.dentalHistory) && (
         <div className="flex items-start gap-3 px-4 py-2.5 bg-rose-50/25">
           <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
             <Activity size={12} className="text-rose-500 shrink-0" />
-            <span className="text-[10px] font-semibold text-rose-500 uppercase tracking-widest">Med History</span>
+            <span className="text-[10px] font-semibold text-rose-500 uppercase tracking-widest">History</span>
           </div>
-          <p className="text-sm text-slate-700 leading-relaxed font-medium">
-            {data.medicalDentalHistory || data.medicalHistory}
-          </p>
+          <div className="space-y-1">
+            {data.medicalHistory && (
+              <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                <span className="font-bold text-slate-900">Medical: </span>{data.medicalHistory}
+              </p>
+            )}
+            {data.dentalHistory && (
+              <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                <span className="font-bold text-slate-900">Dental: </span>{data.dentalHistory}
+              </p>
+            )}
+            {!data.medicalHistory && !data.dentalHistory && data.medicalDentalHistory && (
+              <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                {data.medicalDentalHistory}
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -1159,8 +1173,36 @@ const PrescriptionContent = ({ notes }) => {
           </div>
           <p className="text-xs font-bold text-indigo-950">
             {new Date(data.nextAppointmentDate).toLocaleDateString('en-GB')}
-            {data.nextAppointmentNotes ? ` — ${data.nextAppointmentNotes}` : ''}
           </p>
+        </div>
+      )}
+
+      {/* 5.6 DOCTOR'S NOTES */}
+      {(data.nextAppointmentNotes || data.doctorNotes || (typeof data.notes === 'string' && !data.notes.startsWith('{') && data.notes)) && (
+        <div className="flex items-start gap-3 px-4 py-2.5 bg-amber-50/50">
+          <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
+            <FileText size={12} className="text-amber-600 shrink-0" />
+            <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-widest">Notes</span>
+          </div>
+          <p className="text-sm font-semibold text-slate-800 leading-relaxed whitespace-pre-line">
+            {data.nextAppointmentNotes || data.doctorNotes || data.notes}
+          </p>
+        </div>
+      )}
+
+      {/* 5.7 FOOTER NOTICE / SUB-TEXT */}
+      {(data.footerText || data.footerSubText || data.customFooterText) && (
+        <div className="flex items-start gap-3 px-4 py-2 bg-slate-50/80">
+          <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
+            <ClipboardList size={12} className="text-slate-500 shrink-0" />
+            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Footer Notice</span>
+          </div>
+          <div className="text-xs text-slate-700 space-y-0.5">
+            {data.footerText && <p className="font-bold text-red-600">{data.footerText}</p>}
+            {(data.footerSubText || data.customFooterText) && (
+              <p className="font-medium text-slate-800">{data.footerSubText || data.customFooterText}</p>
+            )}
+          </div>
         </div>
       )}
 
@@ -4689,7 +4731,8 @@ const PatientProfile = () => {
               ...(prev || {}),
               prescriptionTemplate: mergedTemplate,
               footerBarcode: templateData.footerBarcode || prev?.footerBarcode || '',
-              footerText: templateData.footerText || prev?.footerText || ''
+              footerText: templateData.footerText || prev?.footerText || '',
+              footerSubText: templateData.footerSubText || prev?.footerSubText || ''
             };
           });
         }
@@ -4890,6 +4933,9 @@ const PatientProfile = () => {
             if (settingsData.data.footerText) {
               org.footerText = settingsData.data.footerText;
             }
+            if (settingsData.data.footerSubText) {
+              org.footerSubText = settingsData.data.footerSubText;
+            }
           }
         } catch (settingsError) {
           console.error("Failed to fetch prescription template settings in fetchOrgDetails", settingsError);
@@ -4914,7 +4960,7 @@ const PatientProfile = () => {
     if (printingPrescription) {
       setTimeout(() => {
         window.print();
-      }, 600);
+      }, 900);
     }
   }, [printingPrescription]);
 
@@ -4968,7 +5014,8 @@ const PatientProfile = () => {
           ...prescription,
           doctorName,
           doctorQualification: doctorQual,
-          doctorSpecialization: doctorSpec
+          doctorSpecialization: doctorSpec,
+          footerSubText: orgDetails?.prescriptionTemplate?.footerSubText || orgDetails?.branding?.footerSubText || orgDetails?.footerSubText || ''
         },
         patientData: {
           name: (() => {
@@ -5137,6 +5184,32 @@ const PatientProfile = () => {
 
   const handlePrint = async (p) => {
     try {
+      // Refresh prescription template settings dynamically so new footer sub-text or barcode edits in admin profile are immediately loaded
+      const settingsData = await organizationApi.getPrescriptionTemplateSettings().catch(() => null);
+      if (settingsData && settingsData.data) {
+        setOrgDetails(prev => ({
+          ...(prev || {}),
+          ...settingsData.data,
+          prescriptionTemplate: {
+            ...(prev?.prescriptionTemplate || {}),
+            ...settingsData.data
+          },
+          footerBarcode: settingsData.data.footerBarcode || prev?.footerBarcode || '',
+          footerText: settingsData.data.footerText || prev?.footerText || '',
+          footerSubText: settingsData.data.footerSubText || prev?.footerSubText || ''
+        }));
+        if (!p.footerSubText && settingsData.data.footerSubText) {
+          p.footerSubText = settingsData.data.footerSubText;
+        }
+        if (!p.footerText && settingsData.data.footerText) {
+          p.footerText = settingsData.data.footerText;
+        }
+      }
+    } catch (templateErr) {
+      console.warn("Could not reload latest template settings on print:", templateErr);
+    }
+
+    try {
       let doctor = p.doctor || null;
       if (!doctor && p.doctorId) {
         if (user?._id === p.doctorId || user?.id === p.doctorId) {
@@ -5189,7 +5262,7 @@ const PatientProfile = () => {
         }
 
         // Footer Barcode / QR Code
-        const footerBarcode = orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.branding?.footerBarcode || orgDetails?.footerBarcode;
+        const footerBarcode = p?.footerBarcode || p?.parsedNotes?.footerBarcode || orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.branding?.footerBarcode || orgDetails?.footerBarcode || user?.organization?.prescriptionTemplate?.footerBarcode || user?.organization?.footerBarcode;
         if (footerBarcode) {
           urlsToPreload.push(getImageUrl(footerBarcode));
         }
@@ -6327,8 +6400,9 @@ const PatientProfile = () => {
               })()
             }
             clinicLogo={orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo}
-            footerBarcode={orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.footerBarcode || orgDetails?.branding?.footerBarcode || user?.organization?.prescriptionTemplate?.footerBarcode || user?.organization?.footerBarcode}
-            footerText={printingPrescription?.parsedNotes?.customFooterText || printingPrescription?.parsedNotes?.footerText || printingPrescription?.footerText || orgDetails?.prescriptionTemplate?.footerText || orgDetails?.branding?.footerText || orgDetails?.footerText || ''}
+            footerBarcode={printingPrescription?.footerBarcode || printingPrescription?.parsedNotes?.footerBarcode || orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.footerBarcode || orgDetails?.branding?.footerBarcode || user?.organization?.prescriptionTemplate?.footerBarcode || user?.organization?.footerBarcode}
+            footerText={printingPrescription?.footerText || printingPrescription?.parsedNotes?.footerText || orgDetails?.prescriptionTemplate?.footerText || orgDetails?.branding?.footerText || orgDetails?.footerText || ''}
+            footerSubText={printingPrescription?.footerSubText || printingPrescription?.parsedNotes?.footerSubText || printingPrescription?.additionalFooterNote || printingPrescription?.parsedNotes?.additionalFooterNote || orgDetails?.prescriptionTemplate?.footerSubText || orgDetails?.branding?.footerSubText || orgDetails?.footerSubText || user?.organization?.prescriptionTemplate?.footerSubText || user?.organization?.footerSubText || ''}
             doctor={printingPrescription?.doctor || (printingPrescription?.doctorId === user?._id || printingPrescription?.doctorId === user?.id || !printingPrescription?.doctorId ? user : undefined)}
           />
         </div>

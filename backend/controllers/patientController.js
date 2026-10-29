@@ -419,6 +419,9 @@ export const getPatientById = async (req, res) => {
     }
 
     if (!patient) {
+      if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        return res.status(404).json({ message: 'Patient not found' });
+      }
       // If patient doesn't exist, try to create from User data
       const user = await User.findOne({ organizationId: req.tenantId, _id: req.params.id });
       if (!user) return res.status(404).json({ message: 'User not found' });

@@ -215,6 +215,7 @@ API Routes
 -------------------------------------------------- */
 
 app.use("/api/users", userRoutes);
+app.use("/api/clinical-notes", clinicalNoteRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/patients", patientProgressImageRoutes);
 app.use("/api/patients", patientProgressComparisonRoutes);

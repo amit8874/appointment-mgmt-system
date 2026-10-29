@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Stethoscope, HandHeart, BarChart, CalendarCheck, Wallet, X, ChevronDown, ChevronRight, User, Calendar, Activity, Brain } from 'lucide-react';
+import { LayoutDashboard, Users, Stethoscope, HandHeart, BarChart, CalendarCheck, Wallet, X, ChevronDown, ChevronRight, User, Calendar, Activity, Brain, FileText } from 'lucide-react';
 import ClinicSwitcher from '../../components/common/ClinicSwitcher';
 
 const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }) => {
@@ -114,6 +114,7 @@ const Sidebar = ({ activeTab, setActiveTab, isSidebarOpen, toggleSidebar, user }
         <h2 className="text-xs font-extrabold uppercase text-gray-400 mb-5 ml-4 tracking-wider">MAIN</h2>
         <NavItem name="Dashboard" icon={LayoutDashboard} currentTab={activeTab} onClick={setActiveTab} />
         <NavItem name="Patients" icon={Users} currentTab={activeTab} onClick={setActiveTab} />
+        <NavItem name="Notes" icon={FileText} currentTab={activeTab} onClick={setActiveTab} />
 
         <h2 className="text-xs font-extrabold uppercase text-gray-400 mt-8 pt-4 border-t border-gray-100 dark:border-gray-700 mb-5 ml-4 tracking-wider">STAFF & RESOURCES</h2>
         

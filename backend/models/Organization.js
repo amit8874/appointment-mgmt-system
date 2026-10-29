@@ -73,6 +73,10 @@ const organizationSchema = new mongoose.Schema({
       type: String,
       default: ''
     },
+    footerSubText: {
+      type: String,
+      default: ''
+    },
   },
   // New clinic fields
   clinicType: {
@@ -247,6 +251,10 @@ const organizationSchema = new mongoose.Schema({
       type: String,
       default: ''
     },
+    footerSubText: {
+      type: String,
+      default: ''
+    },
     templateMode: {
       type: String,
       enum: ['manual', 'ai_vision'],
@@ -320,6 +328,18 @@ const organizationSchema = new mongoose.Schema({
       type: Date
     }
   },
+  footerBarcode: {
+    type: String,
+    default: ''
+  },
+  footerText: {
+    type: String,
+    default: ''
+  },
+  footerSubText: {
+    type: String,
+    default: ''
+  }
 });
 
 // Generate slug from name

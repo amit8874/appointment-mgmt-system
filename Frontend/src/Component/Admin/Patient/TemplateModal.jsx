@@ -385,7 +385,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
 
                         {/* Prescription Banner Bar */}
                         <div className="bg-[#a83244] text-white py-0.5 px-3 rounded text-center text-[10px] font-bold uppercase tracking-wider mb-2">
-                          PRESCRIPTION
+                          {user?.specialization && user.specialization.toLowerCase().includes('dent') ? 'DENTAL EXAMINATION & PRESCRIPTION' : 'PRESCRIPTION'}
                         </div>
 
                         {/* Patient Info Box */}
@@ -452,7 +452,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                             )}
                             {user?.registrationNumber && (
                               <div className="text-[9px] text-slate-600 font-medium">
-                                Medical Registration Number : {user.registrationNumber}
+                                {user?.specialization && user.specialization.toLowerCase().includes('dent') ? 'Dental Registration Number' : 'Medical Registration Number'} : {user.registrationNumber}
                               </div>
                             )}
                           </div>

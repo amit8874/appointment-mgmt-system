@@ -74,6 +74,8 @@ const DentalPrescriptionModal = ({
   // Section 2: Chief Complaint, History & K/C/O
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [duration, setDuration] = useState('');
+  const [medicalHistory, setMedicalHistory] = useState('');
+  const [dentalHistory, setDentalHistory] = useState('');
   const [medicalDentalHistory, setMedicalDentalHistory] = useState('');
   const [kcoMedication, setKcoMedication] = useState('');
 
@@ -132,7 +134,14 @@ const DentalPrescriptionModal = ({
           }
           if (parsed.complaintDuration) setDuration(parsed.complaintDuration);
           if (parsed.duration) setDuration(parsed.duration);
-          if (parsed.medicalDentalHistory) setMedicalDentalHistory(parsed.medicalDentalHistory);
+          if (parsed.medicalHistory) setMedicalHistory(parsed.medicalHistory);
+          if (parsed.dentalHistory) setDentalHistory(parsed.dentalHistory);
+          if (parsed.medicalDentalHistory) {
+            setMedicalDentalHistory(parsed.medicalDentalHistory);
+            if (!parsed.dentalHistory && !parsed.medicalHistory) {
+              setDentalHistory(parsed.medicalDentalHistory);
+            }
+          }
           if (parsed.kcoMedication) setKcoMedication(parsed.kcoMedication);
           else if (parsed.kco) setKcoMedication(parsed.kco);
           if (parsed.oralExamination) {
@@ -167,9 +176,13 @@ const DentalPrescriptionModal = ({
           if (parsed.medications?.length) setMedications(parsed.medications);
           if (parsed.advice) setAdvice(parsed.advice);
           if (parsed.nextAppointmentDate) setNextAppointmentDate(parsed.nextAppointmentDate);
-          if (parsed.nextAppointmentNotes) setNextAppointmentNotes(parsed.nextAppointmentNotes);
+          if (parsed.nextAppointmentNotes || parsed.doctorNotes || parsed.notes) {
+            setNextAppointmentNotes(parsed.nextAppointmentNotes || parsed.doctorNotes || (typeof parsed.notes === 'string' && !parsed.notes.startsWith('{') ? parsed.notes : ''));
+          }
           if (parsed.examinationDate) setExaminationDate(parsed.examinationDate);
-          if (parsed.customFooterText || parsed.footerText) setCustomFooterText(parsed.customFooterText || parsed.footerText);
+          if (parsed.footerSubText || parsed.additionalFooterNote || parsed.customFooterText) {
+            setCustomFooterText(parsed.footerSubText || parsed.additionalFooterNote || parsed.customFooterText);
+          }
         }
       } catch (e) {
         console.warn("Could not parse prescription edit data:", e);
@@ -311,7 +324,7 @@ const DentalPrescriptionModal = ({
     }
 
     const docId = patient?.assignedDoctorId || user?._id || user?.id || null;
-    const docName = patient?.assignedDoctor || user?.name || user?.fullName || 'Dental Surgeon';
+    const docName = patient?.assignedDoctor || user?.name || user?.fullName || '';
 
     setIsSaving(true);
     try {
@@ -337,7 +350,9 @@ const DentalPrescriptionModal = ({
         chiefComplaint,
         complaintDuration: duration,
         complaints: chiefComplaint ? [{ name: chiefComplaint, duration }] : [],
-        medicalDentalHistory,
+        medicalHistory: medicalHistory.trim() || undefined,
+        dentalHistory: dentalHistory.trim() || medicalDentalHistory.trim() || undefined,
+        medicalDentalHistory: (dentalHistory.trim() || medicalDentalHistory.trim() || medicalHistory.trim()) || undefined,
         kcoMedication: kcoMedication.trim(),
         kco: kcoMedication.trim(),
         oralExamination: oralExamText.trim(),
@@ -350,9 +365,12 @@ const DentalPrescriptionModal = ({
         medications: activeMeds,
         advice,
         nextAppointmentDate,
-        nextAppointmentNotes,
+        nextAppointmentNotes: nextAppointmentNotes.trim() || undefined,
+        doctorNotes: nextAppointmentNotes.trim() || undefined,
+        notes: nextAppointmentNotes.trim() || undefined,
         followUpDate: nextAppointmentDate,
-        footerText: customFooterText.trim() || undefined,
+        footerSubText: customFooterText.trim() || undefined,
+        additionalFooterNote: customFooterText.trim() || undefined,
         customFooterText: customFooterText.trim() || undefined
       };
 
@@ -408,9 +426,9 @@ const DentalPrescriptionModal = ({
           doctorId: docId,
           doctorName: doctorObj?.name || docName,
           qualification: doctorObj?.qualification || user?.qualification || '',
-          specialty: doctorObj?.specialization || doctorObj?.specialty || user?.specialization || 'Dental Surgeon',
+          specialty: doctorObj?.specialization || doctorObj?.specialty || user?.specialization || '',
           doctorQualification: doctorObj?.qualification || user?.qualification || '',
-          doctorSpecialization: doctorObj?.specialization || doctorObj?.specialty || user?.specialization || 'Dental Surgeon',
+          doctorSpecialization: doctorObj?.specialization || doctorObj?.specialty || user?.specialization || '',
           doctorSignature: doctorObj?.doctorSignature || user?.doctorSignature,
           doctorStamp: doctorObj?.doctorStamp || user?.doctorStamp,
           registrationNumber: doctorObj?.registrationNumber || doctorObj?.licenseNumber || user?.registrationNumber,
@@ -624,20 +642,43 @@ const DentalPrescriptionModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1.5">Medical / dental history</label>
+                  <label className="block text-xs font-bold text-slate-400 mb-1.5">Medical History</label>
                   <textarea
                     rows={2}
-                    value={medicalDentalHistory}
-                    onChange={(e) => setMedicalDentalHistory(e.target.value)}
-                    placeholder="Previous treatment, allergies, relevant medical history"
+                    value={medicalHistory}
+                    onChange={(e) => setMedicalHistory(e.target.value)}
+                    placeholder="General medical conditions, systemic illness, drug allergies"
                     className="w-full bg-[#121824] border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white outline-none transition-colors"
                   />
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {['No known allergies', 'Hypertension', 'Diabetic', 'Penicillin Allergy', 'Asthma', 'Previous RCT done'].map((alert) => (
+                    {['No systemic illness', 'Hypertension', 'Diabetic', 'Penicillin Allergy', 'Asthma', 'Cardiac Condition', 'Thyroid Disorder'].map((alert) => (
                       <button
                         key={alert}
                         type="button"
-                        onClick={() => setMedicalDentalHistory(prev => prev ? `${prev}, ${alert}` : alert)}
+                        onClick={() => setMedicalHistory(prev => prev ? `${prev}, ${alert}` : alert)}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-teal-300 hover:border-teal-500/50 transition-colors"
+                      >
+                        + {alert}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-1.5">Dental History</label>
+                  <textarea
+                    rows={2}
+                    value={dentalHistory}
+                    onChange={(e) => setDentalHistory(e.target.value)}
+                    placeholder="Previous dental treatments, restorations, extractions, RCT"
+                    className="w-full bg-[#121824] border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white outline-none transition-colors"
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {['No prior dental issues', 'Previous RCT done', 'Previous Extraction', 'Past Dental Surgery', 'Crown/Bridge Restoration', 'Bleeding gums history'].map((alert) => (
+                      <button
+                        key={alert}
+                        type="button"
+                        onClick={() => setDentalHistory(prev => prev ? `${prev}, ${alert}` : alert)}
                         className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-teal-300 hover:border-teal-500/50 transition-colors"
                       >
                         + {alert}
@@ -1304,12 +1345,12 @@ const DentalPrescriptionModal = ({
                 </div>
               </div>
 
-              {/* Next Appointment Date & Plan (User Request) */}
+              {/* Next Appointment Date & Doctor's Notes */}
               <div className="p-4 bg-gradient-to-r from-teal-950/30 via-slate-900 to-indigo-950/30 rounded-2xl border border-teal-500/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-black text-teal-300 uppercase tracking-wider flex items-center gap-1.5">
                     <Calendar size={14} className="text-teal-400" />
-                    Next Appointment Date & Follow-Up
+                    Next Visit Date & Doctor's Notes
                   </label>
                   <div className="flex items-center gap-2">
                     {nextAppointmentDate && (
@@ -1321,7 +1362,7 @@ const DentalPrescriptionModal = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   <div>
                     <input
                       type="date"
@@ -1329,53 +1370,61 @@ const DentalPrescriptionModal = ({
                       onChange={(e) => setNextAppointmentDate(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none"
                     />
-                    <p className="text-[10px] text-teal-300/90 font-bold mt-1">
-                      Follow-Up Date: <span className="text-teal-200">{formatDateDMY(nextAppointmentDate) || 'Not scheduled'}</span> (Day/Month/Year)
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-2">
-                      {[
-                        { label: 'Tomorrow', days: 1 },
-                        { label: '3 Days', days: 3 },
-                        { label: '1 Week', days: 7 },
-                        { label: '2 Weeks', days: 14 }
-                      ].map(({ label, days }) => (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => setNextAppointmentDate(format(addDays(new Date(), days), 'yyyy-MM-dd'))}
-                          className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 hover:text-teal-300 hover:border-teal-500/40 transition-colors"
-                        >
-                          {label}
-                        </button>
-                      ))}
+                    <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+                      <p className="text-[10px] text-teal-300/90 font-bold">
+                        Follow-Up Date: <span className="text-teal-200">{formatDateDMY(nextAppointmentDate) || 'Not scheduled'}</span> (Day/Month/Year)
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        {[
+                          { label: 'Tomorrow', days: 1 },
+                          { label: '3 Days', days: 3 },
+                          { label: '1 Week', days: 7 },
+                          { label: '2 Weeks', days: 14 }
+                        ].map(({ label, days }) => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => setNextAppointmentDate(format(addDays(new Date(), days), 'yyyy-MM-dd'))}
+                            className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 hover:text-teal-300 hover:border-teal-500/40 transition-colors"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <input
-                      type="text"
+                  {/* Doctor Notes below Next Visit Date */}
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <label className="block text-xs font-bold text-teal-300 mb-1.5 flex items-center justify-between">
+                      <span>Doctor's Notes (Next Visit / Procedure Instructions)</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Prints below Next Visit Date on prescription</span>
+                    </label>
+                    <textarea
+                      rows={2}
                       value={nextAppointmentNotes}
                       onChange={(e) => setNextAppointmentNotes(e.target.value)}
-                      placeholder="Planned procedure for next visit (e.g. Canal Obturation / Crown Cementation)"
-                      className="w-full bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-white outline-none"
+                      placeholder="Write doctor's notes, planned procedure, or instructions for next visit (e.g. Canal Obturation / Crown Cementation)..."
+                      className="w-full bg-[#121824] border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2 text-sm font-semibold text-white outline-none placeholder:text-slate-600 transition-colors"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Optional Custom Footer Notice for this prescription */}
+              {/* Optional Additional Footer Note (prints in plain black text below red footer notice strip) */}
               <div className="space-y-1.5 pt-1">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-400">
-                    Prescription Footer Notice <span className="text-[10px] text-slate-500 font-normal">(Optional - leave blank to use clinic default footer)</span>
+                    Additional Footer Note (Optional)
                   </label>
+                  <span className="text-[10px] text-slate-500 font-normal">Prints in plain black text directly below footer notice strip</span>
                 </div>
                 <input
                   type="text"
                   value={customFooterText}
                   onChange={(e) => setCustomFooterText(e.target.value)}
-                  placeholder="e.g. SCAN FOR APPOINTMENTS • PRESCRIPTION VALID FOR 7 DAYS"
-                  className="w-full bg-[#121824] border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-300 outline-none placeholder:text-slate-600 transition-colors"
+                  placeholder="Optional custom footer text (leave empty to use clinic template default)"
+                  className="w-full bg-[#121824] border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-300 outline-none placeholder:text-slate-600 transition-colors"
                 />
               </div>
             </div>
