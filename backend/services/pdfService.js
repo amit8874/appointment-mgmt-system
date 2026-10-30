@@ -260,6 +260,7 @@ async function getQuotationHtml(quotation, org, doctorDetails = null) {
   }
   const attendingDoctorSpecialization = formattedSpec ? `( ${formattedSpec} )` : '';
   const attendingDoctorQualification = doctorDetails?.qualification || '';
+  const attendingDoctorQualLines = String(attendingDoctorQualification || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
   const attendingDoctorRegNo = doctorDetails?.registrationNumber 
     ? `Reg. No. ${doctorDetails.registrationNumber}` 
     : (doctorDetails?.licenseNumber ? `Reg. No. ${doctorDetails.licenseNumber}` : '');
@@ -554,7 +555,7 @@ async function getQuotationHtml(quotation, org, doctorDetails = null) {
               <td style="width: 42%; text-align: right;">
                 <h2 class="doctor-title">Dr. ${attendingDoctorName}</h2>
                 ${attendingDoctorSpecialization ? `<p class="doctor-specialization">${attendingDoctorSpecialization}</p>` : ''}
-                ${attendingDoctorQualification ? `<p class="doctor-qualification">${attendingDoctorQualification}</p>` : ''}
+                ${attendingDoctorQualLines.length > 0 ? attendingDoctorQualLines.map(l => `<p class="doctor-qualification">${l}</p>`).join('') : ''}
                 ${attendingDoctorRegNo ? `<p class="doctor-reg">${attendingDoctorRegNo}</p>` : ''}
               </td>
             </tr>
@@ -1069,6 +1070,7 @@ async function getInvoiceHtml(bill, org, template) {
   const attendingDoctorQualification = doctorDetails?.qualification 
     ? doctorDetails.qualification 
     : (isManomay ? 'B.D.S(Manipal), M.D.S(M.A.M.C. New Delhi)' : '');
+  const attendingDoctorQualLines = String(attendingDoctorQualification || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
   const attendingDoctorRegNo = doctorDetails?.registrationNumber 
     ? `Reg. No.${doctorDetails.registrationNumber}` 
     : (doctorDetails?.licenseNumber 
@@ -1579,7 +1581,7 @@ async function getInvoiceHtml(bill, org, template) {
               <td class="doctor-col">
                 <h2 class="doctor-title">Dr. ${attendingDoctorName}</h2>
                 ${attendingDoctorSpecialization ? `<p class="doctor-specialization">${attendingDoctorSpecialization}</p>` : ''}
-                ${attendingDoctorQualification ? `<p class="doctor-qualification">${attendingDoctorQualification}</p>` : ''}
+                ${attendingDoctorQualLines.length > 0 ? attendingDoctorQualLines.map(l => `<p class="doctor-qualification">${l}</p>`).join('') : ''}
                 ${attendingDoctorRegNo ? `<p class="doctor-reg">${attendingDoctorRegNo}</p>` : ''}
               </td>
             </tr>
@@ -2143,12 +2145,44 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   const doctorLastName = rawDocName ? rawDocName.replace(/^dr\.?\s+/i, '').split(' ').pop() : '';
   const doctorQual = docObj?.qualification || doctorDetails.doctorQualification || prescriptionData?.doctorQualification || parsedData?.doctorQualification || '';
   
+  // Format Doctor Qualifications: split by commas or newlines so each degree/designation (e.g. BDS, MDS, MBBS) appears on a new line
+  const doctorQualLines = (() => {
+    if (!doctorQual) return [];
+    if (Array.isArray(doctorQual)) {
+      return doctorQual.flatMap(q => String(q).split(/[,;\n]+/)).map(s => s.trim()).filter(Boolean);
+    }
+    return String(doctorQual).split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+  })();
+
   let rawPrescSpec = docObj?.specialization || doctorDetails.doctorSpecialization || doctorDetails.specialty || prescriptionData?.doctorSpecialization || prescriptionData?.specialty || parsedData?.doctorSpecialization || '';
   const specLower = rawPrescSpec.trim().toLowerCase();
   if (specLower === 'dental' || specLower === 'dentist' || specLower === 'dental surgeon') {
     rawPrescSpec = '';
   }
   const doctorSpecialization = rawPrescSpec;
+  const doctorDesignation = docObj?.designation || doctorDetails?.designation || prescriptionData?.designation || '';
+
+  // Doctor Designation / Specialization lines: split by commas or newlines
+  const doctorSpecLines = (() => {
+    const rawList = [];
+    if (doctorSpecialization) {
+      rawList.push(...String(doctorSpecialization).split(/[,;\n]+/));
+    }
+    if (doctorDesignation) {
+      rawList.push(...String(doctorDesignation).split(/[,;\n]+/));
+    }
+    const qualLowerSet = new Set(doctorQualLines.map(q => q.toLowerCase()));
+    const seen = new Set();
+    const result = [];
+    rawList.map(s => s.trim()).filter(Boolean).forEach(item => {
+      const lower = item.toLowerCase();
+      if (!qualLowerSet.has(lower) && !seen.has(lower)) {
+        seen.add(lower);
+        result.push(item);
+      }
+    });
+    return result;
+  })();
   const doctorRegNo = docObj?.registrationNumber || docObj?.regNo || '';
   
   const doctorSubCreds = Array.isArray(docObj?.education) && docObj.education.length > 0 
@@ -2209,6 +2243,49 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   if (footerSubText === footerText) {
     footerSubText = '';
   }
+
+  // Fee / Treatment Charges Details (Dental Prescription Billing Summary)
+  const feeDetails = parsedData?.feeDetails || prescriptionData?.feeDetails || null;
+
+  const hasConsultation = Boolean(feeDetails?.consultationFees && String(feeDetails.consultationFees).trim() !== '');
+  const hasXray = Boolean(feeDetails?.xrayFees && String(feeDetails.xrayFees).trim() !== '');
+  const hasProcedure = Boolean(
+    (feeDetails?.procedureFees && String(feeDetails.procedureFees).trim() !== '') || 
+    (feeDetails?.procedureName && String(feeDetails.procedureName).trim() !== '')
+  );
+  const discountType = feeDetails?.discountType || 'fixed';
+  const discountVal = parseFloat(feeDetails?.discount) || 0;
+  const hasDiscount = Boolean(discountVal > 0);
+  const discountAmount = feeDetails?.discountAmount !== undefined && feeDetails?.discountAmount !== null && feeDetails?.discountAmount !== ''
+    ? parseFloat(feeDetails.discountAmount)
+    : (discountType === 'percentage'
+        ? (((parseFloat(feeDetails?.consultationFees) || 0) + (parseFloat(feeDetails?.xrayFees) || 0) + (parseFloat(feeDetails?.procedureFees) || 0)) * discountVal) / 100
+        : discountVal);
+
+  const discountLabel = discountType === 'percentage' 
+    ? `Discount (${discountVal}%)` 
+    : 'Discount';
+
+  const hasTotal = Boolean(feeDetails?.totalAmount && String(feeDetails.totalAmount).trim() !== '');
+  const hasPaid = Boolean(feeDetails?.amountPaid && String(feeDetails.amountPaid).trim() !== '');
+  const hasDue = Boolean(feeDetails?.amountDue && String(feeDetails.amountDue).trim() !== '');
+  const isBlank = Boolean(feeDetails?.isBlank);
+
+  // If doctor does not write in any part (and is not blank mode), NO table will print!
+  const hasAnyEntered = hasConsultation || hasXray || hasProcedure || hasTotal || hasPaid || hasDue;
+  const showFeeTable = isDental && feeDetails?.includeFeeTable !== false && (hasAnyEntered || isBlank);
+
+  const xrayLabel = feeDetails?.xrayRequiredType === 'required' 
+    ? 'Digital X-ray (Required)' 
+    : 'Digital X-ray (If required)';
+
+  const formatFeeValuePdf = (val, isBlank) => {
+    if (isBlank) return '&nbsp;';
+    if (val === '' || val === null || val === undefined) return '&nbsp;';
+    const num = Number(val);
+    if (isNaN(num)) return String(val);
+    return `₹${num.toLocaleString('en-IN')}`;
+  };
 
   // Custom Watermark / Body Background
   let bodyBgStyle = '';
@@ -2653,12 +2730,16 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                   ${doctorFormattedName ? `
                     <h1 style="font-size: 18px; font-weight: 900; color: #1e1b4b; margin: 0; line-height: 1.2;">${doctorFormattedName}</h1>
                   ` : ''}
-                  ${doctorQual ? `
-                    <div style="font-size: 12px; font-weight: bold; color: #dc2626; margin-top: 2px;">${doctorQual}</div>
-                  ` : ''}
-                  ${doctorSpecialization && (!doctorQual || !doctorQual.toLowerCase().includes(doctorSpecialization.toLowerCase())) ? `
-                    <div style="font-size: 11px; font-weight: 600; color: #334155; margin-top: 2px;">${doctorSpecialization}</div>
-                  ` : ''}
+                    ${doctorQualLines.length > 0 ? `
+                      <div style="font-size: 12px; font-weight: bold; color: #dc2626; margin-top: 2px; line-height: 1.25;">
+                        ${doctorQualLines.map(line => `<div>${line}</div>`).join('')}
+                      </div>
+                    ` : ''}
+                    ${doctorSpecLines.length > 0 ? `
+                      <div style="font-size: 11px; font-weight: 600; color: #334155; margin-top: 2px; line-height: 1.25;">
+                        ${doctorSpecLines.map(spec => `<div>${spec}</div>`).join('')}
+                      </div>
+                    ` : ''}
                   ${doctorSubCreds.length > 0 ? `
                     <div style="font-size: 10px; color: #475569; margin-top: 4px; line-height: 1.3; font-weight: 500;">
                       ${doctorSubCreds.map(c => `<div>${c}</div>`).join('')}
@@ -2861,9 +2942,70 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
             </div>
 
             <div>
-              <!-- Doctor Signature & Stamp Area (Bottom Right) -->
-              <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
-                <div style="display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 200px;">
+              <!-- Treatment Fee Table on Left (if dental) & Doctor Signature on Right -->
+              <div style="display: flex; align-items: flex-end; justify-content: ${showFeeTable ? 'space-between' : 'flex-end'}; gap: 16px; margin-top: 14px; margin-bottom: 8px;">
+                ${showFeeTable ? `
+                  <div style="width: 295px; max-width: 55%; box-sizing: border-box;">
+                    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #1e293b; font-size: 11px; line-height: 1.25; background-color: #ffffff;">
+                      <tbody>
+                        ${(hasConsultation || isBlank) ? `
+                          <tr style="border-bottom: 1px solid #1e293b;">
+                            <td style="padding: 3.5px 8px; border-right: 1px solid #1e293b; font-weight: 600; color: #0f172a; width: 64%;">Consultation Fees</td>
+                            <td style="padding: 3.5px 8px; font-weight: bold; color: #0f172a; text-align: right; width: 36%; min-width: 70px;">${formatFeeValuePdf(feeDetails?.consultationFees, isBlank)}</td>
+                          </tr>
+                        ` : ''}
+
+                        ${(hasXray || isBlank) ? `
+                          <tr style="border-bottom: 1px solid #1e293b;">
+                            <td style="padding: 3.5px 8px; border-right: 1px solid #1e293b; font-weight: 600; color: #0f172a;">${xrayLabel}</td>
+                            <td style="padding: 3.5px 8px; font-weight: bold; color: #0f172a; text-align: right;">${formatFeeValuePdf(feeDetails?.xrayFees, isBlank)}</td>
+                          </tr>
+                        ` : ''}
+
+                        ${(hasProcedure || isBlank) ? `
+                          <tr style="border-bottom: 1px solid #1e293b;">
+                            <td style="padding: 3.5px 8px; border-right: 1px solid #1e293b; font-weight: 600; color: #0f172a;">
+                              <div>Procedures Fees</div>
+                              ${feeDetails?.procedureName ? `<div style="font-size: 9px; font-weight: 500; color: #475569; margin-top: 1px;">(${feeDetails.procedureName})</div>` : ''}
+                            </td>
+                            <td style="padding: 3.5px 8px; font-weight: bold; color: #0f172a; text-align: right;">${formatFeeValuePdf(feeDetails?.procedureFees, isBlank)}</td>
+                          </tr>
+                        ` : ''}
+
+                        ${(hasDiscount && !isBlank) ? `
+                          <tr style="border-bottom: 1px solid #1e293b; background-color: #f0fdf4;">
+                            <td style="padding: 3.5px 8px; border-right: 1px solid #1e293b; font-weight: 600; color: #166534;">${discountLabel}</td>
+                            <td style="padding: 3.5px 8px; font-weight: bold; color: #166534; text-align: right;">- ${formatFeeValuePdf(discountAmount, false)}</td>
+                          </tr>
+                        ` : ''}
+
+                        ${(hasTotal || hasConsultation || hasXray || hasProcedure || isBlank) ? `
+                          <tr style="border-bottom: 1px solid #1e293b; background-color: #f8fafc;">
+                            <td style="padding: 3.5px 8px; border-right: 1px solid #1e293b; font-weight: bold; color: #0f172a;">Total Amount</td>
+                            <td style="padding: 3.5px 8px; font-weight: 800; color: #0f172a; text-align: right;">${formatFeeValuePdf(feeDetails?.totalAmount, isBlank)}</td>
+                          </tr>
+                        ` : ''}
+
+                        ${(hasPaid || isBlank) ? `
+                          <tr style="border-bottom: 1px solid #1e293b;">
+                            <td style="padding: 3.5px 8px; border-right: 1px solid #1e293b; font-weight: 600; color: #0f172a;">Amount Paid</td>
+                            <td style="padding: 3.5px 8px; font-weight: bold; color: #0f172a; text-align: right;">${formatFeeValuePdf(feeDetails?.amountPaid, isBlank)}</td>
+                          </tr>
+                        ` : ''}
+
+                        ${(hasDue || hasTotal || hasPaid || isBlank) ? `
+                          <tr>
+                            <td style="padding: 3.5px 8px; border-right: 1px solid #1e293b; font-weight: bold; color: #0f172a;">Amount Due</td>
+                            <td style="padding: 3.5px 8px; font-weight: 800; color: #0f172a; text-align: right;">${formatFeeValuePdf(feeDetails?.amountDue, isBlank)}</td>
+                          </tr>
+                        ` : ''}
+                      </tbody>
+                    </table>
+                  </div>
+                ` : ''}
+
+                <!-- Doctor Signature & Stamp Area (Bottom Right) -->
+                <div style="display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 180px; max-width: 45%;">
                   ${signatureBase64 ? `
                     <img src="${signatureBase64}" alt="Signature" style="height: 48px; object-fit: contain; margin-bottom: 4px;" />
                   ` : ''}

@@ -358,10 +358,13 @@ export const getDoctorSlots = async (req, res) => {
       return res.status(400).json({ message: 'Date parameter is required' });
     }
 
-    // Find the doctor - try both doctorId and _id
-    let doctor = await Doctor.findOne({ doctorId: id });
-    if (!doctor) {
+    // Find the doctor - check _id first if valid ObjectId, then doctorId
+    let doctor = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
       doctor = await Doctor.findById(id);
+    }
+    if (!doctor) {
+      doctor = await Doctor.findOne({ doctorId: id });
     }
     if (!doctor) {
       return res.status(404).json({ message: 'Doctor not found' });
@@ -421,15 +424,45 @@ export const getDoctorSlots = async (req, res) => {
     }
 
     // Get booked appointments for this doctor and date from all collections
-    // Use both doctorId and _id to ensure we catch all bookings
-    const doctorIdSearch = [];
-    if (doctor.doctorId) doctorIdSearch.push(doctor.doctorId);
-    doctorIdSearch.push(doctor._id.toString());
+    // Strictly isolate by doctor so multiple doctors in the same clinic have independent slots
+    const docIdStr = doctor._id ? doctor._id.toString() : '';
+    const docCustomId = doctor.doctorId ? doctor.doctorId.trim() : null;
+    const docName = (doctor.name || '').trim();
+
+    const doctorMatchClauses = [];
+    if (docIdStr) {
+      doctorMatchClauses.push({ doctorId: docIdStr });
+      if (mongoose.Types.ObjectId.isValid(docIdStr)) {
+        doctorMatchClauses.push({ doctorId: doctor._id });
+      }
+    }
+    if (docCustomId) {
+      if (docName) {
+        const cleanName = docName.replace(/^Dr\.?\s*/i, '').trim();
+        doctorMatchClauses.push({
+          doctorId: docCustomId,
+          $or: [
+            { doctorName: { $regex: new RegExp(cleanName, 'i') } },
+            { doctorName: { $exists: false } },
+            { doctorName: null },
+            { doctorName: '' }
+          ]
+        });
+      } else {
+        doctorMatchClauses.push({ doctorId: docCustomId });
+      }
+    }
+    if (docName) {
+      const cleanName = docName.replace(/^Dr\.?\s*/i, '').trim();
+      doctorMatchClauses.push({
+        doctorName: { $regex: new RegExp(`^(\\s*Dr\\.?\\s*)?${cleanName}\\s*$`, 'i') }
+      });
+    }
 
     const bookedQuery = {
       organizationId: doctor.organizationId,
-      doctorId: { $in: doctorIdSearch },
-      date: date
+      date: date,
+      $or: doctorMatchClauses.length > 0 ? doctorMatchClauses : [{ doctorId: docIdStr }]
     };
 
 
@@ -557,9 +590,12 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
   try {
     const { id } = req.params;
 
-    let doctor = await Doctor.findOne({ doctorId: id });
-    if (!doctor) {
+    let doctor = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
       doctor = await Doctor.findById(id);
+    }
+    if (!doctor) {
+      doctor = await Doctor.findOne({ doctorId: id });
     }
     if (!doctor || !['Active', 'Verified'].includes(doctor.status)) {
       return res.status(404).json({ message: 'Doctor not found or inactive' });
@@ -595,13 +631,44 @@ export const getDoctorAvailabilitySummary = async (req, res) => {
       if (isAvailable) {
         const possibleSlots = generateTimeSlots(workingHours, doctor.slotDuration || 15);
 
-        const doctorIdSearch = [];
-        if (doctor.doctorId) doctorIdSearch.push(doctor.doctorId);
-        doctorIdSearch.push(doctor._id.toString());
+        const docIdStr = doctor._id ? doctor._id.toString() : '';
+        const docCustomId = doctor.doctorId ? doctor.doctorId.trim() : null;
+        const docName = (doctor.name || '').trim();
+
+        const doctorMatchClauses = [];
+        if (docIdStr) {
+          doctorMatchClauses.push({ doctorId: docIdStr });
+          if (mongoose.Types.ObjectId.isValid(docIdStr)) {
+            doctorMatchClauses.push({ doctorId: doctor._id });
+          }
+        }
+        if (docCustomId) {
+          if (docName) {
+            const cleanName = docName.replace(/^Dr\.?\s*/i, '').trim();
+            doctorMatchClauses.push({
+              doctorId: docCustomId,
+              $or: [
+                { doctorName: { $regex: new RegExp(cleanName, 'i') } },
+                { doctorName: { $exists: false } },
+                { doctorName: null },
+                { doctorName: '' }
+              ]
+            });
+          } else {
+            doctorMatchClauses.push({ doctorId: docCustomId });
+          }
+        }
+        if (docName) {
+          const cleanName = docName.replace(/^Dr\.?\s*/i, '').trim();
+          doctorMatchClauses.push({
+            doctorName: { $regex: new RegExp(`^(\\s*Dr\\.?\\s*)?${cleanName}\\s*$`, 'i') }
+          });
+        }
 
         const bookedQuery = {
-          doctorId: { $in: doctorIdSearch },
-          date: dateStr
+          organizationId: doctor.organizationId,
+          date: dateStr,
+          $or: doctorMatchClauses.length > 0 ? doctorMatchClauses : [{ doctorId: docIdStr }]
         };
 
         const [bookedPending, bookedConfirmed, bookedOld] = await Promise.all([
@@ -788,14 +855,24 @@ export const createDoctor = async (req, res) => {
       }
     }
 
-    // Generate doctor ID using counter if not provided
+    // Generate doctor ID using counter if not provided, ensuring uniqueness
     if (!doctorData.doctorId) {
-      const counter = await Counter.findOneAndUpdate(
-        { name: 'doctorId' },
-        { $inc: { value: 1 } },
-        { new: true, upsert: true }
-      );
-      doctorData.doctorId = `DOC${String(counter.value).padStart(3, '0')}`;
+      let uniqueDocId = '';
+      let isUnique = false;
+      while (!isUnique) {
+        const counter = await Counter.findOneAndUpdate(
+          { name: 'doctorId' },
+          { $inc: { value: 1 } },
+          { new: true, upsert: true }
+        );
+        const candidate = `DOC${String(counter.value).padStart(3, '0')}`;
+        const existing = await Doctor.findOne({ doctorId: candidate });
+        if (!existing) {
+          uniqueDocId = candidate;
+          isUnique = true;
+        }
+      }
+      doctorData.doctorId = uniqueDocId;
     }
 
     // Create and save new doctor

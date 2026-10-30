@@ -61,9 +61,11 @@ import {
   ChevronDown,
   Activity,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  XCircle,
+  AlertTriangle
 } from 'lucide-react';
-import { patientApi, appointmentApi, medicalRecordApi, emailApi, whatsappApi, prescriptionTemplateApi, invoiceTemplateApi, organizationApi, centralDoctorApi, billingApi, authApi, patientProgressImageApi, patientProgressComparisonApi, translationApi, clinicalNoteApi, progressNoteApi, followUpReminderApi } from '../../../services/api';
+import api, { patientApi, appointmentApi, medicalRecordApi, emailApi, whatsappApi, prescriptionTemplateApi, invoiceTemplateApi, organizationApi, centralDoctorApi, billingApi, authApi, patientProgressImageApi, patientProgressComparisonApi, translationApi, clinicalNoteApi, progressNoteApi, followUpReminderApi } from '../../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { getToothLabel } from './dentalUtils';
@@ -93,11 +95,110 @@ import MobileAppNavigation from '../../../components/common/MobileAppNavigation'
 
 const getImageUrl = (path) => {
   if (!path) return null;
-  if (path.startsWith('data:') || path.startsWith('http')) return path;
+  const pathStr = typeof path === 'string' ? path : (path?.url || path?.src || String(path || ''));
+  if (!pathStr || pathStr === '[object Object]') return null;
+  if (pathStr.startsWith('data:') || pathStr.startsWith('http://') || pathStr.startsWith('https://') || pathStr.startsWith('blob:')) return pathStr;
   const baseUrl = import.meta.env.VITE_API_URL || '';
   const serverUrl = baseUrl.replace(/\/api$/, '') || 'http://localhost:5000';
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const cleanPath = pathStr.startsWith('/') ? pathStr : `/${pathStr}`;
   return `${serverUrl}${cleanPath}`;
+};
+
+const convertUrlToBase64 = async (url) => {
+  if (!url) return null;
+  const urlStr = typeof url === 'string' ? url : (url?.url || url?.src || '');
+  if (!urlStr || urlStr === '[object Object]') return null;
+  if (urlStr.startsWith('data:')) return urlStr;
+  try {
+    const fullUrl = getImageUrl(urlStr);
+    if (!fullUrl) return null;
+    const response = await fetch(fullUrl, { cache: 'force-cache' });
+    if (!response.ok) return fullUrl;
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(fullUrl);
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    console.warn("Could not pre-convert image to base64 for printing:", err);
+    return getImageUrl(urlStr);
+  }
+};
+
+const waitForPrintImagesReady = async (containerSelector, maxWaitMs = 3500) => {
+  const startTime = Date.now();
+
+  // 1. Wait until container element appears in DOM (React commit phase)
+  while (!document.querySelector(containerSelector)) {
+    if (Date.now() - startTime > 1500) break;
+    await new Promise(r => requestAnimationFrame(r));
+  }
+
+  const container = document.querySelector(containerSelector);
+  if (!container) return;
+
+  // 2. Query all images inside print area
+  const images = Array.from(container.querySelectorAll('img'));
+
+  if (images.length > 0) {
+    await Promise.all(
+      images.map(img => {
+        if (!img.src) return Promise.resolve();
+
+        // If already loaded and has dimensions, decode immediately
+        if (img.complete && img.naturalWidth !== 0) {
+          if (typeof img.decode === 'function') {
+            return img.decode().catch(() => {});
+          }
+          return Promise.resolve();
+        }
+
+        // Otherwise wait for load and decode
+        return new Promise(resolve => {
+          let timeoutId;
+          const onFinish = () => {
+            clearTimeout(timeoutId);
+            if (typeof img.decode === 'function') {
+              img.decode().catch(() => {}).then(resolve);
+            } else {
+              resolve();
+            }
+          };
+
+          if (img.complete && img.naturalWidth !== 0) {
+            onFinish();
+          } else {
+            img.addEventListener('load', onFinish, { once: true });
+            img.addEventListener('error', () => {
+              clearTimeout(timeoutId);
+              resolve();
+            }, { once: true });
+
+            const remaining = Math.max(500, maxWaitMs - (Date.now() - startTime));
+            timeoutId = setTimeout(() => {
+              img.removeEventListener('load', onFinish);
+              resolve();
+            }, remaining);
+          }
+        });
+      })
+    );
+  }
+
+  // 3. Ensure fonts are fully loaded
+  if (document.fonts && document.fonts.ready) {
+    try {
+      await document.fonts.ready;
+    } catch (e) {}
+  }
+
+  // 4. Double RAF to ensure compositor layout is committed to screen/buffer
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  // 5. Short stable buffer to let raster surface settle
+  await new Promise(r => setTimeout(r, 200));
 };
 
 const VoiceInputButton = ({ onTranscript, className = "" }) => {
@@ -1553,40 +1654,72 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
   );
 };
 
-const TabAppointments = ({ appointments, onRebook }) => {
+const TabAppointments = ({ appointments, onRebook, onReschedule, onCancel }) => {
   const upcoming = appointments.filter(a => a.status?.toLowerCase() === 'pending' || a.status?.toLowerCase() === 'confirmed');
   const past = appointments.filter(a => a.status?.toLowerCase() === 'completed' || a.status?.toLowerCase() === 'cancelled');
 
-  const AppointmentItem = ({ appt }) => (
-    <div className={`p-4 rounded-xl border-2 transition-all duration-300 ${appt.status?.toLowerCase() === 'confirmed' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100 hover:border-slate-200'}`}>
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${appt.status?.toLowerCase() === 'confirmed' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
-            <CalendarIcon size={18} />
+  const AppointmentItem = ({ appt }) => {
+    const statusLower = (appt.status || '').toLowerCase();
+    const isCancelled = statusLower === 'cancelled';
+    const isCompleted = statusLower === 'completed';
+
+    return (
+      <div className={`p-4 rounded-xl border-2 transition-all duration-300 ${statusLower === 'confirmed' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100 hover:border-slate-200'}`}>
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${statusLower === 'confirmed' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+              <CalendarIcon size={18} />
+            </div>
+            <div>
+              <p className="font-bold text-slate-800">{new Date(appt.date).toLocaleDateString()} at {appt.time}</p>
+              <p className="text-xs text-slate-500 font-medium flex items-center mt-0.5">
+                <Stethoscope size={12} className="mr-1" /> {appt.doctorName} ({appt.specialty || 'General'})
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="font-bold text-slate-800">{new Date(appt.date).toLocaleDateString()} at {appt.time}</p>
-            <p className="text-xs text-slate-500 font-medium flex items-center mt-0.5">
-              <Stethoscope size={12} className="mr-1" /> {appt.doctorName} ({appt.specialty})
-            </p>
-          </div>
-        </div>
-        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${appt.status?.toLowerCase() === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
-          appt.status?.toLowerCase() === 'pending' ? 'bg-emerald-100 text-emerald-700' :
-            appt.status?.toLowerCase() === 'completed' ? 'bg-blue-100 text-blue-700' :
-              'bg-slate-100 text-slate-700'
+          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+            statusLower === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+            statusLower === 'pending' ? 'bg-emerald-100 text-emerald-700' :
+            statusLower === 'completed' ? 'bg-blue-100 text-blue-700' :
+            statusLower === 'cancelled' ? 'bg-rose-100 text-rose-700' :
+            'bg-slate-100 text-slate-700'
           }`}>
-          {appt.status?.toLowerCase() === 'pending' ? 'Confirmed' : appt.status}
-        </span>
+            {statusLower === 'pending' ? 'Confirmed' : appt.status}
+          </span>
+        </div>
+        <p className="text-sm text-slate-600 italic bg-white/50 p-2 rounded-lg border border-slate-50 mb-4">"{appt.reason || 'No reason specified'}"</p>
+        <div className="flex justify-end items-center gap-2 flex-wrap">
+          {!isCancelled && !isCompleted && onReschedule && (
+            <button
+              type="button"
+              onClick={() => onReschedule(appt)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+              title="Reschedule Appointment"
+            >
+              <Calendar size={12} /> Reschedule
+            </button>
+          )}
+          {!isCancelled && !isCompleted && onCancel && (
+            <button
+              type="button"
+              onClick={() => onCancel(appt)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold transition-colors shadow-sm"
+              title="Cancel Appointment"
+            >
+              <XCircle size={12} /> Cancel
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onRebook(appt)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            <RefreshCcw size={12} /> Re-book
+          </button>
+        </div>
       </div>
-      <p className="text-sm text-slate-600 italic bg-white/50 p-2 rounded-lg border border-slate-50 mb-4">"{appt.reason || 'No reason specified'}"</p>
-      <div className="flex justify-end gap-2">
-        <button onClick={() => onRebook(appt)} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors">
-          <RefreshCcw size={12} /> Re-book
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-8">
@@ -1613,6 +1746,447 @@ const TabAppointments = ({ appointments, onRebook }) => {
         <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
           {past.map(appt => <AppointmentItem key={appt._id} appt={appt} />)}
         </div>
+      </div>
+    </div>
+  );
+};
+
+const CancelAppointmentModal = ({ appointment, patient, onClose, onSuccess }) => {
+  const [reason, setReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+
+  if (!appointment) return null;
+
+  const patientName = appointment.patientName || `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || patient?.name || 'Patient';
+  const patientPhone = appointment.patientPhone || patient?.mobile || patient?.phone || '';
+  const doctorName = appointment.doctorName || 'Doctor';
+  const formattedDate = appointment.date ? new Date(appointment.date).toLocaleDateString() : 'N/A';
+
+  const handleConfirmCancel = async () => {
+    setCancelling(true);
+    try {
+      await appointmentApi.updateStatus(appointment._id, 'cancelled', reason);
+      toast.success("Appointment cancelled successfully. Cancellation message sent to patient.");
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Failed to cancel appointment:', err);
+      toast.error(err?.response?.data?.message || 'Failed to cancel appointment');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-rose-100 animate-in fade-in zoom-in-95 duration-200">
+        <div className="p-6 bg-gradient-to-r from-rose-50 to-pink-50 border-b border-rose-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-rose-100 text-rose-600 rounded-xl">
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-800">Cancel Appointment</h3>
+              <p className="text-xs text-slate-500 font-medium">Are you really sure you want to cancel?</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-white/80 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-500 font-medium">Patient:</span>
+              <span className="font-bold text-slate-800">{patientName}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-500 font-medium">Doctor:</span>
+              <span className="font-bold text-slate-800">Dr. {doctorName}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-500 font-medium">Scheduled:</span>
+              <span className="font-bold text-slate-800">{formattedDate} at {appointment.time}</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-rose-50/70 border border-rose-100 rounded-xl text-xs text-rose-700 font-medium flex items-start gap-2">
+            <span className="text-base leading-none">📱</span>
+            <div>
+              A cancellation WhatsApp notification will automatically be sent to the patient ({patientPhone || 'registered phone'}) using the cancellation template.
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              Reason for Cancellation <span className="text-slate-400 font-normal">(Optional)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., Patient requested cancellation, Doctor unavailable..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            disabled={cancelling}
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors"
+          >
+            Keep Appointment
+          </button>
+          <button
+            type="button"
+            disabled={cancelling}
+            onClick={handleConfirmCancel}
+            className="flex items-center gap-2 px-5 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-lg shadow-rose-200 hover:shadow-rose-300 transition-all active:scale-95 disabled:opacity-50"
+          >
+            {cancelling ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+            <span>{cancelling ? 'Cancelling...' : 'Yes, Cancel Appointment'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RescheduleAppointmentModal = ({ appointment, patient, onClose, onSuccess }) => {
+  const [doctors, setDoctors] = useState([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(true);
+  const [selectedDoctorId, setSelectedDoctorId] = useState(appointment?.doctorId || '');
+  const [appointmentDate, setAppointmentDate] = useState(() => {
+    if (appointment?.date) {
+      try {
+        const d = new Date(appointment.date);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      } catch (e) {}
+    }
+    return new Date().toISOString().split('T')[0];
+  });
+  const [appointmentTime, setAppointmentTime] = useState(appointment?.time || '');
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotError, setSlotError] = useState('');
+  const [reason, setReason] = useState(appointment?.reason || '');
+  const [notes, setNotes] = useState(appointment?.notes || '');
+  const [sendWhatsAppToPatient, setSendWhatsAppToPatient] = useState(true);
+  const [sendWhatsAppToDoctor, setSendWhatsAppToDoctor] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Fetch doctors on mount
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        setLoadingDoctors(true);
+        const docs = await centralDoctorApi.getAll();
+        const list = Array.isArray(docs) ? docs : (docs?.doctors || []);
+        setDoctors(list);
+
+        if (list.length > 0) {
+          const match = list.find(d => 
+            (appointment?.doctorId && (d._id === appointment.doctorId || d.doctorId === appointment.doctorId)) ||
+            (appointment?.doctorName && d.name?.toLowerCase() === appointment.doctorName?.toLowerCase())
+          );
+          if (match) {
+            setSelectedDoctorId(match._id);
+          } else if (!selectedDoctorId) {
+            setSelectedDoctorId(list[0]._id);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load doctors:', err);
+      } finally {
+        setLoadingDoctors(false);
+      }
+    };
+    fetchDoctors();
+  }, []);
+
+  // Fetch slots whenever selected doctor or date changes
+  useEffect(() => {
+    if (!selectedDoctorId || !appointmentDate) return;
+    const fetchSlots = async () => {
+      setSlotsLoading(true);
+      setSlotError('');
+      try {
+        const response = await api.get(`/doctors/${selectedDoctorId}/slots?date=${appointmentDate}&allowPast=true`);
+        const data = response.data;
+        if (response.status === 200 && data.available && Array.isArray(data.slots) && data.slots.length > 0) {
+          setAvailableSlots(data.slots);
+        } else {
+          setAvailableSlots([]);
+          setSlotError('No slots available for this doctor on selected date.');
+        }
+      } catch (err) {
+        console.error('Error fetching doctor slots:', err);
+        setAvailableSlots([]);
+        setSlotError('Could not load slots for selected date.');
+      } finally {
+        setSlotsLoading(false);
+      }
+    };
+    fetchSlots();
+  }, [selectedDoctorId, appointmentDate]);
+
+  const selectedDoctorObj = doctors.find(d => d._id === selectedDoctorId);
+  const patientName = appointment?.patientName || `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() || patient?.name || 'Patient';
+  const patientPhone = appointment?.patientPhone || patient?.mobile || patient?.phone || '';
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!appointmentDate) {
+      toast.error('Please select an appointment date');
+      return;
+    }
+    if (!appointmentTime) {
+      toast.error('Please select a time slot');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await appointmentApi.reschedule(appointment._id, {
+        appointmentDate,
+        appointmentTime,
+        doctorId: selectedDoctorId,
+        doctorName: selectedDoctorObj?.name || appointment?.doctorName,
+        specialty: selectedDoctorObj?.specialty || selectedDoctorObj?.department || appointment?.specialty,
+        reason,
+        notes,
+        sendWhatsAppToPatient,
+        sendWhatsAppToDoctor
+      });
+
+      toast.success("Appointment rescheduled successfully! Messages sent to patient & doctor.");
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Failed to reschedule appointment:', err);
+      toast.error(err?.response?.data?.message || 'Failed to reschedule appointment');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="p-6 bg-gradient-to-r from-amber-50 via-orange-50 to-indigo-50 border-b border-amber-100/70 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-md shadow-amber-200">
+              <Calendar size={22} />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-800">Reschedule Appointment</h3>
+              <p className="text-xs text-slate-500 font-medium">Update date, slot, or change doctor</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-white/80 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+          {/* Patient Details (Auto-filled) */}
+          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs">
+                {patientName.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-800">{patientName}</p>
+                <p className="text-[11px] text-slate-500">{patientPhone || 'No phone'}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100">
+                {patient?.gender || 'Patient'} {patient?.age ? `• ${patient.age} yrs` : ''}
+              </span>
+            </div>
+          </div>
+
+          {/* Doctor Selection */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+              <Stethoscope size={13} className="text-indigo-600" />
+              <span>Select Doctor</span>
+              <span className="text-[11px] text-slate-400 font-normal">(change if needed)</span>
+            </label>
+            <select
+              value={selectedDoctorId}
+              onChange={(e) => {
+                setSelectedDoctorId(e.target.value);
+                setAppointmentTime('');
+              }}
+              disabled={loadingDoctors}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            >
+              {loadingDoctors ? (
+                <option value="">Loading clinic doctors...</option>
+              ) : doctors.length === 0 ? (
+                <option value="">No doctors found</option>
+              ) : (
+                doctors.map((doc) => (
+                  <option key={doc._id} value={doc._id}>
+                    Dr. {doc.name} {doc.specialty || doc.department ? `(${doc.specialty || doc.department})` : ''}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          {/* Date Picker */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+              <CalendarIcon size={13} className="text-indigo-600" />
+              <span>Appointment Date</span>
+            </label>
+            <input
+              type="date"
+              value={appointmentDate}
+              onChange={(e) => {
+                setAppointmentDate(e.target.value);
+                setAppointmentTime('');
+              }}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            />
+          </div>
+
+          {/* Time Slots */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Clock size={13} className="text-indigo-600" />
+                <span>Select Time Slot</span>
+              </label>
+              {appointmentTime && (
+                <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                  Selected: {appointmentTime}
+                </span>
+              )}
+            </div>
+
+            {slotsLoading ? (
+              <div className="p-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 flex items-center justify-center gap-2 text-xs text-slate-500 font-medium">
+                <Loader2 size={16} className="animate-spin text-indigo-600" />
+                <span>Fetching doctor's available slots...</span>
+              </div>
+            ) : availableSlots.length > 0 ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 custom-scrollbar">
+                {availableSlots.map((slot, idx) => {
+                  const isSelected = appointmentTime === slot.time;
+                  const isBooked = slot.isBooked;
+
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      disabled={isBooked}
+                      onClick={() => setAppointmentTime(slot.time)}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all text-center ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 border-indigo-600 scale-[1.02]'
+                          : isBooked
+                          ? 'bg-slate-100 text-slate-400 border border-slate-200/80 cursor-not-allowed line-through opacity-50'
+                          : 'bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300 text-slate-700 border border-slate-200/80 active:scale-95'
+                      }`}
+                      title={isBooked ? 'Slot already booked' : slot.time}
+                    >
+                      {slot.time}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-4 bg-orange-50/70 border border-orange-100 rounded-xl text-xs text-orange-700 font-medium">
+                {slotError || 'No predefined slots available for this doctor on selected date.'}
+                <div className="mt-2">
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Enter Custom Slot Time:</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 10:00 AM - 11:00 AM"
+                    value={appointmentTime}
+                    onChange={(e) => setAppointmentTime(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Reason */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Reason for Visit</label>
+            <input
+              type="text"
+              placeholder="e.g., Follow-up, Routine Checkup, Root Canal..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            />
+          </div>
+
+          {/* WhatsApp Notifications section */}
+          <div className="p-3.5 bg-emerald-50/60 border border-emerald-100 rounded-2xl space-y-2">
+            <p className="text-[11px] font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <span>🔔</span> WhatsApp Notifications
+            </p>
+            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={sendWhatsAppToPatient}
+                onChange={(e) => setSendWhatsAppToPatient(e.target.checked)}
+                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+              />
+              <span>Send Reschedule message to Patient ({patientPhone || 'Mobile'})</span>
+            </label>
+            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={sendWhatsAppToDoctor}
+                onChange={(e) => setSendWhatsAppToDoctor(e.target.checked)}
+                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+              />
+              <span>Send Appointment Alert to Doctor (Dr. {selectedDoctorObj?.name || 'Selected Doctor'})</span>
+            </label>
+          </div>
+
+          {/* Submit buttons */}
+          <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-100">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={onClose}
+              className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || !appointmentTime}
+              className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all active:scale-95 disabled:opacity-50"
+            >
+              {submitting ? <Loader2 size={14} className="animate-spin" /> : <Calendar size={14} />}
+              <span>{submitting ? 'Rescheduling...' : 'Confirm Reschedule & Send Messages'}</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -4649,6 +5223,21 @@ const PatientProfile = () => {
   const [consentFormType, setConsentFormType] = useState('general');
   const [consentDropdownOpen, setConsentDropdownOpen] = useState(false);
   const [showAddMedicineModal, setShowAddMedicineModal] = useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState(null);
+  const [cancelAppointmentTarget, setCancelAppointmentTarget] = useState(null);
+
+  const reloadAppointments = async () => {
+    try {
+      const canonicalPatientId = data?._id || id;
+      const summaryResponse = await appointmentApi.getSummary(canonicalPatientId);
+      setAppointments(summaryResponse || []);
+      if (typeof fetchTodayAppointments === 'function') {
+        fetchTodayAppointments();
+      }
+    } catch (err) {
+      console.warn('Could not reload appointments:', err);
+    }
+  };
   const [billingRefreshKey, setBillingRefreshKey] = useState(0);
   const [selectedNotes, setSelectedNotes] = useState('');
   const [defaultTemplate, setDefaultTemplate] = useState(null);
@@ -4957,11 +5546,29 @@ const PatientProfile = () => {
   }, [user?.organizationId, user?.organization?._id]);
 
   useEffect(() => {
+    let isCancelled = false;
+
     if (printingPrescription) {
-      setTimeout(() => {
-        window.print();
-      }, 900);
+      const executePrint = async () => {
+        try {
+          await waitForPrintImagesReady('#prescription-print-area', 3500);
+          if (!isCancelled) {
+            window.print();
+          }
+        } catch (err) {
+          console.error("Error waiting for prescription print images:", err);
+          if (!isCancelled) {
+            window.print();
+          }
+        }
+      };
+
+      executePrint();
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [printingPrescription]);
 
   useEffect(() => {
@@ -5183,10 +5790,14 @@ const PatientProfile = () => {
   };
 
   const handlePrint = async (p) => {
+    let prescriptionObj = { ...(p || {}) };
+    let latestSettings = null;
+
     try {
       // Refresh prescription template settings dynamically so new footer sub-text or barcode edits in admin profile are immediately loaded
       const settingsData = await organizationApi.getPrescriptionTemplateSettings().catch(() => null);
       if (settingsData && settingsData.data) {
+        latestSettings = settingsData.data;
         setOrgDetails(prev => ({
           ...(prev || {}),
           ...settingsData.data,
@@ -5198,11 +5809,14 @@ const PatientProfile = () => {
           footerText: settingsData.data.footerText || prev?.footerText || '',
           footerSubText: settingsData.data.footerSubText || prev?.footerSubText || ''
         }));
-        if (!p.footerSubText && settingsData.data.footerSubText) {
-          p.footerSubText = settingsData.data.footerSubText;
+        if (!prescriptionObj.footerBarcode && settingsData.data.footerBarcode) {
+          prescriptionObj.footerBarcode = settingsData.data.footerBarcode;
         }
-        if (!p.footerText && settingsData.data.footerText) {
-          p.footerText = settingsData.data.footerText;
+        if (!prescriptionObj.footerSubText && settingsData.data.footerSubText) {
+          prescriptionObj.footerSubText = settingsData.data.footerSubText;
+        }
+        if (!prescriptionObj.footerText && settingsData.data.footerText) {
+          prescriptionObj.footerText = settingsData.data.footerText;
         }
       }
     } catch (templateErr) {
@@ -5210,13 +5824,13 @@ const PatientProfile = () => {
     }
 
     try {
-      let doctor = p.doctor || null;
-      if (!doctor && p.doctorId) {
-        if (user?._id === p.doctorId || user?.id === p.doctorId) {
+      let doctor = prescriptionObj.doctor || null;
+      if (!doctor && prescriptionObj.doctorId) {
+        if (user?._id === prescriptionObj.doctorId || user?.id === prescriptionObj.doctorId) {
           doctor = user;
         }
         try {
-          const fetched = await centralDoctorApi.getById(p.doctorId);
+          const fetched = await centralDoctorApi.getById(prescriptionObj.doctorId);
           if (fetched) doctor = { ...(doctor || {}), ...fetched };
         } catch (err) {
           console.warn("Could not fetch central doctor:", err);
@@ -5226,86 +5840,64 @@ const PatientProfile = () => {
         doctor = user;
       }
       if (doctor) {
-        p.qualification = doctor.qualification || p.qualification || '';
-        p.specialty = doctor.specialization || doctor.specialty || p.specialty || '';
-        if (doctor.name) p.doctorName = doctor.name;
-        p.doctor = doctor;
+        prescriptionObj.qualification = doctor.qualification || prescriptionObj.qualification || '';
+        prescriptionObj.specialty = doctor.specialization || doctor.specialty || prescriptionObj.specialty || '';
+        if (doctor.name) prescriptionObj.doctorName = doctor.name;
+        if (!doctor.doctorSignature && (prescriptionObj.doctorSignature || user?.doctorSignature)) {
+          doctor.doctorSignature = prescriptionObj.doctorSignature || user?.doctorSignature;
+        }
+        if (!doctor.doctorStamp && (prescriptionObj.doctorStamp || user?.doctorStamp)) {
+          doctor.doctorStamp = prescriptionObj.doctorStamp || user?.doctorStamp;
+        }
+        prescriptionObj.doctor = doctor;
       }
     } catch (error) {
       console.error("Failed to fetch doctor details for print", error);
     }
 
-    // Preload all print images to ensure they show up in print preview without racing
+    // Pre-convert and preload all print images as base64 Data URLs so the browser never races network requests during print preview
     try {
-      const getImageUrl = (path) => {
-        if (!path) return null;
-        if (path.startsWith('data:') || path.startsWith('http')) return path; 
-        const baseUrl = import.meta.env.VITE_API_URL || '';
-        const serverUrl = baseUrl.replace(/\/api$/, '') || 'http://localhost:5000';
-        const cleanPath = path.startsWith('/') ? path : `/${path}`;
-        return `${serverUrl}${cleanPath}`;
-      };
-
-      const urlsToPreload = [];
-
-      // A4 background template image
       const isA4 = selectedTemplate?._id === 'global_a4' || selectedTemplate?.headerType === 'a4' || selectedTemplate?.layoutType === 'a4';
-      if (isA4 && orgDetails?.prescriptionTemplate?.templateUrl) {
-        urlsToPreload.push(getImageUrl(orgDetails.prescriptionTemplate.templateUrl));
+
+      // 1. A4 background template image
+      const a4Url = orgDetails?.prescriptionTemplate?.templateUrl || latestSettings?.templateUrl;
+      if (isA4 && a4Url) {
+        prescriptionObj.resolvedTemplateUrl = await convertUrlToBase64(a4Url);
       }
 
-      // Clinic Logo (when not A4)
-      if (!isA4) {
-        const logoPath = orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo;
-        if (logoPath) {
-          urlsToPreload.push(getImageUrl(logoPath));
-        }
-
-        // Footer Barcode / QR Code
-        const footerBarcode = p?.footerBarcode || p?.parsedNotes?.footerBarcode || orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.branding?.footerBarcode || orgDetails?.footerBarcode || user?.organization?.prescriptionTemplate?.footerBarcode || user?.organization?.footerBarcode;
-        if (footerBarcode) {
-          urlsToPreload.push(getImageUrl(footerBarcode));
-        }
-
-        // Doctor Signature & Stamp
-        if (p.doctor?.doctorSignature) {
-          urlsToPreload.push(getImageUrl(p.doctor.doctorSignature));
-        }
-        if (p.doctor?.doctorStamp) {
-          urlsToPreload.push(getImageUrl(p.doctor.doctorStamp));
-        }
+      // 2. Clinic Logo
+      const logoPath = orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo;
+      if (logoPath) {
+        prescriptionObj.resolvedLogo = await convertUrlToBase64(logoPath);
       }
 
-      // Custom header/body/footer if applicable
-      if (!isA4 && selectedTemplate?.headerType === 'custom' && selectedTemplate?.headerImage) {
-        urlsToPreload.push(getImageUrl(selectedTemplate.headerImage));
-      }
-      if (selectedTemplate?.bodyType === 'custom' && selectedTemplate?.bodyImage) {
-        urlsToPreload.push(getImageUrl(selectedTemplate.bodyImage));
-      }
-      if (!isA4 && selectedTemplate?.footerType === 'custom' && selectedTemplate?.footerImage) {
-        urlsToPreload.push(getImageUrl(selectedTemplate.footerImage));
+      // 3. Footer Barcode / QR Code
+      const barcodePath = prescriptionObj?.footerBarcode || 
+        prescriptionObj?.parsedNotes?.footerBarcode || 
+        latestSettings?.footerBarcode || 
+        orgDetails?.prescriptionTemplate?.footerBarcode || 
+        orgDetails?.branding?.footerBarcode || 
+        orgDetails?.footerBarcode || 
+        user?.organization?.prescriptionTemplate?.footerBarcode || 
+        user?.organization?.footerBarcode;
+      if (barcodePath) {
+        prescriptionObj.resolvedBarcode = await convertUrlToBase64(barcodePath);
       }
 
-      if (urlsToPreload.length > 0) {
-        await Promise.all(
-          urlsToPreload.map(url => {
-            return new Promise((resolve) => {
-              const img = new Image();
-              img.src = url;
-              img.onload = () => resolve();
-              img.onerror = () => resolve();
-              // 1.5 second fallback timeout per image
-              setTimeout(resolve, 1500);
-            });
-          })
-        );
+      // 4. Doctor Signature & Stamp
+      const sigPath = prescriptionObj.doctor?.doctorSignature || prescriptionObj.doctorSignature || user?.doctorSignature;
+      if (sigPath) {
+        prescriptionObj.resolvedSignature = await convertUrlToBase64(sigPath);
+      }
+      const stampPath = prescriptionObj.doctor?.doctorStamp || prescriptionObj.doctorStamp || user?.doctorStamp;
+      if (stampPath) {
+        prescriptionObj.resolvedStamp = await convertUrlToBase64(stampPath);
       }
     } catch (e) {
-      console.error("Failed to preload template images for printing:", e);
+      console.error("Failed to pre-convert template images for printing:", e);
     }
 
-    setPrintingPrescription(p);
+    setPrintingPrescription(prescriptionObj);
   };
 
   const isDentalDoctor = Boolean(
@@ -6210,7 +6802,15 @@ const PatientProfile = () => {
                       selectedVisitDate={selectedVisitDate}
                     />
                   )}
-                  {activeTab === 'appointments' && <TabAppointments appointments={appointments} onRebook={handleRebook} selectedVisitDate={selectedVisitDate} />}
+                  {activeTab === 'appointments' && (
+                    <TabAppointments 
+                      appointments={appointments} 
+                      onRebook={handleRebook} 
+                      onReschedule={(appt) => setRescheduleAppointment(appt)}
+                      onCancel={(appt) => setCancelAppointmentTarget(appt)}
+                      selectedVisitDate={selectedVisitDate} 
+                    />
+                  )}
                   {activeTab === 'billing' && (
                     <TabBilling
                       key={`${billingRefreshKey}-${data?._id || id}`}
@@ -6361,6 +6961,30 @@ const PatientProfile = () => {
           onApply={(template) => setSelectedInvoiceTemplate(template)}
         />
         
+        {rescheduleAppointment && (
+          <RescheduleAppointmentModal
+            appointment={rescheduleAppointment}
+            patient={data}
+            onClose={() => setRescheduleAppointment(null)}
+            onSuccess={() => {
+              setRescheduleAppointment(null);
+              reloadAppointments();
+            }}
+          />
+        )}
+
+        {cancelAppointmentTarget && (
+          <CancelAppointmentModal
+            appointment={cancelAppointmentTarget}
+            patient={data}
+            onClose={() => setCancelAppointmentTarget(null)}
+            onSuccess={() => {
+              setCancelAppointmentTarget(null);
+              reloadAppointments();
+            }}
+          />
+        )}
+        
         {isDownloading && <DownloadProgressModal progress={downloadProgress} fileName={downloadFileName} />}
         
         {printingStatement && (
@@ -6377,7 +7001,7 @@ const PatientProfile = () => {
         <div id="prescription-print-area" className="hidden-print">
           <PrintablePrescription
             template={selectedTemplate}
-            orgTemplateUrl={orgDetails?.prescriptionTemplate?.templateUrl}
+            orgTemplateUrl={printingPrescription?.resolvedTemplateUrl || orgDetails?.prescriptionTemplate?.templateUrl}
             printableArea={orgDetails?.prescriptionTemplate?.printableArea}
             headerArea={orgDetails?.prescriptionTemplate?.headerArea}
             bodyArea={orgDetails?.prescriptionTemplate?.bodyArea}
@@ -6399,8 +7023,8 @@ const PatientProfile = () => {
                 return parts.join(', ');
               })()
             }
-            clinicLogo={orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo}
-            footerBarcode={printingPrescription?.footerBarcode || printingPrescription?.parsedNotes?.footerBarcode || orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.footerBarcode || orgDetails?.branding?.footerBarcode || user?.organization?.prescriptionTemplate?.footerBarcode || user?.organization?.footerBarcode}
+            clinicLogo={printingPrescription?.resolvedLogo || orgDetails?.branding?.logo || orgDetails?.logo || user?.organization?.branding?.logo || user?.organization?.logo}
+            footerBarcode={printingPrescription?.resolvedBarcode || printingPrescription?.footerBarcode || printingPrescription?.parsedNotes?.footerBarcode || orgDetails?.prescriptionTemplate?.footerBarcode || orgDetails?.footerBarcode || orgDetails?.branding?.footerBarcode || user?.organization?.prescriptionTemplate?.footerBarcode || user?.organization?.footerBarcode}
             footerText={printingPrescription?.footerText || printingPrescription?.parsedNotes?.footerText || orgDetails?.prescriptionTemplate?.footerText || orgDetails?.branding?.footerText || orgDetails?.footerText || ''}
             footerSubText={printingPrescription?.footerSubText || printingPrescription?.parsedNotes?.footerSubText || printingPrescription?.additionalFooterNote || printingPrescription?.parsedNotes?.additionalFooterNote || orgDetails?.prescriptionTemplate?.footerSubText || orgDetails?.branding?.footerSubText || orgDetails?.footerSubText || user?.organization?.prescriptionTemplate?.footerSubText || user?.organization?.footerSubText || ''}
             doctor={printingPrescription?.doctor || (printingPrescription?.doctorId === user?._id || printingPrescription?.doctorId === user?.id || !printingPrescription?.doctorId ? user : undefined)}

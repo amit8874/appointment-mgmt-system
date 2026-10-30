@@ -240,18 +240,24 @@ const PrintablePrescription = ({
 
   const getImageUrl = (path) => {
     if (!path) return null;
-    if (path.startsWith('data:') || path.startsWith('http')) return path; 
+    const pathStr = typeof path === 'string' ? path : (path?.url || path?.src || String(path || ''));
+    if (!pathStr || pathStr === '[object Object]') return null;
+    if (pathStr.startsWith('data:') || pathStr.startsWith('http://') || pathStr.startsWith('https://') || pathStr.startsWith('blob:')) return pathStr; 
     const baseUrl = import.meta.env.VITE_API_URL || '';
     const serverUrl = baseUrl.replace(/\/api$/, '') || 'http://localhost:5000';
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    const cleanPath = pathStr.startsWith('/') ? pathStr : `/${pathStr}`;
     return `${serverUrl}${cleanPath}`;
   };
 
   // A4 letterhead is ONLY used when explicitly selected by the doctor (global_a4).
   // Oviaan Default Template (default) NEVER uses the admin's uploaded background template.
-  const isA4 = Boolean(orgTemplateUrl) && isTemplateEnabled !== false && (template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4');
+  const finalOrgTemplateUrl = prescription?.resolvedTemplateUrl || orgTemplateUrl;
+  const isA4 = Boolean(finalOrgTemplateUrl) && isTemplateEnabled !== false && (template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4');
 
   const baseFontSize = fontSize || 12;
+
+  // Final clinic branding logo resolution
+  const finalClinicLogo = prescription?.resolvedLogo || clinicLogo || prescription?.clinicLogo || prescription?.doctor?.clinicLogo;
 
   // Format Patient Name & Designation cleanly without double titles
   const { formattedPatientName, patientDisplayFullName } = (() => {
@@ -342,13 +348,46 @@ const PrintablePrescription = ({
     ? (doctorRawName.toLowerCase().startsWith('dr') ? doctorRawName : `Dr. ${doctorRawName}`) 
     : '';
   const doctorQual = doctorObj?.qualification || prescription?.doctorQualification || prescription?.qualification || '';
+
+  // Format Doctor Qualifications: split by commas or newlines so each degree/designation (e.g. BDS, MDS, MBBS) appears on a new line
+  const doctorQualLines = (() => {
+    if (!doctorQual) return [];
+    if (Array.isArray(doctorQual)) {
+      return doctorQual.flatMap(q => String(q).split(/[,;\n]+/)).map(s => s.trim()).filter(Boolean);
+    }
+    return String(doctorQual).split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+  })();
+
   const rawDocSpec = doctorObj?.specialization || doctorObj?.specialty || prescription?.doctorSpecialization || prescription?.specialty || '';
   const specLower = rawDocSpec.trim().toLowerCase();
   const doctorSpecialization = (specLower === 'dental' || specLower === 'dentist' || specLower === 'dental surgeon') ? '' : rawDocSpec;
+  const doctorDesignation = doctorObj?.designation || prescription?.designation || prescription?.doctorDesignation || '';
+
+  // Doctor Designation / Specialization lines: split by commas or newlines
+  const doctorSpecLines = (() => {
+    const rawList = [];
+    if (doctorSpecialization) {
+      rawList.push(...String(doctorSpecialization).split(/[,;\n]+/));
+    }
+    if (doctorDesignation) {
+      rawList.push(...String(doctorDesignation).split(/[,;\n]+/));
+    }
+    const qualLowerSet = new Set(doctorQualLines.map(q => q.toLowerCase()));
+    const seen = new Set();
+    const result = [];
+    rawList.map(s => s.trim()).filter(Boolean).forEach(item => {
+      const lower = item.toLowerCase();
+      if (!qualLowerSet.has(lower) && !seen.has(lower)) {
+        seen.add(lower);
+        result.push(item);
+      }
+    });
+    return result;
+  })();
   const doctorRegNo = doctorObj?.registrationNumber || doctorObj?.licenseNumber || prescription?.registrationNumber || '';
-  const doctorSignatureUrl = getImageUrl(doctorObj?.doctorSignature || prescription?.doctorSignature);
-  const doctorStampUrl = getImageUrl(doctorObj?.doctorStamp || prescription?.doctorStamp);
-  const footerBarcodeUrl = getImageUrl(footerBarcode || prescription?.footerBarcode);
+  const doctorSignatureUrl = getImageUrl(prescription?.resolvedSignature || doctorObj?.doctorSignature || prescription?.doctorSignature || parsedNotes?.doctorSignature);
+  const doctorStampUrl = getImageUrl(prescription?.resolvedStamp || doctorObj?.doctorStamp || prescription?.doctorStamp || parsedNotes?.doctorStamp);
+  const footerBarcodeUrl = getImageUrl(prescription?.resolvedBarcode || footerBarcode || prescription?.footerBarcode || parsedNotes?.footerBarcode || prescription?.parsedNotes?.footerBarcode);
 
   // Sub-qualifications / credentials lines - only real doctor education
   const doctorSubCreds = (() => {
@@ -398,6 +437,48 @@ const PrintablePrescription = ({
     resolvedFooterSubText = '';
   }
 
+  // Fee / Treatment Charges Details (Dental Prescription Billing Summary)
+  const feeDetails = parsedNotes?.feeDetails || prescription?.feeDetails || null;
+
+  const hasConsultation = Boolean(feeDetails?.consultationFees && String(feeDetails.consultationFees).trim() !== '');
+  const hasXray = Boolean(feeDetails?.xrayFees && String(feeDetails.xrayFees).trim() !== '');
+  const hasProcedure = Boolean(
+    (feeDetails?.procedureFees && String(feeDetails.procedureFees).trim() !== '') || 
+    (feeDetails?.procedureName && String(feeDetails.procedureName).trim() !== '')
+  );
+  const discountType = feeDetails?.discountType || 'fixed';
+  const discountVal = parseFloat(feeDetails?.discount) || 0;
+  const hasDiscount = Boolean(discountVal > 0);
+  const discountAmount = feeDetails?.discountAmount !== undefined && feeDetails?.discountAmount !== null && feeDetails?.discountAmount !== ''
+    ? parseFloat(feeDetails.discountAmount)
+    : (discountType === 'percentage'
+        ? (((parseFloat(feeDetails?.consultationFees) || 0) + (parseFloat(feeDetails?.xrayFees) || 0) + (parseFloat(feeDetails?.procedureFees) || 0)) * discountVal) / 100
+        : discountVal);
+
+  const discountLabel = discountType === 'percentage' 
+    ? `Discount (${discountVal}%)` 
+    : 'Discount';
+  const hasTotal = Boolean(feeDetails?.totalAmount && String(feeDetails.totalAmount).trim() !== '');
+  const hasPaid = Boolean(feeDetails?.amountPaid && String(feeDetails.amountPaid).trim() !== '');
+  const hasDue = Boolean(feeDetails?.amountDue && String(feeDetails.amountDue).trim() !== '');
+  const isBlank = Boolean(feeDetails?.isBlank);
+
+  // If doctor does not write in any part (and is not blank mode), NO table will print!
+  const hasAnyEntered = hasConsultation || hasXray || hasProcedure || hasTotal || hasPaid || hasDue;
+  const showFeeTable = isDental && feeDetails?.includeFeeTable !== false && (hasAnyEntered || isBlank);
+
+  const xrayLabel = feeDetails?.xrayRequiredType === 'required' 
+    ? 'Digital X-ray (Required)' 
+    : 'Digital X-ray (If required)';
+
+  const formatFeeValue = (val, isBlank) => {
+    if (isBlank) return '';
+    if (val === '' || val === null || val === undefined) return '';
+    const num = Number(val);
+    if (isNaN(num)) return String(val);
+    return `₹${num.toLocaleString('en-IN')}`;
+  };
+
   // Doctor last name for digital signature fallback
   const doctorLastName = (() => {
     if (!doctorRawName) return '';
@@ -412,10 +493,12 @@ const PrintablePrescription = ({
     >
       
       {/* A4 Background Image (Only if custom A4 template is actively chosen) */}
-      {isA4 && orgTemplateUrl && (
+      {isA4 && finalOrgTemplateUrl && (
         <img 
-          src={getImageUrl(orgTemplateUrl)} 
+          src={getImageUrl(finalOrgTemplateUrl)} 
           alt="A4 Background" 
+          loading="eager"
+          decoding="sync"
           className="absolute inset-0 w-[210mm] h-[297mm] object-contain pointer-events-none" 
           style={{ zIndex: 0 }} 
         />
@@ -556,10 +639,12 @@ const PrintablePrescription = ({
             <div className="flex justify-between items-start gap-4 pb-2 border-b border-slate-200">
               {/* Left Column: Clinic Details */}
               <div className="flex items-start gap-3.5 flex-1 max-w-[55%]">
-                {clinicLogo ? (
+                {finalClinicLogo ? (
                   <img 
-                    src={getImageUrl(clinicLogo)} 
+                    src={getImageUrl(finalClinicLogo)} 
                     alt="Clinic Logo" 
+                    loading="eager"
+                    decoding="sync"
                     className="w-24 h-24 max-w-[100px] max-h-[100px] object-contain rounded-full flex-shrink-0 mt-0.5 border border-slate-200 p-1 bg-white shadow-xs" 
                   />
                 ) : (
@@ -587,14 +672,18 @@ const PrintablePrescription = ({
                     {doctorFormattedName}
                   </h1>
                 )}
-                {doctorQual && (
-                  <div className="text-xs font-bold text-red-600 mt-0.5">
-                    {doctorQual}
+                {doctorQualLines.length > 0 && (
+                  <div className="text-xs font-bold text-red-600 mt-0.5 space-y-0.5 leading-tight">
+                    {doctorQualLines.map((line, idx) => (
+                      <div key={idx}>{line}</div>
+                    ))}
                   </div>
                 )}
-                {doctorSpecialization && (!doctorQual || !doctorQual.toLowerCase().includes(doctorSpecialization.toLowerCase())) && (
-                  <div className="text-[11px] font-bold text-slate-700 mt-0.5">
-                    {doctorSpecialization}
+                {doctorSpecLines.length > 0 && (
+                  <div className="text-[11px] font-bold text-slate-700 mt-0.5 space-y-0.5 leading-tight">
+                    {doctorSpecLines.map((specLine, idx) => (
+                      <div key={idx}>{specLine}</div>
+                    ))}
                   </div>
                 )}
                 {doctorSubCreds.length > 0 && (
@@ -825,12 +914,116 @@ const PrintablePrescription = ({
           </div>
 
           <div>
-            {/* Doctor Signature & Stamp Area (Bottom Right) */}
-            <div className="flex justify-end mb-2">
-              <div className="flex flex-col items-center text-center min-w-[200px]">
+            {/* Treatment Fee Table on Left (if dental) & Doctor Signature on Right */}
+            <div className={`flex items-end ${showFeeTable ? 'justify-between' : 'justify-end'} gap-4 mb-2 mt-3`}>
+              {showFeeTable && (
+                <div className="w-[305px] max-w-[55%] shrink-0 text-slate-900">
+                  <table className="w-full border-collapse border border-slate-800 text-[11px] leading-tight bg-white">
+                    <tbody>
+                      {/* Consultation Fees - only if entered or blank mode */}
+                      {(hasConsultation || isBlank) && (
+                        <tr className="border-b border-slate-800">
+                          <td className="py-1 px-2.5 border-r border-slate-800 font-semibold text-slate-900 w-[64%]">
+                            Consultation Fees
+                          </td>
+                          <td className="py-1 px-2.5 text-right font-bold text-slate-900 w-[36%] min-w-[70px]">
+                            {formatFeeValue(feeDetails?.consultationFees, isBlank)}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Digital X-ray - only if entered or blank mode */}
+                      {(hasXray || isBlank) && (
+                        <tr className="border-b border-slate-800">
+                          <td className="py-1 px-2.5 border-r border-slate-800 font-semibold text-slate-900">
+                            {xrayLabel}
+                          </td>
+                          <td className="py-1 px-2.5 text-right font-bold text-slate-900">
+                            {formatFeeValue(feeDetails?.xrayFees, isBlank)}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Procedures Fees - only if entered or blank mode */}
+                      {(hasProcedure || isBlank) && (
+                        <tr className="border-b border-slate-800">
+                          <td className="py-1 px-2.5 border-r border-slate-800 font-semibold text-slate-900">
+                            <div>Procedures Fees</div>
+                            {feeDetails?.procedureName ? (
+                              <div className="text-[9px] font-normal text-slate-600 leading-tight truncate max-w-[170px]" title={feeDetails.procedureName}>
+                                ({feeDetails.procedureName})
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="py-1 px-2.5 text-right font-bold text-slate-900">
+                            {formatFeeValue(feeDetails?.procedureFees, isBlank)}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Discount - only if entered > 0 and not blank mode */}
+                      {hasDiscount && !isBlank && (
+                        <tr className="border-b border-slate-800 bg-emerald-50/50">
+                          <td className="py-1 px-2.5 border-r border-slate-800 font-semibold text-emerald-800">
+                            {discountLabel}
+                          </td>
+                          <td className="py-1 px-2.5 text-right font-bold text-emerald-800">
+                            - {formatFeeValue(discountAmount, false)}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Total Amount - only if any charge is present or entered */}
+                      {(hasTotal || hasConsultation || hasXray || hasProcedure || isBlank) && (
+                        <tr className="border-b border-slate-800 bg-slate-50">
+                          <td className="py-1 px-2.5 border-r border-slate-800 font-bold text-slate-900">
+                            Total Amount
+                          </td>
+                          <td className="py-1 px-2.5 text-right font-black text-slate-900">
+                            {formatFeeValue(feeDetails?.totalAmount, isBlank)}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Amount Paid - only if entered or blank mode */}
+                      {(hasPaid || isBlank) && (
+                        <tr className="border-b border-slate-800">
+                          <td className="py-1 px-2.5 border-r border-slate-800 font-semibold text-slate-900">
+                            Amount Paid
+                          </td>
+                          <td className="py-1 px-2.5 text-right font-bold text-slate-900">
+                            {formatFeeValue(feeDetails?.amountPaid, isBlank)}
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Amount Due - only if entered / charges exist or blank mode */}
+                      {(hasDue || hasTotal || hasPaid || isBlank) && (
+                        <tr>
+                          <td className="py-1 px-2.5 border-r border-slate-800 font-bold text-slate-900">
+                            Amount Due
+                          </td>
+                          <td className="py-1 px-2.5 text-right font-black text-slate-900">
+                            {formatFeeValue(feeDetails?.amountDue, isBlank)}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Doctor Signature & Stamp Area (Bottom Right) */}
+              <div className="flex flex-col items-center text-center min-w-[180px] max-w-[45%]">
                 {/* Doctor Signature (ONLY if uploaded) */}
                 {doctorSignatureUrl && (
-                  <img src={doctorSignatureUrl} alt="Signature" className="h-12 object-contain mb-1" />
+                  <img 
+                    src={doctorSignatureUrl} 
+                    alt="Signature" 
+                    loading="eager"
+                    decoding="sync"
+                    className="h-12 object-contain mb-1" 
+                  />
                 )}
                 
                 {doctorFormattedName && (
@@ -846,7 +1039,13 @@ const PrintablePrescription = ({
 
                 {/* Doctor Stamp (ONLY if uploaded) */}
                 {doctorStampUrl && (
-                  <img src={doctorStampUrl} alt="Doctor Stamp" className="h-16 object-contain mt-1" />
+                  <img 
+                    src={doctorStampUrl} 
+                    alt="Doctor Stamp" 
+                    loading="eager"
+                    decoding="sync"
+                    className="h-16 object-contain mt-1" 
+                  />
                 )}
               </div>
             </div>
@@ -859,6 +1058,8 @@ const PrintablePrescription = ({
                   <img 
                     src={footerBarcodeUrl} 
                     alt="Prescription QR Code" 
+                    loading="eager"
+                    decoding="sync"
                     className="w-20 h-20 object-contain border border-slate-200 p-1 rounded bg-white shadow-xs" 
                     onError={(e) => {
                       console.warn("Failed to load footer barcode image:", footerBarcodeUrl);

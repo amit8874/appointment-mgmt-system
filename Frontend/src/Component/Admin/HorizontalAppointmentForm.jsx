@@ -471,6 +471,9 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     }));
     
     if (name === 'doctor' || name === 'appointmentDate') {
+      setAvailableSlots([]);
+      setCategorizedSlots({ morning: [], afternoon: [], evening: [] });
+      setSlotError('');
       setFormData(prev => ({ ...prev, appointmentTime: '' }));
     }
   };

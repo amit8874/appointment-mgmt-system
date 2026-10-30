@@ -342,14 +342,42 @@ export const bookPatientAppointment = async (req, res) => {
     }
 
     if (doctorId && date && time) {
-      const tenantFilter = { organizationId, doctorId, date, time };
+      let docObjCheck = null;
+      if (mongoose.Types.ObjectId.isValid(doctorId)) {
+        docObjCheck = await Doctor.findById(doctorId);
+      }
+      if (!docObjCheck) {
+        docObjCheck = await Doctor.findOne({ doctorId });
+      }
+
+      const doctorClauses = [{ doctorId: doctorId.toString() }];
+      if (mongoose.Types.ObjectId.isValid(doctorId)) {
+        doctorClauses.push({ doctorId: new mongoose.Types.ObjectId(doctorId) });
+      }
+      if (docObjCheck) {
+        doctorClauses.push({ doctorId: docObjCheck._id.toString() });
+        if (docObjCheck.doctorId) {
+          doctorClauses.push({ doctorId: docObjCheck.doctorId });
+        }
+        if (docObjCheck.name) {
+          const cleanName = docObjCheck.name.replace(/^Dr\.?\s*/i, '').trim();
+          doctorClauses.push({ doctorName: new RegExp(`^(\\s*Dr\\.?\\s*)?${cleanName}\\s*$`, 'i') });
+        }
+      }
+
+      const tenantFilter = {
+        organizationId,
+        date,
+        time,
+        $or: doctorClauses
+      };
       const [pending, confirmed] = await Promise.all([
         PendingAppointment.findOne(tenantFilter),
         ConfirmedAppointment.findOne(tenantFilter)
       ]);
 
       if (pending || confirmed) {
-        return res.status(400).json({ message: 'This time slot is already booked' });
+        return res.status(400).json({ message: 'This time slot is already booked for this doctor' });
       }
     }
 
@@ -461,12 +489,14 @@ export const bookPatientAppointment = async (req, res) => {
     const patientIdToUse = existingPatient.patientId || existingPatient._id.toString();
     const patientName = formatPatientFullName(patientDetails.designation, patientDetails.firstName, patientDetails.lastName) || 'Unknown Patient';
 
-    // Look up doctor fee
+    // Look up doctor details
     let docObj = null;
     if (doctorId) {
-      docObj = await Doctor.findOne({ doctorId });
-      if (!docObj && mongoose.Types.ObjectId.isValid(doctorId)) {
+      if (mongoose.Types.ObjectId.isValid(doctorId)) {
         docObj = await Doctor.findById(doctorId);
+      }
+      if (!docObj) {
+        docObj = await Doctor.findOne({ doctorId });
       }
     }
     const finalAmount = Number(amount) || docObj?.fee || 500;
@@ -477,6 +507,10 @@ export const bookPatientAppointment = async (req, res) => {
     // Doctor appointments are always confirmed bookings
     const AppointmentModel = ConfirmedAppointment;
 
+    // Use doctor's unique _id as doctorId to guarantee isolation between multiple doctors in the clinic
+    const resolvedDoctorId = docObj ? docObj._id.toString() : (doctorId ? doctorId.toString() : '');
+    const resolvedDoctorName = doctorName || docObj?.name || '';
+
     const appointment = new AppointmentModel({
       shortId,
       organizationId,
@@ -484,9 +518,9 @@ export const bookPatientAppointment = async (req, res) => {
       designation: patientDetails.designation,
       firstName: patientDetails.firstName,
       lastName: patientDetails.lastName,
-      doctorId: docObj ? docObj.doctorId : doctorId || '',
-      doctorName: doctorName || '',
-      specialty: specialty || 'General',
+      doctorId: resolvedDoctorId,
+      doctorName: resolvedDoctorName,
+      specialty: specialty || docObj?.specialization || 'General',
       date: date || '',
       time: time || '',
       reason: reason || '',
@@ -909,14 +943,42 @@ export const bookAppointment = async (req, res) => {
     if (!patientDetails || !patientDetails.firstName) return res.status(400).json({ message: 'Patient first name is required' });
 
     if (doctorId && date && time) {
-      const tenantFilter = { organizationId: req.tenantId, doctorId, date, time };
+      let docObjCheck = null;
+      if (mongoose.Types.ObjectId.isValid(doctorId)) {
+        docObjCheck = await Doctor.findById(doctorId);
+      }
+      if (!docObjCheck) {
+        docObjCheck = await Doctor.findOne({ doctorId });
+      }
+
+      const doctorClauses = [{ doctorId: doctorId.toString() }];
+      if (mongoose.Types.ObjectId.isValid(doctorId)) {
+        doctorClauses.push({ doctorId: new mongoose.Types.ObjectId(doctorId) });
+      }
+      if (docObjCheck) {
+        doctorClauses.push({ doctorId: docObjCheck._id.toString() });
+        if (docObjCheck.doctorId) {
+          doctorClauses.push({ doctorId: docObjCheck.doctorId });
+        }
+        if (docObjCheck.name) {
+          const cleanName = docObjCheck.name.replace(/^Dr\.?\s*/i, '').trim();
+          doctorClauses.push({ doctorName: new RegExp(`^(\\s*Dr\\.?\\s*)?${cleanName}\\s*$`, 'i') });
+        }
+      }
+
+      const tenantFilter = {
+        organizationId: req.tenantId,
+        date,
+        time,
+        $or: doctorClauses
+      };
       const [pending, confirmed] = await Promise.all([
         PendingAppointment.findOne(tenantFilter),
         ConfirmedAppointment.findOne(tenantFilter)
       ]);
 
       if (pending || confirmed) {
-        return res.status(400).json({ message: 'This time slot is already booked' });
+        return res.status(400).json({ message: 'This time slot is already booked for this doctor' });
       }
     }
 
@@ -1019,23 +1081,28 @@ export const bookAppointment = async (req, res) => {
     const patientPhone = patientDetails?.phone || '';
     const patientEmail = patientDetails?.email || '';
 
-    // Look up doctor fee for appointment recording
+    // Look up doctor details
     let docObj = null;
     if (doctorId) {
-      docObj = await Doctor.findOne({ doctorId });
-      if (!docObj) {
+      if (mongoose.Types.ObjectId.isValid(doctorId)) {
         docObj = await Doctor.findById(doctorId);
+      }
+      if (!docObj) {
+        docObj = await Doctor.findOne({ doctorId });
       }
     }
     const fee = docObj?.fee || 500;
+
+    const resolvedDoctorId = docObj ? docObj._id.toString() : (doctorId ? doctorId.toString() : '');
+    const resolvedDoctorName = doctorName || docObj?.name || '';
 
     const appointment = new ConfirmedAppointment({
       shortId,
       organizationId: req.tenantId,
       patientId: patientIdToUse,
-      doctorId: docObj ? docObj.doctorId : doctorId || '',
-      doctorName: doctorName || '',
-      specialty: specialty || 'General',
+      doctorId: resolvedDoctorId,
+      doctorName: resolvedDoctorName,
+      specialty: specialty || docObj?.specialization || 'General',
       date: date || '',
       time: time || '',
       reason: reason || '',
@@ -1640,8 +1707,13 @@ export const getAvailableSlots = async (req, res) => {
   try {
     const { doctorId, date } = req.params;
 
-    let doctor = await Doctor.findOne({ doctorId });
-    if (!doctor) doctor = await Doctor.findById(doctorId);
+    let doctor = null;
+    if (mongoose.Types.ObjectId.isValid(doctorId)) {
+      doctor = await Doctor.findById(doctorId);
+    }
+    if (!doctor) {
+      doctor = await Doctor.findOne({ doctorId });
+    }
     if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
 
     if (doctor.status !== 'Active') {
@@ -1673,10 +1745,50 @@ export const getAvailableSlots = async (req, res) => {
       start.setMinutes(start.getMinutes() + 30);
     }
 
+    const docIdStr = doctor._id ? doctor._id.toString() : '';
+    const docCustomId = doctor.doctorId ? doctor.doctorId.trim() : null;
+    const docName = (doctor.name || '').trim();
+
+    const doctorMatchClauses = [];
+    if (docIdStr) {
+      doctorMatchClauses.push({ doctorId: docIdStr });
+      if (mongoose.Types.ObjectId.isValid(docIdStr)) {
+        doctorMatchClauses.push({ doctorId: doctor._id });
+      }
+    }
+    if (docCustomId) {
+      if (docName) {
+        const cleanName = docName.replace(/^Dr\.?\s*/i, '').trim();
+        doctorMatchClauses.push({
+          doctorId: docCustomId,
+          $or: [
+            { doctorName: { $regex: new RegExp(cleanName, 'i') } },
+            { doctorName: { $exists: false } },
+            { doctorName: null },
+            { doctorName: '' }
+          ]
+        });
+      } else {
+        doctorMatchClauses.push({ doctorId: docCustomId });
+      }
+    }
+    if (docName) {
+      const cleanName = docName.replace(/^Dr\.?\s*/i, '').trim();
+      doctorMatchClauses.push({
+        doctorName: { $regex: new RegExp(`^(\\s*Dr\\.?\\s*)?${cleanName}\\s*$`, 'i') }
+      });
+    }
+
+    const bookedQuery = {
+      organizationId: doctor.organizationId,
+      date,
+      $or: doctorMatchClauses.length > 0 ? doctorMatchClauses : [{ doctorId: docIdStr }]
+    };
+
     const [pending, confirmed, old] = await Promise.all([
-      PendingAppointment.find({ doctorId: doctor.doctorId || doctor._id.toString(), date }),
-      ConfirmedAppointment.find({ doctorId: doctor.doctorId || doctor._id.toString(), date }),
-      OldAppointment.find({ doctorId: doctor.doctorId || doctor._id.toString(), date, status: { $ne: 'cancelled' } })
+      PendingAppointment.find(bookedQuery),
+      ConfirmedAppointment.find(bookedQuery),
+      OldAppointment.find({ ...bookedQuery, status: { $ne: 'cancelled' } })
     ]);
 
     const bookedTimes = [...pending, ...confirmed, ...old].map(app => app.time);
@@ -2251,81 +2363,268 @@ export const patchAppointmentStatus = async (req, res) => {
 export const patchReschedule = async (req, res) => {
   try {
     const { id } = req.params;
-    const { appointmentDate, appointmentTime } = req.body;
+    const {
+      appointmentDate,
+      appointmentTime,
+      doctorId,
+      doctorName,
+      specialty,
+      reason,
+      notes,
+      sendWhatsAppToPatient = true,
+      sendWhatsAppToDoctor = true
+    } = req.body;
     const organizationId = req.tenantId;
 
-    let appointment = await PendingAppointment.findById(id) || 
-                      await ConfirmedAppointment.findById(id);
+    if (!appointmentDate || !appointmentTime) {
+      return res.status(400).json({ message: 'Appointment date and time are required for rescheduling' });
+    }
+
+    let appointment = await ConfirmedAppointment.findById(id);
+    let currentModel = ConfirmedAppointment;
+    if (!appointment) {
+      appointment = await PendingAppointment.findById(id);
+      currentModel = PendingAppointment;
+    }
+    if (!appointment) {
+      appointment = await CancelledAppointment.findById(id);
+      currentModel = CancelledAppointment;
+    }
+    if (!appointment) {
+      appointment = await OldAppointment.findById(id);
+      currentModel = OldAppointment;
+    }
 
     if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
 
-    // Validate slot
-    const existing = await ConfirmedAppointment.findOne({ 
-      organizationId, 
-      doctorId: appointment.doctorId, 
-      date: appointmentDate, 
+    // Target doctor resolution
+    let targetDoctor = null;
+    const reqDoctorId = doctorId || appointment.doctorId;
+    const reqDoctorName = doctorName || appointment.doctorName;
+
+    if (reqDoctorId && mongoose.Types.ObjectId.isValid(reqDoctorId)) {
+      targetDoctor = await Doctor.findById(reqDoctorId);
+    }
+    if (!targetDoctor && reqDoctorId) {
+      targetDoctor = await Doctor.findOne({ organizationId, doctorId: reqDoctorId });
+    }
+    if (!targetDoctor && reqDoctorName) {
+      targetDoctor = await Doctor.findOne({ organizationId, name: reqDoctorName });
+    }
+
+    const resolvedDoctorId = targetDoctor ? targetDoctor._id.toString() : (reqDoctorId || appointment.doctorId);
+    const resolvedDoctorName = targetDoctor ? targetDoctor.name : (reqDoctorName || appointment.doctorName);
+    const resolvedSpecialty = targetDoctor ? (targetDoctor.specialty || targetDoctor.department || '') : (specialty || appointment.specialty || '');
+
+    // Validate slot collision with multi-doctor isolation
+    const doctorClauses = [];
+    if (mongoose.Types.ObjectId.isValid(resolvedDoctorId)) {
+      doctorClauses.push({ doctorId: resolvedDoctorId });
+    }
+    if (targetDoctor?.doctorId) {
+      doctorClauses.push({ doctorId: targetDoctor.doctorId, doctorName: resolvedDoctorName });
+    }
+    if (resolvedDoctorName) {
+      doctorClauses.push({ doctorName: new RegExp(`^${resolvedDoctorName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+    }
+
+    const existing = await ConfirmedAppointment.findOne({
+      organizationId,
+      date: appointmentDate,
       time: appointmentTime,
-      _id: { $ne: id }
+      _id: { $ne: id },
+      ...(doctorClauses.length > 0 ? { $or: doctorClauses } : { doctorId: resolvedDoctorId })
     });
 
-    if (existing) return res.status(400).json({ message: 'Time slot already booked' });
+    if (existing) {
+      return res.status(400).json({ message: `Selected time slot is already booked for Dr. ${resolvedDoctorName || 'this doctor'}. Please select another slot.` });
+    }
 
-    // 3. Update the appointment with the new date, time, and reset status if needed
+    // 3. Update appointment fields
     appointment.date = appointmentDate;
     appointment.appointmentDate = appointmentDate;
     appointment.time = appointmentTime;
     appointment.appointmentTime = appointmentTime;
+    appointment.doctorId = resolvedDoctorId;
+    appointment.doctorName = resolvedDoctorName;
+    if (resolvedSpecialty) appointment.specialty = resolvedSpecialty;
+    if (reason !== undefined) appointment.reason = reason;
+    if (notes !== undefined) appointment.notes = notes;
+    appointment.status = 'confirmed';
     appointment.isRescheduled = true;
     appointment.updatedAt = new Date();
-    
-    await appointment.save();
 
-    if (notes && notes.trim() !== '') {
-      await saveAppointmentClinicalNote({
-        organizationId,
-        patientId: existingPatient?._id,
-        doctorId: docObj ? docObj._id : (mongoose.Types.ObjectId.isValid(doctorId) ? doctorId : undefined),
-        appointmentId: appointment._id,
-        patientName,
-        patientPhone: patientDetails?.phone || '',
-        doctorName: doctorName || (docObj ? docObj.name : ''),
-        date: date || '',
-        time: time || '',
-        title: req.body.noteTitle || 'Appointment Note',
-        note: notes,
-        noteType: req.body.noteType || 'appointment',
-        priority: req.body.notePriority || 'medium',
-        userId: req.user?._id || existingPatient?._id,
-        userRole: req.user?.role || 'doctor'
+    let savedAppointment;
+    if (currentModel !== ConfirmedAppointment) {
+      savedAppointment = new ConfirmedAppointment({
+        ...appointment.toObject(),
+        _id: appointment._id,
+        status: 'confirmed',
+        isRescheduled: true,
+        updatedAt: new Date()
       });
+      await savedAppointment.save();
+      await currentModel.findByIdAndDelete(id);
+    } else {
+      savedAppointment = await appointment.save();
     }
 
-    // 4. Update patient's lastVisit date
-    const patientRecord = await Patient.findOne({ 
-      $or: [
-        { patientId: appointment.patientId },
-        { mobile: appointment.patientPhone }
-      ],
-      organizationId: req.tenantId 
-    });
-    
-    if (patientRecord) {
-      patientRecord.lastVisit = appointmentDate;
-      await patientRecord.save();
+    // 4. Save clinical notes if provided
+    if (notes && typeof notes === 'string' && notes.trim() !== '') {
+      try {
+        await saveAppointmentClinicalNote({
+          organizationId,
+          patientId: savedAppointment.patientId,
+          doctorId: targetDoctor ? targetDoctor._id : (mongoose.Types.ObjectId.isValid(resolvedDoctorId) ? resolvedDoctorId : undefined),
+          appointmentId: savedAppointment._id,
+          patientName: savedAppointment.patientName || 'Patient',
+          patientPhone: savedAppointment.patientPhone || '',
+          doctorName: resolvedDoctorName,
+          date: appointmentDate || '',
+          time: appointmentTime || '',
+          title: req.body.noteTitle || 'Rescheduled Appointment Note',
+          note: notes,
+          noteType: req.body.noteType || 'appointment',
+          priority: req.body.notePriority || 'medium',
+          userId: req.user?._id,
+          userRole: req.user?.role || 'doctor'
+        });
+      } catch (noteErr) {
+        console.warn('Could not save clinical note during reschedule:', noteErr.message);
+      }
     }
 
-    // Emit Real-time update
+    // 5. Update patient's lastVisit date
+    try {
+      const patientRecord = await Patient.findOne({ 
+        $or: [
+          { patientId: savedAppointment.patientId },
+          { mobile: savedAppointment.patientPhone }
+        ],
+        organizationId: req.tenantId 
+      });
+      if (patientRecord) {
+        patientRecord.lastVisit = appointmentDate;
+        await patientRecord.save();
+      }
+    } catch (patErr) {
+      console.warn('Could not update patient lastVisit during reschedule:', patErr.message);
+    }
+
+    // 6. Send WhatsApp Reschedule Message to Patient
+    if (sendWhatsAppToPatient !== false) {
+      try {
+        const organization = await Organization.findById(organizationId);
+        const clinicName = organization?.name || 'our clinic';
+        const patientName = savedAppointment.patientName || `${savedAppointment.firstName || ''} ${savedAppointment.lastName || ''}`.trim() || 'Patient';
+        
+        let whatsappMobile = savedAppointment.patientPhone;
+        if (whatsappMobile && whatsappMobile.length === 10) {
+          whatsappMobile = `91${whatsappMobile}`;
+        }
+
+        if (whatsappMobile) {
+          const sanitizedMobile = sanitizePhone(whatsappMobile);
+          const rescheduleTemplate = process.env.WHATSAPP_APPOINTMENT_RESCHEDULE_TEMPLATE || 'appointment_reschedule';
+          const fallbackTemplate = process.env.WHATSAPP_APPOINTMENT_CONFIRMATION_TEMPLATE || 'appointment_confirmation';
+          const templateLang = process.env.WHATSAPP_OTP_TEMPLATE_LANG || 'en';
+
+          const formattedDate = appointmentDate ? (new Date(appointmentDate).toLocaleDateString('en-US') === 'Invalid Date' ? appointmentDate : new Date(appointmentDate).toLocaleDateString('en-US')) : 'Not Specified';
+          const formattedTime = appointmentTime || 'Not Specified';
+
+          const bodyParams = [
+            patientName || 'Patient',
+            resolvedDoctorName || 'Doctor',
+            clinicName,
+            formattedDate,
+            formattedTime
+          ];
+
+          try {
+            const waResponse = await sendWhatsAppTemplate(
+              sanitizedMobile,
+              rescheduleTemplate,
+              templateLang,
+              bodyParams,
+              [],
+              {
+                organizationId,
+                chargeCredit: true,
+                messageType: 'APPOINTMENT_RESCHEDULED',
+                relatedEntityType: 'Appointment',
+                relatedEntityId: savedAppointment._id,
+                createdBy: req.user?._id,
+                metadata: {
+                  source: 'appointmentController',
+                  templateName: rescheduleTemplate
+                }
+              }
+            );
+            if (waResponse?.messages?.[0]?.id) {
+              console.log(`[WhatsApp] Reschedule notification sent to ${sanitizedMobile}. ID: ${waResponse.messages[0].id}`);
+            }
+          } catch (primaryErr) {
+            console.warn(`[WhatsApp] Failed to send '${rescheduleTemplate}', trying fallback '${fallbackTemplate}':`, primaryErr.message);
+            if (fallbackTemplate && fallbackTemplate !== rescheduleTemplate) {
+              await sendWhatsAppTemplate(
+                sanitizedMobile,
+                fallbackTemplate,
+                templateLang,
+                bodyParams,
+                [],
+                {
+                  organizationId,
+                  chargeCredit: true,
+                  messageType: 'APPOINTMENT_CONFIRMATION',
+                  relatedEntityType: 'Appointment',
+                  relatedEntityId: savedAppointment._id,
+                  createdBy: req.user?._id,
+                  metadata: {
+                    source: 'appointmentController',
+                    templateName: fallbackTemplate,
+                    note: 'reschedule_fallback'
+                  }
+                }
+              );
+            }
+          }
+        }
+      } catch (waError) {
+        console.error('[WhatsApp] Failed to send patient reschedule notification:', waError.message);
+      }
+    }
+
+    // 7. Send WhatsApp Alert to Doctor
+    if (sendWhatsAppToDoctor !== false) {
+      try {
+        await sendDoctorAppointmentWhatsApp({
+          organizationId,
+          doctorId: resolvedDoctorId,
+          doctorName: resolvedDoctorName,
+          patientName: savedAppointment.patientName || `${savedAppointment.firstName || ''} ${savedAppointment.lastName || ''}`.trim() || 'Patient',
+          date: appointmentDate,
+          time: appointmentTime,
+          appointmentId: savedAppointment._id,
+          req
+        });
+      } catch (docWaError) {
+        console.error('[WhatsApp] Failed to send doctor reschedule alert:', docWaError.message);
+      }
+    }
+
+    // 8. Emit Real-time update
     const io = req.app.get("io");
     const orgIdStr = organizationId?._id?.toString() || organizationId?.toString();
     if (orgIdStr && orgIdStr !== '[object Object]') {
       io.to(orgIdStr).emit("appointment-updated", { 
         type: 'reschedule', 
-        appointment 
+        appointment: savedAppointment 
       });
     }
 
-    res.json(appointment);
+    res.json(savedAppointment);
   } catch (error) {
+    console.error('Error rescheduling appointment:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -2570,9 +2869,11 @@ export const bookWalkInAppointment = async (req, res) => {
     // 4. Create Confirmed/Pending Appointment (as Walk-in)
     let docObj = null;
     if (doctorId) {
-      docObj = await Doctor.findOne({ doctorId });
-      if (!docObj && mongoose.Types.ObjectId.isValid(doctorId)) {
+      if (mongoose.Types.ObjectId.isValid(doctorId)) {
         docObj = await Doctor.findById(doctorId);
+      }
+      if (!docObj) {
+        docObj = await Doctor.findOne({ doctorId });
       }
     }
     const amount = docObj?.fee || 500;
@@ -2580,6 +2881,9 @@ export const bookWalkInAppointment = async (req, res) => {
     const normalizedBillingStatus = (billingStatus || '').toLowerCase();
     const isPaid = normalizedBillingStatus === 'paid';
     const AppointmentModel = ConfirmedAppointment;
+
+    const resolvedDoctorId = docObj ? docObj._id.toString() : (doctorId ? doctorId.toString() : '');
+    const resolvedDoctorName = doctorName || docObj?.name || '';
 
     const appointment = new AppointmentModel({
       shortId,
@@ -2593,8 +2897,8 @@ export const bookWalkInAppointment = async (req, res) => {
       patientEmail: email || existingPatient.email || '',
       patientAge: age || existingPatient.age,
       ageType: ageType || existingPatient.ageType,
-      doctorId: docObj ? docObj.doctorId : doctorId || '',
-      doctorName: doctorName || docObj?.name || '',
+      doctorId: resolvedDoctorId,
+      doctorName: resolvedDoctorName,
       specialty: department || docObj?.specialization || 'General',
       date,
       time,

@@ -398,6 +398,8 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
 
     setFormData(prev => ({ ...prev, [name]: value, ...extraUpdates }));
     if (name === 'doctor' || name === 'appointmentDate') {
+      setAvailableSlots([]);
+      setSlotError('');
       setFormData(prev => ({ ...prev, appointmentTime: '' }));
     }
   };
@@ -1472,12 +1474,12 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
                       <button 
                         key={slotTime} 
                         type="button" 
-                        disabled={isBooked || isPast}
+                        disabled={isBooked}
                         onClick={() => setFormData(prev => ({ ...prev, appointmentTime: slotTime }))}
                         className={`py-2 px-1 rounded-lg border text-[11px] font-bold transition-all ${
                           formData.appointmentTime === slotTime 
                             ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105' 
-                            : isPast || isBooked
+                            : isBooked
                               ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50'
                               : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600'
                         }`}

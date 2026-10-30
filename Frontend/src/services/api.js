@@ -524,6 +524,14 @@ export const appointmentApi = {
   updateNotes: async (id, visitNotes) => {
     const { data } = await api.put(`/appointments/${id}/notes`, { visitNotes });
     return data;
+  },
+  updateStatus: async (id, status, cancellationReason) => {
+    const { data } = await api.put(`/appointments/${id}/status`, { status, cancellationReason });
+    return data;
+  },
+  reschedule: async (id, payload) => {
+    const { data } = await api.patch(`/appointments/${id}/reschedule`, payload);
+    return data;
   }
 };
 
