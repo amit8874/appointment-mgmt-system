@@ -306,6 +306,29 @@ export const createBill = async (req, res) => {
       });
     }
 
+    const processedIncomingItems = (items || []).map(it => {
+      const mode = it.paymentMode || it.paymentMethod || paymentMethod || 'Cash';
+      const cost = parseFloat(it.subtotal !== undefined ? it.subtotal : (it.total !== undefined ? it.total : (parseFloat(it.qty || 1) * parseFloat(it.price || it.unitPrice || 0) - parseFloat(it.discount || 0)))) || 0;
+      let itemPaid = it.paidAmount !== undefined ? parseFloat(it.paidAmount) : (it.status === 'Pending' ? 0 : cost);
+      itemPaid = Math.min(cost, Math.max(0, isNaN(itemPaid) ? 0 : itemPaid));
+      const itemDue = Math.max(0, cost - itemPaid);
+      const itemStatus = it.status || (itemDue === 0 ? 'Paid' : (itemPaid > 0 ? 'Partial' : 'Pending'));
+      return {
+        ...it,
+        subtotal: cost,
+        total: cost,
+        paymentMode: mode,
+        paymentMethod: mode,
+        paidAmount: itemPaid,
+        dueAmount: itemDue,
+        status: itemStatus
+      };
+    });
+    const uniqueItemModes = [...new Set(processedIncomingItems.map(it => it.paymentMode).filter(Boolean))];
+    const resolvedPaymentMethod = uniqueItemModes.length > 1 
+      ? 'Multiple' 
+      : (paymentMethod && paymentMethod !== 'N/A' ? paymentMethod : (uniqueItemModes[0] || 'N/A'));
+
     if (bill) {
       // Reuse and update the existing pending bill
       bill.patientId = patientId;
@@ -325,19 +348,50 @@ export const createBill = async (req, res) => {
       }
       bill.appointmentDate = appointmentDate || bill.appointmentDate;
       bill.appointmentTime = appointmentTime || bill.appointmentTime;
-      bill.items = items || [];
+      bill.items = processedIncomingItems;
       bill.status = totals.dueAmount === 0 ? 'Paid' : (totals.paidAmount > 0 ? 'Due' : (status || 'Pending'));
       bill.notes = notes || bill.notes;
-      bill.paymentMethod = paymentMethod || 'N/A';
+      bill.paymentMethod = resolvedPaymentMethod;
       bill.transactionId = transactionId || null;
       bill.billType = billType || 'General';
-      bill.discount = totals.discountAmount;
-      bill.installments = installments || [];
-
       if (!bill.receiptNumber) {
         const rcptNum = (bill.billId || '').replace(/\D/g, '') || String(Date.now()).slice(-4);
         bill.receiptNumber = `RCPT-${rcptNum}`;
       }
+
+      const baseRcpt = bill.receiptNumber;
+      let finalInstallments = (installments && installments.length > 0) ? installments : [];
+      if (finalInstallments.length === 0 && totals.paidAmount > 0) {
+        let rem = totals.paidAmount;
+        processedIncomingItems.forEach((it, idx) => {
+          if (rem <= 0) return;
+          const cost = parseFloat(it.subtotal || it.price || 0);
+          const amtForIt = Math.min(cost, rem);
+          if (amtForIt > 0) {
+            finalInstallments.push({
+              date: bill.date || new Date(),
+              amount: amtForIt,
+              paymentMethod: it.paymentMode || it.paymentMethod || resolvedPaymentMethod || 'Cash',
+              transactionId: transactionId || '',
+              receiptNumber: processedIncomingItems.length > 1 ? `${baseRcpt}-${idx + 1}` : baseRcpt,
+              procedureName: it.description || it.procedureName || '',
+              notes: amtForIt < cost ? `Part payment for ${it.description || 'Procedure'}` : `Payment for ${it.description || 'Procedure'}`
+            });
+            rem -= amtForIt;
+          }
+        });
+        if (rem > 0 && finalInstallments.length > 0) {
+          finalInstallments[finalInstallments.length - 1].amount += rem;
+        }
+      } else {
+        finalInstallments = finalInstallments.map((inst, idx) => ({
+          ...inst,
+          receiptNumber: inst.receiptNumber || (finalInstallments.length > 1 ? `${baseRcpt}-${idx + 1}` : baseRcpt)
+        }));
+      }
+
+      bill.discount = totals.discountAmount;
+      bill.installments = finalInstallments;
 
       await bill.save();
     } else {
@@ -350,8 +404,38 @@ export const createBill = async (req, res) => {
       const billId = `BIL${String(counter.value).padStart(6, '0')}`;
       const rcptNum = String(counter.value).padStart(6, '0');
       const receiptNumber = req.body.receiptNumber || `RCPT-${rcptNum}`;
-
       const effectiveBillDate = (req.body.date || req.body.billDate) ? new Date(req.body.date || req.body.billDate) : new Date();
+
+      let finalInstallments = (installments && installments.length > 0) ? installments : [];
+      if (finalInstallments.length === 0 && totals.paidAmount > 0) {
+        let rem = totals.paidAmount;
+        processedIncomingItems.forEach((it, idx) => {
+          if (rem <= 0) return;
+          const cost = parseFloat(it.subtotal || it.price || 0);
+          const amtForIt = Math.min(cost, rem);
+          if (amtForIt > 0) {
+            finalInstallments.push({
+              date: effectiveBillDate,
+              amount: amtForIt,
+              paymentMethod: it.paymentMode || it.paymentMethod || resolvedPaymentMethod || 'Cash',
+              transactionId: transactionId || '',
+              receiptNumber: processedIncomingItems.length > 1 ? `${receiptNumber}-${idx + 1}` : receiptNumber,
+              procedureName: it.description || it.procedureName || '',
+              notes: amtForIt < cost ? `Part payment for ${it.description || 'Procedure'}` : `Payment for ${it.description || 'Procedure'}`
+            });
+            rem -= amtForIt;
+          }
+        });
+        if (rem > 0 && finalInstallments.length > 0) {
+          finalInstallments[finalInstallments.length - 1].amount += rem;
+        }
+      } else {
+        finalInstallments = finalInstallments.map((inst, idx) => ({
+          ...inst,
+          receiptNumber: inst.receiptNumber || (finalInstallments.length > 1 ? `${receiptNumber}-${idx + 1}` : receiptNumber)
+        }));
+      }
+
       bill = new Billing({
         billId,
         invoiceNumber: req.body.invoiceNumber || billId,
@@ -373,14 +457,14 @@ export const createBill = async (req, res) => {
         appointmentId: appointmentId || null,
         appointmentDate: appointmentDate || null,
         appointmentTime: appointmentTime || null,
-        items: items || [],
+        items: processedIncomingItems,
         status: totals.dueAmount === 0 ? 'Paid' : (totals.paidAmount > 0 ? 'Due' : (status || 'Pending')),
         notes: notes || '',
-        paymentMethod: paymentMethod || 'N/A',
+        paymentMethod: resolvedPaymentMethod,
         transactionId: transactionId || null,
         billType: billType || 'General',
         discount: totals.discountAmount,
-        installments: installments || []
+        installments: finalInstallments
       });
 
       await bill.save();
@@ -496,8 +580,47 @@ export const updateBill = async (req, res) => {
     if (updateData.date || updateData.billDate) {
       bill.date = new Date(updateData.date || updateData.billDate);
     }
+    if (Array.isArray(updateData.installments)) {
+      const baseRcpt = bill.receiptNumber || `RCPT-${(String(bill.invoiceNumber || bill.billId || '').replace(/\D/g, '') || '1001')}`;
+      bill.installments = updateData.installments.map((inst, idx) => ({
+        ...inst,
+        receiptNumber: inst.receiptNumber || (updateData.installments.length > 1 ? `${baseRcpt}-${idx + 1}` : baseRcpt)
+      }));
+    }
     if (Array.isArray(updateData.items)) {
-      bill.items = updateData.items;
+      bill.items = updateData.items.map(it => {
+        const mode = it.paymentMode || it.paymentMethod || updateData.paymentMethod || bill.paymentMethod || 'Cash';
+        const cost = parseFloat(it.subtotal !== undefined ? it.subtotal : (it.total !== undefined ? it.total : (parseFloat(it.qty || 1) * parseFloat(it.price || it.unitPrice || 0) - parseFloat(it.discount || 0)))) || 0;
+        let itemPaid = it.paidAmount !== undefined ? parseFloat(it.paidAmount) : (it.status === 'Pending' ? 0 : cost);
+        itemPaid = Math.min(cost, Math.max(0, isNaN(itemPaid) ? 0 : itemPaid));
+        const itemDue = Math.max(0, cost - itemPaid);
+        const itemStatus = it.status || (itemDue === 0 ? 'Paid' : (itemPaid > 0 ? 'Partial' : 'Pending'));
+        return {
+          ...it,
+          subtotal: cost,
+          total: cost,
+          paymentMode: mode,
+          paymentMethod: mode,
+          paidAmount: itemPaid,
+          dueAmount: itemDue,
+          status: itemStatus
+        };
+      });
+      const uniqueModes = [...new Set(bill.items.map(it => it.paymentMode).filter(Boolean))];
+      if (uniqueModes.length > 1) {
+        bill.paymentMethod = 'Multiple';
+      } else if (uniqueModes.length === 1 && (!updateData.paymentMethod || updateData.paymentMethod === 'N/A')) {
+        bill.paymentMethod = uniqueModes[0];
+      }
+
+      // If items have explicit itemized payments, recompute bill's overall paidAmount, dueAmount and status
+      const itemsPaidSum = bill.items.reduce((s, it) => s + (parseFloat(it.paidAmount) || 0), 0);
+      const itemsDueSum = bill.items.reduce((s, it) => s + (parseFloat(it.dueAmount) || 0), 0);
+      if (itemsPaidSum > 0 || itemsDueSum > 0 || bill.items.length > 0) {
+        bill.paidAmount = itemsPaidSum;
+        bill.dueAmount = itemsDueSum;
+        bill.status = itemsDueSum === 0 ? 'Paid' : (itemsPaidSum > 0 ? 'Due' : 'Pending');
+      }
     }
 
     // If bill status is marked Paid, ensure paidAmount equals amount and dueAmount is 0

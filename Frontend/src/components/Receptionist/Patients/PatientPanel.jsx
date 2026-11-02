@@ -35,6 +35,31 @@ const PatientPanel = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const [activeMenuPatient, setActiveMenuPatient] = useState(null);
+  const [mobileActionPatient, setMobileActionPatient] = useState(null);
+
+  const handleMenuClick = (e, p) => {
+    e.stopPropagation();
+    if (window.innerWidth < 768) {
+      setMobileActionPatient(p);
+      setOpenMenuId(null);
+      setActiveMenuPatient(null);
+      return;
+    }
+    if (openMenuId === p._id) {
+      setOpenMenuId(null);
+      setActiveMenuPatient(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({
+      top: rect.bottom + 6,
+      right: window.innerWidth - rect.right,
+    });
+    setOpenMenuId(p._id);
+    setActiveMenuPatient(p);
+  };
   const [statusFilter, setStatusFilter] = useState("All");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
@@ -42,6 +67,19 @@ const PatientPanel = () => {
   const [activeConsentPatient, setActiveConsentPatient] = useState(null);
   const itemsPerPage = 15;
   const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClose = () => {
+      setOpenMenuId(null);
+      setActiveMenuPatient(null);
+    };
+    document.addEventListener('click', handleClose);
+    window.addEventListener('scroll', handleClose, true);
+    return () => {
+      document.removeEventListener('click', handleClose);
+      window.removeEventListener('scroll', handleClose, true);
+    };
+  }, []);
   const navigate = useNavigate();
   const [selectedPatientIds, setSelectedPatientIds] = useState([]);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
@@ -371,7 +409,7 @@ const PatientPanel = () => {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto w-full">
+        <div className="overflow-x-auto w-full min-h-[360px] pb-32">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-blue-50/50 text-blue-900 border-b border-gray-100">
@@ -465,8 +503,8 @@ const PatientPanel = () => {
                       <div className="flex items-center gap-2" ref={menuRef}>
 
                         <button
-                          onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
-                          className={`p-2 rounded-xl transition-all ${openMenuId === p._id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          onClick={(e) => handleMenuClick(e, p)}
+                          className={`p-2 rounded-xl transition-all cursor-pointer ${openMenuId === p._id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                         >
                           <MoreVertical className="h-4 w-4" />
@@ -475,10 +513,10 @@ const PatientPanel = () => {
                         <AnimatePresence>
                           {openMenuId === p._id && (
                             <motion.div
-                              initial={{ opacity: 0, scale: 0.95, x: -20 }}
-                              animate={{ opacity: 1, scale: 1, x: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, x: -20 }}
-                              className="absolute right-full mr-2 top-0 w-52 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-50 overflow-hidden"
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              className={`absolute right-0 ${isDropUp ? 'bottom-full mb-1 origin-bottom-right' : 'top-full mt-1 origin-top-right'} w-52 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-50 overflow-hidden`}
                             >
                               {isDentistClinic && (
                                 <button

@@ -108,7 +108,7 @@ const billingSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Insurance', 'N/A'],
+    enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Insurance', 'Multiple', 'Split', 'Other', 'N/A'],
     default: 'N/A'
   },
   transactionId: {
@@ -154,7 +154,12 @@ const billingSchema = new mongoose.Schema({
     toothNumber: String,
     price: Number,
     discount: { type: Number, default: 0 },
-    total: Number
+    total: Number,
+    paymentMode: { type: String, default: 'Cash' },
+    paymentMethod: { type: String, default: 'Cash' },
+    status: { type: String, default: 'Paid' },
+    paidAmount: { type: Number, default: 0 },
+    dueAmount: { type: Number, default: 0 }
   }],
   notes: String,
   storageProvider: { type: String, default: 'local' }, // 'local', 'cloudinary', 'aws_s3'
@@ -166,9 +171,10 @@ const billingSchema = new mongoose.Schema({
   installments: [{
     date: { type: Date, default: Date.now },
     amount: { type: Number, required: true },
-    paymentMethod: { type: String, enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Insurance', 'N/A'], required: true },
+    paymentMethod: { type: String, enum: ['Cash', 'Card', 'UPI', 'Bank Transfer', 'Insurance', 'Multiple', 'Split', 'Other', 'N/A'], required: true },
     transactionId: { type: String, default: '' },
     receiptNumber: { type: String, default: '' },
+    procedureName: { type: String, default: '' },
     notes: { type: String, default: '' }
   }]
 }, {

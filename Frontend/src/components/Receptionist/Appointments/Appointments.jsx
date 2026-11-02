@@ -34,6 +34,7 @@ const StatusBadge = ({ status }) => {
 };
 
 const PatientRow = ({ patient, onUpdateStatus, onViewRecord, onDelete, deletingId }) => {
+  const navigate = useNavigate();
   const { id, patientId, name, time, reason, doctor, status, arrival } = patient;
 
   const handleAction = () => {
@@ -68,8 +69,36 @@ const PatientRow = ({ patient, onUpdateStatus, onViewRecord, onDelete, deletingI
 
   return (
     <tr className="border-b hover:bg-gray-50 transition duration-150">
-      <td className="p-4 text-sm font-medium text-gray-900">{patientId}</td>
-      <td className="p-4 text-sm font-semibold text-gray-900">{name}</td>
+      <td className="p-4 text-sm font-medium text-gray-900">
+        <button
+          onClick={() => {
+            if (patientId) {
+              navigate(`/receptionist/patient/${patientId}`);
+            } else {
+              onViewRecord(patient);
+            }
+          }}
+          className="text-left font-medium text-slate-700 hover:text-blue-600 hover:underline transition-colors"
+          title="View Patient Profile"
+        >
+          {patientId}
+        </button>
+      </td>
+      <td className="p-4 text-sm font-semibold text-gray-900">
+        <button
+          onClick={() => {
+            if (patientId) {
+              navigate(`/receptionist/patient/${patientId}`);
+            } else {
+              onViewRecord(patient);
+            }
+          }}
+          className="text-left font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+          title="View Patient Profile"
+        >
+          {name}
+        </button>
+      </td>
       <td className="p-4 text-sm text-gray-500">{time}</td>
       <td className="p-4 text-sm text-gray-500 hidden md:table-cell">{reason}</td>
       <td className="p-4 text-sm text-gray-700 font-medium hidden lg:table-cell">{doctor}</td>

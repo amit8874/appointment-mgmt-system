@@ -72,3 +72,64 @@ export const cleanPatientName = (fullName = '') => {
 
   return str.replace(/\s{2,}/g, ' ').trim();
 };
+
+/**
+ * Sanitizes designation, firstName, and lastName to ensure:
+ * - firstName does not contain titles (e.g. firstName = "MR.")
+ * - lastName does not contain duplicate titles
+ * - designation is correctly identified and standardized
+ * 
+ * @param {string} designation 
+ * @param {string} firstName 
+ * @param {string} lastName 
+ * @returns {{ designation: string, firstName: string, lastName: string, fullName: string }}
+ */
+export const sanitizePatientNames = (designation = '', firstName = '', lastName = '') => {
+  let des = (designation || '').trim();
+  let first = (firstName || '').trim();
+  let last = (lastName || '').trim();
+
+  const titleRegex = /^(MR|MRS|MS|MISS|DR|PROF|SHRI|SMT|BABY|MASTER)\.?$/i;
+  const titlePrefixRegex = /^(MR|MRS|MS|MISS|DR|PROF|SHRI|SMT|BABY|MASTER)\.?\s+/i;
+
+  // If first name is purely a title like "MR" or "MR."
+  if (titleRegex.test(first)) {
+    if (!des) {
+      des = first.replace(/\./g, '').toUpperCase();
+    }
+    const lastParts = last.split(/\s+/).filter(Boolean);
+    first = lastParts[0] || '';
+    last = lastParts.slice(1).join(' ');
+  } else {
+    // If first name starts with a title like "MR. Amit"
+    while (titlePrefixRegex.test(first)) {
+      const match = first.match(titlePrefixRegex);
+      if (match && !des) {
+        des = match[1].toUpperCase();
+      }
+      first = first.replace(titlePrefixRegex, '').trim();
+    }
+  }
+
+  // Also strip any leading title from lastName
+  while (titlePrefixRegex.test(last)) {
+    last = last.replace(titlePrefixRegex, '').trim();
+  }
+
+  let effectiveTitle = des ? des.replace(/\./g, '').toUpperCase() : '';
+  let normalizedDes = '';
+  if (effectiveTitle === 'MISS') {
+    normalizedDes = 'MISS';
+  } else if (effectiveTitle) {
+    normalizedDes = `${effectiveTitle}.`;
+  }
+
+  const finalFullName = formatPatientFullName(normalizedDes, first, last);
+
+  return {
+    designation: normalizedDes,
+    firstName: first,
+    lastName: last,
+    fullName: finalFullName
+  };
+};

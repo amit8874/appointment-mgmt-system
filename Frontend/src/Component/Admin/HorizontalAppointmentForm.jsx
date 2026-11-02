@@ -4,6 +4,7 @@ import api, { whatsappApi, clinicalNoteApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { extractCleanNameAndDesignation } from '../../utils/patientNameUtils';
 
 export default function HorizontalAppointmentForm({ doctors = [], onSuccess, openDoctorForm, initialData = null, limits, totalDoctors = 0 }) {
   const { user } = useAuth();
@@ -271,11 +272,12 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   // Handle initialData for re-appointments or pre-filled forms
   useEffect(() => {
     if (initialData) {
+      const { cleanFullName, designation } = extractCleanNameAndDesignation(initialData);
       setFormData(prev => ({
         ...prev,
         patientId: initialData.patientId || prev.patientId,
-        designation: initialData.designation || 'MR.',
-        fullName: initialData.fullName || `${initialData.firstName || ''} ${initialData.lastName || ''}`.trim(),
+        designation: designation || prev.designation || 'MR.',
+        fullName: cleanFullName,
         age: initialData.age || initialData.patientAge || '',
         ageType: initialData.ageType || 'Year',
         gender: initialData.gender
@@ -370,7 +372,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
   const handleSelectPatientByName = (p) => {
     setSelectedExistingId(p.patientId || p._id);
-    const displayName = p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
+    const { cleanFullName, designation } = extractCleanNameAndDesignation(p);
     
     setActiveExtraFields(prev => ({
       ...prev,
@@ -384,13 +386,13 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
     setFormData(prev => ({
       ...prev,
-      fullName: displayName,
+      fullName: cleanFullName,
+      designation: designation,
       age: p.age || '',
       ageType: p.ageType || 'Year',
       gender: p.gender || 'Male',
       phone: p.mobile || p.contactNumber || p.phone || '',
       patientId: p.patientId || prev.patientId,
-      designation: p.designation || prev.designation || 'MR.',
       email: p.email || '',
       address: p.address || '',
       city: p.city || '',
@@ -405,7 +407,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     }));
     setNameSearchResults([]);
     setShowNameSuggestions(false);
-    toast.info(`Using existing record for ${displayName}`);
+    toast.info(`Using existing record for ${cleanFullName}`);
   };
 
   // Gender auto-selection based on Designation
@@ -478,6 +480,23 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     }
   };
 
+  const handleFullNameBlur = () => {
+    if (formData.fullName) {
+      const { cleanFullName, designation } = extractCleanNameAndDesignation({
+        fullName: formData.fullName,
+        designation: formData.designation,
+        gender: formData.gender
+      });
+      if (cleanFullName && cleanFullName !== formData.fullName) {
+        setFormData(prev => ({
+          ...prev,
+          fullName: cleanFullName,
+          designation: designation || prev.designation
+        }));
+      }
+    }
+  };
+
   const fetchAvailableSlots = async () => {
     if (!formData.doctor || !formData.appointmentDate) return;
     setIsFetchingSlots(true);
@@ -516,13 +535,38 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   useEffect(() => {
     const checkPhone = async () => {
       if (formData.phone.length === 10) {
+        // If already linked to an existing patient, skip re-lookup
+        if (selectedExistingId) {
+          return;
+        }
         setIsCheckingPhone(true);
         try {
           const res = await api.get(`/patients/by-mobile/${formData.phone}`);
+          let patients = [];
           if (res.data && Array.isArray(res.data)) {
-            setExistingPatients(res.data);
-          } else if (res.data && typeof res.data === 'object') {
-            setExistingPatients([res.data]);
+            patients = res.data;
+          } else if (res.data && typeof res.data === 'object' && (res.data._id || res.data.patientId)) {
+            patients = [res.data];
+          }
+
+          if (patients.length > 0) {
+            // Find best matching patient if full name is already entered, otherwise pick first patient
+            const bestMatch = patients.find(p => {
+              const pName = (p.fullName || `${p.firstName || ''} ${p.lastName || ''}`).trim().toLowerCase();
+              return formData.fullName && pName && (pName.includes(formData.fullName.trim().toLowerCase()) || formData.fullName.trim().toLowerCase().includes(pName));
+            }) || patients[0];
+
+            // Auto-fill all patient details immediately into the form
+            handleUseExistingPatient(bestMatch);
+
+            // If more than 1 family member registered on this number, keep them available to switch
+            if (patients.length > 1) {
+              setExistingPatients(patients);
+            } else {
+              setExistingPatients([]);
+            }
+          } else {
+            setExistingPatients([]);
           }
         } catch (err) {
           setExistingPatients([]);
@@ -531,15 +575,17 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
         }
       } else {
         setExistingPatients([]);
-        setSelectedExistingId(null);
+        if (selectedExistingId) {
+          setSelectedExistingId(null);
+        }
       }
     };
     checkPhone();
-  }, [formData.phone]);
+  }, [formData.phone, selectedExistingId]);
 
   const handleUseExistingPatient = (p) => {
     setSelectedExistingId(p.patientId || p._id);
-    const displayName = p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
+    const { cleanFullName, designation } = extractCleanNameAndDesignation(p);
 
     setActiveExtraFields(prev => ({
       ...prev,
@@ -553,12 +599,12 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
     setFormData(prev => ({
       ...prev,
-      fullName: displayName,
+      fullName: cleanFullName,
+      designation: designation,
       age: p.age || '',
       ageType: p.ageType || 'Year',
       gender: p.gender || 'Male',
       patientId: p.patientId || prev.patientId,
-      designation: p.designation || 'MR.',
       email: p.email || '',
       address: p.address || '',
       city: p.city || '',
@@ -572,7 +618,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       pastMedicalHistory: p.pastMedicalHistory || '',
     }));
     setExistingPatients([]);
-    toast.info(`Using existing record for ${displayName}`);
+    toast.info(`Using existing record for ${cleanFullName}`);
   };
 
   const handleRegisterNewPatient = () => {
@@ -599,14 +645,23 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       
       const selectedDoc = doctors.find(d => d._id === formData.doctor);
       
+      const { cleanFullName, designation: finalDes } = extractCleanNameAndDesignation({
+        fullName: formData.fullName,
+        designation: formData.designation,
+        gender: formData.gender
+      });
+      const nameParts = (cleanFullName || '').trim().split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
       if (bookingMode === 'WALK_IN') {
         const walkInData = {
           patientId: selectedExistingId || formData.patientId,
           isNewPatient: !selectedExistingId,
-          designation: formData.designation || 'MR.',
-          firstName: (formData.fullName || '').trim().split(/\s+/)[0] || '',
-          lastName: (formData.fullName || '').trim().split(/\s+/).slice(1).join(' ') || '',
-          fullName: formData.fullName,
+          designation: finalDes,
+          firstName: firstName,
+          lastName: lastName,
+          fullName: cleanFullName,
           age: formData.age,
           ageType: formData.ageType,
           mobileNumber: formData.phone,
@@ -649,9 +704,6 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           if (onSuccess) onSuccess();
         }
       } else {
-        const nameParts = (formData.fullName || '').trim().split(/\s+/);
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || '';
         const paymentStatus = billingData.paymentMode === 'Pending' ? 'pending' : 'paid';
         const paymentMethod = billingData.paymentMode === 'Pending' ? 'N/A' : billingData.paymentMode;
 
@@ -672,10 +724,10 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           skipBilling: skipBilling,
           status: 'confirmed',
           patientDetails: {
-            designation: formData.designation || 'MR.',
+            designation: finalDes,
             firstName: firstName,
             lastName: lastName,
-            fullName: formData.fullName,
+            fullName: cleanFullName,
             age: formData.age,
             ageType: formData.ageType,
             gender: formData.gender || 'Male',
@@ -963,6 +1015,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
+              onBlur={handleFullNameBlur}
               placeholder="Enter full name"
               className="w-full border border-gray-300 p-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
               required
@@ -971,20 +1024,25 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
             {showNameSuggestions && nameSearchResults.length > 0 && (
               <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 w-80 max-h-48 overflow-y-auto">
                 <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-700/50 text-[10px] font-bold text-gray-400 dark:text-gray-300 uppercase border-b border-gray-100 dark:border-gray-600 select-none">Database Match</div>
-                {nameSearchResults.map(p => (
-                  <button
-                    key={p._id}
-                    type="button"
-                    onClick={() => handleSelectPatientByName(p)}
-                    className="w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-gray-700/50 flex justify-between items-center border-b border-gray-100 dark:border-gray-700 last:border-0 cursor-pointer"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-slate-800 dark:text-white truncate">{p.name || p.fullName}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-gray-400 font-medium truncate">Phone: {p.mobile || p.contactNumber || p.phone || 'N/A'} • Age: {p.age || 'N/A'}</p>
-                    </div>
-                    <span className="text-[9px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded font-black uppercase shrink-0 ml-2">Select</span>
-                  </button>
-                ))}
+                {nameSearchResults.map(p => {
+                  const { cleanFullName, designation } = extractCleanNameAndDesignation(p);
+                  return (
+                    <button
+                      key={p._id}
+                      type="button"
+                      onClick={() => handleSelectPatientByName(p)}
+                      className="w-full px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-gray-700/50 flex justify-between items-center border-b border-gray-100 dark:border-gray-700 last:border-0 cursor-pointer"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                          {designation} {cleanFullName}
+                        </p>
+                        <p className="text-[10px] text-slate-500 dark:text-gray-400 font-medium truncate">Phone: {p.mobile || p.contactNumber || p.phone || 'N/A'} • Age: {p.age || 'N/A'}</p>
+                      </div>
+                      <span className="text-[9px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded font-black uppercase shrink-0 ml-2">Select</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1041,41 +1099,40 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           </div>
         </div>
 
-        {/* Existing Patients Match Alert */}
-        {existingPatients.length > 0 && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-amber-100 dark:bg-amber-800/40 rounded-full">
-                <CalendarIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-black text-amber-900 dark:text-amber-100 uppercase tracking-tight">Existing Records Found</h4>
-                <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">Choose an existing patient or register a new one for this number.</p>
-                
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {existingPatients.map(p => (
+        {/* Multiple Family Members Switcher (Only shown if >1 patient shares this number) */}
+        {existingPatients.length > 1 && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-300">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-blue-900 dark:text-blue-200">Other family member(s) on this number:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {existingPatients.map(p => {
+                  const isCurrent = selectedExistingId === (p.patientId || p._id);
+                  const { cleanFullName, designation } = extractCleanNameAndDesignation(p);
+                  return (
                     <button
                       key={p._id}
                       type="button"
                       onClick={() => handleUseExistingPatient(p)}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 transition-all"
+                      className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-all ${
+                        isCurrent 
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                          : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-blue-200 hover:bg-blue-50'
+                      }`}
                     >
-                      <div className="flex flex-col items-start">
-                        <span className="text-xs font-bold">{p.fullName || `${p.firstName} ${p.lastName}`}</span>
-                        <span className="text-[10px] text-gray-500">ID: {p.patientId}</span>
-                      </div>
+                      {designation} {cleanFullName} ({p.patientId})
                     </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={handleRegisterNewPatient}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold"
-                  >
-                    Add New Patient
-                  </button>
-                </div>
+                  );
+                })}
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setExistingPatients([])}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs font-bold px-2 py-1"
+              title="Dismiss"
+            >
+              ✕
+            </button>
           </div>
         )}
 

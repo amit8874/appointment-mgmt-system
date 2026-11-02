@@ -37,6 +37,31 @@ const PatientPanel = ({
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const [activeMenuPatient, setActiveMenuPatient] = useState(null);
+  const [mobileActionPatient, setMobileActionPatient] = useState(null);
+
+  const handleMenuClick = (e, p) => {
+    e.stopPropagation();
+    if (window.innerWidth < 768) {
+      setMobileActionPatient(p);
+      setOpenMenuId(null);
+      setActiveMenuPatient(null);
+      return;
+    }
+    if (openMenuId === p._id) {
+      setOpenMenuId(null);
+      setActiveMenuPatient(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({
+      top: rect.bottom + 6,
+      right: window.innerWidth - rect.right,
+    });
+    setOpenMenuId(p._id);
+    setActiveMenuPatient(p);
+  };
   const [statusFilter, setStatusFilter] = useState("All");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
@@ -44,6 +69,19 @@ const PatientPanel = ({
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [activeConsentPatient, setActiveConsentPatient] = useState(null);
   const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClose = () => {
+      setOpenMenuId(null);
+      setActiveMenuPatient(null);
+    };
+    document.addEventListener('click', handleClose);
+    window.addEventListener('scroll', handleClose, true);
+    return () => {
+      document.removeEventListener('click', handleClose);
+      window.removeEventListener('scroll', handleClose, true);
+    };
+  }, []);
   const navigate = useNavigate();
   const [selectedPatientIds, setSelectedPatientIds] = useState([]);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
@@ -584,7 +622,7 @@ const PatientPanel = ({
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto w-full">
+            <div className="overflow-x-auto w-full min-h-[360px] pb-32">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-blue-50 dark:bg-blue-900/40">
                   <tr>
@@ -631,7 +669,9 @@ const PatientPanel = ({
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-                  {paginatedPatients.map((p) => (
+                  {paginatedPatients.map((p, index) => {
+                    const isDropUp = index >= paginatedPatients.length - 3 || paginatedPatients.length <= 3;
+                    return (
                     <tr
                       key={p._id}
                       className="hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
@@ -696,96 +736,17 @@ const PatientPanel = ({
                         <div className="flex items-center gap-2" ref={menuRef}>
 
                           <button
-                            onClick={() => setOpenMenuId(openMenuId === p._id ? null : p._id)}
-                            className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+                            onClick={(e) => handleMenuClick(e, p)}
+                            className="p-2 rounded-lg bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors cursor-pointer"
                             title="More options"
                           >
                             <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-300" />
                           </button>
-
-                          {/* Dropdown Menu */}
-                          <AnimatePresence>
-                            {openMenuId === p._id && (
-                              <motion.div
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50"
-                                style={{ zIndex: 100 }}
-                              >
-                                {isDentistClinic && (
-                                  <button
-                                    onClick={() => {
-                                      setOpenMenuId(null);
-                                      setActiveConsentPatient(p);
-                                    }}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 font-bold"
-                                  >
-                                    <FileText className="h-4 w-4 text-indigo-650" />
-                                    Consent Form
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleViewProfile(p)}
-                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                                >
-                                  <Eye className="h-4 w-4 text-blue-600" />
-                                  View Profile
-                                </button>
-                                <button
-                                  onClick={() => handleGenerateReport(p)}
-                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-green-900/30"
-                                >
-                                  <FileText className="h-4 w-4 text-green-600" />
-                                  Generate Report
-                                </button>
-                                <button
-                                  onClick={() => handleReappointment(p)}
-                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/30"
-                                >
-                                  <CalendarPlus className="h-4 w-4 text-orange-600" />
-                                  Re-Appointment
-                                </button>
-                                {p.paymentStatus !== 'paid' && (
-                                  <button
-                                    onClick={() => handleMarkAsPaid(p)}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-amber-50 dark:hover:bg-amber-900/30"
-                                  >
-                                    <span className="h-4 w-4 text-amber-600 font-bold">₹</span>
-                                    Mark as Paid
-                                  </button>
-                                )}
-                                {p.paymentStatus === 'dead' ? (
-                                  <button
-                                    onClick={() => handleMarkAsUndead(p)}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30"
-                                  >
-                                    <CheckCircle className="h-4 w-4" />
-                                    Mark as Undead
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleMarkAsDead(p)}
-                                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    Mark as Dead
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleDeletePatient(p)}
-                                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 font-semibold"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Delete
-                                </button>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -799,6 +760,275 @@ const PatientPanel = ({
           </>
         )}
       </div>
+
+
+
+      {/* FIXED VIEWPORT DOWNSIDE PATIENT ACTION MENU (NEVER CLIPPED, FULL VIEW) */}
+      {openMenuId && activeMenuPatient && (
+        <div
+          style={{
+            position: 'fixed',
+            top: `${menuPos.top}px`,
+            right: `${menuPos.right}px`,
+            zIndex: 9999,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="w-52 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-1.5 animate-in fade-in zoom-in-95 select-none"
+        >
+          {isDentistClinic && (
+            <button
+              onClick={() => {
+                const p = activeMenuPatient;
+                setOpenMenuId(null);
+                setActiveMenuPatient(null);
+                setActiveConsentPatient(p);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 font-bold cursor-pointer"
+            >
+              <FileText className="h-4 w-4 text-indigo-650" />
+              <span>Consent Form</span>
+            </button>
+          )}
+          <button
+            onClick={() => {
+              const p = activeMenuPatient;
+              setOpenMenuId(null);
+              setActiveMenuPatient(null);
+              handleViewProfile(p);
+            }}
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer"
+          >
+            <Eye className="h-4 w-4 text-blue-600" />
+            <span>View Profile</span>
+          </button>
+          <button
+            onClick={() => {
+              const p = activeMenuPatient;
+              setOpenMenuId(null);
+              setActiveMenuPatient(null);
+              handleGenerateReport(p);
+            }}
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-green-900/30 cursor-pointer"
+          >
+            <FileText className="h-4 w-4 text-green-600" />
+            <span>Generate Report</span>
+          </button>
+          <button
+            onClick={() => {
+              const p = activeMenuPatient;
+              setOpenMenuId(null);
+              setActiveMenuPatient(null);
+              handleReappointment(p);
+            }}
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/30 cursor-pointer"
+          >
+            <CalendarPlus className="h-4 w-4 text-orange-600" />
+            <span>Re-Appointment</span>
+          </button>
+          {activeMenuPatient.paymentStatus !== 'paid' && (
+            <button
+              onClick={() => {
+                const p = activeMenuPatient;
+                setOpenMenuId(null);
+                setActiveMenuPatient(null);
+                handleMarkAsPaid(p);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-amber-50 dark:hover:bg-amber-900/30 cursor-pointer"
+            >
+              <span className="h-4 w-4 text-amber-600 font-bold">₹</span>
+              <span>Mark as Paid</span>
+            </button>
+          )}
+          {activeMenuPatient.paymentStatus === 'dead' ? (
+            <button
+              onClick={() => {
+                const p = activeMenuPatient;
+                setOpenMenuId(null);
+                setActiveMenuPatient(null);
+                handleMarkAsUndead(p);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 cursor-pointer"
+            >
+              <CheckCircle className="h-4 w-4" />
+              <span>Mark as Undead</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                const p = activeMenuPatient;
+                setOpenMenuId(null);
+                setActiveMenuPatient(null);
+                handleMarkAsDead(p);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 cursor-pointer"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span>Mark as Dead</span>
+            </button>
+          )}
+          <button
+            onClick={() => {
+              const p = activeMenuPatient;
+              setOpenMenuId(null);
+              setActiveMenuPatient(null);
+              handleDeletePatient(p);
+            }}
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 font-semibold border-t border-gray-100 dark:border-gray-700 mt-0.5 cursor-pointer"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span>Delete</span>
+          </button>
+        </div>
+      )}
+
+      {/* NATIVE MOBILE ACTION SHEET FOR PATIENT */}
+      <AnimatePresence>
+        {mobileActionPatient && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileActionPatient(null)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              className="relative w-full sm:max-w-md bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 z-10 max-h-[85vh] overflow-y-auto"
+            >
+              <div className="w-12 h-1.5 bg-slate-300 dark:bg-gray-600 rounded-full mx-auto mb-4" />
+              <div className="flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 pb-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-extrabold flex items-center justify-center text-sm">
+                  {mobileActionPatient.fullName?.charAt(0) || 'P'}
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-gray-900 dark:text-white text-sm">
+                    {mobileActionPatient.fullName}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    ID: {mobileActionPatient.patientId} • Phone: {mobileActionPatient.phone || 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <button
+                  onClick={() => {
+                    const p = mobileActionPatient;
+                    setMobileActionPatient(null);
+                    handleViewProfile(p);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl font-medium"
+                >
+                  <Eye className="h-4 w-4 text-blue-600" />
+                  <span>View Profile</span>
+                </button>
+
+                {isDentistClinic && (
+                  <button
+                    onClick={() => {
+                      const p = mobileActionPatient;
+                      setMobileActionPatient(null);
+                      setActiveConsentPatient(p);
+                    }}
+                    className="w-full flex items-center gap-3 p-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-xl font-bold"
+                  >
+                    <FileText className="h-4 w-4 text-indigo-650" />
+                    <span>Consent Form</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    const p = mobileActionPatient;
+                    setMobileActionPatient(null);
+                    handleGenerateReport(p);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-xl font-medium"
+                >
+                  <FileText className="h-4 w-4 text-green-600" />
+                  <span>Generate Report</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const p = mobileActionPatient;
+                    setMobileActionPatient(null);
+                    handleReappointment(p);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-xl font-medium"
+                >
+                  <CalendarPlus className="h-4 w-4 text-orange-600" />
+                  <span>Re-Appointment</span>
+                </button>
+
+                {mobileActionPatient.paymentStatus !== 'paid' && (
+                  <button
+                    onClick={() => {
+                      const p = mobileActionPatient;
+                      setMobileActionPatient(null);
+                      handleMarkAsPaid(p);
+                    }}
+                    className="w-full flex items-center gap-3 p-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-xl font-medium"
+                  >
+                    <span className="h-4 w-4 text-amber-600 font-bold">₹</span>
+                    <span>Mark as Paid</span>
+                  </button>
+                )}
+
+                {mobileActionPatient.paymentStatus === 'dead' ? (
+                  <button
+                    onClick={() => {
+                      const p = mobileActionPatient;
+                      setMobileActionPatient(null);
+                      handleMarkAsUndead(p);
+                    }}
+                    className="w-full flex items-center gap-3 p-3 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-xl font-medium"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Mark as Undead</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      const p = mobileActionPatient;
+                      setMobileActionPatient(null);
+                      handleMarkAsDead(p);
+                    }}
+                    className="w-full flex items-center gap-3 p-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl font-medium"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Mark as Dead</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    const p = mobileActionPatient;
+                    setMobileActionPatient(null);
+                    handleDeletePatient(p);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl font-semibold border-t border-gray-100 dark:border-gray-700 mt-1"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete Patient</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMobileActionPatient(null)}
+                className="mt-4 w-full py-2.5 text-center text-xs font-bold text-gray-500 bg-gray-100 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 rounded-xl transition-colors"
+              >
+                Close
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       {deleteModalOpen && (

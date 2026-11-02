@@ -13,7 +13,7 @@ import { generatePatientId, getMonthlyPrefix } from '../utils/idGenerator.js';
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
 import { syncPatientDataToDependents } from '../utils/patientSync.js';
-import { formatPatientFullName, cleanPatientName } from '../utils/nameUtils.js';
+import { formatPatientFullName, cleanPatientName, sanitizePatientNames } from '../utils/nameUtils.js';
 
 dotenv.config();
 
@@ -351,14 +351,16 @@ export const createPatient = async (req, res) => {
       finalPatientId = await generatePatientId(req.tenantId);
     }
 
+    const sanitizedNames = sanitizePatientNames(designation, firstName, lastName);
+
     // Create new patient
     const newPatient = new Patient({
       organizationId: req.tenantId,
       patientId: finalPatientId,
-      designation: designation || '',
-      fullName: formatPatientFullName(designation, firstName, lastName),
-      firstName: firstName.trim(),
-      lastName: lastName ? lastName.trim() : '',
+      designation: sanitizedNames.designation || '',
+      fullName: sanitizedNames.fullName,
+      firstName: sanitizedNames.firstName,
+      lastName: sanitizedNames.lastName,
       age: age ? parseInt(age) : undefined,
       ageType: ageType || 'Year',
       gender: gender && gender.trim() ? gender.trim() : undefined,

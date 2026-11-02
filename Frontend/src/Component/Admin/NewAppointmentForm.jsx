@@ -4,6 +4,7 @@ import api, { whatsappApi, clinicalNoteApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { extractCleanNameAndDesignation } from '../../utils/patientNameUtils';
 
 export default function NewAppointmentForm({ onClose, onSuccess, initialData, isDashboardIntegrated = false }) {
   const { user } = useAuth();
@@ -264,27 +265,34 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     const stateData = location.state?.rebookData;
     if (stateData) {
       const patient = stateData.patient || stateData;
+      const { cleanFullName, designation } = extractCleanNameAndDesignation(patient);
       setFormData(prev => ({
         ...prev,
-        fullName: patient.fullName || `${patient.firstName || patient.name?.split(' ')[0] || ''} ${patient.lastName || patient.name?.split(' ').slice(1).join(' ') || ''}`.trim(),
+        fullName: cleanFullName,
         phone: patient.phone || patient.mobile || patient.contactNumber || patient.contact || '',
         age: patient.age || patient.patientAge || '',
         gender: patient.gender ? (patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1).toLowerCase()) : 'Male',
         patientId: patient.patientId || prev.patientId,
-        designation: patient.designation || prev.designation,
+        designation: designation || prev.designation,
         ageType: patient.ageType || prev.ageType,
       }));
     } else if (initialData && initialData.patientId && initialData.patientId !== 'Loading...') {
+      const { cleanFullName, designation } = extractCleanNameAndDesignation(initialData);
       setFormData(prev => ({
         ...prev,
-        ...initialData
+        ...initialData,
+        fullName: cleanFullName,
+        designation: designation || initialData.designation || prev.designation
       }));
     } else {
       fetchPatientId();
       if (initialData) {
+        const { cleanFullName, designation } = extractCleanNameAndDesignation(initialData);
         setFormData(prev => ({
           ...prev,
           ...initialData,
+          fullName: cleanFullName,
+          designation: designation || initialData.designation || prev.designation,
           patientId: 'Loading...'
         }));
       }
@@ -404,17 +412,55 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
     }
   };
 
+  const handleFullNameBlur = () => {
+    if (formData.fullName) {
+      const { cleanFullName, designation } = extractCleanNameAndDesignation({
+        fullName: formData.fullName,
+        designation: formData.designation,
+        gender: formData.gender
+      });
+      if (cleanFullName && cleanFullName !== formData.fullName) {
+        setFormData(prev => ({
+          ...prev,
+          fullName: cleanFullName,
+          designation: designation || prev.designation
+        }));
+      }
+    }
+  };
+
   // Real-time Patient Lookup by Phone
   useEffect(() => {
     const checkPhone = async () => {
       if (formData.phone.length === 10) {
+        if (selectedExistingId) {
+          return;
+        }
         setIsCheckingPhone(true);
         try {
           const res = await api.get(`/patients/by-mobile/${formData.phone}`);
+          let patients = [];
           if (res.data && Array.isArray(res.data)) {
-            setExistingPatients(res.data);
-          } else if (res.data && typeof res.data === 'object') {
-            setExistingPatients([res.data]);
+            patients = res.data;
+          } else if (res.data && typeof res.data === 'object' && (res.data._id || res.data.patientId)) {
+            patients = [res.data];
+          }
+
+          if (patients.length > 0) {
+            const bestMatch = patients.find(p => {
+              const pName = (p.fullName || `${p.firstName || ''} ${p.lastName || ''}`).trim().toLowerCase();
+              return formData.fullName && pName && (pName.includes(formData.fullName.trim().toLowerCase()) || formData.fullName.trim().toLowerCase().includes(pName));
+            }) || patients[0];
+
+            handleUseExistingPatient(bestMatch);
+
+            if (patients.length > 1) {
+              setExistingPatients(patients);
+            } else {
+              setExistingPatients([]);
+            }
+          } else {
+            setExistingPatients([]);
           }
         } catch (err) {
           setExistingPatients([]);
@@ -423,15 +469,17 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
         }
       } else {
         setExistingPatients([]);
-        setSelectedExistingId(null);
+        if (selectedExistingId) {
+          setSelectedExistingId(null);
+        }
       }
     };
     checkPhone();
-  }, [formData.phone]);
+  }, [formData.phone, selectedExistingId]);
 
   const handleUseExistingPatient = (p) => {
     setSelectedExistingId(p.patientId || p._id);
-    const displayName = p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim();
+    const { cleanFullName, designation } = extractCleanNameAndDesignation(p);
     
     // Automatically enable any extra fields present on this patient
     setActiveExtraFields(prev => ({
@@ -446,12 +494,12 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
 
     setFormData(prev => ({
       ...prev,
-      fullName: displayName,
+      fullName: cleanFullName,
+      designation: designation,
       age: p.age || '',
       ageType: p.ageType || 'Year',
       gender: p.gender || 'Male',
       patientId: p.patientId || prev.patientId,
-      designation: p.designation || 'MR.',
       email: p.email || '',
       address: p.address || '',
       city: p.city || '',
@@ -465,7 +513,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       pastMedicalHistory: p.pastMedicalHistory || '',
     }));
     setExistingPatients([]);
-    toast.info(`Using existing record for ${displayName}`);
+    toast.info(`Using existing record for ${cleanFullName}`);
   };
 
   const handleRegisterNewPatient = () => {
@@ -493,7 +541,12 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
       }
 
       const selectedDoctor = doctors.find(d => d._id === formData.doctor);
-      const nameParts = (formData.fullName || '').trim().split(/\s+/);
+      const { cleanFullName, designation: finalDes } = extractCleanNameAndDesignation({
+        fullName: formData.fullName,
+        designation: formData.designation,
+        gender: formData.gender
+      });
+      const nameParts = (cleanFullName || '').trim().split(/\s+/);
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
       const paymentStatus = formData.paymentMode === 'Pending' ? 'pending' : 'paid';
@@ -509,10 +562,10 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
         date: formData.appointmentDate,
         time: formData.appointmentTime,
         patientDetails: {
-          designation: formData.designation,
+          designation: finalDes || formData.designation || 'MR.',
           firstName: firstName,
           lastName: lastName,
-          fullName: formData.fullName,
+          fullName: cleanFullName,
           age: formData.age,
           ageType: formData.ageType,
           gender: formData.gender,
@@ -720,6 +773,7 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
               name="fullName"
               value={formData.fullName}
               onChange={handleChange}
+              onBlur={handleFullNameBlur}
               placeholder="Enter full name"
               className="w-full border border-gray-300 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-800"
               required
@@ -778,43 +832,40 @@ export default function NewAppointmentForm({ onClose, onSuccess, initialData, is
           </div>
         </div>
 
-        {/* Existing Patients Match Alert */}
-        {existingPatients.length > 0 && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 animate-in fade-in slide-in-from-top-4 duration-500">
-             <div className="flex items-start gap-3">
-                <div className="p-2 bg-amber-100 dark:bg-amber-800/40 rounded-full">
-                   <CalendarIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div className="flex-1">
-                   <h4 className="text-sm font-black text-amber-900 dark:text-amber-100 uppercase tracking-tight">Patient Record(s) Found!</h4>
-                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">This number is already registered to the following patient(s). Would you like to use an existing record or register a New Patient?</p>
-                   
-                   <div className="mt-3 flex flex-wrap gap-2">
-                      {existingPatients.map(p => (
-                        <button
-                          key={p._id}
-                          type="button"
-                          onClick={() => handleUseExistingPatient(p)}
-                          className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-all group"
-                        >
-                           <div className="flex flex-col items-start">
-                              <span className="text-xs font-bold text-gray-900 dark:text-gray-100">{p.fullName || `${p.firstName} ${p.lastName}`}</span>
-                              <span className="text-[10px] text-gray-500">ID: {p.patientId}</span>
-                           </div>
-                           <ChevronDown className="w-4 h-4 text-amber-500 -rotate-90 group-hover:translate-x-1 transition-transform" />
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={handleRegisterNewPatient}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-black shadow-md hover:bg-blue-700 transition-all flex items-center gap-1.5"
-                      >
-                         <Plus className="w-3.5 h-3.5" />
-                         Register for New Patient
-                      </button>
-                   </div>
-                </div>
-             </div>
+        {/* Multiple Family Members Switcher (Only shown if >1 patient shares this number) */}
+        {existingPatients.length > 1 && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-300">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-blue-900 dark:text-blue-200">Other family member(s) on this number:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {existingPatients.map(p => {
+                  const isCurrent = selectedExistingId === (p.patientId || p._id);
+                  const { cleanFullName, designation } = extractCleanNameAndDesignation(p);
+                  return (
+                    <button
+                      key={p._id}
+                      type="button"
+                      onClick={() => handleUseExistingPatient(p)}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-all ${
+                        isCurrent 
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                          : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-blue-200 hover:bg-blue-50'
+                      }`}
+                    >
+                      {designation} {cleanFullName} ({p.patientId})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExistingPatients([])}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs font-bold px-2 py-1"
+              title="Dismiss"
+            >
+              ✕
+            </button>
           </div>
         )}
 

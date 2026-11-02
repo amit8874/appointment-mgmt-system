@@ -546,17 +546,24 @@ const BillingModal = ({ initialData = {}, onClose, onComplete }) => {
             clinicInfo={clinicInfo}
             invoiceData={{
               billId: bill.billId || bill.id,
+              receiptNumber: bill.receiptNumber || bill.transactionId,
               date: bill.date || new Date().toISOString(),
               patientName: bill.patientName,
               patientId: bill.patientId || 'N/A',
+              patientPhone: bill.patientPhone || bill.patientMobile || bill.mobile || bill.phone,
+              patientAddress: bill.patientAddress || bill.address,
               doctorName: bill.doctorName || bill.doctor || 'N/A',
               doctorId: bill.doctorId || bill.doctor,
               doctorStamp: bill.doctorStamp || bill.doctorDetails?.doctorStamp,
               doctorSignature: bill.doctorSignature || bill.doctorDetails?.doctorSignature,
               items: (bill.items || []).map(item => ({
-                description: item.description,
+                description: item.description || item.procedureName,
                 quantity: item.quantity || item.qty || 1,
-                price: item.unitPrice || item.price || item.cost || 0
+                price: item.unitPrice || item.price || item.cost || 0,
+                subtotal: item.subtotal,
+                toothNumber: item.toothNumber,
+                paymentMode: item.paymentMode || item.paymentMethod,
+                date: item.date || bill.date
               })),
               subtotal: bill.grossAmount || bill.subtotal || bill.amount,
               discount: bill.discount || bill.discountAmount || 0,

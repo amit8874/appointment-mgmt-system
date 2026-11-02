@@ -335,6 +335,7 @@ function AppointmentDetailsModal({
   onCancel,
   onReschedule,
   onComplete,
+  onEditNotes,
 }) {
   if (!event) return null;
 
@@ -417,6 +418,31 @@ function AppointmentDetailsModal({
                 label="Reason"
                 value={resource.reason}
               />
+
+              {/* Doctor's Clinical Notes Section */}
+              <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/80">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                    <FileText size={14} className="text-amber-600" />
+                    Doctor's Notes
+                  </div>
+                  {onEditNotes && (
+                    <button
+                      type="button"
+                      onClick={() => onEditNotes(event)}
+                      className="text-[11px] font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1 hover:underline cursor-pointer"
+                    >
+                      <Edit size={11} />
+                      <span>{resource.notes || resource.visitNotes ? 'Edit Note' : '+ Add Note'}</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-slate-700 font-medium whitespace-pre-wrap leading-relaxed">
+                  {resource.notes || resource.visitNotes || (
+                    <span className="text-slate-400 italic">No doctor notes recorded yet.</span>
+                  )}
+                </p>
+              </div>
 
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="flex flex-col">

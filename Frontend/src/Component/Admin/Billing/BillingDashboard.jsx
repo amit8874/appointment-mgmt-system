@@ -2034,18 +2034,25 @@ const BillingDashboard = () => {
             clinicInfo={clinicInfo}
             invoiceData={{
               billId: printingInvoice.id,
+              receiptNumber: printingInvoice.receiptNumber || printingInvoice.transactionId,
               date: printingInvoice.dateRaw || printingInvoice.date,
               patientName: printingInvoice.patient,
               patientId: printingInvoice.details?.patientId || printingInvoice.patientId || 'N/A',
+              patientPhone: printingInvoice.patientPhone || printingInvoice.mobile,
+              patientAddress: printingInvoice.patientAddress || printingInvoice.address,
               doctorName: printingInvoice.doctor || 'N/A',
               doctorId: printingInvoice.doctorId || printingInvoice.doctor?._id,
               doctorStamp: printingInvoice.doctorStamp || printingInvoice.doctorDetails?.doctorStamp,
               doctorSignature: printingInvoice.doctorSignature || printingInvoice.doctorDetails?.doctorSignature,
               items: (printingInvoice.items && printingInvoice.items.length > 0)
                 ? printingInvoice.items.map(i => ({
-                  description: i.description,
-                  price: parseFloat(i.unitPrice || i.cost || 0),
-                  quantity: parseInt(i.qty || 1)
+                  description: i.description || i.procedureName || i.name,
+                  price: parseFloat(i.unitPrice || i.cost || i.price || 0),
+                  quantity: parseInt(i.qty || i.quantity || 1),
+                  subtotal: i.subtotal,
+                  toothNumber: i.toothNumber,
+                  paymentMode: i.paymentMode || i.paymentMethod,
+                  date: i.date || printingInvoice.dateRaw || printingInvoice.date
                 }))
                 : [
                   { description: 'Consultation Fee', price: parseFloat(printingInvoice.details?.consultationFee) || 0, quantity: 1 },

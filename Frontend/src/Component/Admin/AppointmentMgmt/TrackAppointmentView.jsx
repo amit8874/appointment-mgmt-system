@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Stethoscope,
   Search,
@@ -16,7 +17,10 @@ import {
   FileText,
   MoreVertical,
   UserCheck,
-  Clock
+  User,
+  Clock,
+  Edit,
+  Edit3
 } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { getSocketUrl } from '../../../services/api';
@@ -26,6 +30,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { toast } from 'react-toastify';
 
 const TrackAppointmentView = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +39,20 @@ const TrackAppointmentView = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeFilter, setActiveFilter] = useState('all');
   const [openActionId, setOpenActionId] = useState(null);
+
+  const handlePatientClick = (app) => {
+    const targetPatientId = app.patientId || app.patient?._id || app.patient;
+    if (!targetPatientId) {
+      toast.warning('Patient ID not available for this appointment.');
+      return;
+    }
+    const role = (user?.role || '').toLowerCase();
+    if (role === 'receptionist') {
+      navigate(`/receptionist/patient/${targetPatientId}`);
+    } else {
+      navigate(`/admin/patient/${targetPatientId}`);
+    }
+  };
 
   useEffect(() => {
     const handleOutsideClick = () => {
@@ -231,16 +250,31 @@ const TrackAppointmentView = () => {
     if (!visitNotesData?.id) return;
     setIsSavingNotes(true);
     try {
-      const res = await api.put(`/appointments/${visitNotesData.id}/notes`, { visitNotes: visitNotesData.notes });
-      if (res.status === 200) {
-        setAppointments(prev => prev.map(app =>
-          (app._id || app.id)?.toString() === visitNotesData.id.toString() ? { ...app, visitNotes: visitNotesData.notes } : app
-        ));
-        setVisitNotesData(null);
+      const payload = {
+        notes: visitNotesData.notes,
+        visitNotes: visitNotesData.notes
+      };
+
+      // 1. Update main appointment route (syncs with clinical notes)
+      await api.put(`/appointments/${visitNotesData.id}`, payload);
+
+      // 2. Also ping /notes endpoint for compatibility
+      try {
+        await api.put(`/appointments/${visitNotesData.id}/notes`, payload);
+      } catch (errNotes) {
+        // Fallback already satisfied
       }
+
+      toast.success('Doctor notes saved successfully');
+      setAppointments(prev => prev.map(app =>
+        (app._id || app.id)?.toString() === visitNotesData.id.toString() 
+          ? { ...app, notes: visitNotesData.notes, visitNotes: visitNotesData.notes } 
+          : app
+      ));
+      setVisitNotesData(null);
     } catch (err) {
       console.error('Error saving notes:', err);
-      setError('Failed to save visit notes. Please try again.');
+      toast.error('Failed to save visit notes. Please try again.');
     } finally {
       setIsSavingNotes(false);
     }
@@ -553,6 +587,18 @@ const TrackAppointmentView = () => {
 
 
                               <div className="flex flex-col">
+                                {/* View Patient Profile */}
+                                <button
+                                  onClick={() => {
+                                    handlePatientClick(app);
+                                    setOpenActionId(null);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 flex items-center gap-2 transition-colors border-b border-gray-100"
+                                >
+                                  <User size={13} className="text-blue-600" />
+                                  <span>View Patient Profile</span>
+                                </button>
+
                                 {/* Quick Status Overrides */}
                                 <div className="px-3 py-1 text-[9px] font-black uppercase tracking-widest text-gray-400 bg-slate-50 border-b border-gray-100">
                                   Set Status
@@ -634,19 +680,23 @@ const TrackAppointmentView = () => {
                                   </button>
                                 )}
 
-                                {/* Visit Notes for completed */}
-                                {app.status === 'completed' && (
-                                  <button
-                                    onClick={() => {
-                                      setVisitNotesData({ id: app._id || app.id, notes: app.visitNotes || '', doctorName: app.doctorName, patientName: app.patientName });
-                                      setOpenActionId(null);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 transition-colors"
-                                  >
-                                    <FileText size={14} />
-                                    <span>{app.visitNotes ? "Edit Visit Notes" : "Add Visit Notes"}</span>
-                                  </button>
-                                )}
+                                {/* Doctor Notes for all appointments */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setVisitNotesData({ 
+                                      id: app._id || app.id, 
+                                      notes: app.notes || app.visitNotes || '', 
+                                      doctorName: app.doctorName, 
+                                      patientName: app.patientName 
+                                    });
+                                    setOpenActionId(null);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                >
+                                  <FileText size={14} className="text-amber-600" />
+                                  <span>{app.notes || app.visitNotes ? "Edit Doctor Notes" : "+ Add Doctor Notes"}</span>
+                                </button>
 
                                 {/* WhatsApp Notify - Only for Upcoming */}
                                 {app.patientPhone && app.status !== 'completed' && app.status !== 'cancelled' && app.status !== 'confirmed' && (
@@ -672,12 +722,24 @@ const TrackAppointmentView = () => {
                   {/* Card Content (Patient Info, Doctor, Age) */}
                   <div className="flex-1 flex flex-col gap-2">
                     <div className="flex items-start gap-2.5">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${isNow ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 text-blue-600'}`}>
+                      <button
+                        type="button"
+                        onClick={() => handlePatientClick(app)}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity ${isNow ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 text-blue-600'}`}
+                        title="View Patient Profile"
+                      >
                         {app.patientName?.charAt(0)}
-                      </div>
+                      </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1 flex-wrap">
-                          <span className={`text-sm font-bold truncate ${isNow ? 'text-blue-800' : 'text-gray-800'}`}>{app.patientName}</span>
+                          <button
+                            type="button"
+                            onClick={() => handlePatientClick(app)}
+                            className={`text-sm font-bold truncate hover:text-blue-600 hover:underline cursor-pointer text-left transition-colors ${isNow ? 'text-blue-800' : 'text-gray-800'}`}
+                            title="View Patient Profile"
+                          >
+                            {app.patientName}
+                          </button>
                           <button
                             onClick={() => handleFetchAiSummary(app.patientId, app.patientName, app.symptoms || app.reason)}
                             className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 p-0.5 rounded-full transition-all flex-shrink-0"
@@ -698,6 +760,49 @@ const TrackAppointmentView = () => {
                       <Stethoscope size={12} className={isNow ? 'text-blue-600' : 'text-gray-400'} />
                       <span className="truncate max-w-[120px]">{app.doctorName}</span>
                     </div>
+
+                    {/* Doctor Clinical Notes on the card */}
+                    {app.notes || app.visitNotes ? (
+                      <div
+                        onClick={() => setVisitNotesData({
+                          id: app._id || app.id,
+                          notes: app.notes || app.visitNotes || '',
+                          doctorName: app.doctorName,
+                          patientName: app.patientName
+                        })}
+                        className="mt-1 p-2 bg-amber-50/70 hover:bg-amber-100/70 border border-amber-200/80 rounded-xl cursor-pointer transition-all group flex items-start gap-1.5"
+                        title="Click to view or edit doctor notes"
+                      >
+                        <FileText size={12} className="text-amber-600 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1 mb-0.5">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-amber-900">Doctor Note:</span>
+                            <span className="text-[10px] font-bold text-amber-700 group-hover:underline flex items-center gap-0.5">
+                              <Edit3 size={10} /> Edit
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-700 font-medium line-clamp-2 leading-tight">
+                            {app.notes || app.visitNotes}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setVisitNotesData({
+                          id: app._id || app.id,
+                          notes: '',
+                          doctorName: app.doctorName,
+                          patientName: app.patientName
+                        })}
+                        className="mt-1 text-left px-2 py-1 bg-slate-50 hover:bg-amber-50 border border-dashed border-slate-200 hover:border-amber-300 rounded-lg text-[11px] text-slate-500 hover:text-amber-800 flex items-center gap-1.5 transition-colors cursor-pointer group"
+                        title="Add Doctor Note"
+                      >
+                        <FileText size={11} className="text-slate-400 group-hover:text-amber-600" />
+                        <span className="italic text-slate-400">No notes recorded •</span>
+                        <span className="font-bold text-amber-700 group-hover:underline">+ Add Note</span>
+                      </button>
+                    )}
                   </div>
                   
                   {/* Card Footer (Status & Next Step Button) */}
@@ -767,18 +872,28 @@ const TrackAppointmentView = () => {
                           )}
                         </>
                       )}
-                      {app.status === 'completed' && app.visitNotes && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setVisitNotesData({ id: app._id || app.id, notes: app.visitNotes || '', doctorName: app.doctorName, patientName: app.patientName });
-                          }}
-                          className="p-1 hover:bg-indigo-50 text-indigo-600 rounded transition-colors flex items-center justify-center"
-                          title="View/Edit Visit Notes"
-                        >
-                          <FileText size={12} className="fill-indigo-100" />
-                        </button>
-                      )}
+                      {/* Doctor Notes Quick Action Button (available for all appointment statuses) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setVisitNotesData({ 
+                            id: app._id || app.id, 
+                            notes: app.notes || app.visitNotes || '', 
+                            doctorName: app.doctorName, 
+                            patientName: app.patientName 
+                          });
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
+                          app.notes || app.visitNotes
+                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        }`}
+                        title={app.notes || app.visitNotes ? "View/Edit Doctor Note" : "+ Add Doctor Note"}
+                      >
+                        <FileText size={10} className={app.notes || app.visitNotes ? 'text-amber-700' : 'text-slate-400'} />
+                        <span>{app.notes || app.visitNotes ? 'Note' : '+ Note'}</span>
+                      </button>
                       {isNow && (
                         <div className="px-2 py-0.5 bg-blue-600 text-white rounded text-[8px] font-black uppercase tracking-tighter animate-pulse shadow-sm">
                           NOW

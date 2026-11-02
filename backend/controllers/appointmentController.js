@@ -17,7 +17,7 @@ import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 import { sanitizePhone } from '../utils/phoneUtils.js';
 import OTP from '../models/OTP.js';
 import { syncPatientDataToDependents } from '../utils/patientSync.js';
-import { formatPatientFullName, cleanPatientName } from '../utils/nameUtils.js';
+import { formatPatientFullName, cleanPatientName, sanitizePatientNames } from '../utils/nameUtils.js';
 
 /**
  * Helper to safely create or link an appointment clinical note without creating duplicates.
@@ -415,13 +415,15 @@ export const bookPatientAppointment = async (req, res) => {
         newPatientId = await generatePatientId(organizationId);
       }
 
+      const sanitizedNames = sanitizePatientNames(patientDetails.designation, patientDetails.firstName, patientDetails.lastName);
+
       existingPatient = new Patient({
         organizationId,
         patientId: newPatientId,
-        designation: patientDetails.designation || '',
-        firstName: patientDetails.firstName || '',
-        lastName: patientDetails.lastName || '',
-        fullName: formatPatientFullName(patientDetails.designation, patientDetails.firstName, patientDetails.lastName) || 'Unknown Patient',
+        designation: sanitizedNames.designation || '',
+        firstName: sanitizedNames.firstName || '',
+        lastName: sanitizedNames.lastName || '',
+        fullName: sanitizedNames.fullName || 'Unknown Patient',
         mobile: patientDetails.phone || '',
         email: patientDetails.email || '',
         address: patientDetails.address || '',
@@ -1525,6 +1527,8 @@ export const updateAppointment = async (req, res) => {
         time: time || appointment.time,
         reason: reason !== undefined ? reason : appointment.reason,
         symptoms: symptoms !== undefined ? symptoms : appointment.symptoms,
+        notes: req.body.notes !== undefined ? req.body.notes : appointment.notes,
+        visitNotes: req.body.visitNotes !== undefined ? req.body.visitNotes : appointment.visitNotes,
         cancellationReason: cancellationReason !== undefined ? cancellationReason : appointment.cancellationReason,
       });
 
@@ -1672,12 +1676,39 @@ export const updateAppointment = async (req, res) => {
       }
       if (reason !== undefined) updateData.reason = reason;
       if (symptoms !== undefined) updateData.symptoms = symptoms;
+      if (req.body.notes !== undefined) updateData.notes = req.body.notes;
+      if (req.body.visitNotes !== undefined) updateData.visitNotes = req.body.visitNotes;
 
       const updatedAppointment = await currentModel.findByIdAndUpdate(
         appointmentId,
         updateData,
         { new: true, runValidators: true }
       );
+
+      const noteToSync = req.body.notes !== undefined ? req.body.notes : req.body.visitNotes;
+      if (noteToSync && typeof noteToSync === 'string' && noteToSync.trim() !== '') {
+        try {
+          await saveAppointmentClinicalNote({
+            organizationId: updatedAppointment.organizationId,
+            patientId: updatedAppointment.patientId,
+            doctorId: updatedAppointment.doctorId,
+            doctorName: updatedAppointment.doctorName,
+            appointmentId: updatedAppointment._id,
+            patientName: updatedAppointment.patientName,
+            patientPhone: updatedAppointment.patientPhone || '',
+            date: updatedAppointment.date || '',
+            time: updatedAppointment.time || '',
+            title: req.body.noteTitle || 'Appointment Note',
+            note: noteToSync.trim(),
+            noteType: req.body.noteType || 'appointment',
+            priority: req.body.notePriority || 'medium',
+            userId: req.user?._id,
+            userRole: req.user?.role || 'doctor'
+          });
+        } catch (noteErr) {
+          console.error('[AppointmentController] Error syncing clinical note in updateAppointment:', noteErr);
+        }
+      }
 
       res.json(updatedAppointment);
     }
@@ -2666,7 +2697,7 @@ export const deleteAppointmentV2 = async (req, res) => {
 export const updateVisitNotes = async (req, res) => {
   try {
     const { id } = req.params;
-    const { visitNotes } = req.body;
+    const { visitNotes, notes } = req.body;
     const organizationId = req.tenantId;
 
     // The appointment could be in Confirmed, Pending, Cancelled, or OldAppointment (Completed usually lands in OldAppointment or stays in Confirmed depending on system logic)
@@ -2695,27 +2726,36 @@ export const updateVisitNotes = async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized access to appointment' });
     }
 
-    appointment.visitNotes = visitNotes;
+    const noteToSave = notes !== undefined ? notes : visitNotes;
+    if (visitNotes !== undefined) appointment.visitNotes = visitNotes;
+    if (notes !== undefined) appointment.notes = notes;
+    if (appointment.visitNotes === undefined && noteToSave !== undefined) appointment.visitNotes = noteToSave;
+    if (appointment.notes === undefined && noteToSave !== undefined) appointment.notes = noteToSave;
+
     await appointment.save();
 
-    if (notes && notes.trim() !== '') {
-      await saveAppointmentClinicalNote({
-        organizationId,
-        patientId: existingPatient?._id,
-        doctorId: docObj ? docObj._id : (mongoose.Types.ObjectId.isValid(doctorId) ? doctorId : undefined),
-        appointmentId: appointment._id,
-        patientName,
-        patientPhone: patientDetails?.phone || '',
-        doctorName: doctorName || (docObj ? docObj.name : ''),
-        date: date || '',
-        time: time || '',
-        title: req.body.noteTitle || 'Appointment Note',
-        note: notes,
-        noteType: req.body.noteType || 'appointment',
-        priority: req.body.notePriority || 'medium',
-        userId: req.user?._id || existingPatient?._id,
-        userRole: req.user?.role || 'doctor'
-      });
+    if (noteToSave && typeof noteToSave === 'string' && noteToSave.trim() !== '') {
+      try {
+        await saveAppointmentClinicalNote({
+          organizationId,
+          patientId: appointment.patientId,
+          doctorId: appointment.doctorId,
+          doctorName: appointment.doctorName,
+          appointmentId: appointment._id,
+          patientName: appointment.patientName,
+          patientPhone: appointment.patientPhone || '',
+          date: appointment.date || '',
+          time: appointment.time || '',
+          title: req.body.noteTitle || 'Appointment Note',
+          note: noteToSave.trim(),
+          noteType: req.body.noteType || 'appointment',
+          priority: req.body.notePriority || 'medium',
+          userId: req.user?._id,
+          userRole: req.user?.role || 'doctor'
+        });
+      } catch (errSync) {
+        console.error('[AppointmentController] Error syncing clinical note in updateVisitNotes:', errSync);
+      }
     }
 
     res.json({ message: 'Visit notes updated successfully', appointment });
@@ -2802,13 +2842,15 @@ export const bookWalkInAppointment = async (req, res) => {
         newPatientId = await generatePatientId(organizationId);
       }
 
+      const sanitizedNames = sanitizePatientNames(designation, firstName, lastName);
+
       existingPatient = new Patient({
         organizationId,
         patientId: newPatientId,
-        designation: designation || '',
-        firstName: firstName || '',
-        lastName: lastName || '',
-        fullName: formatPatientFullName(designation, firstName, lastName),
+        designation: sanitizedNames.designation || '',
+        firstName: sanitizedNames.firstName || '',
+        lastName: sanitizedNames.lastName || '',
+        fullName: sanitizedNames.fullName || 'Unknown Patient',
         mobile: mobileNumber || '',
         email: email || '',
         address: address || '',
@@ -2903,7 +2945,7 @@ export const bookWalkInAppointment = async (req, res) => {
       date,
       time,
       symptoms: symptoms || '',
-      notes: administrativeNotes || '',
+      notes: notes || administrativeNotes || '',
       visitType: 'WALK_IN',
       status: 'confirmed',
       amount: amount,
@@ -2912,7 +2954,8 @@ export const bookWalkInAppointment = async (req, res) => {
 
     await appointment.save();
 
-    if (notes && notes.trim() !== '') {
+    const walkInNoteToSync = notes || administrativeNotes;
+    if (walkInNoteToSync && typeof walkInNoteToSync === 'string' && walkInNoteToSync.trim() !== '') {
       await saveAppointmentClinicalNote({
         organizationId,
         patientId: existingPatient?._id,
@@ -2924,7 +2967,7 @@ export const bookWalkInAppointment = async (req, res) => {
         date: date || '',
         time: time || '',
         title: req.body.noteTitle || 'Appointment Note',
-        note: notes,
+        note: walkInNoteToSync.trim(),
         noteType: req.body.noteType || 'appointment',
         priority: req.body.notePriority || 'medium',
         userId: req.user?._id || existingPatient?._id,

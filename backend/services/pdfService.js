@@ -1173,6 +1173,10 @@ async function getInvoiceHtml(bill, org, template) {
       if (item.toothNumber) {
         desc += ` (Tooth: ${item.toothNumber})`;
       }
+      const itemPayMode = item.paymentMode || item.paymentMethod;
+      if (itemPayMode && itemPayMode !== 'N/A') {
+        desc += ` <span style="font-size: 10px; font-weight: 700; color: #4338ca; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-left: 6px;">[${itemPayMode}]</span>`;
+      }
       const unitCost = item.unitPrice || item.price || item.cost || 0;
       const qty = item.qty || item.quantity || 1;
       const totalCost = item.subtotal || item.total || item.totalAmount || (unitCost * qty);
@@ -1203,35 +1207,51 @@ async function getInvoiceHtml(bill, org, template) {
   // Payment Installments
   const installments = bill.installments || [];
   let paymentRowsHtml = '';
+  const baseReceiptNo = bill.receiptNumber || `RCPT-${(String(bill.invoiceNumber || bill.billId || '').replace(/\D/g, '') || '1001')}`;
   
   const getReceiptNumber = (index, inst) => {
+    if (inst.receiptNumber) return inst.receiptNumber;
     if (inst.transactionId) return inst.transactionId;
-    const invNum = (bill.invoiceNumber || bill.billId || '').replace(/\D/g, '');
-    const baseNum = parseInt(invNum) || 118;
-    return `RCPT${baseNum - (installments.length - 1 - index)}`;
+    return (installments.length > 1 || (items.length > 1 && !installments.length))
+      ? `${baseReceiptNo}-${index + 1}`
+      : baseReceiptNo;
   };
 
   if (installments.length > 0) {
     paymentRowsHtml = installments.map((inst, index) => {
       const receiptNo = getReceiptNumber(index, inst);
+      const treatmentDesc = inst.procedureName || inst.notes || '';
       return `
         <tr>
           <td>${formatDate(inst.date)}</td>
-          <td>${receiptNo}</td>
-          <td>${inst.paymentMethod || 'Card'}</td>
+          <td style="font-weight: 600;">${receiptNo}</td>
+          <td><span style="font-weight: 700;">${inst.paymentMethod || 'Cash'}</span></td>
+          <td style="font-size: 11px; color: #475569;">${treatmentDesc || '&mdash;'}</td>
           <td style="text-align: right; font-weight: bold;">${formatCurrency(inst.amount)}</td>
         </tr>
       `;
     }).join('');
+  } else if (items.length > 0 && items.some(it => it.paymentMode)) {
+    paymentRowsHtml = items.filter(it => (it.subtotal || it.price || 0) > 0).map((it, index) => {
+      const receiptNo = items.length > 1 ? `${baseReceiptNo}-${index + 1}` : baseReceiptNo;
+      const mode = it.paymentMode || it.paymentMethod || bill.paymentMethod || 'Cash';
+      return `
+        <tr>
+          <td>${formatDate(bill.date || bill.createdAt)}</td>
+          <td style="font-weight: 600;">${receiptNo}</td>
+          <td><span style="font-weight: 700;">${mode}</span></td>
+          <td style="font-size: 11px; color: #475569;">${it.description || it.procedureName || 'Procedure'}</td>
+          <td style="text-align: right; font-weight: bold;">${formatCurrency(it.subtotal || it.price || 0)}</td>
+        </tr>
+      `;
+    }).join('');
   } else {
-    const invNum = (bill.invoiceNumber || bill.billId || '').replace(/\D/g, '');
-    const baseNum = parseInt(invNum) || 118;
-    const receiptNo = bill.transactionId || `RCPT${baseNum - 1}`;
     paymentRowsHtml = `
       <tr>
         <td>${formatDate(bill.date || bill.createdAt)}</td>
-        <td>${receiptNo}</td>
-        <td>${bill.paymentMethod || 'Card'}</td>
+        <td style="font-weight: 600;">${baseReceiptNo}</td>
+        <td><span style="font-weight: 700;">${bill.paymentMethod === 'Multiple' ? 'Cash' : (bill.paymentMethod || 'Cash')}</span></td>
+        <td style="font-size: 11px; color: #475569;">General Consultation</td>
         <td style="text-align: right; font-weight: bold;">${formatCurrency(bill.paidAmount || bill.amount)}</td>
       </tr>
     `;
@@ -1663,6 +1683,7 @@ async function getInvoiceHtml(bill, org, template) {
                       <th>Date</th>
                       <th>Receipt Number</th>
                       <th>Mode</th>
+                      <th>For Treatment</th>
                       <th style="text-align: right;">Amount Paid INR</th>
                     </tr>
                   </thead>

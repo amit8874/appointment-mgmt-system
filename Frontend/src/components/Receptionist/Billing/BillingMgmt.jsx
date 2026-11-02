@@ -1226,14 +1226,26 @@ const BillingMgmt = () => {
             clinicInfo={clinicInfo}
             invoiceData={{
               billId: printingInvoice.id,
+              receiptNumber: printingInvoice.receiptNumber || printingInvoice.transactionId,
               date: printingInvoice.dateRaw || printingInvoice.date,
               patientName: printingInvoice.patient,
               patientId: printingInvoice.patientId,
+              patientPhone: printingInvoice.mobile || printingInvoice.patientPhone,
               doctorName: printingInvoice.doctor,
               doctorId: printingInvoice.doctorId,
               doctorStamp: printingInvoice.doctorStamp,
               doctorSignature: printingInvoice.doctorSignature,
-              items: printingInvoice.items.length > 0 ? printingInvoice.items.map(i => ({ description: i.description, price: i.unitPrice || i.cost, quantity: i.qty })) : [{ description: 'Service', price: printingInvoice.amount, quantity: 1 }],
+              items: printingInvoice.items.length > 0 
+                ? printingInvoice.items.map(i => ({ 
+                    description: i.description || i.procedureName, 
+                    price: i.unitPrice || i.cost || i.price, 
+                    quantity: i.qty || i.quantity || 1,
+                    subtotal: i.subtotal,
+                    toothNumber: i.toothNumber,
+                    paymentMode: i.paymentMode || i.paymentMethod,
+                    date: i.date || printingInvoice.dateRaw || printingInvoice.date
+                  })) 
+                : [{ description: 'Service', price: printingInvoice.amount, quantity: 1, date: printingInvoice.dateRaw || printingInvoice.date }],
               subtotal: printingInvoice.details?.totalAmount,
               discount: printingInvoice.details?.discount || 0,
               taxRate: printingInvoice.details?.taxRate || 0,

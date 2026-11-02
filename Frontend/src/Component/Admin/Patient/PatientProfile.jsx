@@ -376,14 +376,17 @@ const ActionButton = ({ icon: Icon, label, onClick, colorClass, hoverBg }) => {
   const [isHovered, setIsHovered] = useState(false);
   return (
     <motion.button
+      type="button"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
-      animate={{ width: isHovered ? 'auto' : '40px' }}
+      title={label}
+      aria-label={label}
+      animate={{ width: isHovered ? 'auto' : '38px' }}
       transition={{ duration: 0.2, ease: "easeInOut" }}
-      className={`flex items-center gap-2 p-2.5 rounded-xl transition-colors duration-200 ${colorClass} ${isHovered ? hoverBg : ''} overflow-hidden whitespace-nowrap shadow-sm border border-transparent hover:border-slate-100`}
+      className={`flex items-center justify-center gap-1.5 p-2 sm:p-2.5 rounded-xl transition-colors duration-200 ${colorClass} ${isHovered ? hoverBg : ''} overflow-hidden whitespace-nowrap shadow-sm border border-transparent hover:border-slate-100 touch-manipulation`}
     >
-      <Icon size={18} className="shrink-0" />
+      <Icon size={16} className="shrink-0 sm:w-[18px] sm:h-[18px]" />
       <AnimatePresence>
         {isHovered && (
           <motion.span
@@ -2197,6 +2200,7 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
   const [newInstallmentMode, setNewInstallmentMode] = useState('Cash');
   const [newInstallmentTxId, setNewInstallmentTxId] = useState('');
   const [newInstallmentNotes, setNewInstallmentNotes] = useState('');
+  const [selectedProcedure, setSelectedProcedure] = useState('');
   const [savingInstallment, setSavingInstallment] = useState(false);
   const [installmentError, setInstallmentError] = useState('');
 
@@ -2221,18 +2225,22 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
 
     setSavingInstallment(true);
     try {
+      const baseRcpt = bill.receiptNumber || `RCPT-${(String(bill.invoiceNumber || bill.billId || '').replace(/\D/g, '') || '1001')}`;
       const baseInstallments = (bill.installments && bill.installments.length > 0)
         ? bill.installments
         : (totals.paidAmount > 0
             ? [{
                 date: bill.date || bill.createdAt || new Date(),
                 amount: totals.paidAmount,
-                paymentMethod: bill.paymentMethod || 'N/A',
+                paymentMethod: bill.paymentMethod || 'Cash',
+                receiptNumber: baseRcpt,
+                procedureName: items[0]?.description || '',
                 transactionId: bill.transactionId || '',
                 notes: 'Initial payment'
               }]
             : []);
 
+      const nextReceiptNumber = `${baseRcpt}-${baseInstallments.length + 1}`;
       const updatedInstallments = [
         ...baseInstallments,
         {
@@ -2240,12 +2248,45 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
           amount: amt,
           paymentMethod: newInstallmentMode,
           transactionId: newInstallmentTxId,
-          notes: newInstallmentNotes || 'Subsequent payment'
+          receiptNumber: nextReceiptNumber,
+          procedureName: selectedProcedure || '',
+          notes: newInstallmentNotes || (selectedProcedure ? `Payment for ${selectedProcedure}` : 'Subsequent installment payment')
         }
       ];
 
+      // Update specific procedure item's paidAmount, dueAmount, status and paymentMode
+      let updatedItems = bill.items || [];
+      if (selectedProcedure && Array.isArray(bill.items)) {
+        updatedItems = bill.items.map(it => {
+          if ((it.description || it.procedureName) === selectedProcedure) {
+            const cost = parseFloat(it.subtotal || it.total || ((it.qty || 1) * (it.price || 0) - (it.discount || 0))) || 0;
+            const currentPaid = parseFloat(it.paidAmount !== undefined ? it.paidAmount : (it.status === 'Pending' ? 0 : cost)) || 0;
+            const newPaid = Math.min(cost, currentPaid + amt);
+            const newDue = Math.max(0, cost - newPaid);
+            return {
+              ...it,
+              subtotal: cost,
+              total: cost,
+              paidAmount: newPaid,
+              dueAmount: newDue,
+              status: newDue === 0 ? 'Paid' : 'Partial',
+              paymentMode: newInstallmentMode,
+              paymentMethod: newInstallmentMode
+            };
+          }
+          return it;
+        });
+      }
+
+      const totalPaidSum = updatedItems.reduce((s, it) => s + (parseFloat(it.paidAmount) || 0), 0);
+      const totalDueSum = updatedItems.reduce((s, it) => s + (parseFloat(it.dueAmount) || 0), 0);
+
       const updatedBill = await billingApi.update(bill._id, {
-        installments: updatedInstallments
+        installments: updatedInstallments,
+        items: updatedItems,
+        paidAmount: totalPaidSum,
+        dueAmount: totalDueSum,
+        status: totalDueSum === 0 ? 'Paid' : 'Due'
       });
 
       if (onUpdateBill) {
@@ -2255,6 +2296,7 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
       setNewInstallmentAmount('');
       setNewInstallmentTxId('');
       setNewInstallmentNotes('');
+      setSelectedProcedure('');
       toast.success("Installment payment recorded successfully");
     } catch (err) {
       console.error(err);
@@ -2277,14 +2319,14 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
         : []);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col border-4 border-black"
+        className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col border-2 sm:border-4 border-black my-auto"
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-6 border-b-2 border-black flex justify-between items-center bg-white sticky top-0 z-10">
+        <div className="p-4 sm:p-6 border-b-2 border-black flex justify-between items-center bg-white sticky top-0 z-10 shrink-0">
           <div>
             <h3 className="text-xl font-black text-black">Invoice Details</h3>
             <p className="text-xs font-black text-black uppercase tracking-widest">{bill.invoiceNumber || bill.billId}</p>
@@ -2294,8 +2336,8 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
           </button>
         </div>
 
-        <div className="p-8 overflow-y-auto space-y-8">
-          <div className="grid grid-cols-2 gap-8">
+        <div className="p-4 sm:p-8 overflow-y-auto space-y-5 sm:space-y-8 flex-1 custom-scrollbar">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8">
             <div className="space-y-1">
               <p className="text-[10px] font-black text-black uppercase tracking-widest">Billed To</p>
               <p className="text-lg font-black text-black">{patient.fullName || `${patient.firstName} ${patient.lastName}`}</p>
@@ -2316,34 +2358,75 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black pb-2">Itemized Breakdown</h4>
-            <table className="w-full">
-              <thead>
-                <tr className="text-[10px] font-black text-black uppercase tracking-widest text-left border-b border-black">
-                  <th className="pb-2">Description</th>
-                  <th className="pb-2 text-center">Qty</th>
-                  <th className="pb-2 text-right">Price</th>
-                  <th className="pb-2 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {items.length > 0 ? items.map((item, idx) => (
-                  <tr key={idx} className="text-sm">
-                    <td className="py-3 font-bold text-black">{item.description}</td>
-                    <td className="py-3 text-center font-bold text-black">{item.qty || 1}</td>
-                    <td className="py-3 text-right font-bold text-black">₹{(parseFloat(item.unitPrice || item.price || 0)).toFixed(2)}</td>
-                    <td className="py-3 text-right font-black text-black">₹{(parseFloat(item.subtotal || item.amount || 0)).toFixed(2)}</td>
+            <h4 className="text-sm font-black text-black uppercase tracking-widest border-b-2 border-black pb-2">Itemized Breakdown & Treatment Payments</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-[10px] font-black text-black uppercase tracking-widest text-left border-b border-black">
+                    <th className="pb-2">Description / Procedure</th>
+                    <th className="pb-2 text-center">Mode</th>
+                    <th className="pb-2 text-center">Qty</th>
+                    <th className="pb-2 text-right">Cost (₹)</th>
+                    <th className="pb-2 text-center">Status</th>
+                    <th className="pb-2 text-right">Paid (₹)</th>
+                    <th className="pb-2 text-right">Pending / Due (₹)</th>
                   </tr>
-                )) : (
-                  <tr className="text-sm">
-                    <td className="py-3 font-bold text-black">General Consultation</td>
-                    <td className="py-3 text-center font-bold text-black">1</td>
-                    <td className="py-3 text-right font-bold text-black">₹{bill.amount?.toFixed(2)}</td>
-                    <td className="py-3 text-right font-black text-black">₹{bill.amount?.toFixed(2)}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {items.length > 0 ? items.map((item, idx) => {
+                    const cost = parseFloat(item.subtotal || item.amount || (item.unitPrice || item.price || 0) * (item.qty || 1));
+                    const itemPaid = item.paidAmount !== undefined 
+                      ? parseFloat(item.paidAmount)
+                      : ((paymentHistory && paymentHistory.length > 0)
+                          ? paymentHistory
+                              .filter(inst => (inst.procedureName && (inst.procedureName === item.description || inst.procedureName === item.procedureName)) || (inst.notes && inst.notes.includes(item.description || '')))
+                              .reduce((sum, inst) => sum + (parseFloat(inst.amount) || 0), 0)
+                          : (totals.dueAmount === 0 ? cost : Math.min(cost, totals.paidAmount)));
+                    const itemDue = item.dueAmount !== undefined 
+                      ? parseFloat(item.dueAmount) 
+                      : Math.max(0, cost - itemPaid);
+                    const itemStatus = item.status || (itemDue === 0 ? 'Paid' : (itemPaid > 0 ? 'Partial' : 'Pending'));
+
+                    return (
+                      <tr key={idx} className="text-sm">
+                        <td className="py-3 font-bold text-black">
+                          {item.description || item.procedureName}
+                          {item.toothNumber && <span className="text-xs text-indigo-600 ml-1 font-semibold font-mono">(Tooth #{item.toothNumber})</span>}
+                        </td>
+                        <td className="py-3 text-center">
+                          <span className="text-[10px] px-2 py-0.5 font-bold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {item.paymentMode || item.paymentMethod || bill.paymentMethod || 'Cash'}
+                          </span>
+                        </td>
+                        <td className="py-3 text-center font-bold text-black">{item.qty || 1}</td>
+                        <td className="py-3 text-right font-bold text-black">₹{cost.toFixed(2)}</td>
+                        <td className="py-3 text-center">
+                          <span className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-full ${
+                            itemStatus === 'Paid' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                            itemStatus === 'Partial' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                            'bg-rose-100 text-rose-800 border border-rose-300'
+                          }`}>
+                            {itemStatus}
+                          </span>
+                        </td>
+                        <td className="py-3 text-right font-black text-emerald-700">₹{itemPaid.toFixed(2)}</td>
+                        <td className={`py-3 text-right font-black ${itemDue > 0 ? 'text-rose-700' : 'text-slate-400'}`}>₹{itemDue.toFixed(2)}</td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr className="text-sm">
+                      <td className="py-3 font-bold text-black">General Consultation</td>
+                      <td className="py-3 text-center"><span className="text-[10px] px-2 py-0.5 font-bold rounded-md bg-indigo-50 text-indigo-700">{bill.paymentMethod || 'Cash'}</span></td>
+                      <td className="py-3 text-center font-bold text-black">1</td>
+                      <td className="py-3 text-right font-bold text-black">₹{bill.amount?.toFixed(2)}</td>
+                      <td className="py-3 text-center"><span className="px-2 py-0.5 text-[9px] font-black uppercase rounded-full bg-emerald-100 text-emerald-800">{bill.status}</span></td>
+                      <td className="py-3 text-right font-black text-emerald-700">₹{(bill.paidAmount || 0).toFixed(2)}</td>
+                      <td className="py-3 text-right font-black text-rose-700">₹{(bill.dueAmount || 0).toFixed(2)}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Payment Installments / History Section */}
@@ -2355,7 +2438,9 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                   <thead>
                     <tr className="text-[10px] font-black text-white bg-black uppercase tracking-widest text-left">
                       <th className="p-2 border-r border-white">Date</th>
+                      <th className="p-2 border-r border-white">Receipt #</th>
                       <th className="p-2 border-r border-white">Mode</th>
+                      <th className="p-2 border-r border-white">For Treatment</th>
                       <th className="p-2 border-r border-white">Transaction ID</th>
                       <th className="p-2 text-right">Amount Paid</th>
                     </tr>
@@ -2364,6 +2449,9 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                     {paymentHistory.map((inst, index) => (
                       <tr key={index} className="hover:bg-slate-50 transition-colors">
                         <td className="p-2 font-bold border-r border-slate-200">{formatDateDMY(inst.date)}</td>
+                        <td className="p-2 font-mono text-[10px] font-bold border-r border-slate-200">
+                          {inst.receiptNumber || (bill.receiptNumber ? (paymentHistory.length > 1 ? `${bill.receiptNumber}-${index + 1}` : bill.receiptNumber) : `RCPT-${index + 1}`)}
+                        </td>
                         <td className="p-2 border-r border-slate-200">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase border ${
                             inst.paymentMethod === 'Cash' ? 'bg-orange-100 text-orange-900 border-orange-300' :
@@ -2372,6 +2460,9 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                           }`}>
                             {inst.paymentMethod}
                           </span>
+                        </td>
+                        <td className="p-2 font-bold text-slate-900 border-r border-slate-200">
+                          {inst.procedureName || inst.notes || 'General Bill'}
                         </td>
                         <td className="p-2 font-mono text-[10px] font-bold border-r border-slate-200">{inst.transactionId || '—'}</td>
                         <td className="p-2 text-right font-black">₹{(inst.amount || 0).toFixed(2)}</td>
@@ -2383,19 +2474,86 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
             </div>
           )}
 
-          {/* Record New Installment payment Mode */}
-          {((bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount) > 0) && (
-            <div className="p-4 border-2 border-black rounded-2xl bg-green-50/20">
-              <h4 className="text-xs font-black text-black uppercase tracking-widest mb-3 border-b-2 border-black pb-1.5">
-                Record New Payment / Installment
-              </h4>
-              {installmentError && (
-                <div className="mb-3 p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-black">
-                  {installmentError}
+          {/* Record New Payment Section: ONLY displays treatments that have pending due */}
+          {(() => {
+            // Compute remaining due for each treatment
+            const pendingTreatments = items.map((it, idx) => {
+              const name = it.description || it.procedureName || `Treatment ${idx + 1}`;
+              const cost = parseFloat(it.subtotal || it.amount || (it.unitPrice || it.price || 0) * (it.qty || 1)) || 0;
+              const itemPaid = it.paidAmount !== undefined 
+                ? parseFloat(it.paidAmount) 
+                : ((paymentHistory && paymentHistory.length > 0)
+                    ? paymentHistory
+                        .filter(inst => (inst.procedureName && (inst.procedureName === it.description || inst.procedureName === it.procedureName)) || (inst.notes && inst.notes.includes(it.description || '')))
+                        .reduce((sum, inst) => sum + (parseFloat(inst.amount) || 0), 0)
+                    : (totals.dueAmount === 0 ? cost : Math.min(cost, totals.paidAmount)));
+              const itemDue = it.dueAmount !== undefined 
+                ? parseFloat(it.dueAmount) 
+                : Math.max(0, cost - itemPaid);
+              return {
+                ...it,
+                name,
+                cost,
+                paid: itemPaid,
+                due: itemDue
+              };
+            }).filter(t => t.due > 0);
+
+            const overallRemainingDue = bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount;
+
+            if (overallRemainingDue <= 0 || pendingTreatments.length === 0) {
+              return (
+                <div className="p-4 border-2 border-emerald-500 rounded-2xl bg-emerald-50/50 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-800 font-black text-xs uppercase tracking-wider">
+                    <CheckCircle className="w-5 h-5 text-emerald-600" /> All treatments are fully paid. No pending dues.
+                  </div>
                 </div>
-              )}
-              <form onSubmit={handleAddInstallment} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+              );
+            }
+
+            return (
+              <div className="p-4 border-2 border-black rounded-2xl bg-amber-50/30">
+                <div className="flex justify-between items-center mb-3 border-b-2 border-black pb-1.5">
+                  <h4 className="text-xs font-black text-black uppercase tracking-widest">
+                    Record Payment for Pending Treatment
+                  </h4>
+                  <span className="text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                    {pendingTreatments.length} treatment{pendingTreatments.length > 1 ? 's' : ''} pending
+                  </span>
+                </div>
+                {installmentError && (
+                  <div className="mb-3 p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-black">
+                    {installmentError}
+                  </div>
+                )}
+                <form onSubmit={handleAddInstallment} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                    {/* Select Procedure / Treatment (ONLY UNPAID TREATMENTS) */}
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                        Select Pending Treatment
+                      </label>
+                      <select
+                        value={selectedProcedure || (pendingTreatments[0]?.name || '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedProcedure(val);
+                          const targetProc = pendingTreatments.find(p => p.name === val) || pendingTreatments[0];
+                          if (targetProc) {
+                            setNewInstallmentAmount(String(targetProc.due));
+                            if (targetProc.paymentMode) setNewInstallmentMode(targetProc.paymentMode);
+                          }
+                        }}
+                        className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
+                      >
+                        {pendingTreatments.map((t, idx) => (
+                          <option key={idx} value={t.name}>
+                            {t.name} (Pending Due: ₹{t.due})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                   <div>
                     <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
                       Payment Mode
@@ -2408,6 +2566,8 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                       <option value="Cash">Cash</option>
                       <option value="UPI">UPI</option>
                       <option value="Card">Card</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Insurance">Insurance</option>
                     </select>
                   </div>
                   <div>
@@ -2426,22 +2586,6 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                       required
                     />
                   </div>
-                  {newInstallmentMode !== 'Cash' ? (
-                    <div>
-                      <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
-                        Transaction ID
-                      </label>
-                      <input
-                        type="text"
-                        value={newInstallmentTxId}
-                        onChange={(e) => setNewInstallmentTxId(e.target.value)}
-                        placeholder="Tx ID"
-                        className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
-                      />
-                    </div>
-                  ) : (
-                    <div className="hidden sm:block"></div>
-                  )}
                   <div>
                     <button
                       type="submit"
@@ -2452,21 +2596,41 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                     </button>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
-                    Notes / Remarks
-                  </label>
-                  <input
-                    type="text"
-                    value={newInstallmentNotes}
-                    onChange={(e) => setNewInstallmentNotes(e.target.value)}
-                    placeholder="Installment payment notes..."
-                    className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {newInstallmentMode !== 'Cash' ? (
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                        Transaction ID / Reference
+                      </label>
+                      <input
+                        type="text"
+                        value={newInstallmentTxId}
+                        onChange={(e) => setNewInstallmentTxId(e.target.value)}
+                        placeholder="e.g. UTR / UPI Ref Number"
+                        className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
+                      />
+                    </div>
+                  ) : (
+                    <div className="hidden sm:block"></div>
+                  )}
+                  <div>
+                    <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                      Notes / Remarks
+                    </label>
+                    <input
+                      type="text"
+                      value={newInstallmentNotes}
+                      onChange={(e) => setNewInstallmentNotes(e.target.value)}
+                      placeholder="Installment payment notes..."
+                      className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
+                    />
+                  </div>
                 </div>
               </form>
             </div>
-          )}
+          );
+        })()}
 
           <div className="bg-slate-50 p-6 rounded-2xl border border-black flex justify-end">
             <div className="w-64 space-y-3">
@@ -2531,28 +2695,28 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
           )}
         </div>
 
-        <div className="p-6 bg-slate-50 border-t-2 border-black flex justify-between gap-4">
-          <div className="flex gap-2">
+        <div className="p-4 sm:p-6 bg-slate-50 border-t-2 border-black flex flex-col-reverse sm:flex-row justify-between gap-3 shrink-0">
+          <div className="flex flex-wrap gap-2">
             <button 
               onClick={() => onDownload(bill)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700 border border-black transition-colors"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-700 border border-black transition-colors cursor-pointer"
             >
-              <Download size={16} /> Download
+              <Download size={15} /> Download
             </button>
             <button 
               onClick={() => onPrint(bill)}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-black hover:bg-slate-900 border border-black transition-colors"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 bg-slate-800 text-white rounded-xl text-xs sm:text-sm font-black hover:bg-slate-900 border border-black transition-colors cursor-pointer"
             >
-              <Printer size={16} /> Print
+              <Printer size={15} /> Print
             </button>
             <button 
               onClick={() => onWhatsApp && onWhatsApp(bill)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-650 text-white rounded-xl text-sm font-black hover:bg-green-700 border border-black transition-colors"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 bg-green-650 text-white rounded-xl text-xs sm:text-sm font-black hover:bg-green-700 border border-black transition-colors cursor-pointer"
             >
-              <Phone size={16} /> WhatsApp
+              <Phone size={15} /> WhatsApp
             </button>
           </div>
-          <button onClick={onClose} className="px-6 py-2 border-2 border-black text-black bg-white rounded-xl text-sm font-black hover:bg-slate-50 transition-colors">
+          <button onClick={onClose} className="w-full sm:w-auto px-6 py-2 border-2 border-black text-black bg-white rounded-xl text-xs sm:text-sm font-black hover:bg-slate-50 transition-colors cursor-pointer">
             Close
           </button>
         </div>
@@ -2576,23 +2740,45 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
   const [formData, setFormData] = useState(() => {
     const rawItems = bill?.items && bill.items.length > 0 ? bill.items : [];
     const initialItems = rawItems.length > 0
-      ? rawItems.map(it => ({
-          _id: it._id,
-          productId: it.productId,
-          description: it.description || it.procedureName || '',
-          toothNumber: it.toothNumber || '',
-          qty: it.qty ?? it.quantity ?? 1,
-          price: it.price ?? it.unitPrice ?? 0,
-          discount: it.discount ?? it.discountAmount ?? 0,
-          subtotal: it.subtotal ?? it.total ?? ((it.qty || 1) * (it.price || it.unitPrice || 0) - (it.discount || 0))
-        }))
+      ? rawItems.map(it => {
+          const q = parseFloat(it.qty ?? it.quantity ?? 1) || 1;
+          const p = parseFloat(it.price ?? it.unitPrice ?? 0) || 0;
+          const d = parseFloat(it.discount ?? it.discountAmount ?? 0) || 0;
+          const sub = Math.max(0, Math.round(((q * p) - d) * 100) / 100);
+          
+          let paid = it.paidAmount !== undefined 
+            ? parseFloat(it.paidAmount) 
+            : (bill?.status === 'Paid' || Number(bill?.dueAmount) === 0 ? sub : (it.status === 'Pending' ? 0 : Math.min(sub, Number(bill?.paidAmount) || 0)));
+          paid = Math.min(sub, Math.max(0, isNaN(paid) ? 0 : paid));
+          const due = Math.max(0, Math.round((sub - paid) * 100) / 100);
+          const stat = it.status || (due === 0 ? 'Paid' : (paid > 0 ? 'Partial' : 'Pending'));
+
+          return {
+            _id: it._id,
+            productId: it.productId,
+            description: it.description || it.procedureName || '',
+            toothNumber: it.toothNumber || '',
+            paymentMode: it.paymentMode || it.paymentMethod || bill?.paymentMethod || 'Cash',
+            qty: q,
+            price: p,
+            discount: d,
+            subtotal: sub,
+            status: stat,
+            paidAmount: paid,
+            dueAmount: due
+          };
+        })
       : [{
           description: 'Consultation / Dental Treatment',
           toothNumber: '',
+          paymentMode: bill?.paymentMethod || 'Cash',
           qty: 1,
           price: bill?.amount || 0,
           discount: bill?.discount || 0,
-          subtotal: bill?.amount || 0
+          subtotal: bill?.amount || 0,
+          status: (bill?.status === 'Pending' ? 'Pending' : (bill?.dueAmount === 0 ? 'Paid' : 'Partial')),
+          paidAmount: bill?.paidAmount !== undefined ? bill.paidAmount : (bill?.dueAmount === 0 ? (bill?.amount || 0) : 0),
+          dueAmount: bill?.dueAmount !== undefined ? bill.dueAmount : 0
         }];
 
     return {
@@ -2612,10 +2798,12 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
 
   const [loading, setLoading] = useState(false);
 
-  // Recalculates gross, discount, grand total and due from current state
-  const recalculateTotals = (itemsList, overallDiscountVal, paidAmountVal) => {
+  // Recalculates gross, discount, grand total, paid and due from treatment items
+  const recalculateTotals = (itemsList, overallDiscountVal) => {
     let gross = 0;
     let itemDiscountSum = 0;
+    let totalPaid = 0;
+    let totalDue = 0;
 
     itemsList.forEach(it => {
       const q = parseFloat(it.qty) || 1;
@@ -2623,216 +2811,271 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
       const d = parseFloat(it.discount) || 0;
       gross += (q * p);
       itemDiscountSum += d;
+      totalPaid += (parseFloat(it.paidAmount) || 0);
+      totalDue += (parseFloat(it.dueAmount) || 0);
     });
 
     const ovDisc = parseFloat(overallDiscountVal) || 0;
     const totalDiscount = ovDisc > 0 ? ovDisc : itemDiscountSum;
     const grandTotal = Math.max(0, gross - totalDiscount);
-    const paid = parseFloat(paidAmountVal) || 0;
-    const due = Math.max(0, grandTotal - paid);
 
     return {
       grossAmount: Math.round(gross * 100) / 100,
       discountAmount: Math.round(totalDiscount * 100) / 100,
       taxableAmount: Math.round(grandTotal * 100) / 100,
       grandTotal: Math.round(grandTotal * 100) / 100,
-      paidAmount: paid,
-      dueAmount: Math.round(due * 100) / 100
+      paidAmount: Math.round(totalPaid * 100) / 100,
+      dueAmount: Math.round(totalDue * 100) / 100
     };
   };
 
   const handleItemFieldChange = (index, field, value) => {
     setFormData(prev => {
       const updated = [...prev.items];
-      updated[index] = { ...updated[index], [field]: value };
+      const currentItem = { ...updated[index] };
 
-      const q = parseFloat(field === 'qty' ? value : updated[index].qty) || 1;
-      const p = parseFloat(field === 'price' ? value : updated[index].price) || 0;
-      const d = parseFloat(field === 'discount' ? value : updated[index].discount) || 0;
-      updated[index].subtotal = Math.max(0, Math.round(((q * p) - d) * 100) / 100);
+      if (field === 'status') {
+        currentItem.status = value;
+        const sub = currentItem.subtotal || 0;
+        if (value === 'Paid') {
+          currentItem.paidAmount = sub;
+          currentItem.dueAmount = 0;
+        } else if (value === 'Pending') {
+          currentItem.paidAmount = 0;
+          currentItem.dueAmount = sub;
+        } else if (value === 'Partial') {
+          if (currentItem.paidAmount <= 0 || currentItem.paidAmount >= sub) {
+            currentItem.paidAmount = Math.round((sub / 2) * 100) / 100;
+          }
+          currentItem.dueAmount = Math.max(0, Math.round((sub - currentItem.paidAmount) * 100) / 100);
+        }
+      } else if (field === 'paidAmount') {
+        const sub = currentItem.subtotal || 0;
+        const val = value === '' ? 0 : parseFloat(value);
+        const p = Math.min(sub, Math.max(0, isNaN(val) ? 0 : val));
+        currentItem.paidAmount = p;
+        currentItem.dueAmount = Math.max(0, Math.round((sub - p) * 100) / 100);
+        currentItem.status = currentItem.dueAmount === 0 ? 'Paid' : (p > 0 ? 'Partial' : 'Pending');
+      } else if (field === 'dueAmount') {
+        const sub = currentItem.subtotal || 0;
+        const val = value === '' ? 0 : parseFloat(value);
+        const d = Math.min(sub, Math.max(0, isNaN(val) ? 0 : val));
+        currentItem.dueAmount = d;
+        currentItem.paidAmount = Math.max(0, Math.round((sub - d) * 100) / 100);
+        currentItem.status = d === 0 ? 'Paid' : (currentItem.paidAmount > 0 ? 'Partial' : 'Pending');
+      } else {
+        currentItem[field] = value;
+        if (field === 'qty' || field === 'price' || field === 'discount') {
+          const q = parseFloat(field === 'qty' ? value : currentItem.qty) || 1;
+          const p = parseFloat(field === 'price' ? value : currentItem.price) || 0;
+          const d = parseFloat(field === 'discount' ? value : currentItem.discount) || 0;
+          const sub = Math.max(0, Math.round(((q * p) - d) * 100) / 100);
+          currentItem.subtotal = sub;
+          if (currentItem.status === 'Paid') {
+            currentItem.paidAmount = sub;
+            currentItem.dueAmount = 0;
+          } else if (currentItem.status === 'Pending') {
+            currentItem.paidAmount = 0;
+            currentItem.dueAmount = sub;
+          } else {
+            currentItem.paidAmount = Math.min(sub, currentItem.paidAmount || 0);
+            currentItem.dueAmount = Math.max(0, Math.round((sub - currentItem.paidAmount) * 100) / 100);
+          }
+        }
+      }
 
-      const totals = recalculateTotals(updated, prev.discount, prev.paidAmount);
+      updated[index] = currentItem;
+      const totals = recalculateTotals(updated, prev.discount);
       return {
         ...prev,
         items: updated,
         amount: totals.grandTotal,
-        dueAmount: totals.dueAmount
+        grossAmount: totals.grossAmount,
+        paidAmount: totals.paidAmount,
+        dueAmount: totals.dueAmount,
+        status: totals.dueAmount === 0 ? 'Paid' : (totals.paidAmount > 0 ? 'Due' : 'Pending')
       };
     });
   };
 
   const handleAddItem = () => {
     setFormData(prev => {
-      const updated = [...prev.items, { description: '', toothNumber: '', qty: 1, price: 0, discount: 0, subtotal: 0 }];
-      const totals = recalculateTotals(updated, prev.discount, prev.paidAmount);
+      const newItem = {
+        description: '',
+        toothNumber: '',
+        paymentMode: prev.paymentMethod !== 'Multiple' ? prev.paymentMethod : 'Cash',
+        qty: 1,
+        price: 0,
+        discount: 0,
+        subtotal: 0,
+        status: 'Paid',
+        paidAmount: 0,
+        dueAmount: 0
+      };
+      const updated = [...prev.items, newItem];
+      const totals = recalculateTotals(updated, prev.discount);
       return {
         ...prev,
         items: updated,
         amount: totals.grandTotal,
-        dueAmount: totals.dueAmount
+        grossAmount: totals.grossAmount,
+        paidAmount: totals.paidAmount,
+        dueAmount: totals.dueAmount,
+        status: totals.dueAmount === 0 ? 'Paid' : (totals.paidAmount > 0 ? 'Due' : 'Pending')
       };
     });
   };
 
   const handleRemoveItem = (index) => {
+    if (formData.items.length <= 1) {
+      toast.warning("A bill must have at least one procedure or item.");
+      return;
+    }
     setFormData(prev => {
-      if (prev.items.length <= 1) {
-        toast.warning("A bill must contain at least one treatment / item");
-        return prev;
-      }
       const updated = prev.items.filter((_, i) => i !== index);
-      const totals = recalculateTotals(updated, prev.discount, prev.paidAmount);
+      const totals = recalculateTotals(updated, prev.discount);
       return {
         ...prev,
         items: updated,
         amount: totals.grandTotal,
-        dueAmount: totals.dueAmount
+        grossAmount: totals.grossAmount,
+        paidAmount: totals.paidAmount,
+        dueAmount: totals.dueAmount,
+        status: totals.dueAmount === 0 ? 'Paid' : (totals.paidAmount > 0 ? 'Due' : 'Pending')
       };
     });
   };
 
   const handleOverallDiscountChange = (val) => {
-    const num = val === '' ? 0 : parseFloat(val);
+    const d = parseFloat(val) || 0;
     setFormData(prev => {
-      const totals = recalculateTotals(prev.items, num, prev.paidAmount);
-      let paidAmt = prev.paidAmount;
-      if (prev.status === 'Paid') {
-        paidAmt = totals.grandTotal;
-      }
-      const dueAmt = prev.status === 'Paid' ? 0 : Math.max(0, totals.grandTotal - paidAmt);
+      const totals = recalculateTotals(prev.items, d);
       return {
         ...prev,
-        discount: num,
+        discount: d,
         amount: totals.grandTotal,
-        paidAmount: paidAmt,
-        dueAmount: dueAmt
+        grossAmount: totals.grossAmount,
+        paidAmount: totals.paidAmount,
+        dueAmount: totals.dueAmount,
+        status: totals.dueAmount === 0 ? 'Paid' : (totals.paidAmount > 0 ? 'Due' : 'Pending')
       };
     });
   };
 
-  const handleStatusChange = (newStatus) => {
-    setFormData(prev => {
-      const totals = recalculateTotals(prev.items, prev.discount, prev.paidAmount);
-      let newPaid = prev.paidAmount;
-      if (newStatus === 'Paid') {
-        newPaid = totals.grandTotal;
-      } else if (newStatus === 'Pending') {
-        newPaid = 0;
-      }
-      const newDue = newStatus === 'Paid' ? 0 : Math.max(0, totals.grandTotal - newPaid);
-      return {
-        ...prev,
-        status: newStatus,
-        paidAmount: newPaid,
-        dueAmount: newDue
-      };
-    });
-  };
-
-  const handlePaidAmountChange = (val) => {
-    const num = val === '' ? 0 : parseFloat(val);
-    setFormData(prev => {
-      const totals = recalculateTotals(prev.items, prev.discount, num);
-      let status = prev.status;
-      if (num >= totals.grandTotal && totals.grandTotal > 0) {
-        status = 'Paid';
-      } else if (num > 0) {
-        status = 'Partial';
-      } else if (status === 'Paid') {
-        status = 'Due';
-      }
-      return {
-        ...prev,
-        status,
-        paidAmount: num,
-        dueAmount: totals.dueAmount
-      };
-    });
-  };
+  const computedTotals = recalculateTotals(formData.items, formData.discount);
 
   const handleUpdate = async () => {
+    if (!formData.items || formData.items.length === 0) {
+      toast.error("Please add at least one item or procedure.");
+      return;
+    }
+
+    if (formData.items.some(i => !i.description.trim())) {
+      toast.error("Please fill in procedure descriptions for all items.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const totals = recalculateTotals(formData.items, formData.discount, formData.paidAmount);
-
-      let status = formData.status;
-      let finalPaid = parseFloat(formData.paidAmount) || 0;
-      let finalDue = Math.max(0, totals.grandTotal - finalPaid);
-
-      // If user chose Paid status OR entered full payment, guarantee Paid with 0 due
-      if (status === 'Paid' || finalPaid >= totals.grandTotal) {
-        status = 'Paid';
-        finalPaid = totals.grandTotal;
-        finalDue = 0;
-      } else if (finalPaid > 0) {
-        status = 'Partial';
-      } else if (status !== 'Cancelled') {
-        status = 'Due';
-      }
+      const totals = computedTotals;
+      const status = totals.dueAmount === 0 ? 'Paid' : (totals.paidAmount > 0 ? 'Due' : 'Pending');
 
       const formattedItems = formData.items.map(it => {
         const q = parseFloat(it.qty) || 1;
         const p = parseFloat(it.price) || 0;
         const d = parseFloat(it.discount) || 0;
         const sub = Math.max(0, Math.round(((q * p) - d) * 100) / 100);
+        const itemPaid = parseFloat(it.paidAmount) || 0;
+        const itemDue = Math.max(0, Math.round((sub - itemPaid) * 100) / 100);
+        const itemStatus = it.status || (itemDue === 0 ? 'Paid' : (itemPaid > 0 ? 'Partial' : 'Pending'));
+
         return {
+          _id: it._id,
           productId: it.productId,
-          description: it.description || 'Treatment Procedure',
-          procedureName: it.description || 'Treatment Procedure',
-          toothNumber: it.toothNumber ? String(it.toothNumber).trim() : undefined,
+          description: it.description.trim(),
+          procedureName: it.description.trim(),
+          toothNumber: it.toothNumber ? String(it.toothNumber).trim() : '',
+          paymentMode: it.paymentMode || formData.paymentMethod || 'Cash',
+          paymentMethod: it.paymentMode || formData.paymentMethod || 'Cash',
           qty: q,
           quantity: q,
-          unitPrice: p,
           price: p,
-          cost: p,
+          unitPrice: p,
           discount: d,
           discountAmount: d,
           subtotal: sub,
-          total: sub
+          total: sub,
+          status: itemStatus,
+          paidAmount: itemPaid,
+          dueAmount: itemDue
         };
+      });
+
+      const uniqueModes = [...new Set(formattedItems.map(it => it.paymentMode).filter(Boolean))];
+      let resolvedPaymentMethod = formData.paymentMethod;
+      if (uniqueModes.length > 1) {
+        resolvedPaymentMethod = 'Multiple';
+      } else if (uniqueModes.length === 1 && (!formData.paymentMethod || formData.paymentMethod === 'Multiple')) {
+        resolvedPaymentMethod = uniqueModes[0];
+      }
+
+      // Generate or preserve installments to match treatment paid amounts
+      const baseRcpt = bill.receiptNumber || `RCPT-${(String(bill.invoiceNumber || bill.billId || '').replace(/\D/g, '') || '1001')}`;
+      const updatedInstallments = [];
+      formattedItems.forEach((it, idx) => {
+        if (it.paidAmount > 0) {
+          updatedInstallments.push({
+            date: formData.date ? new Date(formData.date) : new Date(),
+            amount: it.paidAmount,
+            paymentMethod: it.paymentMode || resolvedPaymentMethod || 'Cash',
+            procedureName: it.description || 'Procedure',
+            receiptNumber: formattedItems.length > 1 ? `${baseRcpt}-${idx + 1}` : baseRcpt,
+            notes: it.dueAmount === 0 
+              ? `Full payment for ${it.description || 'Procedure'}` 
+              : `Part payment for ${it.description || 'Procedure'} (Pending: ₹${it.dueAmount})`
+          });
+        }
       });
 
       const updatedData = {
         date: formData.date ? new Date(formData.date) : new Date(),
         billDate: formData.date,
         status,
-        paymentMethod: formData.paymentMethod,
+        paymentMethod: resolvedPaymentMethod,
         items: formattedItems,
+        installments: updatedInstallments,
         amount: totals.grandTotal,
         grossAmount: totals.grossAmount,
         discount: totals.discountAmount,
         discountAmount: totals.discountAmount,
-        taxableAmount: totals.taxableAmount,
-        paidAmount: finalPaid,
-        dueAmount: finalDue,
+        paidAmount: totals.paidAmount,
+        dueAmount: totals.dueAmount,
         notes: formData.notes
       };
 
       await billingApi.update(bill._id, updatedData);
-      toast.success("Bill and treatments updated successfully");
-      onSave();
+      toast.success("Bill and treatment payments updated successfully!");
+      if (onSave) onSave();
       onClose();
-    } catch (error) {
-      console.error("Error updating bill:", error);
-      toast.error(error.response?.data?.message || "Failed to update bill");
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || err.message || "Failed to update bill.");
     } finally {
       setLoading(false);
     }
   };
-
-  const computedTotals = recalculateTotals(formData.items, formData.discount, formData.paidAmount);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         <div className="p-5 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
           <div>
-            <h3 className="text-lg font-bold">Edit Bill & Treatments</h3>
+            <h3 className="text-lg font-bold">Edit Bill & Treatment Payments</h3>
             <p className="text-xs text-indigo-100 font-medium">Invoice #{formData.billId || bill?._id}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer text-white">
@@ -2840,8 +3083,8 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
           </button>
         </div>
 
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
-          {/* Top metadata grid: Date, Status, Payment Mode */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+          {/* Top metadata grid: Date, Default Payment Mode, Auto Status */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-100 p-4 rounded-2xl">
             <div className="space-y-1">
               <label className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-1">
@@ -2854,25 +3097,19 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
                 className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none shadow-2xs"
               />
             </div>
+            
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Status</label>
-              <select 
-                value={formData.status}
-                onChange={e => handleStatusChange(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
-              >
-                <option value="Pending">Pending</option>
-                <option value="Paid">Paid</option>
-                <option value="Due">Due</option>
-                <option value="Partial">Partial</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Payment Mode</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Default Payment Mode</label>
               <select 
                 value={formData.paymentMethod}
-                onChange={e => setFormData(p => ({ ...p, paymentMethod: e.target.value }))}
+                onChange={e => {
+                  const val = e.target.value;
+                  setFormData(p => ({
+                    ...p,
+                    paymentMethod: val,
+                    items: val !== 'Multiple' ? p.items.map(it => ({ ...it, paymentMode: val })) : p.items
+                  }));
+                }}
                 className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
               >
                 <option value="Cash">Cash</option>
@@ -2880,7 +3117,20 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
                 <option value="Card">Card</option>
                 <option value="Bank Transfer">Bank Transfer</option>
                 <option value="Insurance">Insurance</option>
+                <option value="Multiple">Multiple / Split</option>
               </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Overall Bill Status</label>
+              <div className={`p-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-between border shadow-2xs ${
+                computedTotals.dueAmount === 0 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                  : (computedTotals.paidAmount > 0 ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-rose-50 text-rose-800 border-rose-300')
+              }`}>
+                <span>{computedTotals.dueAmount === 0 ? 'Fully Paid' : (computedTotals.paidAmount > 0 ? 'Due / Partial' : 'Pending')}</span>
+                <span className="text-[9px] font-bold opacity-70 lowercase">(auto computed)</span>
+              </div>
             </div>
           </div>
 
@@ -2889,107 +3139,174 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
             <div className="flex justify-between items-center">
               <div>
                 <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Treatments & Procedures</h4>
-                <p className="text-[11px] text-slate-500">Edit procedure name, tooth number, quantity, price, or add/remove items</p>
+                <p className="text-[11px] text-slate-500">Set treatment name, tooth #, payment mode, paid amount, and pending due per treatment</p>
               </div>
               <button
                 type="button"
                 onClick={handleAddItem}
-                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
               >
                 <Plus size={14} /> Add Treatment
               </button>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {formData.items.map((item, idx) => (
-                <div key={idx} className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex flex-col sm:flex-row gap-2.5 items-start sm:items-center">
-                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
-                    {idx + 1}
-                  </span>
-                  
-                  {/* Procedure description */}
-                  <div className="flex-1 w-full min-w-[160px]">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Procedure / Item</label>
-                    <input 
-                      type="text"
-                      placeholder="e.g. Root Canal Treatment, Filling..."
-                      value={item.description}
-                      onChange={e => handleItemFieldChange(idx, 'description', e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
+                <div key={idx} className="bg-slate-50/90 border border-slate-200 p-4 rounded-2xl space-y-3 shadow-2xs hover:border-indigo-300 transition-colors">
+                  {/* Top line of treatment row: Number, Procedure Description, Tooth #, Remove */}
+                  <div className="flex flex-col sm:flex-row gap-2.5 items-start sm:items-center">
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                      {idx + 1}
+                    </span>
+                    
+                    {/* Procedure description */}
+                    <div className="flex-1 w-full min-w-[180px]">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Procedure / Treatment</label>
+                      <input 
+                        type="text"
+                        placeholder="e.g. RCT, Ceramic Crown, Dental Cleaning..."
+                        value={item.description}
+                        onChange={e => handleItemFieldChange(idx, 'description', e.target.value)}
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Tooth number */}
+                    <div className="w-full sm:w-20">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Tooth #</label>
+                      <input 
+                        type="text"
+                        placeholder="Tooth #"
+                        value={item.toothNumber || ''}
+                        onChange={e => handleItemFieldChange(idx, 'toothNumber', e.target.value)}
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 text-center"
+                        title="Tooth Number (e.g. 18, 36, or All)"
+                      />
+                    </div>
+
+                    {/* Delete button */}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(idx)}
+                      disabled={formData.items.length <= 1}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0 self-end sm:self-center"
+                      title="Remove item"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
 
-                  {/* Tooth number */}
-                  <div className="w-full sm:w-20">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Tooth #</label>
-                    <input 
-                      type="text"
-                      placeholder="Tooth #"
-                      value={item.toothNumber || ''}
-                      onChange={e => handleItemFieldChange(idx, 'toothNumber', e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 text-center"
-                      title="Tooth Number (e.g. 18, 36, or All)"
-                    />
-                  </div>
+                  {/* Financial & Per-Treatment Payment Line */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2.5 pt-2 border-t border-slate-200/80 items-end">
+                    {/* Qty */}
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">Qty</label>
+                      <input 
+                        type="number"
+                        min="1"
+                        value={item.qty}
+                        onChange={e => handleItemFieldChange(idx, 'qty', e.target.value)}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none text-center focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
 
-                  {/* Qty */}
-                  <div className="w-full sm:w-16">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Qty</label>
-                    <input 
-                      type="number"
-                      min="1"
-                      placeholder="Qty"
-                      value={item.qty}
-                      onChange={e => handleItemFieldChange(idx, 'qty', e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 text-center"
-                    />
-                  </div>
+                    {/* Price */}
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">Price (₹)</label>
+                      <input 
+                        type="number"
+                        min="0"
+                        value={item.price || ''}
+                        placeholder="0"
+                        onChange={e => handleItemFieldChange(idx, 'price', e.target.value)}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none text-right focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
 
-                  {/* Price */}
-                  <div className="w-full sm:w-28">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Price (₹)</label>
-                    <input 
-                      type="number"
-                      min="0"
-                      placeholder="Price"
-                      value={item.price}
-                      onChange={e => handleItemFieldChange(idx, 'price', e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 text-right"
-                    />
-                  </div>
+                    {/* Discount */}
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">Disc (₹)</label>
+                      <input 
+                        type="number"
+                        min="0"
+                        value={item.discount || ''}
+                        placeholder="0"
+                        onChange={e => handleItemFieldChange(idx, 'discount', e.target.value)}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none text-right focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
 
-                  {/* Item Discount */}
-                  <div className="w-full sm:w-24">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Disc (₹)</label>
-                    <input 
-                      type="number"
-                      min="0"
-                      placeholder="Disc"
-                      value={item.discount}
-                      onChange={e => handleItemFieldChange(idx, 'discount', e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 text-right"
-                      title="Item discount in ₹"
-                    />
-                  </div>
+                    {/* Subtotal */}
+                    <div>
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1 text-right">Total (₹)</label>
+                      <div className="p-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-black text-slate-900 text-right">
+                        ₹{(item.subtotal || 0).toLocaleString()}
+                      </div>
+                    </div>
 
-                  {/* Subtotal */}
-                  <div className="w-full sm:w-24 text-right">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest sm:hidden">Subtotal</label>
-                    <div className="p-2 text-xs font-black text-indigo-700">
-                      ₹{(item.subtotal || 0).toLocaleString()}
+                    {/* Mode of payment for this treatment */}
+                    <div>
+                      <label className="text-[9px] font-black text-indigo-700 uppercase tracking-wider block mb-1">Mode</label>
+                      <select
+                        value={item.paymentMode || formData.paymentMethod || 'Cash'}
+                        onChange={e => handleItemFieldChange(idx, 'paymentMode', e.target.value)}
+                        className="w-full p-2 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs font-black text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      >
+                        <option value="UPI">UPI</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Card">Card</option>
+                        <option value="Bank Transfer">Bank</option>
+                        <option value="Insurance">Insurance</option>
+                      </select>
+                    </div>
+
+                    {/* Treatment Payment Status */}
+                    <div>
+                      <label className="text-[9px] font-black text-indigo-700 uppercase tracking-wider block mb-1">Payment Status</label>
+                      <select
+                        value={item.status || (item.dueAmount === 0 ? 'Paid' : (item.paidAmount > 0 ? 'Partial' : 'Pending'))}
+                        onChange={e => handleItemFieldChange(idx, 'status', e.target.value)}
+                        className={`w-full p-2 border rounded-xl text-xs font-black outline-none cursor-pointer shadow-2xs ${
+                          (item.status === 'Paid' || item.dueAmount === 0) 
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                            : (item.status === 'Partial' || item.paidAmount > 0 ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-rose-50 text-rose-800 border-rose-300')
+                        }`}
+                      >
+                        <option value="Paid">Paid</option>
+                        <option value="Partial">Partial</option>
+                        <option value="Pending">Pending</option>
+                      </select>
+                    </div>
+
+                    {/* Paid / Advance for this treatment */}
+                    <div>
+                      <label className="text-[9px] font-black text-emerald-700 uppercase tracking-wider block mb-1">Paid (₹)</label>
+                      <input 
+                        type="number"
+                        min="0"
+                        max={item.subtotal || 0}
+                        value={item.paidAmount !== undefined ? item.paidAmount : (item.status === 'Pending' ? 0 : item.subtotal)}
+                        onChange={e => handleItemFieldChange(idx, 'paidAmount', e.target.value)}
+                        className="w-full p-2 bg-white border border-emerald-300 rounded-xl text-xs font-black text-emerald-800 outline-none text-right focus:ring-2 focus:ring-emerald-500"
+                        title="Amount paid/advance for this treatment"
+                      />
+                    </div>
+
+                    {/* Pending / Due for this treatment */}
+                    <div>
+                      <label className="text-[9px] font-black text-rose-700 uppercase tracking-wider block mb-1">Pending (₹)</label>
+                      <input 
+                        type="number"
+                        min="0"
+                        max={item.subtotal || 0}
+                        value={item.dueAmount !== undefined ? item.dueAmount : 0}
+                        onChange={e => handleItemFieldChange(idx, 'dueAmount', e.target.value)}
+                        className="w-full p-2 bg-white border border-rose-300 rounded-xl text-xs font-black text-rose-800 outline-none text-right focus:ring-2 focus:ring-rose-500"
+                        title="Amount pending for this treatment"
+                      />
                     </div>
                   </div>
-
-                  {/* Delete button */}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveItem(idx)}
-                    disabled={formData.items.length <= 1}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                    title="Remove item"
-                  >
-                    <Trash2 size={16} />
-                  </button>
                 </div>
               ))}
             </div>
@@ -3024,21 +3341,16 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Paid Amount (₹)</label>
-              <input 
-                type="number" 
-                min="0"
-                value={formData.paidAmount || ''}
-                onChange={e => handlePaidAmountChange(e.target.value)}
-                placeholder="0"
-                className="w-full p-2.5 bg-white border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none"
-              />
+              <label className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Total Paid (₹)</label>
+              <div className="p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-black text-emerald-800">
+                ₹{computedTotals.paidAmount.toLocaleString()}
+              </div>
             </div>
 
             <div className="col-span-2 sm:col-span-4 flex justify-between items-center pt-2 border-t border-slate-200">
-              <span className="text-xs font-bold text-slate-500">Balance / Due Amount:</span>
+              <span className="text-xs font-bold text-slate-500">Overall Pending Due Amount:</span>
               <span className={`text-sm font-black ${computedTotals.dueAmount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                ₹{computedTotals.dueAmount.toLocaleString()} {computedTotals.dueAmount === 0 ? '(Fully Paid)' : ''}
+                ₹{computedTotals.dueAmount.toLocaleString()} {computedTotals.dueAmount === 0 ? '(All Treatments Fully Paid)' : ''}
               </span>
             </div>
           </div>
@@ -3056,19 +3368,19 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
           </div>
         </div>
 
-        <div className="p-5 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
+        <div className="p-3.5 sm:p-5 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 shrink-0">
+          <button 
+            onClick={onClose}
+            className="w-full sm:w-auto px-6 py-2.5 sm:py-3 border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-white transition-colors cursor-pointer text-center"
+          >
+            Cancel
+          </button>
           <button 
             onClick={handleUpdate}
             disabled={loading}
-            className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 cursor-pointer"
+            className="flex-1 py-2.5 sm:py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 cursor-pointer"
           >
-            {loading ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Save Bill & Treatment Changes'}
-          </button>
-          <button 
-            onClick={onClose}
-            className="px-6 py-3 border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-white transition-colors cursor-pointer"
-          >
-            Cancel
+            {loading ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Save Bill & Treatment Payments'}
           </button>
         </div>
       </motion.div>
@@ -3372,12 +3684,12 @@ const TabBilling = ({
   }
 
   return (
-    <div className="space-y-6 relative pb-20">
+    <div className="space-y-4 sm:space-y-6 relative pb-36 md:pb-28 lg:pb-12">
       {/* Billing Type Tabs */}
-      <div className="flex items-center gap-4 border-b border-slate-100 pb-1">
+      <div className="flex items-center gap-2 sm:gap-4 border-b border-slate-100 pb-1 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setBillingTab('Consultant')}
-          className={`px-6 py-3 text-sm font-bold transition-all relative ${
+          className={`px-4 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-bold transition-all relative shrink-0 whitespace-nowrap ${
             billingTab === 'Consultant' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
@@ -3388,7 +3700,7 @@ const TabBilling = ({
         </button>
         <button
           onClick={() => setBillingTab('Pharmacy')}
-          className={`px-6 py-3 text-sm font-bold transition-all relative ${
+          className={`px-4 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-bold transition-all relative shrink-0 whitespace-nowrap ${
             billingTab === 'Pharmacy' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
@@ -3400,7 +3712,7 @@ const TabBilling = ({
         {isDentistClinic && (
           <button
             onClick={() => setBillingTab('Dental')}
-            className={`px-6 py-3 text-sm font-bold transition-all relative ${
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-bold transition-all relative shrink-0 whitespace-nowrap ${
               billingTab === 'Dental' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
             }`}
           >
@@ -3413,7 +3725,7 @@ const TabBilling = ({
       </div>
 
       {/* Summary Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {(() => {
           const calculatedTotals = filteredBills.map(b => 
             b.billType === 'Pharmacy' ? normalizePharmacyInvoice(b) : calculateInvoiceTotals(b)
@@ -3433,12 +3745,12 @@ const TabBilling = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4"
+              className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm border border-slate-100 flex items-center gap-2.5 sm:gap-4"
             >
-              <div className={`p-3 ${stat.color} rounded-xl shadow-inner`}><stat.icon size={22} strokeWidth={2.5} /></div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
-                <p className={`text-xl font-bold ${stat.valColor || 'text-slate-800'}`}>{stat.value}</p>
+              <div className={`p-2 sm:p-3 ${stat.color} rounded-xl shadow-inner shrink-0`}><stat.icon size={18} className="sm:w-[22px] sm:h-[22px]" strokeWidth={2.5} /></div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{stat.label}</p>
+                <p className={`text-sm sm:text-xl font-bold truncate ${stat.valColor || 'text-slate-800'}`}>{stat.value}</p>
               </div>
             </motion.div>
           ));
@@ -3532,7 +3844,7 @@ const TabBilling = ({
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 50, opacity: 0 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[50] w-full max-w-2xl px-4"
+            className="fixed bottom-20 sm:bottom-8 left-1/2 -translate-x-1/2 z-[50] w-full max-w-2xl px-4"
           >
             <div className="bg-slate-900 text-white rounded-2xl shadow-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-800/50 backdrop-blur-md bg-opacity-95">
               <div className="flex items-center gap-3">
@@ -3573,7 +3885,7 @@ const TabBilling = ({
             <motion.div 
               key={bill._id} 
               layout
-              className={`group bg-white border rounded-2xl p-5 transition-all duration-300 flex flex-col sm:flex-row gap-5 ${
+              className={`group bg-white border rounded-2xl p-3.5 sm:p-5 transition-all duration-300 flex flex-col sm:flex-row gap-3 sm:gap-5 ${
                 selectedBillIds.includes(bill._id) 
                   ? 'border-indigo-500 ring-2 ring-indigo-500/10 bg-indigo-50/20 shadow-md' 
                   : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
@@ -3670,8 +3982,8 @@ const TabBilling = ({
                     );
                   })()}
 
-                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                    <div className="flex p-1 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
+                    <div className="flex p-0.5 sm:p-1 bg-slate-50 rounded-xl sm:rounded-2xl border border-slate-100">
                       <ActionButton 
                         icon={Eye} 
                         label="View" 
@@ -3688,7 +4000,7 @@ const TabBilling = ({
                       />
                     </div>
 
-                    <div className="flex p-1 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="flex p-0.5 sm:p-1 bg-slate-50 rounded-xl sm:rounded-2xl border border-slate-100">
                       <ActionButton 
                         icon={Download} 
                         label="PDF" 
@@ -3712,13 +4024,15 @@ const TabBilling = ({
                       />
                     </div>
 
-                    <ActionButton 
-                      icon={Trash2} 
-                      label="Delete" 
-                      onClick={() => handleDelete(bill._id)} 
-                      colorClass="text-slate-300 hover:text-rose-600" 
-                      hoverBg="bg-rose-50" 
-                    />
+                    <div className="flex p-0.5 sm:p-1 bg-slate-50 rounded-xl sm:rounded-2xl border border-slate-100">
+                      <ActionButton 
+                        icon={Trash2} 
+                        label="Delete" 
+                        onClick={() => handleDelete(bill._id)} 
+                        colorClass="text-slate-300 hover:text-rose-600" 
+                        hoverBg="bg-rose-50" 
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -6163,7 +6477,7 @@ const PatientProfile = () => {
 
   return (
     <>
-      <div className="min-h-screen bg-[#f8fafc] font-sans print:hidden flex flex-col lg:flex-row overflow-hidden">
+      <div className="min-h-screen lg:h-screen lg:max-h-screen bg-[#f8fafc] font-sans print:hidden flex flex-col lg:flex-row lg:overflow-hidden">
         {/* Today's Appointments Collapsible Left Navigation Sidebar */}
         <aside 
           className={`h-screen bg-white border-r border-slate-200 flex flex-col sticky top-0 z-40 transition-all duration-300 shrink-0 ${
@@ -6490,38 +6804,50 @@ const PatientProfile = () => {
         </aside>
 
         {/* Sidebar */}
-        <aside className={`w-full lg:w-40 bg-white border-r border-slate-200 flex flex-col lg:h-screen sticky top-0 z-40 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
+        <aside className={`w-full lg:w-40 bg-white border-r border-slate-200 flex flex-col shrink-0 lg:h-screen relative lg:sticky lg:top-0 z-40 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
           {/* Sidebar Header: Patient Info */}
           <div className="p-3 border-b border-slate-100 shrink-0 flex lg:flex-col justify-between lg:justify-start items-center lg:items-stretch">
             <div className="flex items-center gap-2 lg:mb-4">
-              <button onClick={handleGoBack} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-transparent hover:border-indigo-100">
-                <ArrowLeft size={14} />
+              <button onClick={handleGoBack} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-transparent hover:border-indigo-100" title="Go Back">
+                <ArrowLeft size={16} />
               </button>
               <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider hidden lg:block">Patient Profile</div>
             </div>
 
-            <div className="flex flex-row lg:flex-col items-center text-left lg:text-center gap-3 lg:gap-0">
+            <div className="flex flex-row lg:flex-col items-center text-left lg:text-center gap-2.5 lg:gap-0">
               <div className="relative lg:mb-2.5">
-                <div className="w-10 h-10 lg:w-14 lg:h-14 rounded-xl bg-slate-50 flex items-center justify-center border-2 border-white shadow-md shadow-slate-200/50">
-                  <User size={20} className="text-slate-400 lg:w-6 lg:h-6" />
+                <div className="w-9 h-9 sm:w-10 sm:h-10 lg:w-14 lg:h-14 rounded-xl bg-slate-50 flex items-center justify-center border-2 border-white shadow-md shadow-slate-200/50">
+                  <User size={18} className="text-slate-400 sm:w-5 sm:h-5 lg:w-6 lg:h-6" />
                 </div>
                 <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 lg:w-3.5 lg:h-3.5 bg-emerald-500 border-2 border-white rounded-full"></div>
               </div>
 
               <div>
-                <h1 className="text-xs lg:text-[14px] font-bold text-slate-900 leading-tight px-1">
+                <h1 className="text-xs sm:text-sm lg:text-[14px] font-bold text-slate-900 leading-tight px-1">
                   {(() => {
                     const fullName = (data.fullName || `${data.firstName || ''} ${data.lastName || ''}`).trim();
                     return fullName.replace(/\b(MR|MS|MRS|DR|SHRI|SMT)\.?\s+\1\.?\b/gi, '$1.');
                   })()}
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5 lg:mt-1 justify-start lg:justify-center">
-                  <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold rounded uppercase tracking-wider">
+                  <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold rounded uppercase tracking-wider">
                     ID: {data.patientId}
+                  </span>
+                  <span className="lg:hidden text-[10px] text-slate-400 font-bold">
+                    {data.gender || ''} {data.age ? `• ${data.age}${data.ageType || 'Y'}` : ''}
                   </span>
                 </div>
               </div>
             </div>
+
+            {/* Mobile Edit Profile Button in Header */}
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="lg:hidden p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl border border-slate-200 transition-colors"
+              title="Edit Profile"
+            >
+              <Edit2 size={14} />
+            </button>
 
             <div className="hidden lg:grid mt-4 grid-cols-2 gap-2">
               <div className="bg-slate-50/50 p-2 rounded-lg border border-slate-100/50">
@@ -6538,7 +6864,7 @@ const PatientProfile = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="flex-row overflow-x-auto lg:overflow-y-auto lg:flex-col flex lg:flex-1 custom-scrollbar w-full">
+          <nav className="flex-row overflow-x-auto no-scrollbar lg:overflow-y-auto lg:flex-col flex lg:flex-1 custom-scrollbar w-full border-b lg:border-b-0 border-slate-100">
             {(() => {
               const tabColors = {
                 personal: {
@@ -6645,8 +6971,8 @@ const PatientProfile = () => {
             })()}
           </nav>
 
-          {/* Sidebar Footer */}
-          <div className="p-4 border-t border-slate-100 bg-slate-50/20 shrink-0">
+          {/* Sidebar Footer (Desktop only) */}
+          <div className="hidden lg:block p-4 border-t border-slate-100 bg-slate-50/20 shrink-0">
             <button
               onClick={() => setShowEditModal(true)}
               className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-bold hover:bg-slate-50 transition-all shadow-sm"
@@ -6658,9 +6984,9 @@ const PatientProfile = () => {
 
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-h-screen max-h-screen overflow-hidden bg-[#f8fafc]">
+        <div className="flex-1 flex flex-col min-h-0 lg:min-h-screen lg:max-h-screen lg:overflow-hidden bg-[#f8fafc]">
           {/* Top Header */}
-          <header className={`h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between shrink-0 z-30 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
+          <header className={`h-16 lg:h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 lg:px-6 flex items-center justify-between shrink-0 z-30 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
             <div className="flex flex-col">
               <h2 className="text-xl font-bold text-slate-900 tracking-tight capitalize">
                 {activeTab === 'progress' ? 'Treatment Gallery' : tabs.find(t => t.key === activeTab)?.name}
@@ -6755,7 +7081,7 @@ const PatientProfile = () => {
           </header>
 
           {/* Tab Content Area */}
-          <main className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          <main className="flex-1 lg:overflow-y-auto p-3.5 sm:p-6 lg:p-8 pb-40 md:pb-32 lg:pb-16 custom-scrollbar">
             {profileLoading ? (
               <div className="flex flex-col items-center justify-center py-32">
                 <Loader2 size={36} className="text-indigo-600 animate-spin" />
@@ -6769,7 +7095,7 @@ const PatientProfile = () => {
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: -20, opacity: 0 }}
                   transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                  className="max-w-[1400px] mx-auto pb-20"
+                  className="max-w-[1400px] mx-auto pb-8 sm:pb-12"
                 >
                   {activeTab === 'personal' && (
                     <TabPersonalInfo 
@@ -7053,9 +7379,14 @@ const PatientProfile = () => {
                 template={selectedInvoiceTemplate || invoiceTemplates.find(t => t.isDefault) || invoiceTemplates[0]}
                 invoiceData={{
                   billId: printingInvoice.invoiceNumber || printingInvoice.billId,
+                  receiptNumber: printingInvoice.receiptNumber || printingInvoice.transactionId,
                   date: printingInvoice.date || printingInvoice.createdAt,
                   patientName: (data.fullName || `${data.firstName || ''} ${data.lastName || ''}`).trim().replace(/\b(MR|MS|MRS|DR|SHRI|SMT)\.?\s+\1\.?\b/gi, '$1.'),
                   patientId: data.patientId,
+                  patientPhone: data.mobile || data.phone || data.contactNumber,
+                  patientAddress: data.address,
+                  gender: data.gender,
+                  age: data.age,
                   doctorName: printingInvoice.doctorName || 'N/A',
                   doctorId: printingInvoice.doctorId,
                   doctorStamp: printingInvoice.doctorStamp,
@@ -7064,10 +7395,14 @@ const PatientProfile = () => {
                     ? printingInvoice.items.map(i => ({ 
                         description: i.description || i.medicineName || i.name || i.procedureName || 'Medicine/Treatment', 
                         price: parseFloat(i.unitPrice || i.price || i.rate || i.cost || 0),
-                        quantity: parseInt(i.qty || i.quantity || 1)
+                        quantity: parseInt(i.qty || i.quantity || 1),
+                        subtotal: i.subtotal,
+                        toothNumber: i.toothNumber,
+                        paymentMode: i.paymentMode || i.paymentMethod,
+                        date: i.date || printingInvoice.date || printingInvoice.createdAt
                       }))
                     : [
-                        { description: printingInvoice.billType === 'Pharmacy' ? 'Medicines Charges' : 'Consultation Fee', price: totals.grossAmount, quantity: 1 }
+                        { description: printingInvoice.billType === 'Pharmacy' ? 'Medicines Charges' : 'Consultation Fee', price: totals.grossAmount, quantity: 1, date: printingInvoice.date || printingInvoice.createdAt }
                       ],
                   subtotal: totals.grossAmount,
                   discount: totals.discountAmount,
@@ -7131,6 +7466,11 @@ const PatientProfile = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Mobile Bottom Navigation for Admin View (Receptionist has it in ReceptionistDashboard) */}
+      {!location.pathname.startsWith('/receptionist') && (
+        <MobileAppNavigation />
       )}
     </>
   );
@@ -7238,6 +7578,11 @@ const PrintableInvoice = ({ bill, patient, orgDetails, user }) => {
                 <td className="py-4 px-4 font-bold text-slate-800">
                   {item.description || item.procedureName || 'Dental Procedure'}
                   {item.toothNumber ? <span className="text-xs text-indigo-600 ml-2 font-semibold font-mono">(Tooth #{item.toothNumber})</span> : null}
+                  {(item.paymentMode || item.paymentMethod) && (
+                    <span className="text-[10px] ml-2 px-2 py-0.5 font-bold rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {item.paymentMode || item.paymentMethod}
+                    </span>
+                  )}
                 </td>
                 <td className="py-4 px-4 text-center text-slate-600 font-medium">{item.qty || item.quantity || 1}</td>
                 <td className="py-4 px-4 text-right text-slate-600 font-medium">₹{(item.unitPrice || item.price || item.rate || 0).toFixed(2)}</td>
@@ -7488,7 +7833,6 @@ const PrintableStatement = ({ bills, patient, clinicInfo }) => {
           </div>
         </div>
       </div>
-      <MobileAppNavigation />
     </div>
   );
 };

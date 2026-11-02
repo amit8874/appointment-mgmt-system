@@ -12,7 +12,7 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
   const clinicInfo = user?.organization || user?.organizationId || {};
 
   const [items, setItems] = useState([
-    { description: '', qty: 1, price: 0, discount: 0, subtotal: 0 }
+    { description: '', toothNumber: '', qty: 1, price: 0, discount: 0, subtotal: 0, paymentMode: 'UPI', status: 'Paid', paidAmount: 0, dueAmount: 0 }
   ]);
   const [customProcedures, setCustomProcedures] = useState([]);
 
@@ -71,22 +71,78 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
   const handleItemChange = (index, field, value) => {
     setItems(prev => {
       const updated = [...prev];
-      updated[index][field] = value;
+      const cur = { ...updated[index] };
 
-      // Calculate item subtotal with percentage discount
-      const qty = parseFloat(updated[index].qty) || 0;
-      const price = parseFloat(updated[index].price) || 0;
-      const discountPercent = parseFloat(updated[index].discount) || 0;
-      const basePrice = qty * price;
-      const discountAmount = (basePrice * discountPercent) / 100;
-      updated[index].subtotal = Math.max(0, parseFloat((basePrice - discountAmount).toFixed(2)));
+      if (field === 'status') {
+        cur.status = value;
+        const sub = cur.subtotal || 0;
+        if (value === 'Paid') {
+          cur.paidAmount = sub;
+          cur.dueAmount = 0;
+        } else if (value === 'Pending') {
+          cur.paidAmount = 0;
+          cur.dueAmount = sub;
+        } else if (value === 'Partial') {
+          if (cur.paidAmount <= 0 || cur.paidAmount >= sub) {
+            cur.paidAmount = Math.round((sub / 2) * 100) / 100;
+          }
+          cur.dueAmount = Math.max(0, Math.round((sub - cur.paidAmount) * 100) / 100);
+        }
+      } else if (field === 'paidAmount') {
+        const sub = cur.subtotal || 0;
+        const val = value === '' ? 0 : parseFloat(value);
+        const p = Math.min(sub, Math.max(0, isNaN(val) ? 0 : val));
+        cur.paidAmount = p;
+        cur.dueAmount = Math.max(0, Math.round((sub - p) * 100) / 100);
+        cur.status = cur.dueAmount === 0 ? 'Paid' : (p > 0 ? 'Partial' : 'Pending');
+      } else if (field === 'dueAmount') {
+        const sub = cur.subtotal || 0;
+        const val = value === '' ? 0 : parseFloat(value);
+        const d = Math.min(sub, Math.max(0, isNaN(val) ? 0 : val));
+        cur.dueAmount = d;
+        cur.paidAmount = Math.max(0, Math.round((sub - d) * 100) / 100);
+        cur.status = d === 0 ? 'Paid' : (cur.paidAmount > 0 ? 'Partial' : 'Pending');
+      } else {
+        cur[field] = value;
+        // Calculate item subtotal
+        const qty = parseFloat(field === 'qty' ? value : cur.qty) || 0;
+        const price = parseFloat(field === 'price' ? value : cur.price) || 0;
+        const discountPercent = parseFloat(field === 'discount' ? value : cur.discount) || 0;
+        const basePrice = qty * price;
+        const discountAmount = (basePrice * discountPercent) / 100;
+        const sub = Math.max(0, parseFloat((basePrice - discountAmount).toFixed(2)));
+        cur.subtotal = sub;
 
+        if (cur.status === 'Paid') {
+          cur.paidAmount = sub;
+          cur.dueAmount = 0;
+        } else if (cur.status === 'Pending') {
+          cur.paidAmount = 0;
+          cur.dueAmount = sub;
+        } else {
+          cur.paidAmount = Math.min(sub, cur.paidAmount || 0);
+          cur.dueAmount = Math.max(0, Math.round((sub - cur.paidAmount) * 100) / 100);
+        }
+      }
+
+      updated[index] = cur;
       return updated;
     });
   };
 
   const handleAddItem = () => {
-    setItems(prev => [...prev, { description: '', qty: 1, price: 0, discount: 0, subtotal: 0 }]);
+    setItems(prev => [...prev, { 
+      description: '', 
+      toothNumber: '', 
+      qty: 1, 
+      price: 0, 
+      discount: 0, 
+      subtotal: 0, 
+      paymentMode: paymentMode || 'UPI',
+      status: 'Paid',
+      paidAmount: 0,
+      dueAmount: 0
+    }]);
   };
 
   const handleRemoveItem = (index) => {
@@ -157,11 +213,11 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
     return Math.max(0, parseFloat((payable - paid).toFixed(2)));
   };
 
-  // Keep paid amount in sync with total unless edited
-  const netPayable = calculateNetPayable();
+  // Sync total paid amount and due from itemized treatment payments
   useEffect(() => {
-    setAmountPaid(netPayable.toString());
-  }, [netPayable]);
+    const totalItemPaid = items.reduce((sum, it) => sum + (parseFloat(it.paidAmount) || 0), 0);
+    setAmountPaid(totalItemPaid.toString());
+  }, [items]);
 
   const handleSubmit = async (action) => {
     setError('');
@@ -223,24 +279,49 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
       appointmentDate: relevantAppt.date || null,
       appointmentTime: relevantAppt.time || null,
       notes: notes.trim(),
-      paymentMethod: paymentMode,
+      paymentMethod: (() => {
+        const uniqueModes = [...new Set(items.map(it => it.paymentMode || paymentMode).filter(Boolean))];
+        return uniqueModes.length > 1 ? 'Multiple' : (uniqueModes[0] || paymentMode || 'UPI');
+      })(),
       transactionId: transactionId.trim() || null,
       billType: 'Dental',
       status,
-      installments: paid > 0 ? [{
-        date: billDate ? new Date(billDate) : new Date(),
-        amount: paid,
-        paymentMethod: paymentMode,
-        transactionId: transactionId.trim() || '',
-        notes: 'Initial payment / Installment'
-      }] : [],
+      installments: (() => {
+        const instList = [];
+        const baseRcpt = `RCPT-${String(Date.now()).slice(-4)}`;
+        items.forEach((it, idx) => {
+          const itPaid = parseFloat(it.paidAmount) || 0;
+          if (itPaid > 0) {
+            instList.push({
+              date: billDate ? new Date(billDate) : new Date(),
+              amount: itPaid,
+              paymentMethod: it.paymentMode || paymentMode || 'UPI',
+              procedureName: it.description || 'Procedure',
+              transactionId: transactionId.trim() || '',
+              receiptNumber: items.length > 1 ? `${baseRcpt}-${idx + 1}` : baseRcpt,
+              notes: it.dueAmount === 0 
+                ? `Full payment for ${it.description || 'Procedure'}` 
+                : `Part payment for ${it.description || 'Procedure'} (Pending: ₹${it.dueAmount})`
+            });
+          }
+        });
+        return instList;
+      })(),
       items: items.map(item => {
         const qtyVal = parseInt(item.qty) || 1;
         const priceVal = parseFloat(item.price) || 0;
         const discountPct = parseFloat(item.discount) || 0;
         const discountRupees = parseFloat(((qtyVal * priceVal * discountPct) / 100).toFixed(2));
+        const itemPaymentMode = item.paymentMode || paymentMode || 'UPI';
+        const itemPaid = parseFloat(item.paidAmount) || 0;
+        const itemDue = Math.max(0, Math.round(((item.subtotal || 0) - itemPaid) * 100) / 100);
+        const itemStatus = item.status || (itemDue === 0 ? 'Paid' : (itemPaid > 0 ? 'Partial' : 'Pending'));
         return {
           description: item.description,
+          procedureName: item.description,
+          toothNumber: item.toothNumber || '',
+          paymentMode: itemPaymentMode,
+          paymentMethod: itemPaymentMode,
           qty: qtyVal,
           quantity: qtyVal,
           unitPrice: priceVal,
@@ -250,7 +331,10 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
           discount: discountRupees,
           discountAmount: discountRupees,
           subtotal: item.subtotal,
-          total: item.subtotal
+          total: item.subtotal,
+          status: itemStatus,
+          paidAmount: itemPaid,
+          dueAmount: itemDue
         };
       })
     };
@@ -441,8 +525,8 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
                     />
                   </div>
 
-                  {/* BOTTOM ROW: Financials (Qty, Price, Discount, Subtotal) */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200/80 items-end">
+                  {/* FINANCIALS & PER-TREATMENT PAYMENT DETAILS */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2.5 pt-2 border-t border-slate-200/80 items-end">
                     {/* Quantity */}
                     <div>
                       <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1 block">Qty</label>
@@ -466,19 +550,14 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
                         value={item.price || ''}
                         placeholder="0"
                         onChange={(e) => handleItemChange(idx, 'price', parseFloat(e.target.value) || 0)}
-                        className="border border-slate-300 focus:border-indigo-600 rounded-xl px-3.5 py-2 text-xs font-black text-slate-900 outline-none bg-white w-full placeholder:text-slate-400 shadow-2xs"
+                        className="border border-slate-300 focus:border-indigo-600 rounded-xl px-3.5 py-2 text-xs font-black text-slate-900 outline-none bg-white w-full placeholder:text-slate-400 shadow-2xs text-right"
                       />
                     </div>
 
                     {/* Discount (%) */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Discount (%)</label>
-                        {item.discount > 0 && item.price > 0 && (
-                          <span className="text-[9px] font-bold text-emerald-600">
-                            -₹{(((parseFloat(item.qty) || 1) * (parseFloat(item.price) || 0) * (parseFloat(item.discount) || 0)) / 100).toFixed(0)}
-                          </span>
-                        )}
+                        <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Disc (%)</label>
                       </div>
                       <div className="relative">
                         <input
@@ -491,20 +570,81 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
                             const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                             handleItemChange(idx, 'discount', Math.min(100, Math.max(0, isNaN(val) ? 0 : val)));
                           }}
-                          className="border border-slate-300 focus:border-indigo-600 rounded-xl px-3.5 py-2 pr-7 text-xs font-black text-slate-900 outline-none bg-white w-full placeholder:text-slate-400 shadow-2xs"
+                          className="border border-slate-300 focus:border-indigo-600 rounded-xl px-2.5 py-2 pr-6 text-xs font-black text-slate-900 outline-none bg-white w-full placeholder:text-slate-400 shadow-2xs text-right"
                         />
-                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">
-                          %
-                        </span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 pointer-events-none">%</span>
                       </div>
                     </div>
 
                     {/* Subtotal */}
                     <div>
-                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1 block text-right">Subtotal</label>
-                      <div className="px-3.5 py-2 bg-indigo-50/80 text-xs font-black text-indigo-950 border border-indigo-100 rounded-xl text-right shadow-2xs">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1 block text-right">Total (₹)</label>
+                      <div className="px-2.5 py-2 bg-indigo-50/80 text-xs font-black text-indigo-950 border border-indigo-100 rounded-xl text-right shadow-2xs">
                         ₹{item.subtotal}
                       </div>
+                    </div>
+
+                    {/* Procedure Payment Mode */}
+                    <div>
+                      <label className="text-[9px] font-black text-indigo-700 uppercase tracking-wider mb-1 block">Mode</label>
+                      <select
+                        value={item.paymentMode || paymentMode || 'UPI'}
+                        onChange={(e) => handleItemChange(idx, 'paymentMode', e.target.value)}
+                        className="border border-indigo-200 hover:border-indigo-500 focus:border-indigo-600 rounded-xl px-2 py-2 text-xs font-black text-indigo-950 outline-none bg-indigo-50/60 w-full shadow-2xs cursor-pointer"
+                        title="Payment mode for this procedure"
+                      >
+                        <option value="UPI">UPI</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Card">Card</option>
+                        <option value="Bank Transfer">Bank</option>
+                        <option value="Insurance">Insurance</option>
+                      </select>
+                    </div>
+
+                    {/* Treatment Payment Status */}
+                    <div>
+                      <label className="text-[9px] font-black text-indigo-700 uppercase tracking-wider mb-1 block">Status</label>
+                      <select
+                        value={item.status || (item.dueAmount === 0 ? 'Paid' : (item.paidAmount > 0 ? 'Partial' : 'Pending'))}
+                        onChange={(e) => handleItemChange(idx, 'status', e.target.value)}
+                        className={`border rounded-xl px-2 py-2 text-xs font-black outline-none w-full shadow-2xs cursor-pointer ${
+                          (item.status === 'Paid' || item.dueAmount === 0)
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : (item.status === 'Partial' || item.paidAmount > 0 ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-rose-50 text-rose-800 border-rose-300')
+                        }`}
+                      >
+                        <option value="Paid">Paid</option>
+                        <option value="Partial">Partial</option>
+                        <option value="Pending">Pending</option>
+                      </select>
+                    </div>
+
+                    {/* Paid / Advance for this treatment */}
+                    <div>
+                      <label className="text-[9px] font-black text-emerald-700 uppercase tracking-wider mb-1 block">Paid (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={item.subtotal || 0}
+                        value={item.paidAmount !== undefined ? item.paidAmount : (item.status === 'Pending' ? 0 : item.subtotal)}
+                        onChange={(e) => handleItemChange(idx, 'paidAmount', e.target.value)}
+                        className="border border-emerald-300 focus:border-emerald-600 rounded-xl px-2.5 py-2 text-xs font-black text-emerald-800 outline-none bg-white w-full text-right shadow-2xs"
+                        title="Amount paid for this treatment"
+                      />
+                    </div>
+
+                    {/* Pending Due for this treatment */}
+                    <div>
+                      <label className="text-[9px] font-black text-rose-700 uppercase tracking-wider mb-1 block">Pending (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={item.subtotal || 0}
+                        value={item.dueAmount !== undefined ? item.dueAmount : 0}
+                        onChange={(e) => handleItemChange(idx, 'dueAmount', e.target.value)}
+                        className="border border-rose-300 focus:border-rose-600 rounded-xl px-2.5 py-2 text-xs font-black text-rose-800 outline-none bg-white w-full text-right shadow-2xs"
+                        title="Amount pending for this treatment"
+                      />
                     </div>
                   </div>
                 </div>
@@ -574,21 +714,34 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
                 </div>
 
                 {/* Payment method */}
-                <div className="grid grid-cols-3 gap-2.5">
-                  {['UPI', 'Cash', 'Card'].map(mode => (
-                    <button
-                      type="button"
-                      key={mode}
-                      onClick={() => setPaymentMode(mode)}
-                      className={`py-2 px-3 border-2 rounded-xl text-xs font-black tracking-wide uppercase transition-all ${
-                        paymentMode === mode
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-black shadow-inner'
-                          : 'border-slate-300 bg-white text-slate-800 font-bold hover:border-slate-450'
-                      }`}
-                    >
-                      {mode}
-                    </button>
-                  ))}
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-[9px] font-bold text-black uppercase tracking-widest block">Primary Payment Method</label>
+                    {items.some(i => i.paymentMode && i.paymentMode !== paymentMode) && (
+                      <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                        Mixed / Per-Procedure Selected
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                    {['UPI', 'Cash', 'Card', 'Bank Transfer', 'Insurance'].map(mode => (
+                      <button
+                        type="button"
+                        key={mode}
+                        onClick={() => {
+                          setPaymentMode(mode);
+                          setItems(prev => prev.map(it => ({ ...it, paymentMode: mode })));
+                        }}
+                        className={`py-2 px-1 border-2 rounded-xl text-[11px] font-black tracking-tight uppercase transition-all text-center ${
+                          paymentMode === mode
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-black shadow-inner'
+                            : 'border-slate-300 bg-white text-slate-800 font-bold hover:border-slate-450'
+                        }`}
+                      >
+                        {mode === 'Bank Transfer' ? 'Bank' : mode}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Transaction ID */}
@@ -716,15 +869,26 @@ const DentalBillingCreatorModal = ({ patientId, patientData = {}, appointments =
             clinicInfo={clinicInfo}
             invoiceData={{
               billId: generatedBill.billId || generatedBill.id,
+              receiptNumber: generatedBill.receiptNumber || generatedBill.transactionId,
               date: generatedBill.date || new Date().toISOString(),
               patientName: generatedBill.patientName,
               patientId: generatedBill.patientId || 'N/A',
+              patientPhone: generatedBill.patientPhone || patient?.mobile || patient?.phone,
+              patientAddress: generatedBill.patientAddress || patient?.address,
+              gender: patient?.gender,
+              age: patient?.age,
               doctorName: generatedBill.doctorName || 'N/A',
+              doctorId: generatedBill.doctorId,
+              doctorStamp: generatedBill.doctorStamp,
+              doctorSignature: generatedBill.doctorSignature,
               items: (generatedBill.items || []).map(item => ({
-                description: item.description,
+                description: item.description || item.procedureName,
                 quantity: item.quantity || item.qty || 1,
                 price: item.unitPrice || item.price || item.cost || 0,
-                subtotal: item.subtotal
+                subtotal: item.subtotal,
+                toothNumber: item.toothNumber,
+                paymentMode: item.paymentMode || item.paymentMethod,
+                date: item.date || generatedBill.date
               })),
               subtotal: generatedBill.grossAmount || generatedBill.subtotal || generatedBill.amount,
               discount: generatedBill.discount || generatedBill.discountAmount || 0,
