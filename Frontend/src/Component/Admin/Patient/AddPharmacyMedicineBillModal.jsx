@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Download, Printer, Phone, Loader2, Search } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../../context/AuthContext';
-import { billingApi, centralDoctorApi, medicineApi } from '../../../services/api';
+import api, { billingApi, centralDoctorApi, medicineApi } from '../../../services/api';
 
 const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onComplete, onPrint, onDownload, onWhatsApp }) => {
   const { user } = useAuth();
@@ -76,7 +76,7 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
     fetchDoctors();
   }, [isOpen, patientData.assignedDoctorId]);
 
-  // Debounced medicine autocomplete search
+  // Debounced medicine autocomplete search querying internal pharmacy inventory first
   useEffect(() => {
     if (medicineQuery.trim().length < 1) {
       setMedicineSuggestions([]);
@@ -84,8 +84,31 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
     }
     const timer = setTimeout(async () => {
       try {
-        const results = await medicineApi.search(medicineQuery);
-        setMedicineSuggestions(results);
+        const invRes = await api.get(`/internal-pharmacy/inventory?search=${encodeURIComponent(medicineQuery.trim())}`);
+        const invData = Array.isArray(invRes.data) ? invRes.data : [];
+        if (invData.length > 0) {
+          setMedicineSuggestions(invData.map(med => ({
+            _id: med._id,
+            name: med.name,
+            genericName: med.genericName,
+            manufacturer: med.manufacturer,
+            type: med.type,
+            sellingPrice: Number(med.sellingPrice || med.mrp || 0),
+            mrp: Number(med.mrp || 0),
+            totalStock: Number(med.totalStock || 0),
+            stockStatus: med.stockStatus,
+            source: 'pharmacy'
+          })));
+        } else {
+          const results = await medicineApi.search(medicineQuery);
+          setMedicineSuggestions((results || []).map(r => ({
+            _id: r._id,
+            name: typeof r === 'string' ? r : r.name,
+            sellingPrice: 0,
+            totalStock: 0,
+            source: 'global'
+          })));
+        }
       } catch {
         setMedicineSuggestions([]);
       }
@@ -121,8 +144,29 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
     setItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSelectMedicine = (index, medicineName) => {
-    handleItemChange(index, 'description', medicineName);
+  const handleSelectMedicine = (index, med) => {
+    const medName = typeof med === 'string' ? med : (med.name || '');
+    const unitPrice = typeof med === 'object' && med.sellingPrice !== undefined ? Number(med.sellingPrice) : 0;
+    const stock = typeof med === 'object' && med.totalStock !== undefined ? Number(med.totalStock) : null;
+    const medId = typeof med === 'object' ? med._id : null;
+
+    setItems(prev => {
+      const updated = [...prev];
+      const currentQty = parseFloat(updated[index].qty) || 1;
+      const calcSubtotal = parseFloat((currentQty * unitPrice).toFixed(2));
+      updated[index] = {
+        ...updated[index],
+        medicineId: medId,
+        description: medName,
+        price: unitPrice,
+        qty: currentQty,
+        subtotal: calcSubtotal,
+        availableStock: stock,
+        stockStatus: med.stockStatus || (stock > 0 ? 'In Stock' : 'Out of Stock')
+      };
+      return updated;
+    });
+
     setActiveMedicineRow(-1);
     setMedicineSuggestions([]);
     setMedicineQuery('');
@@ -185,10 +229,12 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
         doctorName: doctorName,
         amount: calculateNetPayable(),
         items: validItems.map(i => ({
+          medicineId: i.medicineId || null,
           description: i.description.trim(),
           qty: parseInt(i.qty),
           unitPrice: parseFloat(i.price),
           cost: parseFloat(i.price),
+          price: parseFloat(i.price),
           subtotal: parseFloat(i.subtotal),
           discountPercentage: discPercent,
           gstPercentage: gstPercent,
@@ -358,21 +404,46 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
                       />
                       {/* Suggestions list */}
                       {activeMedicineRow === index && medicineSuggestions.length > 0 && (
-                        <div className="absolute z-[100] w-full mt-1 bg-white rounded-xl shadow-2xl border border-indigo-100 overflow-hidden max-h-48 overflow-y-auto">
-                          <div className="px-3 py-1 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
-                            <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Global Medicines Database</span>
+                        <div className="absolute z-[100] w-full mt-1 bg-white rounded-xl shadow-2xl border border-indigo-100 overflow-hidden max-h-56 overflow-y-auto">
+                          <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                            <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">Pharmacy Inventory</span>
                             <Search size={10} className="text-indigo-400" />
                           </div>
-                          {medicineSuggestions.map((med) => (
+                          {medicineSuggestions.map((med, sIdx) => (
                             <div
-                              key={med._id}
-                              onMouseDown={() => handleSelectMedicine(index, med.name)}
-                              className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-50 last:border-0 flex items-center justify-between group"
+                              key={med._id || sIdx}
+                              onMouseDown={() => handleSelectMedicine(index, med)}
+                              className="px-4 py-2 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-50 last:border-0 flex items-center justify-between group"
                             >
-                              <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-600">{med.name}</span>
-                              <span className="text-[8px] text-slate-300 font-medium">used {med.usageCount}×</span>
+                              <div>
+                                <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-600">{med.name}</p>
+                                <p className="text-[9px] text-slate-400 font-medium">
+                                  {med.type || 'Medicine'} {med.genericName ? `• ${med.genericName}` : ''}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                {med.sellingPrice !== undefined && (
+                                  <p className="text-xs font-black text-indigo-600">₹{med.sellingPrice}</p>
+                                )}
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${med.totalStock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                                  {med.totalStock > 0 ? `${med.totalStock} in stock` : 'Out of Stock'}
+                                </span>
+                              </div>
                             </div>
                           ))}
+                        </div>
+                      )}
+                      {item.availableStock !== undefined && item.availableStock !== null && (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          {item.qty > item.availableStock ? (
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">
+                              ⚠️ Only {item.availableStock} in stock (Deficit: {item.qty - item.availableStock})
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                              ✓ {item.availableStock} in stock • {item.availableStock - item.qty} left after bill
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>

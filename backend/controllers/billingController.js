@@ -2,6 +2,9 @@ import mongoose from 'mongoose';
 import Billing from '../models/Billing.js';
 import Counter from '../models/Counter.js';
 import Product from '../models/Product.js';
+import Medicine from '../models/Medicine.js';
+import MedicineBatch from '../models/MedicineBatch.js';
+import StockTransaction from '../models/StockTransaction.js';
 import PendingAppointment from '../models/PendingAppointment.js';
 import ConfirmedAppointment from '../models/ConfirmedAppointment.js';
 import CancelledAppointment from '../models/CancelledAppointment.js';
@@ -470,13 +473,70 @@ export const createBill = async (req, res) => {
       await bill.save();
     }
 
-    // Auto-save medicine names to global DB for Pharmacy bills
+    // Auto-save medicine names and deduct stock from Internal Pharmacy batches for Pharmacy bills
     if ((billType || 'General') === 'Pharmacy' && Array.isArray(items) && items.length > 0) {
       const medicineNames = items
         .map(i => i.description || '')
         .filter(n => n.trim().length >= 2);
       // Non-blocking — runs in background, won't break billing
       saveMedicineNames(medicineNames);
+
+      try {
+        for (const item of items) {
+          const qtyNeeded = parseInt(item.qty || item.quantity || 1);
+          if (qtyNeeded <= 0) continue;
+
+          let medicine = null;
+          if (item.medicineId && mongoose.Types.ObjectId.isValid(item.medicineId)) {
+            medicine = await Medicine.findOne({
+              _id: item.medicineId,
+              organizationId: req.tenantId
+            });
+          }
+          if (!medicine && item.description) {
+            const trimmedName = item.description.trim();
+            medicine = await Medicine.findOne({
+              organizationId: req.tenantId,
+              name: { $regex: new RegExp(`^${trimmedName.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
+            });
+          }
+
+          if (medicine) {
+            // Deduct stock using FEFO (First-Expiry-First-Out) from active batches with stock
+            const batches = await MedicineBatch.find({
+              organizationId: req.tenantId,
+              medicineId: medicine._id,
+              status: 'Active',
+              stockQuantity: { $gt: 0 }
+            }).sort({ expiryDate: 1 });
+
+            let remainingQty = qtyNeeded;
+            for (const batch of batches) {
+              if (remainingQty <= 0) break;
+              const deduct = Math.min(batch.stockQuantity, remainingQty);
+              batch.stockQuantity -= deduct;
+              remainingQty -= deduct;
+
+              if (batch.stockQuantity === 0 && new Date(batch.expiryDate) < new Date()) {
+                batch.status = 'Expired';
+              }
+              await batch.save();
+
+              await StockTransaction.create({
+                organizationId: req.tenantId,
+                medicineId: medicine._id,
+                batchId: batch._id,
+                transactionType: 'Pharmacy Bill Dispense',
+                quantity: -deduct,
+                referenceId: bill._id ? bill._id.toString() : (bill.billId || 'Pharmacy Bill'),
+                date: new Date()
+              });
+            }
+          }
+        }
+      } catch (stockErr) {
+        console.error('Error deducting pharmacy stock on bill creation:', stockErr);
+      }
     }
 
     // Auto-save custom procedure prices to DentalProcedureMaster for Dental bills
@@ -1162,11 +1222,32 @@ export const generatePatientStatement = async (req, res) => {
     if (!bills.length) return res.status(404).json({ message: 'No bills found for this patient.' });
     if (!patient) return res.status(404).json({ message: 'Patient not found.' });
 
+    // Determine template for the bills
+    const billType = bills[0]?.billType || 'General';
+    let template = null;
+    const targetTemplateId = req.body.templateId;
+    if (targetTemplateId && mongoose.Types.ObjectId.isValid(targetTemplateId)) {
+      template = await InvoiceTemplate.findOne({ _id: targetTemplateId, organizationId: req.tenantId });
+    }
+    if (!template) {
+      if (billType === 'Pharmacy') {
+        template = await InvoiceTemplate.findOne({ organizationId: req.tenantId, layoutType: 'pharmacy', isDefault: true }) || 
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId, layoutType: 'pharmacy' }) ||
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId, isDefault: true }) ||
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId });
+      } else {
+        template = await InvoiceTemplate.findOne({ organizationId: req.tenantId, layoutType: { $ne: 'pharmacy' }, isDefault: true }) || 
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId, layoutType: { $ne: 'pharmacy' } }) ||
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId, isDefault: true }) ||
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId });
+      }
+    }
+
     const { generateBillingStatementPDF } = await import('../services/pdfService.js');
-    const pdfBuffer = await generateBillingStatementPDF(bills, patient, org);
+    const pdfBuffer = await generateBillingStatementPDF(bills, patient, org, template);
 
     const cleanPatientName = (patient.fullName || patient.patientId).replace(/\b(MR|MS|MRS|DR|SHRI|SMT)\.?\s+\1\.?\b/gi, '$1.').replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = `Statement-${cleanPatientName}-${Date.now()}.pdf`;
+    const fileName = `Invoices-${cleanPatientName}-${Date.now()}.pdf`;
     const s3Key = `organizations/${req.tenantId}/patients/${patientId}/billing-statements/${fileName}`;
 
     const s3Result = await uploadToS3({
@@ -1177,7 +1258,13 @@ export const generatePatientStatement = async (req, res) => {
       customKey: s3Key
     });
 
-    const signedUrl = await getSignedDownloadUrl({ key: s3Key, expiresInSeconds: 3600 });
+    const isInline = req.body.disposition === 'inline' || req.body.action === 'print';
+    const contentDisposition = isInline ? `inline; filename="${fileName}"` : `attachment; filename="${fileName}"`;
+    const signedUrl = await getSignedDownloadUrl({
+      key: s3Key,
+      expiresInSeconds: 3600,
+      responseContentDisposition: contentDisposition
+    });
 
     res.json({
       success: true,
@@ -1217,8 +1304,29 @@ export const sendWhatsAppStatement = async (req, res) => {
 
     if (!bills.length || !patient) return res.status(404).json({ message: 'Missing data for statement.' });
 
+    // Determine template for the bills
+    const billType = bills[0]?.billType || 'General';
+    let template = null;
+    const targetTemplateId = req.body.templateId;
+    if (targetTemplateId && mongoose.Types.ObjectId.isValid(targetTemplateId)) {
+      template = await InvoiceTemplate.findOne({ _id: targetTemplateId, organizationId: req.tenantId });
+    }
+    if (!template) {
+      if (billType === 'Pharmacy') {
+        template = await InvoiceTemplate.findOne({ organizationId: req.tenantId, layoutType: 'pharmacy', isDefault: true }) || 
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId, layoutType: 'pharmacy' }) ||
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId, isDefault: true }) ||
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId });
+      } else {
+        template = await InvoiceTemplate.findOne({ organizationId: req.tenantId, layoutType: { $ne: 'pharmacy' }, isDefault: true }) || 
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId, layoutType: { $ne: 'pharmacy' } }) ||
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId, isDefault: true }) ||
+                   await InvoiceTemplate.findOne({ organizationId: req.tenantId });
+      }
+    }
+
     const { generateBillingStatementPDF } = await import('../services/pdfService.js');
-    const pdfBuffer = await generateBillingStatementPDF(bills, patient, org);
+    const pdfBuffer = await generateBillingStatementPDF(bills, patient, org, template);
 
     const fileName = `Statement-${patient.fullName || patient.patientId}.pdf`;
     const s3Key = `organizations/${req.tenantId}/patients/${patientId}/billing-statements/${fileName}-${Date.now()}.pdf`;

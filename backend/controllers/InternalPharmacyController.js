@@ -62,12 +62,13 @@ export const getPharmacyDashboard = async (req, res) => {
 
     const batchStockMap = {}; // medicineId -> totalStock
     batches.forEach(batch => {
+      const hasStock = (batch.stockQuantity || 0) > 0;
       const isExpired = batch.expiryDate < new Date();
       const isExpiringSoon = !isExpired && batch.expiryDate < ninetyDaysFromNow;
       
-      if (isExpired) {
+      if (isExpired && hasStock) {
         expiredCount++;
-      } else if (isExpiringSoon) {
+      } else if (isExpiringSoon && hasStock) {
         expiringSoonCount++;
       }
 
@@ -101,8 +102,8 @@ export const getPharmacyDashboard = async (req, res) => {
       },
       lowStockMedicines: lowStockItems,
       outOfStockMedicines: outOfStockItems,
-      expiredMedicines: batches.filter(b => b.expiryDate < new Date()),
-      expiringSoonMedicines: batches.filter(b => b.expiryDate > new Date() && b.expiryDate < ninetyDaysFromNow),
+      expiredMedicines: batches.filter(b => b.expiryDate < new Date() && (b.stockQuantity || 0) > 0),
+      expiringSoonMedicines: batches.filter(b => b.expiryDate > new Date() && b.expiryDate < ninetyDaysFromNow && (b.stockQuantity || 0) > 0),
       recentPurchases,
       recentPharmacyBills: recentBills
     });
@@ -207,33 +208,63 @@ export const getFullInventory = async (req, res) => {
     const batches = await MedicineBatch.find({ organizationId: orgFilter, medicineId: { $in: medIds } }).lean();
     console.log(`Found ${batches.length} batches for those medicines`);
 
+    const now = new Date();
     const result = medicines.map(med => {
       const medBatches = batches.filter(b => b.medicineId.toString() === med._id.toString());
-      // User requirement: Inventory total stock from non-expired active batches
-      const sellableBatches = medBatches.filter(b => b.status === 'Active' && b.expiryDate > new Date());
-      const totalStock = sellableBatches.reduce((acc, b) => acc + b.stockQuantity, 0);
+      
+      // Sort batches by expiryDate ascending (FEFO)
+      const sortedBatches = [...medBatches].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+
+      // Sellable batches: active, non-expired, and stock > 0
+      const sellableBatches = sortedBatches.filter(b => b.status === 'Active' && new Date(b.expiryDate) > now && (b.stockQuantity || 0) > 0);
+      const totalStock = sellableBatches.reduce((acc, b) => acc + (b.stockQuantity || 0), 0);
       
       let status = 'In Stock';
       if (totalStock === 0) status = 'Out of Stock';
-      else if (totalStock <= med.minimumStockAlert) status = 'Low Stock';
+      else if (totalStock <= (med.minimumStockAlert || 10)) status = 'Low Stock';
+
+      // Batches that currently have stock remaining
+      const batchesWithStock = sortedBatches.filter(b => (b.stockQuantity || 0) > 0);
 
       let expiryStatusText = 'Valid';
-      if (medBatches.some(b => b.expiryDate < new Date())) expiryStatusText = 'Expired';
-      else if (medBatches.some(b => {
-        const soon = new Date();
-        soon.setDate(soon.getDate() + 90);
-        return b.expiryDate < soon;
-      })) expiryStatusText = 'Expiring Soon';
+      if (batchesWithStock.length > 0) {
+        // If all batches that currently have stock are expired
+        if (batchesWithStock.every(b => new Date(b.expiryDate) <= now)) {
+          expiryStatusText = 'Expired';
+        } else if (batchesWithStock.some(b => {
+          const soon = new Date();
+          soon.setDate(soon.getDate() + 90);
+          return new Date(b.expiryDate) > now && new Date(b.expiryDate) <= soon;
+        })) {
+          expiryStatusText = 'Expiring Soon';
+        } else {
+          expiryStatusText = 'Valid';
+        }
+      } else if (sortedBatches.length > 0) {
+        // If no stock left, look at latest batch's expiry
+        const latestBatch = [...sortedBatches].sort((a, b) => new Date(b.expiryDate) - new Date(a.expiryDate))[0];
+        if (latestBatch && new Date(latestBatch.expiryDate) <= now) {
+          expiryStatusText = 'Expired';
+        } else {
+          expiryStatusText = 'Valid';
+        }
+      }
+
+      // Best batch for display info (sellingPrice, mrp, expiryDate)
+      const displayBatch = sellableBatches[0] || sortedBatches[sortedBatches.length - 1] || null;
 
       return {
         ...med,
         totalStock,
         batchCount: medBatches.length,
-        mrp: medBatches[0]?.mrp || 0,
-        purchasePrice: medBatches[0]?.purchasePrice || 0,
-        sellingPrice: medBatches[0]?.sellingPrice || 0,
+        mrp: displayBatch?.mrp || 0,
+        purchasePrice: displayBatch?.purchasePrice || 0,
+        sellingPrice: displayBatch?.sellingPrice || 0,
+        batchNo: displayBatch?.batchNo || '',
+        expiryDate: displayBatch?.expiryDate ? new Date(displayBatch.expiryDate).toISOString().split('T')[0] : '',
         stockStatus: status,
-        expiryStatus: expiryStatusText
+        expiryStatus: expiryStatusText,
+        batches: sortedBatches
       };
     });
 
@@ -351,9 +382,16 @@ export const bulkUploadMedicines = async (req, res) => {
           });
 
           if (batch) {
-            // Update existing batch stock
+            // Update existing batch stock and details
             batch.stockQuantity += Number(openingStock);
             batch.initialStock += Number(openingStock);
+            if (row['Expiry Date']) batch.expiryDate = new Date(row['Expiry Date']);
+            if (row['MRP']) batch.mrp = Number(row['MRP']);
+            if (row['Purchase Price']) batch.purchasePrice = Number(row['Purchase Price']);
+            if (row['Selling Price']) batch.sellingPrice = Number(row['Selling Price']);
+            if (new Date(batch.expiryDate) > new Date() && batch.status === 'Expired') {
+              batch.status = 'Active';
+            }
             await batch.save();
             
             await StockTransaction.create({
@@ -366,17 +404,18 @@ export const bulkUploadMedicines = async (req, res) => {
             });
           } else {
             // Create new batch
+            const expDate = row['Expiry Date'] ? new Date(row['Expiry Date']) : new Date();
             batch = new MedicineBatch({
               organizationId,
               medicineId: med._id,
               batchNo: String(batchNo),
-              expiryDate: row['Expiry Date'] ? new Date(row['Expiry Date']) : new Date(),
+              expiryDate: expDate,
               mrp: row['MRP'] || 0,
               purchasePrice: row['Purchase Price'] || 0,
               sellingPrice: row['Selling Price'] || 0,
               stockQuantity: Number(openingStock),
               initialStock: Number(openingStock),
-              status: 'Active'
+              status: expDate > new Date() ? 'Active' : 'Expired'
             });
             await batch.save();
 
@@ -407,27 +446,142 @@ export const addOpeningStock = async (req, res) => {
     const organizationId = req.tenantId;
     const { medicineId, batches } = req.body;
 
-    for (const b of batches) {
-      const newBatch = new MedicineBatch({
-        ...b,
-        organizationId,
-        medicineId,
-        initialStock: b.stockQuantity,
-        status: 'Active'
-      });
-      await newBatch.save();
-
-      await StockTransaction.create({
-        organizationId,
-        medicineId,
-        batchId: newBatch._id,
-        transactionType: 'Opening Stock Added',
-        quantity: b.stockQuantity,
-        date: new Date()
-      });
+    if (!medicineId) {
+      return res.status(400).json({ message: 'Medicine ID is required' });
+    }
+    if (!Array.isArray(batches) || batches.length === 0) {
+      return res.status(400).json({ message: 'At least one batch is required' });
     }
 
-    res.json({ message: 'Opening stock added successfully' });
+    for (const b of batches) {
+      if (!b.batchNo) continue;
+      const batchNoTrimmed = String(b.batchNo).trim();
+      const expiry = b.expiryDate ? new Date(b.expiryDate) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      const isExpired = expiry <= new Date();
+
+      // Check if this batch already exists (by _id if provided, or by medicineId + batchNo)
+      let batch = null;
+      if (b._id && mongoose.Types.ObjectId.isValid(b._id)) {
+        batch = await MedicineBatch.findOne({ _id: b._id, organizationId });
+      }
+      if (!batch) {
+        batch = await MedicineBatch.findOne({
+          organizationId,
+          medicineId,
+          batchNo: batchNoTrimmed
+        });
+      }
+
+      if (batch) {
+        const prevStock = Number(batch.stockQuantity) || 0;
+        const targetStock = b.stockQuantity !== undefined ? Number(b.stockQuantity) : prevStock;
+        
+        batch.batchNo = batchNoTrimmed;
+        batch.expiryDate = expiry;
+        if (b.mrp !== undefined) batch.mrp = Number(b.mrp);
+        if (b.purchasePrice !== undefined) batch.purchasePrice = Number(b.purchasePrice);
+        if (b.sellingPrice !== undefined) batch.sellingPrice = Number(b.sellingPrice);
+        batch.stockQuantity = Math.max(0, targetStock);
+        batch.initialStock = Math.max(batch.initialStock || 0, targetStock);
+        batch.status = isExpired ? 'Expired' : 'Active';
+        await batch.save();
+
+        const diff = targetStock - prevStock;
+        if (diff !== 0) {
+          await StockTransaction.create({
+            organizationId,
+            medicineId,
+            batchId: batch._id,
+            transactionType: diff > 0 ? 'Stock Adjustment (Increase)' : 'Stock Adjustment (Decrease)',
+            quantity: diff,
+            date: new Date()
+          });
+        }
+      } else {
+        const newStock = Number(b.stockQuantity) || 0;
+        const newBatch = new MedicineBatch({
+          organizationId,
+          medicineId,
+          batchNo: batchNoTrimmed,
+          expiryDate: expiry,
+          mrp: Number(b.mrp) || 0,
+          purchasePrice: Number(b.purchasePrice) || 0,
+          sellingPrice: Number(b.sellingPrice) || 0,
+          stockQuantity: Math.max(0, newStock),
+          initialStock: Math.max(0, newStock),
+          status: isExpired ? 'Expired' : 'Active'
+        });
+        await newBatch.save();
+
+        await StockTransaction.create({
+          organizationId,
+          medicineId,
+          batchId: newBatch._id,
+          transactionType: 'Opening Stock Added',
+          quantity: newStock,
+          date: new Date()
+        });
+      }
+    }
+
+    res.json({ message: 'Stock and expiry updated successfully' });
+  } catch (error) {
+    console.error('Error adding/updating opening stock:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getMedicineBatches = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizationId = req.tenantId;
+    const batches = await MedicineBatch.find({ organizationId, medicineId: id })
+      .sort({ expiryDate: 1 })
+      .lean();
+    res.json(batches);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateMedicineBatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizationId = req.tenantId;
+    const { batchNo, expiryDate, mrp, purchasePrice, sellingPrice, stockQuantity, status } = req.body;
+
+    const batch = await MedicineBatch.findOne({ _id: id, organizationId });
+    if (!batch) {
+      return res.status(404).json({ message: 'Batch not found' });
+    }
+
+    if (batchNo) batch.batchNo = String(batchNo).trim();
+    if (expiryDate) {
+      batch.expiryDate = new Date(expiryDate);
+      batch.status = batch.expiryDate > new Date() ? 'Active' : 'Expired';
+    }
+    if (mrp !== undefined) batch.mrp = Number(mrp);
+    if (purchasePrice !== undefined) batch.purchasePrice = Number(purchasePrice);
+    if (sellingPrice !== undefined) batch.sellingPrice = Number(sellingPrice);
+    if (stockQuantity !== undefined) {
+      const prev = batch.stockQuantity;
+      batch.stockQuantity = Math.max(0, Number(stockQuantity));
+      const diff = batch.stockQuantity - prev;
+      if (diff !== 0) {
+        await StockTransaction.create({
+          organizationId,
+          medicineId: batch.medicineId,
+          batchId: batch._id,
+          transactionType: diff > 0 ? 'Stock Adjustment (Increase)' : 'Stock Adjustment (Decrease)',
+          quantity: diff,
+          date: new Date()
+        });
+      }
+    }
+    if (status) batch.status = status;
+
+    await batch.save();
+    res.json({ message: 'Batch updated successfully', batch });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -463,6 +617,13 @@ export const createPurchase = async (req, res) => {
 
       if (batch) {
         batch.stockQuantity += (item.quantity + (item.freeQuantity || 0));
+        if (item.expiryDate) batch.expiryDate = new Date(item.expiryDate);
+        if (item.mrp !== undefined) batch.mrp = Number(item.mrp);
+        if (item.purchasePrice !== undefined) batch.purchasePrice = Number(item.purchasePrice);
+        if (item.sellingPrice !== undefined) batch.sellingPrice = Number(item.sellingPrice);
+        if (new Date(batch.expiryDate) > new Date() && batch.status === 'Expired') {
+          batch.status = 'Active';
+        }
         await batch.save();
       } else {
         batch = new MedicineBatch({

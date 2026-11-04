@@ -3476,13 +3476,19 @@ const TabBilling = ({
     
     setBulkLoading(true);
     try {
-      const payload = { billIds: selectedBillIds };
+      const cleanPatientName = (patient.fullName || patient.patientId || 'Patient').trim().replace(/\s+/g, '_');
+      const payload = { 
+        billIds: selectedBillIds,
+        templateId: selectedInvoiceTemplate?._id,
+        action: action
+      };
       
       if (action === 'download') {
-        toast.info("Preparing billing statement PDF...");
+        toast.info("Preparing billing invoices PDF...");
         setIsDownloading(true);
         setDownloadProgress(0);
-        setDownloadFileName(`Statement-${patient.fullName || patient.patientId}.pdf`);
+        const fileName = `Invoices-${cleanPatientName}.pdf`;
+        setDownloadFileName(fileName);
         
         const timer = setInterval(() => {
           setDownloadProgress(prev => (prev < 90 ? prev + 10 : prev));
@@ -3497,150 +3503,38 @@ const TabBilling = ({
             setTimeout(() => {
               const link = document.createElement('a');
               link.href = response.statement.signedUrl;
-              link.target = "_blank";
+              link.setAttribute('download', response.statement.fileName || fileName);
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
               setIsDownloading(false);
-              toast.success("Statement download started!");
+              toast.success("Invoices downloaded successfully!");
             }, 500);
           } else {
             setIsDownloading(false);
-            toast.error("Failed to generate statement URL");
+            toast.error("Failed to generate invoices URL");
           }
         } catch (err) {
           clearInterval(timer);
           setIsDownloading(false);
-          toast.error("Statement generation failed");
+          toast.error("Invoices generation failed");
         }
       } else if (action === 'print') {
-        const selectedBills = bills.filter(b => selectedBillIds.includes(b._id));
-        const totalBilled = selectedBills.reduce((sum, b) => sum + (b.amount || 0), 0);
-        const totalDiscount = selectedBills.reduce((sum, b) => sum + (b.discount || 0), 0);
-        const totalPaid = selectedBills.reduce((sum, b) => sum + (b.paidAmount || 0), 0);
-        const totalDue = selectedBills.reduce((sum, b) => sum + (b.dueAmount || 0), 0);
-        
-        const printWindow = window.open('', '_blank', 'width=900,height=800');
-        
-        const billsHtml = selectedBills.map(bill => `
-          <div style="border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 20px; overflow: hidden;">
-            <div style="background: #f8fafc; padding: 10px 15px; display: flex; justify-between; border-bottom: 1px solid #e2e8f0;">
-              <span style="font-weight: bold;">Invoice: ${bill.invoiceNumber || bill.billId}</span>
-              <span style="font-size: 12px; color: #64748b; margin-left: auto;">${formatDateDMY(bill.date || bill.createdAt)}</span>
-            </div>
-            <div style="padding: 15px;">
-              <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                <thead>
-                  <tr style="text-align: left; border-bottom: 1px solid #f1f5f9; color: #94a3b8;">
-                    <th style="padding-bottom: 8px;">Description</th>
-                    <th style="padding-bottom: 8px; text-align: center;">Qty</th>
-                    <th style="padding-bottom: 8px; text-align: right;">Price</th>
-                    <th style="padding-bottom: 8px; text-align: right;">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${(bill.items || []).map(item => `
-                    <tr>
-                      <td style="padding: 8px 0; font-weight: 500;">${item.description}</td>
-                      <td style="padding: 8px 0; text-align: center;">${item.qty || 1}</td>
-                      <td style="padding: 8px 0; text-align: right;">₹${(item.unitPrice || 0).toLocaleString()}</td>
-                      <td style="padding: 8px 0; text-align: right; font-weight: bold;">₹${(item.subtotal || 0).toLocaleString()}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-              <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
-                <div style="width: 200px; text-align: right; font-size: 13px;">
-                  <div style="display: flex; justify-content: space-between; color: #64748b;"><span>Subtotal:</span><span>₹${bill.amount.toLocaleString()}</span></div>
-                  ${bill.discount > 0 ? `<div style="display: flex; justify-content: space-between; color: #ef4444;"><span>Discount:</span><span>-₹${bill.discount.toLocaleString()}</span></div>` : ''}
-                  <div style="display: flex; justify-content: space-between; font-weight: bold; border-top: 1px solid #f1f5f9; margin-top: 5px; padding-top: 5px;"><span>Net:</span><span>₹${(bill.amount - bill.discount).toLocaleString()}</span></div>
-                  <div style="display: flex; justify-content: space-between; color: #10b981;"><span>Paid:</span><span>₹${bill.paidAmount.toLocaleString()}</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        `).join('');
-
-        const html = `
-          <html>
-            <head>
-              <title>Billing Statement - ${patient.fullName}</title>
-              <style>
-                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; }
-                .header { border-bottom: 4px solid #4f46e5; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start; }
-                .patient-box { background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 30px; }
-                .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
-                .stat-card { border: 1px solid #e2e8f0; padding: 15px; border-radius: 12px; }
-                .stat-label { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px; }
-                .stat-value { font-size: 18px; font-weight: 800; }
-                .footer { margin-top: 40px; padding-top: 20px; border-top: 2px dashed #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #0f172a; color: white; padding: 30px; border-radius: 16px; }
-                @media print { .no-print { display: none; } }
-              </style>
-            </head>
-            <body>
-              <div class="header">
-                <div>
-                  <h1 style="margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -1px;">BILLING STATEMENT</h1>
-                  <p style="margin: 5px 0 0; color: #64748b; font-weight: bold; font-size: 12px; text-transform: uppercase; letter-spacing: 2px;">Financial Summary</p>
-                </div>
-                <div style="text-align: right;">
-                  <h2 style="margin: 0; color: #4f46e5; font-size: 18px; font-weight: 900;">${clinicInfo.clinicName || clinicInfo.name || "Clinic"}</h2>
-                  <p style="margin: 5px 0 0; font-size: 11px; color: #64748b;">Generated on: ${formatDateDMY(new Date())}</p>
-                </div>
-              </div>
-
-              <div class="patient-box">
-                <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 5px;">Patient Information</div>
-                <div style="font-size: 18px; font-weight: 900; color: #0f172a;">Patient Name : ${patient.fullName || `${patient.firstName || ''} ${patient.lastName || ''}`}</div>
-                <div style="font-size: 12px; font-weight: bold; margin-top: 6px; color: #334155; display: flex; flex-wrap: wrap; gap: 15px;">
-                  <span>Patient ID : <strong style="color: #4f46e5;">${patient.patientId || 'N/A'}</strong></span>
-                  <span>Mobile No : <strong style="color: #4f46e5;">${patient.mobile || patient.phone || patient.contactNumber || 'N/A'}</strong></span>
-                  <span>Patient Age : <strong style="color: #4f46e5;">${patient.age ? `${patient.age} Years` : 'N/A'}</strong></span>
-                  <span>Gender : <strong style="color: #4f46e5;">${patient.gender || 'N/A'}</strong></span>
-                </div>
-              </div>
-
-              <div class="stats-grid">
-                <div class="stat-card">
-                  <div class="stat-label">Total Billed</div>
-                  <div class="stat-value">₹${totalBilled.toLocaleString()}</div>
-                </div>
-                <div class="stat-card" style="border-color: #fecaca; background: #fff1f2;">
-                  <div class="stat-label" style="color: #f43f5e;">Discount Applied</div>
-                  <div class="stat-value" style="color: #be123c;">₹${totalDiscount.toLocaleString()}</div>
-                </div>
-                <div class="stat-card" style="border-color: #a7f3d0; background: #f0fdf4;">
-                  <div class="stat-label" style="color: #10b981;">Total Paid</div>
-                  <div class="stat-value" style="color: #047857;">₹${totalPaid.toLocaleString()}</div>
-                </div>
-              </div>
-
-              ${billsHtml}
-
-              <div class="footer">
-                <div>
-                  <div style="font-size: 10px; font-weight: 800; opacity: 0.6; text-transform: uppercase; letter-spacing: 2px;">Current Balance Due</div>
-                  <div style="font-size: 32px; font-weight: 900;">₹${totalDue.toLocaleString()}</div>
-                </div>
-                <div style="text-align: right;">
-                  <p style="margin: 0; font-size: 14px; font-weight: bold;">Thank you for choosing our services.</p>
-                  <p style="margin: 5px 0 0; font-size: 11px; opacity: 0.5;">This statement covers ${selectedBills.length} invoices.</p>
-                </div>
-              </div>
-
-              <script>
-                window.onload = () => {
-                  setTimeout(() => {
-                    window.print();
-                  }, 500);
-                };
-              </script>
-            </body>
-          </html>
-        `;
-        
-        printWindow.document.write(html);
-        printWindow.document.close();
+        toast.info("Preparing invoices for print...");
+        try {
+          const response = await billingApi.generateStatement(patient.patientId || patient._id, { ...payload, disposition: 'inline', action: 'print' });
+          if (response && response.statement?.signedUrl) {
+            const printWindow = window.open(response.statement.signedUrl, '_blank');
+            if (printWindow) {
+              printWindow.focus();
+            }
+          } else {
+            toast.error("Failed to load invoices for printing");
+          }
+        } catch (err) {
+          console.error("Bulk print error:", err);
+          toast.error("Failed to prepare invoices for printing");
+        }
       }
     } catch (error) {
       console.error("Bulk action failed:", error);
@@ -3853,22 +3747,33 @@ const TabBilling = ({
                 </div>
                 <div>
                   <p className="text-sm font-bold uppercase tracking-tighter">Invoices Selected</p>
-                  <p className="text-[10px] font-bold text-slate-400">Merged statement will be generated</p>
+                  <p className="text-[10px] font-bold text-slate-400">All invoices formatted with official clinic template</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button 
+                  onClick={() => handleBulkAction('print')}
+                  disabled={bulkLoading}
+                  className="flex-1 sm:flex-none px-3.5 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2 text-xs font-semibold"
+                  title="Print All Invoices"
+                >
+                  <Printer size={18} />
+                  <span>Print All</span>
+                </button>
+                <button 
                   onClick={() => handleBulkAction('download')}
                   disabled={bulkLoading}
-                  className="flex-1 sm:flex-none p-2.5 bg-white/10 hover:bg-white/20 rounded-xl transition-colors disabled:opacity-50"
-                  title="Download Statement"
+                  className="flex-1 sm:flex-none px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2 text-xs font-semibold shadow-md shadow-indigo-600/30"
+                  title="Download All Invoices (PDF)"
                 >
                   {bulkLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                  <span>Download All</span>
                 </button>
                 <div className="w-px h-8 bg-white/10 mx-1 hidden sm:block"></div>
                 <button 
                   onClick={() => setSelectedBillIds([])}
                   className="p-2.5 hover:bg-rose-500/20 text-rose-400 rounded-xl transition-colors"
+                  title="Clear Selection"
                 >
                   <X size={18} />
                 </button>

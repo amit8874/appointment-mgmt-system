@@ -24,6 +24,42 @@ const OpeningStock = ({ onAddMedicine, medicine }) => {
   }, [medicine]);
 
   useEffect(() => {
+    if (selectedMedicine?._id) {
+      fetchMedicineBatches(selectedMedicine._id);
+    }
+  }, [selectedMedicine]);
+
+  const fetchMedicineBatches = async (medId) => {
+    try {
+      const response = await api.get(`/internal-pharmacy/medicine/${medId}/batches`);
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        setBatches(response.data.map(b => ({
+          _id: b._id,
+          batchNo: b.batchNo || '',
+          expiryDate: b.expiryDate ? new Date(b.expiryDate).toISOString().split('T')[0] : '',
+          mrp: b.mrp !== undefined ? b.mrp : 0,
+          purchasePrice: b.purchasePrice !== undefined ? b.purchasePrice : 0,
+          sellingPrice: b.sellingPrice !== undefined ? b.sellingPrice : 0,
+          stockQuantity: b.stockQuantity !== undefined ? b.stockQuantity : 0,
+          unitType: b.unitType || selectedMedicine?.type || 'Tablet'
+        })));
+      } else {
+        setBatches([{
+          batchNo: '',
+          expiryDate: '',
+          mrp: selectedMedicine?.mrp || 0,
+          purchasePrice: selectedMedicine?.purchasePrice || 0,
+          sellingPrice: selectedMedicine?.sellingPrice || 0,
+          stockQuantity: 0,
+          unitType: selectedMedicine?.type || 'Tablet'
+        }]);
+      }
+    } catch (err) {
+      console.error('Error fetching batches:', err);
+    }
+  };
+
+  useEffect(() => {
     searchMedicines();
   }, [searchTerm]);
 

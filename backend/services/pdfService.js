@@ -1941,28 +1941,114 @@ function formatCurrency(amount) {
  * @param {object} org - Organization object
  * @returns {Promise<Buffer>} - PDF Buffer
  */
-export const generateBillingStatementPDF = async (bills, patient, org) => {
+export const generateBillingStatementPDF = async (bills, patient, org, template = null) => {
   let browser = null;
   let page = null;
   try {
-    const html = getStatementHtml(bills, patient, org);
+    if (!bills || bills.length === 0) {
+      throw new Error('No bills provided for statement generation');
+    }
+
+    // Resolve template dynamically if not provided
+    let InvoiceTemplateModel = null;
+    try {
+      InvoiceTemplateModel = mongoose.model('InvoiceTemplate');
+    } catch (e) {
+      // Ignore if model not registered
+    }
+
+    // Generate each invoice using the official clinic template
+    const invoiceHtmlPromises = bills.map(async (bill) => {
+      let billTemplate = template;
+      if (!billTemplate && InvoiceTemplateModel) {
+        try {
+          if (bill.billType === 'Pharmacy') {
+            billTemplate = await InvoiceTemplateModel.findOne({ organizationId: org._id, layoutType: 'pharmacy', isDefault: true }) ||
+                           await InvoiceTemplateModel.findOne({ organizationId: org._id, layoutType: 'pharmacy' }) ||
+                           await InvoiceTemplateModel.findOne({ organizationId: org._id, isDefault: true }) ||
+                           await InvoiceTemplateModel.findOne({ organizationId: org._id });
+          } else {
+            billTemplate = await InvoiceTemplateModel.findOne({ organizationId: org._id, layoutType: { $ne: 'pharmacy' }, isDefault: true }) ||
+                           await InvoiceTemplateModel.findOne({ organizationId: org._id, layoutType: { $ne: 'pharmacy' } }) ||
+                           await InvoiceTemplateModel.findOne({ organizationId: org._id, isDefault: true }) ||
+                           await InvoiceTemplateModel.findOne({ organizationId: org._id });
+          }
+        } catch (tErr) {
+          console.warn('Could not load template for bill:', tErr.message);
+        }
+      }
+      return getInvoiceHtml(bill, org, billTemplate);
+    });
+
+    const invoiceHtmls = await Promise.all(invoiceHtmlPromises);
+
+    // Combine each invoice into a multi-page document with clean page breaks
+    const pagesHtml = invoiceHtmls.map((html, idx) => {
+      const isLast = idx === invoiceHtmls.length - 1;
+      const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      const content = bodyMatch ? bodyMatch[1] : html;
+      return `
+        <div class="multi-invoice-page" style="page-break-after: ${isLast ? 'auto' : 'always'}; break-after: ${isLast ? 'auto' : 'page'};">
+          ${content}
+        </div>
+      `;
+    }).join('\n');
+
+    const headMatch = invoiceHtmls[0]?.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+    const headContent = headMatch ? headMatch[1] : '';
+
+    const combinedHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        ${headContent}
+        <style>
+          @media print {
+            .multi-invoice-page {
+              page-break-after: always !important;
+              break-after: page !important;
+            }
+            .multi-invoice-page:last-child {
+              page-break-after: auto !important;
+              break-after: auto !important;
+            }
+          }
+          .multi-invoice-page {
+            page-break-after: always;
+            break-after: page;
+          }
+          .multi-invoice-page:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+        </style>
+      </head>
+      <body>
+        ${pagesHtml}
+      </body>
+      </html>
+    `;
 
     browser = await getBrowser();
     page = await browser.newPage();
     await page.setViewport({ width: 794, height: 1123 });
-    await page.setContent(html, { waitUntil: 'domcontentloaded' });
-    await new Promise(r => setTimeout(r, 500));
+    await page.setContent(combinedHtml, { waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 600));
 
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
-        left: '10mm'
+        top: '15mm',
+        right: '15mm',
+        bottom: '15mm',
+        left: '15mm'
       }
     });
+
+    if (pdfBuffer.length < 1024) {
+      throw new Error(`Generated PDF is too small (${pdfBuffer.length} bytes). Rendering might have failed.`);
+    }
 
     return pdfBuffer;
   } catch (err) {

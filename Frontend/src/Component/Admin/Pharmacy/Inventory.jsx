@@ -179,6 +179,11 @@ const Inventory = ({ onAddMedicine, onEditMedicine, onAddStock }) => {
                       <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase text-center ${getStatusColor(med.expiryStatus)}`}>
                         {med.expiryStatus}
                       </span>
+                      {med.expiryDate && (
+                        <span className="text-[9px] text-slate-500 font-bold text-center">
+                          Exp: {new Date(med.expiryDate).toLocaleDateString()}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -270,14 +275,31 @@ const Inventory = ({ onAddMedicine, onEditMedicine, onAddStock }) => {
               
               <div className="pt-4 border-t border-slate-100 dark:border-gray-700">
                 <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider mb-3">Batch Information</h4>
-                <p className="text-xs text-slate-500 mb-2 italic">Note: Full batch details available in "Opening Stock" or "Expiry Report"</p>
-                {/* Simplified batch view */}
-                <div className="bg-slate-50 dark:bg-gray-900/50 p-3 rounded-lg border border-slate-100 dark:border-gray-700">
-                   <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase mb-2">
-                     <span>Batch Count: {selectedMedicine.batchCount}</span>
-                     <span>Current Stock: {selectedMedicine.totalStock}</span>
-                   </div>
-                </div>
+                {selectedMedicine.batches && selectedMedicine.batches.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedMedicine.batches.map((b, idx) => (
+                      <div key={idx} className="bg-slate-50 dark:bg-gray-900/50 p-2.5 rounded-lg border border-slate-100 dark:border-gray-700 flex justify-between items-center text-xs">
+                        <div>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">Batch: {b.batchNo}</span>
+                          <span className="text-[10px] text-slate-400 ml-2">Exp: {b.expiryDate ? new Date(b.expiryDate).toLocaleDateString() : 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Sale: ₹{b.sellingPrice}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black ${b.stockQuantity > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                            {b.stockQuantity} units
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 dark:bg-gray-900/50 p-3 rounded-lg border border-slate-100 dark:border-gray-700">
+                     <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+                       <span>Batch Count: {selectedMedicine.batchCount || 0}</span>
+                       <span>Current Stock: {selectedMedicine.totalStock || 0}</span>
+                     </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

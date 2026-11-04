@@ -14,7 +14,9 @@ import {
   addSupplier,
   updateSupplier,
   deleteSupplier,
-  getPharmacyReports
+  getPharmacyReports,
+  getMedicineBatches,
+  updateMedicineBatch
 } from '../controllers/InternalPharmacyController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -30,6 +32,8 @@ router.post('/medicine', addMedicine);
 router.put('/medicine/:id', updateMedicine);
 router.post('/inventory/bulk-upload', upload.single('file'), bulkUploadMedicines);
 router.post('/inventory/opening-stock', addOpeningStock);
+router.get('/medicine/:id/batches', getMedicineBatches);
+router.put('/batch/:id', updateMedicineBatch);
 router.post('/purchase', createPurchase);
 router.post('/billing', createPharmacyBill);
 router.get('/suppliers', getSuppliers);
