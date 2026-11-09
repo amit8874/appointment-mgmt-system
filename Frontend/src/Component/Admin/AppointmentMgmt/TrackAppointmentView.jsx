@@ -441,7 +441,8 @@ const TrackAppointmentView = () => {
         const matchesSearch =
           app.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           app.doctorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          app.shortId?.toString().includes(searchTerm);
+          app.shortId?.toString().includes(searchTerm) ||
+          app.patientId?.toString().toLowerCase().includes(searchTerm.toLowerCase());
 
         if (!matchesSearch) return false;
 
@@ -553,6 +554,11 @@ const TrackAppointmentView = () => {
             {processedAppointments.map((app) => {
               const status = getStatusInfo(app);
               const isNow = isCurrentApp(app);
+              const patientId = (typeof app.patientId === 'object' ? (app.patientId?.patientId || app.patientId?._id) : app.patientId)
+                || app.patient?.patientId
+                || app.patient?._id
+                || (typeof app.patient === 'string' ? app.patient : null)
+                || app.patientDetails?.patientId;
               return (
                 <div key={app._id} className={`bg-white rounded-2xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-all relative flex flex-col justify-between min-h-[170px] ${isNow ? 'bg-blue-50/20 border-blue-200 ring-1 ring-blue-100' : ''} ${app.status === 'cancelled' ? 'opacity-60 grayscale select-none' : ''}`}>
                   {isNow && <div className="absolute inset-y-0 left-0 w-1 bg-blue-600 rounded-l-2xl shadow-[0_0_10px_rgba(37,99,235,0.4)]" />}
@@ -748,6 +754,17 @@ const TrackAppointmentView = () => {
                             <Sparkles size={12} />
                           </button>
                         </div>
+                        {patientId && (
+                          <div className="mt-0.5">
+                            <span
+                              onClick={() => handlePatientClick(app)}
+                              className="text-[10px] text-slate-500 font-semibold bg-slate-50 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-slate-200 px-1.5 py-0.5 rounded inline-block leading-none cursor-pointer transition-colors"
+                              title="View Patient Profile"
+                            >
+                              ID: {patientId}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           <span className="text-[10px] text-gray-400 font-bold uppercase">Age: {app.patientAge || '—'}</span>
                           {app.patientPhone && <span className="text-[10px] text-gray-300">•</span>}

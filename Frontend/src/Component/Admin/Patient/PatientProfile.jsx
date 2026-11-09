@@ -2198,11 +2198,18 @@ const RescheduleAppointmentModal = ({ appointment, patient, onClose, onSuccess }
 const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload, onWhatsApp, onUpdateBill }) => {
   const [newInstallmentAmount, setNewInstallmentAmount] = useState('');
   const [newInstallmentMode, setNewInstallmentMode] = useState('Cash');
+  const [newInstallmentDate, setNewInstallmentDate] = useState(() => {
+    const today = new Date();
+    return today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  });
   const [newInstallmentTxId, setNewInstallmentTxId] = useState('');
   const [newInstallmentNotes, setNewInstallmentNotes] = useState('');
   const [selectedProcedure, setSelectedProcedure] = useState('');
   const [savingInstallment, setSavingInstallment] = useState(false);
   const [installmentError, setInstallmentError] = useState('');
+  const [editingInstallmentIdx, setEditingInstallmentIdx] = useState(null);
+  const [editingInstallmentDate, setEditingInstallmentDate] = useState('');
+  const [savingInstallmentEdit, setSavingInstallmentEdit] = useState(false);
 
   if (!bill) return null;
   
@@ -2241,24 +2248,40 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
             : []);
 
       const nextReceiptNumber = `${baseRcpt}-${baseInstallments.length + 1}`;
+      const paymentDate = newInstallmentDate ? new Date(newInstallmentDate) : new Date();
+
+      // Resolve targeted procedure
+      const targetProcedureName = selectedProcedure || (
+        items.find(it => {
+          const cost = parseFloat(it.subtotal || it.amount || (it.unitPrice || it.price || 0) * (it.qty || 1)) || 0;
+          const paid = parseFloat(it.paidAmount !== undefined ? it.paidAmount : 0);
+          return (cost - paid) > 0;
+        })?.description || items[0]?.description || ''
+      );
+
       const updatedInstallments = [
         ...baseInstallments,
         {
-          date: new Date(),
+          date: paymentDate,
           amount: amt,
           paymentMethod: newInstallmentMode,
           transactionId: newInstallmentTxId,
           receiptNumber: nextReceiptNumber,
-          procedureName: selectedProcedure || '',
-          notes: newInstallmentNotes || (selectedProcedure ? `Payment for ${selectedProcedure}` : 'Subsequent installment payment')
+          procedureName: targetProcedureName || '',
+          notes: newInstallmentNotes || (targetProcedureName ? `Payment for ${targetProcedureName}` : 'Subsequent installment payment')
         }
       ];
 
       // Update specific procedure item's paidAmount, dueAmount, status and paymentMode
-      let updatedItems = bill.items || [];
-      if (selectedProcedure && Array.isArray(bill.items)) {
-        updatedItems = bill.items.map(it => {
-          if ((it.description || it.procedureName) === selectedProcedure) {
+      // CRITICAL: Explicitly preserve each treatment item's original clinical date so procedure date never changes!
+      let updatedItems = (bill.items || []).map(it => ({
+        ...it,
+        date: it.date || bill.date || bill.createdAt
+      }));
+
+      if (targetProcedureName && Array.isArray(bill.items)) {
+        updatedItems = updatedItems.map(it => {
+          if ((it.description || it.procedureName) === targetProcedureName) {
             const cost = parseFloat(it.subtotal || it.total || ((it.qty || 1) * (it.price || 0) - (it.discount || 0))) || 0;
             const currentPaid = parseFloat(it.paidAmount !== undefined ? it.paidAmount : (it.status === 'Pending' ? 0 : cost)) || 0;
             const newPaid = Math.min(cost, currentPaid + amt);
@@ -2297,12 +2320,44 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
       setNewInstallmentTxId('');
       setNewInstallmentNotes('');
       setSelectedProcedure('');
+      const today = new Date();
+      setNewInstallmentDate(today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0'));
       toast.success("Installment payment recorded successfully");
     } catch (err) {
       console.error(err);
       setInstallmentError('Failed to record installment payment. Please try again.');
     } finally {
       setSavingInstallment(false);
+    }
+  };
+
+  const handleSaveInstallmentDate = async (index) => {
+    if (!editingInstallmentDate) {
+      setEditingInstallmentIdx(null);
+      return;
+    }
+    setSavingInstallmentEdit(true);
+    try {
+      const currentInstallments = [...paymentHistory];
+      if (currentInstallments[index]) {
+        currentInstallments[index] = {
+          ...currentInstallments[index],
+          date: new Date(editingInstallmentDate)
+        };
+        const updatedBill = await billingApi.update(bill._id, {
+          installments: currentInstallments
+        });
+        if (onUpdateBill) {
+          onUpdateBill(updatedBill);
+        }
+        toast.success("Payment date updated successfully");
+      }
+      setEditingInstallmentIdx(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update payment date");
+    } finally {
+      setSavingInstallmentEdit(false);
     }
   };
 
@@ -2448,7 +2503,54 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                   <tbody className="divide-y divide-black text-black">
                     {paymentHistory.map((inst, index) => (
                       <tr key={index} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-2 font-bold border-r border-slate-200">{formatDateDMY(inst.date)}</td>
+                        <td className="p-2 font-bold border-r border-slate-200">
+                          {editingInstallmentIdx === index ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="date"
+                                value={editingInstallmentDate}
+                                onChange={(e) => setEditingInstallmentDate(e.target.value)}
+                                className="p-1 border border-black rounded text-[11px] font-bold bg-white text-black outline-none focus:ring-1 focus:ring-black"
+                              />
+                              <button
+                                type="button"
+                                disabled={savingInstallmentEdit}
+                                onClick={() => handleSaveInstallmentDate(index)}
+                                className="p-1 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold cursor-pointer transition shadow-xs"
+                                title="Save Date"
+                              >
+                                <Check size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingInstallmentIdx(null)}
+                                className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px] font-bold cursor-pointer transition"
+                                title="Cancel"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-1 group">
+                              <span>{formatDateDMY(inst.date)}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const d = inst.date ? new Date(inst.date) : new Date();
+                                  const formatted = !isNaN(d.getTime()) 
+                                    ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+                                    : '';
+                                  setEditingInstallmentIdx(index);
+                                  setEditingInstallmentDate(formatted);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-200 rounded text-slate-500 hover:text-black transition-opacity cursor-pointer"
+                                title="Change this payment date"
+                              >
+                                <Edit2 size={11} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
                         <td className="p-2 font-mono text-[10px] font-bold border-r border-slate-200">
                           {inst.receiptNumber || (bill.receiptNumber ? (paymentHistory.length > 1 ? `${bill.receiptNumber}-${index + 1}` : bill.receiptNumber) : `RCPT-${index + 1}`)}
                         </td>
@@ -2527,7 +2629,7 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                   </div>
                 )}
                 <form onSubmit={handleAddInstallment} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
                     {/* Select Procedure / Treatment (ONLY UNPAID TREATMENTS) */}
                     <div>
                       <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
@@ -2554,48 +2656,64 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
                       </select>
                     </div>
 
-                  <div>
-                    <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
-                      Payment Mode
-                    </label>
-                    <select
-                      value={newInstallmentMode}
-                      onChange={(e) => setNewInstallmentMode(e.target.value)}
-                      className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
-                    >
-                      <option value="Cash">Cash</option>
-                      <option value="UPI">UPI</option>
-                      <option value="Card">Card</option>
-                      <option value="Bank Transfer">Bank Transfer</option>
-                      <option value="Insurance">Insurance</option>
-                    </select>
+                    {/* Payment Date (Selectable: Past, Present, Future) */}
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                        Payment Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newInstallmentDate}
+                        onChange={(e) => setNewInstallmentDate(e.target.value)}
+                        className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black cursor-pointer"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                        Payment Mode
+                      </label>
+                      <select
+                        value={newInstallmentMode}
+                        onChange={(e) => setNewInstallmentMode(e.target.value)}
+                        className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
+                      >
+                        <option value="Cash">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Card">Card</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Insurance">Insurance</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
+                        Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max={bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount}
+                        value={newInstallmentAmount}
+                        onChange={(e) => setNewInstallmentAmount(e.target.value)}
+                        placeholder={`Max ₹${bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount}`}
+                        className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <button
+                        type="submit"
+                        disabled={savingInstallment || !newInstallmentAmount}
+                        className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition disabled:opacity-50 border border-black cursor-pointer shadow-md"
+                      >
+                        {savingInstallment ? 'Recording...' : 'Record Payment'}
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-black uppercase tracking-wider mb-1">
-                      Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      max={bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount}
-                      value={newInstallmentAmount}
-                      onChange={(e) => setNewInstallmentAmount(e.target.value)}
-                      placeholder={`Max ₹${bill.dueAmount !== undefined ? bill.dueAmount : totals.dueAmount}`}
-                      className="w-full p-2 border border-black bg-white rounded-lg text-xs font-black text-black outline-none focus:ring-2 focus:ring-black"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <button
-                      type="submit"
-                      disabled={savingInstallment || !newInstallmentAmount}
-                      className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition disabled:opacity-50 border border-black cursor-pointer shadow-md"
-                    >
-                      {savingInstallment ? 'Recording...' : 'Record Payment'}
-                    </button>
-                  </div>
-                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {newInstallmentMode !== 'Cash' ? (
