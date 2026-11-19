@@ -46,21 +46,46 @@ const ClinicAnalytics = () => {
       let endDate = now.toISOString();
       
       if (dateRange === 'Today') {
-        startDate = new Date(now.setHours(0,0,0,0)).toISOString();
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        startDate = start.toISOString();
+        const end = new Date(now);
+        end.setHours(23, 59, 59, 999);
+        endDate = end.toISOString();
       } else if (dateRange === 'Yesterday') {
         const yesterday = new Date(now);
         yesterday.setDate(now.getDate() - 1);
-        startDate = new Date(yesterday.setHours(0,0,0,0)).toISOString();
-        endDate = new Date(yesterday.setHours(23,59,59,999)).toISOString();
+        const start = new Date(yesterday);
+        start.setHours(0, 0, 0, 0);
+        startDate = start.toISOString();
+        const end = new Date(yesterday);
+        end.setHours(23, 59, 59, 999);
+        endDate = end.toISOString();
       } else if (dateRange === 'Last 7 Days') {
         const weekAgo = new Date(now);
         weekAgo.setDate(now.getDate() - 7);
+        weekAgo.setHours(0, 0, 0, 0);
         startDate = weekAgo.toISOString();
+        const end = new Date(now);
+        end.setHours(23, 59, 59, 999);
+        endDate = end.toISOString();
       } else if (dateRange === 'This Month') {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        start.setHours(0, 0, 0, 0);
+        startDate = start.toISOString();
+        const end = new Date(now);
+        end.setHours(23, 59, 59, 999);
+        endDate = end.toISOString();
       } else if (dateRange === 'Last Month') {
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0).toISOString();
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        start.setHours(0, 0, 0, 0);
+        startDate = start.toISOString();
+        const end = new Date(now.getFullYear(), now.getMonth(), 0);
+        end.setHours(23, 59, 59, 999);
+        endDate = end.toISOString();
+      } else if (dateRange === 'All Time') {
+        startDate = undefined;
+        endDate = undefined;
       }
 
       const params = { startDate, endDate, doctorId: selectedDoctor };
@@ -124,7 +149,7 @@ const ClinicAnalytics = () => {
                     exit={{ opacity: 0, y: 5 }}
                     className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden"
                   >
-                    {['Today', 'Yesterday', 'Last 7 Days', 'This Month', 'Last Month'].map((range) => (
+                    {['Today', 'Yesterday', 'Last 7 Days', 'This Month', 'Last Month', 'All Time'].map((range) => (
                       <button
                         key={range}
                         onClick={() => { setDateRange(range); setShowFilters(false); }}
@@ -146,7 +171,7 @@ const ClinicAnalytics = () => {
             >
               <option value="all">All Doctors</option>
               {doctors.map(doc => (
-                <option key={doc._id} value={doc._id}>{doc.name}</option>
+                <option key={doc._id} value={doc._id}>{doc.name || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || doc.doctorId}</option>
               ))}
             </select>
 

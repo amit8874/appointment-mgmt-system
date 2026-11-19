@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, PlusCircle, FileText, User, Filter, ChevronLeft, ChevronRight, Send, Phone, Trash2, CheckCircle, Clock, AlertCircle, Eye, Printer, X, Download } from 'lucide-react';
-import { billingApi, appointmentApi, centralDoctorApi, authApi } from '../../../services/api';
+import { Search, PlusCircle, FileText, User, Filter, ChevronLeft, ChevronRight, Send, Phone, Trash2, CheckCircle, Clock, AlertCircle, Eye, Printer, X, Download, Plus, Minus } from 'lucide-react';
+import { billingApi, appointmentApi, centralDoctorApi, authApi, pharmacyApi, medicineApi, productApi } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
 import Pagination from '../../../components/common/Pagination';
@@ -494,9 +494,16 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
     if (billType !== 'General') {
       const fetchProducts = async () => {
         try {
-          const data = await pharmacyApi.getProducts();
-          const filtered = data.filter(p => {
-            if (billType === 'Pharmacy') return p.category?.toLowerCase().includes('medicine');
+          let data = [];
+          try {
+            const res = await productApi.getAll();
+            data = Array.isArray(res) ? res : (res?.products || []);
+          } catch {
+            data = await pharmacyApi.getProducts();
+          }
+          const list = Array.isArray(data) ? data : [];
+          const filtered = list.filter(p => {
+            if (billType === 'Pharmacy') return !p.category?.toLowerCase().includes('lab') && !p.category?.toLowerCase().includes('test');
             if (billType === 'Lab') return p.category?.toLowerCase().includes('lab') || p.category?.toLowerCase().includes('test');
             return true;
           });
@@ -582,31 +589,77 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
   // Item List Handlers
   const handleAddItem = () => setItemList(prev => [...prev, { description: '', qty: 1, unitPrice: 0, subtotal: 0 }]);
   const handleRemoveItem = (index) => setItemList(prev => prev.filter((_, i) => i !== index));
+
   const handleItemChange = (index, field, value) => {
     setItemList(prev => {
       const newList = [...prev];
-      newList[index][field] = value;
+      newList[index] = { ...newList[index], [field]: value };
       if (field === 'qty' || field === 'unitPrice') {
-        newList[index].subtotal = parseFloat((newList[index].qty * newList[index].unitPrice).toFixed(2));
+        const qty = parseFloat(field === 'qty' ? value : newList[index].qty) || 0;
+        const unitPrice = parseFloat(field === 'unitPrice' ? value : newList[index].unitPrice) || 0;
+        newList[index].subtotal = parseFloat((qty * unitPrice).toFixed(2));
       }
       return newList;
     });
   };
 
+  const handleQuantityStep = (index, delta) => {
+    setItemList(prev => {
+      const newList = [...prev];
+      const currentQty = parseFloat(newList[index]?.qty) || 0;
+      const newQty = Math.max(0, parseFloat((currentQty + delta).toFixed(2)));
+      const unitPrice = parseFloat(newList[index]?.unitPrice) || 0;
+      newList[index] = {
+        ...newList[index],
+        qty: newQty,
+        subtotal: parseFloat((newQty * unitPrice).toFixed(2))
+      };
+      return newList;
+    });
+  };
+
   const handleSelectProduct = (index, product) => {
-    handleItemChange(index, 'description', product.name);
-    handleItemChange(index, 'unitPrice', product.price);
-    handleItemChange(index, 'productId', product._id);
+    const unitPrice = parseFloat(product.price) || 0;
+    setItemList(prev => {
+      const newList = [...prev];
+      const currentQty = parseFloat(newList[index]?.qty) > 0 ? parseFloat(newList[index].qty) : 1;
+      newList[index] = {
+        ...newList[index],
+        description: product.name,
+        unitPrice: unitPrice,
+        productId: product._id,
+        qty: currentQty,
+        subtotal: parseFloat((currentQty * unitPrice).toFixed(2))
+      };
+      return newList;
+    });
     setShowProductDropdown(-1);
     setActiveMedicineRow(-1);
     setMedicineSuggestions([]);
+    setProductSearch('');
   };
 
   const handleSelectMedicine = (index, medicineName) => {
-    handleItemChange(index, 'description', medicineName);
+    const matchedProduct = products.find(p => p.name?.toLowerCase().trim() === medicineName?.toLowerCase().trim());
+    const unitPrice = matchedProduct ? (parseFloat(matchedProduct.price) || 0) : 0;
+    setItemList(prev => {
+      const newList = [...prev];
+      const currentQty = parseFloat(newList[index]?.qty) > 0 ? parseFloat(newList[index].qty) : 1;
+      newList[index] = {
+        ...newList[index],
+        description: medicineName,
+        unitPrice: unitPrice,
+        productId: matchedProduct?._id,
+        qty: currentQty,
+        subtotal: parseFloat((currentQty * unitPrice).toFixed(2))
+      };
+      return newList;
+    });
     setActiveMedicineRow(-1);
+    setShowProductDropdown(-1);
     setMedicineSuggestions([]);
     setMedicineQuery('');
+    setProductSearch('');
   };
 
   // Auto-calculation logic
@@ -929,11 +982,12 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
                 </div>
 
                 {itemList.map((item, index) => (
-                  <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 items-center bg-white/50 p-3 rounded-xl border border-sky-100 relative group animate-in slide-in-from-left-2" style={{ animationDelay: `${index * 50}ms` }}>
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-4 items-center bg-white/70 p-3 rounded-2xl border border-sky-100 shadow-sm relative group animate-in slide-in-from-left-2" style={{ animationDelay: `${index * 50}ms` }}>
+                    {/* Medicine / Product Description & Search */}
                     <div className="col-span-1 md:col-span-5 relative">
                       <input
                         type="text"
-                        placeholder={`Search ${billType === 'Pharmacy' ? 'Medicine' : 'Test'}...`}
+                        placeholder={`Search ${billType === 'Pharmacy' ? 'Medicine / Dental Product' : 'Test'}...`}
                         value={item.description}
                         onChange={(e) => {
                           handleItemChange(index, 'description', e.target.value);
@@ -948,74 +1002,153 @@ const GenerateBillForm = ({ onSave, onCancel, setStatusMessage, appointments = [
                           setShowProductDropdown(index);
                           if (billType === 'Pharmacy') setActiveMedicineRow(index);
                         }}
-                        onBlur={() => setTimeout(() => { setActiveMedicineRow(-1); setMedicineSuggestions([]); }, 200)}
-                        className="w-full px-3 py-2 bg-white border border-sky-100 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-xs font-bold text-slate-700"
+                        onBlur={() => setTimeout(() => {
+                          setShowProductDropdown(-1);
+                          setActiveMedicineRow(-1);
+                          setMedicineSuggestions([]);
+                        }, 250)}
+                        className="w-full px-3 py-2 bg-white border border-sky-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-xs font-bold text-slate-700 shadow-sm transition-all"
                       />
-                      {/* Global Medicine Suggestions (Pharmacy only) */}
-                      {activeMedicineRow === index && medicineSuggestions.length > 0 && (
-                        <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-indigo-100 overflow-hidden max-h-48 overflow-y-auto">
-                          <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100">
-                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">💊 Global Medicine Database</p>
+
+                      {/* Dropdown with Available Medicines & Products */}
+                      {showProductDropdown === index && (
+                        <div className="absolute z-50 w-full mt-1.5 bg-white rounded-2xl shadow-2xl border border-sky-100 overflow-hidden max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-150">
+                          <div className="px-3.5 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                            <span className="text-[10px] font-black text-indigo-500 uppercase tracking-wider">
+                              💊 Available Medicines & Products
+                            </span>
+                            <span className="text-[9px] text-slate-400 font-bold">
+                              {products.filter(p => {
+                                const q = (item.description || '').toLowerCase().trim();
+                                if (!q) return true;
+                                return p.name?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q);
+                              }).length} items
+                            </span>
                           </div>
-                          {medicineSuggestions.map((med) => (
-                            <div
-                              key={med._id}
-                              onMouseDown={() => handleSelectMedicine(index, med.name)}
-                              className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-50 last:border-0 flex items-center justify-between group"
-                            >
-                              <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-700">{med.name}</span>
-                              <span className="text-[9px] text-slate-300 font-medium">used {med.usageCount}×</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {/* Local Product Dropdown */}
-                      {showProductDropdown === index && productSearch && activeMedicineRow !== index && (
-                        <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-sky-100 overflow-hidden max-h-48 overflow-y-auto">
-                          {products.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase())).map(product => (
-                            <div
-                              key={product._id}
-                              onClick={() => handleSelectProduct(index, product)}
-                              className="px-4 py-2 hover:bg-sky-50 cursor-pointer transition-colors border-b border-sky-50 last:border-0"
-                            >
-                              <p className="text-xs font-bold text-slate-700">{product.name}</p>
-                              <p className="text-[10px] text-slate-400">Price: {formatCurrency(product.price)} | {product.manufacturer || 'General'}</p>
-                            </div>
-                          ))}
+
+                          {products
+                            .filter(p => {
+                              const q = (item.description || '').toLowerCase().trim();
+                              if (!q) return true;
+                              return p.name?.toLowerCase().includes(q) ||
+                                p.description?.toLowerCase().includes(q) ||
+                                p.category?.toLowerCase().includes(q);
+                            })
+                            .slice(0, 20)
+                            .map(product => (
+                              <div
+                                key={product._id}
+                                onMouseDown={() => handleSelectProduct(index, product)}
+                                className="px-4 py-2.5 hover:bg-indigo-50/70 cursor-pointer transition-colors border-b border-slate-50 last:border-0 flex items-center justify-between group"
+                              >
+                                <div className="pr-2">
+                                  <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors flex items-center gap-2">
+                                    {product.name}
+                                    {product.category && (
+                                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                        {product.category}
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400">
+                                    {product.description || product.manufacturer || 'Clinic Catalog'}
+                                  </p>
+                                </div>
+                                <div className="text-right whitespace-nowrap">
+                                  <span className="text-xs font-black text-emerald-600">
+                                    {formatCurrency(product.price)}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+
+                          {/* Fallback to global medicine suggestions */}
+                          {medicineSuggestions
+                            .filter(med => !products.some(p => p.name?.toLowerCase() === med.name?.toLowerCase()))
+                            .slice(0, 5)
+                            .map(med => (
+                              <div
+                                key={med._id || med.name}
+                                onMouseDown={() => handleSelectMedicine(index, med.name)}
+                                className="px-4 py-2 hover:bg-indigo-50 cursor-pointer transition-colors border-b border-slate-50 last:border-0 flex items-center justify-between"
+                              >
+                                <span className="text-xs font-bold text-slate-700">{med.name}</span>
+                                <span className="text-[9px] text-slate-400 font-medium">Global DB</span>
+                              </div>
+                            ))}
                         </div>
                       )}
                     </div>
+
+                    {/* Quantity with +/- stepper and decimal typing */}
                     <div className="col-span-1 md:col-span-2">
-                      <input
-                        type="number"
-                        value={item.qty === 0 ? '' : item.qty}
-                        onChange={(e) => handleItemChange(index, 'qty', e.target.value === '' ? 0 : parseInt(e.target.value))}
-                        onFocus={(e) => e.target.select()}
-                        placeholder="0"
-                        className="w-full px-3 py-2 bg-white border border-sky-100 rounded-lg text-xs font-bold text-slate-700"
-                      />
-                    </div>
-                    <div className="col-span-1 md:col-span-2">
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">₹</span>
+                      <div className="flex items-center border border-sky-200 rounded-xl bg-white overflow-hidden shadow-sm hover:border-sky-300 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                        <button
+                          type="button"
+                          onClick={() => handleQuantityStep(index, -1)}
+                          className="px-2.5 py-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-95 transition-all flex items-center justify-center font-bold"
+                          title="Decrease Quantity (-1)"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
                         <input
                           type="number"
-                          value={item.unitPrice === 0 ? '' : item.unitPrice}
-                          onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                          step="any"
+                          value={item.qty === 0 ? '' : item.qty}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleItemChange(index, 'qty', val === '' ? '' : parseFloat(val));
+                          }}
                           onFocus={(e) => e.target.select()}
-                          placeholder="0"
-                          className="w-full pl-6 pr-3 py-2 bg-white border border-sky-100 rounded-lg text-xs font-bold text-slate-700"
+                          placeholder="1"
+                          className="w-full py-1.5 text-center text-xs font-black text-slate-800 focus:outline-none bg-transparent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleQuantityStep(index, 1)}
+                          className="px-2.5 py-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 active:scale-95 transition-all flex items-center justify-center font-bold"
+                          title="Increase Quantity (+1)"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Unit Price with decimal support */}
+                    <div className="col-span-1 md:col-span-2">
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">₹</span>
+                        <input
+                          type="number"
+                          step="any"
+                          value={item.unitPrice === 0 ? '' : item.unitPrice}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleItemChange(index, 'unitPrice', val === '' ? '' : parseFloat(val));
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          placeholder="0.00"
+                          className="w-full pl-6 pr-2.5 py-2 bg-white border border-sky-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all"
                         />
                       </div>
                     </div>
+
+                    {/* Subtotal */}
                     <div className="col-span-1 md:col-span-2">
-                      <p className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg text-xs font-black text-indigo-600">
-                        {formatCurrency(item.subtotal)}
+                      <p className="px-3 py-2 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs font-black text-indigo-600 text-right">
+                        ₹{(parseFloat(item.subtotal) || 0).toFixed(2)}
                       </p>
                     </div>
+
+                    {/* Action */}
                     <div className="col-span-1 md:col-span-1 text-right">
                       {itemList.length > 1 && (
-                        <button onClick={() => handleRemoveItem(index)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(index)}
+                          className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                          title="Remove Item"
+                        >
                           <XIcon className="w-4 h-4" />
                         </button>
                       )}
@@ -1307,7 +1440,7 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-80 flex items-center justify-center p-4 sm:p-6 no-print" onClick={onClose}>
       <div
-        className="bg-white shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative transform transition-all duration-300 scale-100 border-4 border-black"
+        className="bg-white shadow-2xl w-full max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[90vh] overflow-y-auto relative transform transition-all duration-300 scale-100 border-4 border-black"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Status Watermark */}

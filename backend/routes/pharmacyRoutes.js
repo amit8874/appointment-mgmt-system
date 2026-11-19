@@ -57,6 +57,11 @@ router.get('/prescriptions/patient-orders', getPatientPrescriptions);
 router.post('/prescriptions/:id/confirm', confirmPrescriptionOrder);
 
 
+// Products list accessible to authenticated clinic staff (admin, doctor, pharmacy, receptionist)
+router.route('/products')
+  .get(getProducts)
+  .post(createProduct);
+
 // The following routes are for users with 'pharmacy' role only
 router.use(requirePharmacy);
 
@@ -83,9 +88,7 @@ router.route('/orders')
 
 router.patch('/orders/:id/status', updateOrderStatus);
 
-router.route('/products')
-  .get(getProducts)
-  .post(createProduct);
+
 
 router.route('/profile')
   .get(getPharmacyProfile)

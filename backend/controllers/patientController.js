@@ -61,12 +61,17 @@ export const getPatientByMobile = async (req, res) => {
 // Get all patients with pagination
 export const getAllPatients = async (req, res) => {
   try {
+    const isAll = req.query.limit === 'all' || req.query.all === 'true' || parseInt(req.query.limit) === 0;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 15;
+    const limit = isAll ? 0 : (parseInt(req.query.limit) || 15);
     const search = req.query.search || '';
-    const skip = (page - 1) * limit;
+    const skip = isAll ? 0 : (page - 1) * limit;
 
     let query = { organizationId: req.tenantId };
+    
+    if (req.query.religion && req.query.religion !== 'All') {
+      query.religion = req.query.religion;
+    }
     
     if (search) {
       const searchRegex = new RegExp(search, 'i');
@@ -80,13 +85,13 @@ export const getAllPatients = async (req, res) => {
     }
 
     const totalPatients = await Patient.countDocuments(query);
-    const totalPages = Math.ceil(totalPatients / limit);
+    const totalPages = isAll ? 1 : Math.ceil(totalPatients / (limit || 15));
 
-    const patients = await Patient.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    let queryExec = Patient.find(query).sort({ createdAt: -1 });
+    if (!isAll && limit > 0) {
+      queryExec = queryExec.skip(skip).limit(limit);
+    }
+    const patients = await queryExec.lean();
 
     // Fetch billing data, dental treatment plans, and appointment data for this page of patients
     const patientIds = patients.map(p => p.patientId).filter(Boolean);
@@ -218,8 +223,8 @@ export const getAllPatients = async (req, res) => {
     res.json({
       patients: patientsWithData,
       totalPatients,
-      totalPages,
-      currentPage: page
+      totalPages: isAll ? 1 : totalPages,
+      currentPage: isAll ? 1 : page
     });
   } catch (error) {
     console.error('Error fetching patients:', error);
@@ -300,6 +305,7 @@ export const createPatient = async (req, res) => {
       age,
       gender,
       bloodGroup,
+      religion,
       contactNumber,
       alternateMobile,
       email,
@@ -365,6 +371,7 @@ export const createPatient = async (req, res) => {
       ageType: ageType || 'Year',
       gender: gender && gender.trim() ? gender.trim() : undefined,
       bloodGroup: bloodGroup && bloodGroup.trim() ? bloodGroup.trim() : undefined,
+      religion: religion ? religion.trim() : '',
       mobile: contactNumber ? contactNumber.trim() : '',
       alternateMobile: alternateMobile ? alternateMobile.trim() : '',
       email: email ? email.trim().toLowerCase() : '',
@@ -507,6 +514,10 @@ export const updatePatient = async (req, res) => {
 
     if (updateData.alternateMobile !== undefined) {
       filteredUpdateData.alternateMobile = updateData.alternateMobile;
+    }
+
+    if (updateData.religion !== undefined) {
+      filteredUpdateData.religion = updateData.religion;
     }
 
     if (updateData.appointmentDate !== undefined) {

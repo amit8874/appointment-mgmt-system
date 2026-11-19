@@ -1714,3 +1714,26 @@ export const dentalLabApi = {
 
 
 
+
+export const productApi = {
+  getAll: async () => {
+    const { data } = await api.get('/products');
+    return data;
+  },
+  getByBarcode: async (barcode) => {
+    const { data } = await api.get('/products/barcode/' + barcode);
+    return data;
+  },
+  create: async (data) => {
+    const res = await api.post('/products', data);
+    return res.data;
+  },
+  update: async (id, data) => {
+    const res = await api.put('/products/' + id, data);
+    return res.data;
+  },
+  delete: async (id) => {
+    const res = await api.delete('/products/' + id);
+    return res.data;
+  }
+};

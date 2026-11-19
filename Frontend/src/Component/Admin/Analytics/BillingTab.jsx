@@ -12,24 +12,30 @@ const BillingTab = ({ data }) => {
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-6">Invoice Status Distribution</h3>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={billingStats}
-                  cx="50%" cy="50%"
-                  innerRadius={70} outerRadius={90}
-                  paddingAngle={5}
-                  dataKey="count"
-                  nameKey="_id"
-                >
-                  {billingStats.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }} />
-              </PieChart>
-            </ResponsiveContainer>
+            {billingStats.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-gray-400 text-sm italic">
+                No billing status data for this period.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={billingStats}
+                    cx="50%" cy="50%"
+                    innerRadius={70} outerRadius={90}
+                    paddingAngle={5}
+                    dataKey="count"
+                    nameKey="_id"
+                  >
+                    {billingStats.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -37,18 +43,22 @@ const BillingTab = ({ data }) => {
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-6">Financial Summary (by Status)</h3>
           <div className="space-y-4">
-            {billingStats.map((stat, index) => (
-              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight">{stat._id}</span>
+            {billingStats.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-8 italic">No invoice summary for this period.</p>
+            ) : (
+              billingStats.map((stat, index) => (
+                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-tight">{stat._id}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-base font-bold text-gray-900 dark:text-white">₹{stat.amount?.toLocaleString()}</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.count} Invoices</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-base font-bold text-gray-900 dark:text-white">₹{stat.amount?.toLocaleString()}</p>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.count} Invoices</p>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

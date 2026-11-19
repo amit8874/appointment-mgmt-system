@@ -62,13 +62,21 @@ const PharmacyTab = ({ data }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {topSelling.map((item, index) => (
-                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-gray-900 dark:text-white">{item._id}</td>
-                  <td className="px-6 py-4">{item.totalSold}</td>
-                  <td className="px-6 py-4 font-bold text-blue-600">₹{item.revenue?.toLocaleString()}</td>
+              {topSelling.length === 0 ? (
+                <tr>
+                  <td colSpan="3" className="px-6 py-8 text-center text-gray-400 text-sm italic">
+                    No medicine sales recorded for this period.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                topSelling.map((item, index) => (
+                  <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <td className="px-6 py-4 font-semibold text-gray-900 dark:text-white">{item._id}</td>
+                    <td className="px-6 py-4">{item.totalSold}</td>
+                    <td className="px-6 py-4 font-bold text-blue-600">₹{item.revenue?.toLocaleString()}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

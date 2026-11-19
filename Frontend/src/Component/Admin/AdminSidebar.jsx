@@ -154,10 +154,7 @@ const AdminSidebar = ({
         {dashboardMode === 'admin' ? (
           <>
             <NavItem id="tour-admin-followup-reminder" name="Followup and Reminder" icon={Bell} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
-            {isDentistClinic && (
-              <NavItem id="tour-admin-dentist-dashboard" name="Dentist Dashboard" icon={LayoutDashboard} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
-            )}
-            {isDentistClinic && (
+                        {isDentistClinic && (
               <NavItem id="tour-admin-lab-work" name="Lab Work" icon={FlaskConical} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />
             )}
             <NavItem id="tour-admin-analysis" name="Analysis" icon={BarChart3} currentTab={activeTab} onClick={setActiveTab} toggleSidebar={toggleSidebar} isSidebarCollapsed={isSidebarCollapsed} />

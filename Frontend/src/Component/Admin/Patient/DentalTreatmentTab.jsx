@@ -29,6 +29,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getToothLabel, getToothDisplayName } from './dentalUtils';
 import { useAuth } from '../../../context/AuthContext';
 import BillingModal from '../../../components/Shared/BillingModal';
+import DentalBillingCreatorModal from './DentalBillingCreatorModal';
 
 const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
   const { user } = useAuth();
@@ -54,6 +55,7 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
   // Billing Modal states
   const [billingOpen, setBillingOpen] = useState(false);
   const [billingInitData, setBillingInitData] = useState({});
+  const [dentalBillingCreatorOpen, setDentalBillingCreatorOpen] = useState(false);
 
   // Selected treatments for multi-procedure billing
   const [selectedTreatments, setSelectedTreatments] = useState([]);
@@ -498,18 +500,28 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
           </button>
         </div>
 
-        {mainTab === 'quotations' && (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => {
-              setSelectedQuotationForEdit(null);
-              setQuotationModalOpen(true);
-            }}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-amber-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
+            onClick={() => setDentalBillingCreatorOpen(true)}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-emerald-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4" /> New Quotation / Estimate
+            <IndianRupee className="w-3.5 h-3.5" /> Create Bill
           </button>
-        )}
+
+          {mainTab === 'quotations' && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedQuotationForEdit(null);
+                setQuotationModalOpen(true);
+              }}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-amber-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> New Quotation / Estimate
+            </button>
+          )}
+        </div>
       </div>
 
       {mainTab === 'quotations' ? (
@@ -1249,6 +1261,22 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
             </form>
           </motion.div>
         </div>
+      )}
+
+      {/* Dental Billing Creator Modal */}
+      {dentalBillingCreatorOpen && (
+        <DentalBillingCreatorModal
+          patientId={patientId}
+          patientData={patientData}
+          appointments={appointments}
+          onClose={() => setDentalBillingCreatorOpen(false)}
+          onComplete={() => {
+            setDentalBillingCreatorOpen(false);
+            if (patientId) {
+              fetchTreatments();
+            }
+          }}
+        />
       )}
 
       {/* billing modal overlay */}

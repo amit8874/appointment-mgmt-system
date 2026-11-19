@@ -1,4 +1,4 @@
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download, MessageSquare, Upload } from "lucide-react";
+import { Search, User, Users, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download, MessageSquare, Upload } from "lucide-react";
 import { exportPatientsToExcel } from "../../../utils/excelExport";
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -26,6 +26,7 @@ const PatientPanel = ({
   totalPages,
   totalItems,
   itemsPerPage,
+  isSeeAll: propIsSeeAll,
   onPageChange,
   onRefresh,
   searchTerm: globalSearchTerm,
@@ -85,11 +86,20 @@ const PatientPanel = ({
   const navigate = useNavigate();
   const [selectedPatientIds, setSelectedPatientIds] = useState([]);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [localIsSeeAll, setLocalIsSeeAll] = useState(false);
+  const isSeeAll = propIsSeeAll !== undefined ? propIsSeeAll : localIsSeeAll;
+
+  const handleToggleSeeAll = (seeAll) => {
+    setLocalIsSeeAll(seeAll);
+    if (onPageChange) {
+      onPageChange(1, seeAll ? 'all' : 15);
+    }
+  };
 
   // Clear selection on page change or filter change
   useEffect(() => {
     setSelectedPatientIds([]);
-  }, [serverCurrentPage, statusFilter]);
+  }, [serverCurrentPage, statusFilter, isSeeAll]);
 
 
 
@@ -542,26 +552,78 @@ const PatientPanel = ({
 
       {/* Patient Table */}
       <div className="bg-white dark:bg-gray-800">
-        {/* Status Filter Tabs */}
-        <div className="flex flex-wrap gap-2 p-4 border-b border-gray-200 dark:border-gray-700">
-          {['All', 'Paid', 'Pending', 'Active', 'Dead'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${statusFilter === status
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+        {/* Status Filter Tabs & View Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex flex-wrap gap-2">
+            {['All', 'Paid', 'Pending', 'Active', 'Dead'].map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${statusFilter === status
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+              >
+                {status}
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${statusFilter === status
+                    ? 'bg-white/20 text-white'
+                    : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                  }`}>
+                  {statusCounts[status]}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {isSeeAll ? (
+              <button
+                type="button"
+                onClick={() => handleToggleSeeAll(false)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all shadow-xs cursor-pointer"
+                title="Switch back to 15 patients per page"
+              >
+                <span>Viewing: <strong className="font-black text-indigo-900 dark:text-indigo-100">All ({totalItems || patients.length})</strong></span>
+                <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded font-black">Show 15 / Page</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleToggleSeeAll(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 hover:bg-blue-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="See all patients on one page"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>See All ({totalItems || statusCounts.All})</span>
+              </button>
+            )}
+
+            {isSeeAll && paginatedPatients.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const allIds = paginatedPatients.map(p => p._id);
+                  const isAllSelected = allIds.length > 0 && allIds.every(id => selectedPatientIds.includes(id));
+                  if (isAllSelected) {
+                    setSelectedPatientIds([]);
+                  } else {
+                    setSelectedPatientIds(allIds);
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                  paginatedPatients.length > 0 && paginatedPatients.every(p => selectedPatientIds.includes(p._id))
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                    : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100'
                 }`}
-            >
-              {status}
-              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${statusFilter === status
-                  ? 'bg-white/20 text-white'
-                  : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
-                }`}>
-                {statusCounts[status]}
-              </span>
-            </button>
-          ))}
+                title="Select all patients for bulk messaging"
+              >
+                <Users className="w-3.5 h-3.5" />
+                {paginatedPatients.length > 0 && paginatedPatients.every(p => selectedPatientIds.includes(p._id))
+                  ? `✓ All ${paginatedPatients.length} Selected`
+                  : `Select All (${paginatedPatients.length})`}
+              </button>
+            )}
+          </div>
         </div>
 
         {patientsLoading ? (
@@ -750,13 +812,28 @@ const PatientPanel = ({
                 </tbody>
               </table>
             </div>
-            <Pagination
-              currentPage={serverCurrentPage}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              itemsPerPage={itemsPerPage}
-              onPageChange={onPageChange}
-            />
+            {isSeeAll ? (
+              <div className="flex flex-col sm:flex-row justify-between items-center p-4 text-sm text-gray-500 gap-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+                <span className="font-medium">
+                  Showing all <strong className="text-gray-900 dark:text-white">{paginatedPatients.length}</strong> patients
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleSeeAll(false)}
+                  className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold hover:bg-blue-100 transition-all cursor-pointer"
+                >
+                  Show 15 Per Page
+                </button>
+              </div>
+            ) : (
+              <Pagination
+                currentPage={serverCurrentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={onPageChange}
+              />
+            )}
           </>
         )}
       </div>

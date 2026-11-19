@@ -57,6 +57,7 @@ import { seedGlobalComplaints } from "./controllers/complaintController.js";
 import { seedDiagnosisMaster } from "./controllers/diagnosisController.js";
 import { seedMedicineMaster } from "./controllers/medicineController.js";
 import { seedInvestigationMaster } from "./controllers/investigationController.js";
+import { seedClinicMedicinesAndProducts } from "./utils/seedClinicMedicines.js";
 import internalPharmacyRoutes from "./routes/internalPharmacyRoutes.js";
 import followUpReminderRoutes from "./routes/followUpReminderRoutes.js";
 import dentistRoutes from "./routes/dentistRoutes.js";
@@ -130,6 +131,7 @@ Connect Database
 
 connectDB().then(() => {
   seedGlobalComplaints();
+  seedClinicMedicinesAndProducts();
   import("./utils/idGenerator.js").then(m => m.migrateAllOrganizationsToMonthlyFormat()).catch(err => {
     console.error("Initial patient ID migration error:", err.message);
   });
@@ -268,6 +270,7 @@ seedGlobalComplaints();
 seedDiagnosisMaster();
 seedMedicineMaster();
 seedInvestigationMaster();
+seedClinicMedicinesAndProducts();
 
 /* --------------------------------------------------
 Image Upload API

@@ -86,6 +86,8 @@ const MainContent = ({
   onPatientsPageChange,
   onPatientsRefresh,
   patientsTotalItems,
+  patientsLimit,
+  patientsIsSeeAll,
   searchTerm,
   onPatientsSearch,
   doctorsCurrentPage,
@@ -145,8 +147,9 @@ const MainContent = ({
             currentPage={patientsCurrentPage}
             totalPages={patientsTotalPages}
             totalItems={patientsTotalItems}
-            itemsPerPage={15}
-            onPageChange={(page) => onPatientsPageChange(page, 15, searchTerm)}
+            itemsPerPage={patientsLimit || 15}
+            isSeeAll={patientsIsSeeAll}
+            onPageChange={onPatientsPageChange}
             onRefresh={onPatientsRefresh}
             searchTerm={searchTerm}
             onSearchChange={onPatientsSearch}

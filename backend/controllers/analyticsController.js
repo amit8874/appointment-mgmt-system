@@ -559,114 +559,229 @@ export const getClinicAnalytics = async (req, res) => {
     const { startDate, endDate, doctorId } = req.query;
 
     const orgId = new mongoose.Types.ObjectId(organizationId);
+    const orgFilter = { $in: [orgId, organizationId.toString()] };
     
-    // Base filters
-    const matchQuery = { organizationId: orgId };
-    const dateMatch = { organizationId: orgId };
-    
-    if (startDate && endDate) {
-      dateMatch.createdAt = { 
-        $gte: new Date(new Date(startDate).setHours(0, 0, 0, 0)), 
-        $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) 
+    // Doctor identifier resolution (support Doctor ID code, MongoDB _id, and name)
+    let doctorMatchFilter = null;
+    let doctorMatchIds = [];
+    if (doctorId && doctorId !== 'all') {
+      doctorMatchIds.push(doctorId.toString());
+      try {
+        if (mongoose.isValidObjectId(doctorId)) {
+          const docDoc = await Doctor.findById(doctorId).lean();
+          if (docDoc) {
+            if (docDoc.doctorId) doctorMatchIds.push(docDoc.doctorId);
+            if (docDoc.name) doctorMatchIds.push(docDoc.name);
+          }
+        } else {
+          const docDoc = await Doctor.findOne({ doctorId }).lean();
+          if (docDoc) {
+            doctorMatchIds.push(docDoc._id.toString());
+            if (docDoc.name) doctorMatchIds.push(docDoc.name);
+          }
+        }
+      } catch (e) {
+        console.error("Doctor lookup error in analytics:", e.message);
+      }
+      doctorMatchFilter = {
+        $or: [
+          { doctorId: { $in: doctorMatchIds } },
+          { doctorName: { $in: doctorMatchIds } }
+        ]
       };
     }
 
-    if (doctorId && doctorId !== 'all') {
-      const docIdStr = doctorId.toString();
-      dateMatch.doctorId = docIdStr;
+    // Base filters
+    const billingDateMatch = { organizationId: orgFilter };
+    const apptDateMatch = { organizationId: orgFilter };
+    
+    if (startDate && endDate) {
+      const startD = new Date(new Date(startDate).setHours(0, 0, 0, 0));
+      const endD = new Date(new Date(endDate).setHours(23, 59, 59, 999));
+      billingDateMatch.createdAt = { $gte: startD, $lte: endD };
+      apptDateMatch.createdAt = { $gte: startD, $lte: endD };
+    }
+
+    if (doctorMatchFilter) {
+      Object.assign(billingDateMatch, doctorMatchFilter);
+      Object.assign(apptDateMatch, doctorMatchFilter);
     }
 
     const now = new Date();
-    const todayStart = new Date(now.setHours(0, 0, 0, 0));
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    // Expressions for accurately computing paid and due amounts
+    // Paid amount on a bill:
+    // If status is 'Paid', use paidAmount if > 0, otherwise bill amount.
+    // If status is not 'Paid', only count paidAmount (Pending = 0, Due/Partial = whatever was collected).
+    const paidAmountExpr = {
+      $cond: [
+        { $eq: ["$status", "Paid"] },
+        { $cond: [{ $gt: ["$paidAmount", 0] }, "$paidAmount", { $ifNull: ["$amount", 0] }] },
+        { $ifNull: ["$paidAmount", 0] }
+      ]
+    };
+
+    // Remaining due amount on a bill:
+    // If status is 'Paid', due is 0.
+    // Otherwise, use dueAmount if > 0, else max(0, amount - paidAmount).
+    const dueAmountExpr = {
+      $cond: [
+        { $eq: ["$status", "Paid"] },
+        0,
+        {
+          $cond: [
+            { $gt: ["$dueAmount", 0] },
+            "$dueAmount",
+            { $max: [0, { $subtract: ["$amount", { $ifNull: ["$paidAmount", 0] }] }] }
+          ]
+        }
+      ]
+    };
 
     const [
       overviewStats,
       revenueTrends,
       revenueBreakdown,
       paymentModeStats,
-      appointmentAnalytics,
+      appointmentData,
       patientAnalytics,
-      doctorPerformance,
+      doctorPerformanceData,
       pharmacyStats,
       whatsappStats,
       billingStats
     ] = await Promise.all([
       // 1. Overview Summary Cards
       Promise.all([
+        // All-Time Total Collected Revenue
         Billing.aggregate([
-          { $match: { organizationId: orgId, status: { $nin: ['Cancelled', 'Dead'] } } },
-          { $group: { _id: null, total: { $sum: '$amount' } } }
+          { $match: { organizationId: orgFilter, status: { $nin: ['Cancelled', 'Dead'] } } },
+          { $group: { _id: null, total: { $sum: paidAmountExpr } } }
         ]),
+        // Today's Collected Revenue
         Billing.aggregate([
-          { $match: { organizationId: orgId, status: { $nin: ['Cancelled', 'Dead'] }, createdAt: { $gte: todayStart } } },
-          { $group: { _id: null, total: { $sum: '$amount' } } }
+          { $match: { organizationId: orgFilter, status: { $nin: ['Cancelled', 'Dead'] }, createdAt: { $gte: todayStart } } },
+          { $group: { _id: null, total: { $sum: paidAmountExpr } } }
         ]),
+        // This Month's Collected Revenue (Unpaid pending bills excluded)
         Billing.aggregate([
-          { $match: { organizationId: orgId, status: { $nin: ['Cancelled', 'Dead'] }, createdAt: { $gte: monthStart } } },
-          { $group: { _id: null, total: { $sum: '$amount' } } }
+          { $match: { organizationId: orgFilter, status: { $nin: ['Cancelled', 'Dead'] }, createdAt: { $gte: monthStart } } },
+          { $group: { _id: null, total: { $sum: paidAmountExpr } } }
         ]),
+        // Pending Payments (All unpaid, pending, and due balances included)
         Billing.aggregate([
-          { $match: { organizationId: orgId, status: 'Due' } },
-          { $group: { _id: null, total: { $sum: '$dueAmount' } } }
+          { $match: { organizationId: orgFilter, status: { $nin: ['Paid', 'Cancelled', 'Dead'] } } },
+          { $group: { _id: null, total: { $sum: dueAmountExpr } } }
         ]),
-        Appointment.countDocuments({ organizationId: orgId }),
-        Patient.countDocuments({ organizationId: orgId }),
-        Doctor.countDocuments({ organizationId: orgId, status: 'Active' }),
-        Patient.countDocuments({ organizationId: orgId, createdAt: { $gte: monthStart } })
+        // Total Appointments (Unified across Appointment, ConfirmedAppointment, PendingAppointment, CancelledAppointment)
+        Promise.all([
+          Appointment.countDocuments({ organizationId: orgFilter }),
+          ConfirmedAppointment.countDocuments({ organizationId: orgFilter }),
+          PendingAppointment.countDocuments({ organizationId: orgFilter }),
+          CancelledAppointment.countDocuments({ organizationId: orgFilter })
+        ]).then(([a, c, p, can]) => (a || 0) + (c || 0) + (p || 0) + (can || 0)),
+        // Total Patients
+        Patient.countDocuments({ organizationId: orgFilter }),
+        // Total Doctors (Active, Verified, etc.)
+        Doctor.countDocuments({ organizationId: orgFilter, status: { $nin: ['Inactive', 'Rejected'] } }),
+        // New Patients This Month
+        Patient.countDocuments({ organizationId: orgFilter, createdAt: { $gte: monthStart } })
       ]),
 
-      // 2. Revenue Trends
+      // 2. Revenue Trends (Actual collected revenue per day)
       Billing.aggregate([
-        { $match: { ...dateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
+        { $match: { ...billingDateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
         {
           $group: {
             _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-            amount: { $sum: "$amount" }
+            amount: { $sum: paidAmountExpr }
           }
         },
         { $sort: { _id: 1 } }
       ]),
 
-      // 3. Revenue Breakdown
+      // 3. Revenue Breakdown by Bill Type
       Billing.aggregate([
-        { $match: { ...dateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
-        { $group: { _id: "$billType", total: { $sum: "$amount" } } }
+        { $match: { ...billingDateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
+        { 
+          $group: { 
+            _id: { $ifNull: ["$billType", "General"] }, 
+            total: { $sum: paidAmountExpr } 
+          } 
+        },
+        { $sort: { total: -1 } }
       ]),
 
-      // 4. Payment Modes
+      // 4. Payment Modes (Only from bills where actual payment occurred)
       Billing.aggregate([
-        { $match: { ...dateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
-        { $group: { _id: "$paymentMethod", count: { $sum: 1 }, amount: { $sum: "$amount" } } }
+        { 
+          $match: { 
+            ...billingDateMatch, 
+            status: { $nin: ['Cancelled', 'Dead'] },
+            $or: [
+              { status: 'Paid' },
+              { paidAmount: { $gt: 0 } }
+            ]
+          } 
+        },
+        { 
+          $group: { 
+            _id: { $ifNull: ["$paymentMethod", "Cash"] }, 
+            count: { $sum: 1 }, 
+            amount: { $sum: paidAmountExpr } 
+          } 
+        },
+        { $sort: { amount: -1 } }
       ]),
 
-      // 5. Detailed Appointment Analytics
+      // 5. Unified Appointment Analytics
       Promise.all([
-        Appointment.aggregate([
-          { $match: dateMatch },
-          { $group: { _id: "$status", count: { $sum: 1 } } }
-        ]),
-        Appointment.aggregate([
-          { $match: dateMatch },
-          {
-            $project: {
-              hour: { $hour: "$createdAt" }
-            }
-          },
-          { $group: { _id: "$hour", count: { $sum: 1 } } },
-          { $sort: { _id: 1 } }
-        ]),
-        Appointment.aggregate([
-          { $match: dateMatch },
-          { $group: { _id: "$visitType", count: { $sum: 1 } } }
-        ])
-      ]),
+        Appointment.find(apptDateMatch).select('status visitType createdAt doctorId doctorName').lean(),
+        ConfirmedAppointment.find(apptDateMatch).select('status visitType createdAt doctorId doctorName').lean(),
+        PendingAppointment.find(apptDateMatch).select('status visitType createdAt doctorId doctorName').lean(),
+        CancelledAppointment.find(apptDateMatch).select('status visitType createdAt doctorId doctorName').lean()
+      ]).then(([appts, confs, pends, cancs]) => {
+        const allAppts = [
+          ...appts,
+          ...confs,
+          ...pends,
+          ...cancs.map(c => ({ ...c, status: 'cancelled' }))
+        ];
+
+        const statusMap = {};
+        const hourMap = {};
+        const visitMap = {};
+
+        for (const a of allAppts) {
+          const rawStatus = (a.status || 'Pending').trim();
+          const capStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+          statusMap[capStatus] = (statusMap[capStatus] || 0) + 1;
+
+          if (a.createdAt) {
+            const h = new Date(a.createdAt).getHours();
+            hourMap[h] = (hourMap[h] || 0) + 1;
+          }
+
+          let rawVisit = (a.visitType || 'Appointment').trim();
+          if (rawVisit === 'WALK_IN' || rawVisit.toLowerCase() === 'walk-in') rawVisit = 'Walk-in';
+          else if (rawVisit === 'APPOINTMENT' || rawVisit.toLowerCase() === 'appointment') rawVisit = 'Appointment';
+          visitMap[rawVisit] = (visitMap[rawVisit] || 0) + 1;
+        }
+
+        const statusData = Object.entries(statusMap).map(([_id, count]) => ({ _id, count }));
+        const peakHours = Object.entries(hourMap)
+          .map(([h, count]) => ({ _id: Number(h), count }))
+          .sort((a, b) => a._id - b._id);
+        const visitTypes = Object.entries(visitMap).map(([_id, count]) => ({ _id, count }));
+
+        return { status: statusData, peakHours, visitTypes, allAppts };
+      }),
 
       // 6. Patient Demographics & Growth
       Promise.all([
         Patient.aggregate([
-          { $match: { organizationId: orgId } },
+          { $match: { organizationId: orgFilter } },
           {
             $group: {
               _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
@@ -676,16 +791,17 @@ export const getClinicAnalytics = async (req, res) => {
           { $sort: { _id: 1 } }
         ]),
         Patient.aggregate([
-          { $match: { organizationId: orgId } },
-          { $group: { _id: "$gender", count: { $sum: 1 } } }
+          { $match: { organizationId: orgFilter } },
+          { $group: { _id: { $ifNull: ["$gender", "Not Specified"] }, count: { $sum: 1 } } }
         ]),
         Patient.aggregate([
-          { $match: { organizationId: orgId } },
+          { $match: { organizationId: orgFilter } },
           {
             $project: {
               ageGroup: {
                 $switch: {
                   branches: [
+                    { case: { $or: [{ $eq: ["$age", null] }, { $not: ["$age"] }] }, then: "Not Specified" },
                     { case: { $lt: ["$age", 18] }, then: "0-17" },
                     { case: { $lt: ["$age", 35] }, then: "18-34" },
                     { case: { $lt: ["$age", 50] }, then: "35-49" }
@@ -699,94 +815,213 @@ export const getClinicAnalytics = async (req, res) => {
         ])
       ]),
 
-      // 7. Doctor Performance
-      Appointment.aggregate([
-        { $match: dateMatch },
-        {
-          $group: {
-            _id: "$doctorId",
-            doctorName: { $first: "$doctorName" },
-            totalAppointments: { $sum: 1 },
-            completedAppointments: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
-            cancelledAppointments: { $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] } },
-            revenue: { $sum: { $cond: [{ $ne: ["$paymentStatus", "refunded"] }, "$amount", 0] } }
+      // 7. Doctor Performance (Clinic Doctors + Real Revenue + Real Appointments)
+      Promise.all([
+        Doctor.find({ organizationId: orgFilter, status: { $nin: ['Inactive', 'Rejected'] } }).lean(),
+        Billing.aggregate([
+          { $match: { ...billingDateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
+          {
+            $group: {
+              _id: { $ifNull: ["$doctorId", "$doctorName"] },
+              doctorName: { $first: "$doctorName" },
+              revenue: { $sum: paidAmountExpr }
+            }
           }
-        },
-        { $sort: { revenue: -1 } }
+        ])
       ]),
 
       // 8. Pharmacy BI
       Promise.all([
         MedicineBatch.aggregate([
-          { $match: { organizationId: orgId, status: 'Active' } },
+          { $match: { organizationId: orgFilter, status: 'Active' } },
           { $group: { 
               _id: null, 
               totalValue: { $sum: { $multiply: ["$stockQuantity", "$purchasePrice"] } },
               lowStockCount: { $sum: { $cond: [{ $lt: ["$stockQuantity", 10] }, 1, 0] } }
           } }
         ]),
-        MedicineBatch.countDocuments({ organizationId: orgId, expiryDate: { $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }, status: 'Active' }),
+        MedicineBatch.countDocuments({ organizationId: orgFilter, expiryDate: { $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }, status: 'Active' }),
         Billing.aggregate([
-          { $match: { organizationId: orgId, billType: 'Pharmacy', status: { $nin: ['Cancelled', 'Dead'] } } },
+          { $match: { organizationId: orgFilter, billType: 'Pharmacy', status: { $nin: ['Cancelled', 'Dead'] } } },
           { $unwind: "$items" },
-          { $group: { _id: "$items.description", totalSold: { $sum: "$items.qty" }, revenue: { $sum: "$items.subtotal" } } },
+          { $group: { _id: { $ifNull: ["$items.description", "$items.procedureName"] }, totalSold: { $sum: "$items.qty" }, revenue: { $sum: "$items.subtotal" } } },
           { $sort: { totalSold: -1 } },
           { $limit: 10 }
         ])
       ]),
 
-      // 9. WhatsApp Credits
-      WhatsAppCreditTransaction.aggregate([
-        { $match: { organizationId: orgId } },
-        { $group: { _id: "$type", total: { $sum: "$amount" } } }
+      // 9. WhatsApp Analytics & Credits
+      Promise.all([
+        Organization.findById(orgId).select('whatsappCredits').lean(),
+        WhatsAppCreditTransaction.aggregate([
+          { 
+            $match: { 
+              $or: [
+                { organization: { $in: [orgId, organizationId.toString()] } },
+                { organizationId: { $in: [orgId, organizationId.toString()] } }
+              ]
+            } 
+          },
+          { 
+            $group: { 
+              _id: "$type", 
+              total: { $sum: 1 },
+              credits: { $sum: "$credits" }
+            } 
+          }
+        ])
       ]),
 
-      // 10. Billing Breakdown
+      // 10. Billing Breakdown by Status
       Billing.aggregate([
-        { $match: dateMatch },
-        { $group: { _id: "$status", count: { $sum: 1 }, amount: { $sum: "$amount" } } }
+        { $match: { ...billingDateMatch, status: { $nin: ['Cancelled', 'Dead'] } } },
+        { 
+          $group: { 
+            _id: "$status", 
+            count: { $sum: 1 }, 
+            amount: { 
+              $sum: {
+                $cond: [
+                  { $eq: ["$status", "Paid"] },
+                  paidAmountExpr,
+                  dueAmountExpr
+                ]
+              }
+            } 
+          } 
+        }
       ])
     ]);
 
-    // Format Response
+    // Build unified doctor performance list
+    const [clinicDoctors, doctorBillingStats] = doctorPerformanceData;
+    const allAppointments = appointmentData.allAppts || [];
+
+    // Map doctor revenue from billing
+    const docRevMap = {};
+    for (const b of doctorBillingStats) {
+      if (b._id) docRevMap[b._id.toString()] = (docRevMap[b._id.toString()] || 0) + (b.revenue || 0);
+      if (b.doctorName) docRevMap[b.doctorName.toLowerCase()] = (docRevMap[b.doctorName.toLowerCase()] || 0) + (b.revenue || 0);
+    }
+
+    // Map doctor appointments
+    const docApptMap = {};
+    const docCompletedMap = {};
+    for (const a of allAppointments) {
+      const docKey = a.doctorId || a.doctorName || 'Unknown';
+      docApptMap[docKey] = (docApptMap[docKey] || 0) + 1;
+      if (a.doctorName) {
+        const nameKey = a.doctorName.toLowerCase();
+        docApptMap[nameKey] = (docApptMap[nameKey] || 0) + 1;
+      }
+      if ((a.status || '').toLowerCase() === 'completed') {
+        docCompletedMap[docKey] = (docCompletedMap[docKey] || 0) + 1;
+        if (a.doctorName) {
+          const nameKey = a.doctorName.toLowerCase();
+          docCompletedMap[nameKey] = (docCompletedMap[nameKey] || 0) + 1;
+        }
+      }
+    }
+
+    const processedDoctors = new Set();
+    const doctorPerformance = [];
+
+    // First add all registered clinic doctors
+    for (const doc of clinicDoctors) {
+      const docName = doc.name || `${doc.firstName || ''} ${doc.lastName || ''}`.trim() || 'Dr. ' + (doc.doctorId || 'Doctor');
+      const docIdStr = doc._id.toString();
+      const customDocId = doc.doctorId || '';
+      const nameKey = docName.toLowerCase();
+
+      const totalAppts = docApptMap[customDocId] || docApptMap[docIdStr] || docApptMap[nameKey] || 0;
+      const completedAppts = docCompletedMap[customDocId] || docCompletedMap[docIdStr] || docCompletedMap[nameKey] || 0;
+      const revenue = docRevMap[customDocId] || docRevMap[docIdStr] || docRevMap[nameKey] || 0;
+
+      processedDoctors.add(docIdStr);
+      if (customDocId) processedDoctors.add(customDocId);
+      processedDoctors.add(nameKey);
+
+      doctorPerformance.push({
+        _id: doc._id,
+        doctorId: doc.doctorId,
+        doctorName: docName,
+        totalAppointments: totalAppts,
+        completedAppointments: completedAppts,
+        revenue
+      });
+    }
+
+    // Also include any doctor from billing or appointments who wasn't in clinicDoctors
+    for (const b of doctorBillingStats) {
+      const key = (b.doctorName || b._id || '').toString();
+      if (key && !processedDoctors.has(key.toLowerCase()) && !processedDoctors.has(key)) {
+        processedDoctors.add(key.toLowerCase());
+        doctorPerformance.push({
+          _id: b._id,
+          doctorName: b.doctorName || key,
+          totalAppointments: docApptMap[key] || docApptMap[key.toLowerCase()] || 0,
+          completedAppointments: docCompletedMap[key] || docCompletedMap[key.toLowerCase()] || 0,
+          revenue: b.revenue || 0
+        });
+      }
+    }
+
+    doctorPerformance.sort((a, b) => b.revenue - a.revenue || b.totalAppointments - a.totalAppointments);
+
+    // Format Overview Cards
     const overview = {
       totalRevenue: overviewStats[0][0]?.total || 0,
       todayRevenue: overviewStats[1][0]?.total || 0,
       thisMonthRevenue: overviewStats[2][0]?.total || 0,
       pendingPayment: overviewStats[3][0]?.total || 0,
-      totalAppointments: overviewStats[4],
-      totalPatients: overviewStats[5],
-      totalDoctors: overviewStats[6],
-      newPatientsThisMonth: overviewStats[7]
+      totalAppointments: overviewStats[4] || 0,
+      totalPatients: overviewStats[5] || 0,
+      totalDoctors: overviewStats[6] || 0,
+      newPatientsThisMonth: overviewStats[7] || 0
     };
 
-    // Insights Generation Engine
+    // Clinical Insights
     const insights = [];
-    if (overview.thisMonthRevenue > 0) insights.push({ type: 'revenue', message: `Monthly revenue is ₹${overview.thisMonthRevenue.toLocaleString()}.` });
-    if (overview.pendingPayment > 5000) insights.push({ type: 'billing', message: `High pending payments: ₹${overview.pendingPayment.toLocaleString()}. Consider follow-ups.` });
+    if (overview.thisMonthRevenue > 0) {
+      insights.push({ type: 'revenue', message: `Monthly revenue collected is ₹${overview.thisMonthRevenue.toLocaleString()}.` });
+    }
+    if (overview.pendingPayment > 0) {
+      insights.push({ type: 'billing', message: `Total pending balance is ₹${overview.pendingPayment.toLocaleString()}. Consider following up on dues.` });
+    }
     
     const topDoc = doctorPerformance[0];
-    if (topDoc) insights.push({ type: 'appointment', message: `${topDoc.doctorName} is leading with ${topDoc.totalAppointments} appointments.` });
+    if (topDoc && (topDoc.totalAppointments > 0 || topDoc.revenue > 0)) {
+      insights.push({ type: 'appointment', message: `${topDoc.doctorName} is leading with ${topDoc.totalAppointments} appointments and ₹${topDoc.revenue.toLocaleString()} revenue.` });
+    }
     
     const lowStock = pharmacyStats[0][0]?.lowStockCount || 0;
-    if (lowStock > 0) insights.push({ type: 'pharmacy', message: `${lowStock} medicines are running low on stock.` });
+    if (lowStock > 0) {
+      insights.push({ type: 'pharmacy', message: `${lowStock} medicines are running low on stock.` });
+    }
 
     res.json({
       success: true,
       data: {
         overview,
         revenue: { trends: revenueTrends, breakdown: revenueBreakdown, paymentModes: paymentModeStats },
-        appointments: { status: appointmentAnalytics[0], peakHours: appointmentAnalytics[1], visitTypes: appointmentAnalytics[2] },
+        appointments: { status: appointmentData.status, peakHours: appointmentData.peakHours, visitTypes: appointmentData.visitTypes },
         patients: { growth: patientAnalytics[0], gender: patientAnalytics[1], ageGroups: patientAnalytics[2] },
         doctors: doctorPerformance,
         pharmacy: {
           inventoryValue: pharmacyStats[0][0]?.totalValue || 0,
           lowStockCount: pharmacyStats[0][0]?.lowStockCount || 0,
           expiringSoon: pharmacyStats[1] || 0,
-          topSelling: pharmacyStats[2]
+          topSelling: pharmacyStats[2] || []
         },
         billing: billingStats,
-        whatsapp: whatsappStats,
+        whatsapp: {
+          credits: whatsappStats[0]?.whatsappCredits || {
+            totalAvailable: 0,
+            monthlyIncluded: 0,
+            usedThisMonth: 0
+          },
+          stats: whatsappStats[1] || []
+        },
         insights
       }
     });

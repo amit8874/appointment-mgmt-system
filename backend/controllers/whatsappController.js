@@ -424,7 +424,7 @@ export const sendBroadcastWhatsApp = async (req, res) => {
  */
 export const sendBroadcastCampaign = async (req, res) => {
   try {
-    const { patients, messageText, clinicName } = req.body;
+    const { patients, messageText, clinicName, targetReligion } = req.body;
 
     if (!patients || !Array.isArray(patients) || patients.length === 0) {
       return res.status(400).json({ success: false, message: "Patients array is required." });
@@ -453,6 +453,12 @@ export const sendBroadcastCampaign = async (req, res) => {
 
       for (let i = 0; i < patients.length; i++) {
         const p = patients[i];
+        
+        // Ensure religion filter is respected if targeted
+        if (targetReligion && targetReligion !== 'All' && p.religion && p.religion.trim().toLowerCase() !== targetReligion.trim().toLowerCase()) {
+          console.log(`[Campaign Background] Skipping ${p.name} due to religion mismatch (${p.religion} !== ${targetReligion})`);
+          continue;
+        }
         
         // Sanitize phone
         let sanitizedPhone;

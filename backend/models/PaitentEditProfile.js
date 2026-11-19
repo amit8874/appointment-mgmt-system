@@ -53,6 +53,11 @@ const patientSchema = new mongoose.Schema({
     default: undefined,
     set: v => v === '' ? undefined : v
   },
+  religion: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   mobile: {
     type: String,
     required: false,

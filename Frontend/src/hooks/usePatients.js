@@ -13,21 +13,29 @@ export const usePatients = () => {
   const [patientsCountLoading, setPatientsCountLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [limit, setLimit] = useState(15);
+  const [isSeeAll, setIsSeeAll] = useState(false);
 
   // Fetch patients with pagination and search
-  const fetchPatients = useCallback(async (page = 1, limit = 15, search = null) => {
+  const fetchPatients = useCallback(async (page = 1, fetchLimit = null, search = null) => {
     try {
       setPatientsLoading(true);
       setPatientsError('');
       // If search is not provided as argument, use the current state
       const finalSearch = search !== null ? search : searchTerm;
-      const response = await patientApi.getAll({ page, limit, search: finalSearch });
+      const finalLimit = fetchLimit !== null ? fetchLimit : limit;
+      const queryLimit = (finalLimit === 'all' || finalLimit === 0) ? 'all' : (finalLimit || 15);
+      const response = await patientApi.getAll({ page, limit: queryLimit, search: finalSearch });
       
       if (response && response.patients) {
         setPatients(response.patients);
         setTotalPages(response.totalPages || 1);
         setCurrentPage(response.currentPage || 1);
         setTotalPatients(response.totalPatients || 0);
+        if (fetchLimit !== null) {
+          setLimit(fetchLimit);
+          setIsSeeAll(fetchLimit === 'all' || fetchLimit === 0);
+        }
         return response.patients;
       } else {
         setPatients(response || []);
@@ -39,7 +47,7 @@ export const usePatients = () => {
     } finally {
       setPatientsLoading(false);
     }
-  }, [searchTerm]);
+  }, [searchTerm, limit]);
 
   // Fetch patient count
   const fetchPatientCount = useCallback(async () => {
@@ -82,6 +90,8 @@ export const usePatients = () => {
   currentPage,
   patientsCountLoading,
   searchTerm,
+  limit,
+  isSeeAll,
 
   // Setters (IMPORTANT)
   setPatients,
@@ -93,6 +103,8 @@ export const usePatients = () => {
   setCurrentPage,
   setPatientsCountLoading,
   setSearchTerm,
+  setLimit,
+  setIsSeeAll,
   
 
   // Actions

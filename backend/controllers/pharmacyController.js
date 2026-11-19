@@ -288,7 +288,15 @@ export const createProduct = async (req, res) => {
  */
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.find().sort({ name: 1 });
+    const orgId = req.tenantId || req.user?.organizationId;
+    const filter = orgId ? {
+      $or: [
+        { organizationId: orgId },
+        { organizationId: orgId.toString() },
+        { organizationId: { $exists: false } }
+      ]
+    } : {};
+    const products = await Product.find(filter).sort({ name: 1 });
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Download, Printer, Phone, Loader2, Search } from 'lucide-react';
+import { X, Plus, Minus, Trash2, Download, Printer, Phone, Loader2, Search } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../../context/AuthContext';
 import api, { billingApi, centralDoctorApi, medicineApi } from '../../../services/api';
@@ -95,19 +95,44 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
             type: med.type,
             sellingPrice: Number(med.sellingPrice || med.mrp || 0),
             mrp: Number(med.mrp || 0),
-            totalStock: Number(med.totalStock || 0),
+            totalStock: Number(med.totalStock !== undefined ? med.totalStock : 100),
             stockStatus: med.stockStatus,
             source: 'pharmacy'
           })));
         } else {
-          const results = await medicineApi.search(medicineQuery);
-          setMedicineSuggestions((results || []).map(r => ({
-            _id: r._id,
-            name: typeof r === 'string' ? r : r.name,
-            sellingPrice: 0,
-            totalStock: 0,
-            source: 'global'
-          })));
+          // Fallback to clinic products catalog or global search
+          let productList = [];
+          try {
+            const pRes = await api.get('/products');
+            const prods = Array.isArray(pRes.data) ? pRes.data : [];
+            const q = medicineQuery.toLowerCase().trim();
+            productList = prods
+              .filter(p => p.name?.toLowerCase().includes(q))
+              .map(p => ({
+                _id: p._id,
+                name: p.name,
+                genericName: p.description,
+                type: p.category || 'Product',
+                sellingPrice: Number(p.price || 0),
+                mrp: Number(p.price || 0),
+                totalStock: Number(p.stock !== undefined ? p.stock : 100),
+                stockStatus: (p.stock || 100) > 0 ? 'In Stock' : 'Out of Stock',
+                source: 'clinic-product'
+              }));
+          } catch {}
+
+          if (productList.length > 0) {
+            setMedicineSuggestions(productList);
+          } else {
+            const results = await medicineApi.search(medicineQuery);
+            setMedicineSuggestions((results || []).map(r => ({
+              _id: r._id,
+              name: typeof r === 'string' ? r : r.name,
+              sellingPrice: 0,
+              totalStock: 100,
+              source: 'global'
+            })));
+          }
         }
       } catch {
         setMedicineSuggestions([]);
@@ -122,12 +147,27 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
   const handleItemChange = (index, field, value) => {
     setItems(prev => {
       const updated = [...prev];
-      updated[index][field] = value;
+      updated[index] = { ...updated[index], [field]: value };
 
-      const qty = parseFloat(updated[index].qty) || 0;
-      const price = parseFloat(updated[index].price) || 0;
+      const qty = parseFloat(field === 'qty' ? value : updated[index].qty) || 0;
+      const price = parseFloat(field === 'price' ? value : updated[index].price) || 0;
       updated[index].subtotal = parseFloat((qty * price).toFixed(2));
 
+      return updated;
+    });
+  };
+
+  const handleQuantityStep = (index, delta) => {
+    setItems(prev => {
+      const updated = [...prev];
+      const currentQty = parseFloat(updated[index]?.qty) || 0;
+      const newQty = Math.max(0, parseFloat((currentQty + delta).toFixed(2)));
+      const price = parseFloat(updated[index]?.price) || 0;
+      updated[index] = {
+        ...updated[index],
+        qty: newQty,
+        subtotal: parseFloat((newQty * price).toFixed(2))
+      };
       return updated;
     });
   };
@@ -147,12 +187,11 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
   const handleSelectMedicine = (index, med) => {
     const medName = typeof med === 'string' ? med : (med.name || '');
     const unitPrice = typeof med === 'object' && med.sellingPrice !== undefined ? Number(med.sellingPrice) : 0;
-    const stock = typeof med === 'object' && med.totalStock !== undefined ? Number(med.totalStock) : null;
     const medId = typeof med === 'object' ? med._id : null;
 
     setItems(prev => {
       const updated = [...prev];
-      const currentQty = parseFloat(updated[index].qty) || 1;
+      const currentQty = parseFloat(updated[index].qty) > 0 ? parseFloat(updated[index].qty) : 1;
       const calcSubtotal = parseFloat((currentQty * unitPrice).toFixed(2));
       updated[index] = {
         ...updated[index],
@@ -160,9 +199,7 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
         description: medName,
         price: unitPrice,
         qty: currentQty,
-        subtotal: calcSubtotal,
-        availableStock: stock,
-        stockStatus: med.stockStatus || (stock > 0 ? 'In Stock' : 'Out of Stock')
+        subtotal: calcSubtotal
       };
       return updated;
     });
@@ -423,27 +460,11 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
                               </div>
                               <div className="text-right">
                                 {med.sellingPrice !== undefined && (
-                                  <p className="text-xs font-black text-indigo-600">₹{med.sellingPrice}</p>
+                                  <p className="text-xs font-black text-indigo-600">₹{(parseFloat(med.sellingPrice) || 0).toFixed(2)}</p>
                                 )}
-                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${med.totalStock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                                  {med.totalStock > 0 ? `${med.totalStock} in stock` : 'Out of Stock'}
-                                </span>
                               </div>
                             </div>
                           ))}
-                        </div>
-                      )}
-                      {item.availableStock !== undefined && item.availableStock !== null && (
-                        <div className="mt-1 flex items-center gap-1.5">
-                          {item.qty > item.availableStock ? (
-                            <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">
-                              ⚠️ Only {item.availableStock} in stock (Deficit: {item.qty - item.availableStock})
-                            </span>
-                          ) : (
-                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                              ✓ {item.availableStock} in stock • {item.availableStock - item.qty} left after bill
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>
@@ -451,30 +472,36 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
                     {/* Quantity */}
                     <div className="col-span-2">
                       <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Qty</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.qty === 0 ? '' : item.qty}
-                        placeholder="1"
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          // Allow clearing the field while typing
-                          if (raw === '' || raw === '0') {
-                            handleItemChange(index, 'qty', 0);
-                          } else {
-                            const parsed = parseInt(raw);
-                            if (!isNaN(parsed) && parsed > 0) {
-                              handleItemChange(index, 'qty', parsed);
-                            }
-                          }
-                        }}
-                        onBlur={(e) => {
-                          // On blur, ensure at least 1
-                          const val = parseInt(e.target.value);
-                          handleItemChange(index, 'qty', (!val || val < 1) ? 1 : val);
-                        }}
-                        className="w-full px-3 py-2 border border-slate-350 rounded-xl text-xs font-black text-slate-800 bg-white outline-none focus:border-indigo-500"
-                      />
+                      <div className="flex items-center border border-slate-350 rounded-xl bg-white overflow-hidden shadow-sm hover:border-indigo-400 focus-within:border-indigo-500 transition-all">
+                        <button
+                          type="button"
+                          onClick={() => handleQuantityStep(index, -1)}
+                          className="px-2 py-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:scale-95 transition-all flex items-center justify-center font-bold"
+                          title="Decrease Qty"
+                        >
+                          <Minus size={12} />
+                        </button>
+                        <input
+                          type="number"
+                          step="any"
+                          value={item.qty === 0 ? '' : item.qty}
+                          placeholder="1"
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            handleItemChange(index, 'qty', raw === '' ? '' : parseFloat(raw));
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full py-1.5 text-center text-xs font-black text-slate-800 focus:outline-none bg-transparent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleQuantityStep(index, 1)}
+                          className="px-2 py-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 active:scale-95 transition-all flex items-center justify-center font-bold"
+                          title="Increase Qty"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Unit Price */}
@@ -482,11 +509,14 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
                       <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Unit Price (₹)</label>
                       <input
                         type="number"
-                        min="0"
-                        step="0.01"
+                        step="any"
                         value={item.price === 0 ? '' : item.price}
                         placeholder="0.00"
-                        onChange={(e) => handleItemChange(index, 'price', Math.max(0, parseFloat(e.target.value) || 0))}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          handleItemChange(index, 'price', val === '' ? '' : parseFloat(val));
+                        }}
+                        onFocus={(e) => e.target.select()}
                         className="w-full px-3 py-2 border border-slate-350 rounded-xl text-xs font-black text-slate-800 bg-white outline-none focus:border-indigo-500"
                       />
                     </div>
@@ -494,8 +524,8 @@ const AddPharmacyMedicineBillModal = ({ isOpen, patientData = {}, onClose, onCom
                     {/* Total Cost */}
                     <div className="col-span-1">
                       <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total</label>
-                      <div className="py-2.5 text-xs font-black text-slate-900">
-                        ₹{item.subtotal}
+                      <div className="py-2.5 text-xs font-black text-slate-900 whitespace-nowrap">
+                        ₹{(parseFloat(item.subtotal) || 0).toFixed(2)}
                       </div>
                     </div>
 

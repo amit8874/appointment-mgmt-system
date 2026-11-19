@@ -82,6 +82,7 @@ import OviaanDefaultPharmacyInvoiceTemplate from '../../../components/billing/te
 import { useAuth } from '../../../context/AuthContext';
 import DentalConsentFormModal from './DentalConsentFormModal';
 import AddPharmacyMedicineBillModal from './AddPharmacyMedicineBillModal';
+import DentalBillingCreatorModal from './DentalBillingCreatorModal';
 import Pagination from '../../../components/common/Pagination';
 import AddFollowUpReminderModal from '../../../components/reminders/AddFollowUpReminderModal';
 import DentalChart from './DentalChart';
@@ -422,9 +423,9 @@ const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user, onNa
   const defaultNavSections = [
     { key: 'prescriptions', name: 'Prescriptions', icon: Pill },
     { key: 'appointments', name: 'Appointments', icon: CalendarIcon },
+    { key: 'treatment-plan', name: 'Treatment Plan', icon: ClipboardList },
     { key: 'billing', name: 'Billing', icon: IndianRupee },
     { key: 'dental-chart', name: 'Dental Chart', icon: Smile },
-    { key: 'treatment-plan', name: 'Treatment Plan', icon: ClipboardList },
     { key: 'dental-images', name: 'Dental Images', icon: Image },
     { key: 'tooth-history', name: 'Tooth History', icon: History },
     { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
@@ -451,6 +452,7 @@ const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user, onNa
           <InfoItem label="Date of Birth" value={data.dateOfBirth ? formatDateDMY(data.dateOfBirth) : 'N/A'} />
           <InfoItem label="Gender" value={data.gender} />
           <InfoItem label="Blood Group" value={data.bloodGroup} />
+          <InfoItem label="Religion" value={data.religion} />
           <InfoItem label="Age" value={data.age ? `${data.age} ${data.ageType || 'Year'}` : 'N/A'} />
           <InfoItem label="Appointment Date" value={(() => {
             const d = data.appointmentDate || data.lastVisit || (appointments && appointments[0]?.date);
@@ -794,6 +796,7 @@ const EditProfileModal = ({ data, appointments = [], onClose, onSave }) => {
     ageType: data.ageType || 'Year',
     gender: data.gender || '',
     bloodGroup: data.bloodGroup || '',
+    religion: data.religion || '',
     mobile: data.mobile || data.contactNumber || '',
     alternateMobile: data.alternateMobile || data.alternatePhone || '',
     email: data.email || '',
@@ -877,6 +880,7 @@ const EditProfileModal = ({ data, appointments = [], onClose, onSave }) => {
               <Field label="Age" value={form.age} onChange={set('age')} type="number" />
               <Field label="Age Type" value={form.ageType} onChange={set('ageType')} options={['Year', 'Month', 'Days']} />
               <Field label="Blood Group" value={form.bloodGroup} onChange={set('bloodGroup')} options={['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']} />
+              <Field label="Religion" value={form.religion} onChange={set('religion')} options={['', 'Hindu', 'Muslim', 'Sikh', 'Christian', 'Jain', 'Buddhist', 'Other']} />
             </div>
           </section>
 
@@ -2378,7 +2382,7 @@ const BillViewModal = ({ bill, onClose, clinicInfo, patient, onPrint, onDownload
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col border-2 sm:border-4 border-black my-auto"
+        className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-2xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col border-2 sm:border-4 border-black my-auto"
         onClick={e => e.stopPropagation()}
       >
         <div className="p-4 sm:p-6 border-b-2 border-black flex justify-between items-center bg-white sticky top-0 z-10 shrink-0">
@@ -3508,6 +3512,7 @@ const BillEditModal = ({ bill, onClose, onSave }) => {
 
 const TabBilling = ({
   patient,
+  appointments = [],
   onPrint,
   onDownload,
   onWhatsApp,
@@ -3520,7 +3525,8 @@ const TabBilling = ({
   setSelectedInvoiceTemplate = () => {},
   onOpenTemplateModal,
   isDentistClinic,
-  onNewPharmacyBill
+  onNewPharmacyBill,
+  onBillCreated
 }) => {
   const [bills, setBills] = useState([]);
   const [summary, setSummary] = useState({ totalBilled: 0, totalPaid: 0, totalDue: 0, invoiceCount: 0 });
@@ -3528,6 +3534,7 @@ const TabBilling = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [billingTab, setBillingTab] = useState('Consultant');
+  const [showDentalBillingModal, setShowDentalBillingModal] = useState(false);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -3818,6 +3825,17 @@ const TabBilling = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {billingTab === 'Dental' && (
+            <button 
+              type="button"
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
+              onClick={() => setShowDentalBillingModal(true)}
+              title="Create Dental Bill"
+            >
+              <IndianRupee size={15} />
+              Create Bill
+            </button>
+          )}
           {billingTab === 'Pharmacy' && (
             <>
               <button 
@@ -4070,6 +4088,16 @@ const TabBilling = ({
             <p className="text-slate-400 font-medium max-w-[250px] mx-auto mt-2">
               Generate bills to track patient payments and financial history.
             </p>
+            {billingTab === 'Dental' && (
+              <button
+                type="button"
+                onClick={() => setShowDentalBillingModal(true)}
+                className="mt-4 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
+              >
+                <IndianRupee size={15} />
+                Create Dental Bill
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -4109,6 +4137,19 @@ const TabBilling = ({
             bill={editingBill} 
             onClose={() => setEditingBill(null)} 
             onSave={fetchBills} 
+          />
+        )}
+        {showDentalBillingModal && (
+          <DentalBillingCreatorModal
+            patientId={patient?._id || patient?.patientId}
+            patientData={patient}
+            appointments={appointments}
+            onClose={() => setShowDentalBillingModal(false)}
+            onComplete={() => {
+              setShowDentalBillingModal(false);
+              fetchBills(currentPage);
+              if (onBillCreated) onBillCreated();
+            }}
           />
         )}
       </AnimatePresence>
@@ -6298,9 +6339,9 @@ const PatientProfile = () => {
     { key: 'personal', name: 'Personal Info', icon: User },
     { key: 'prescriptions', name: 'Prescriptions', icon: Pill },
     { key: 'appointments', name: 'Appointments', icon: CalendarIcon },
+    { key: 'treatment-plan', name: 'Treatment Plan', icon: ClipboardList },
     { key: 'billing', name: 'Billing', icon: IndianRupee },
     { key: 'dental-chart', name: 'Dental Chart', icon: Smile },
-    { key: 'treatment-plan', name: 'Treatment Plan', icon: ClipboardList },
     { key: 'dental-images', name: 'Dental Images', icon: Image },
     { key: 'tooth-history', name: 'Tooth History', icon: History },
     { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
@@ -7160,10 +7201,12 @@ const PatientProfile = () => {
                       selectedVisitDate={selectedVisitDate} 
                     />
                   )}
+                  {activeTab === 'treatment-plan' && <DentalTreatmentTab patientId={data?._id || id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
                   {activeTab === 'billing' && (
                     <TabBilling
                       key={`${billingRefreshKey}-${data?._id || id}`}
                       patient={data}
+                      appointments={appointments}
                       onPrint={handleBillingPrint}
                       onDownload={handleBillingDownload}
                       onWhatsApp={handleInvoiceWhatsApp}
@@ -7178,6 +7221,7 @@ const PatientProfile = () => {
                       isDentistClinic={isDentistClinic}
                       onNewPharmacyBill={() => setShowAddMedicineModal(true)}
                       selectedVisitDate={selectedVisitDate}
+                      onBillCreated={() => fetchData(false)}
                     />
                   )}
                   {activeTab === 'progress' && (
@@ -7190,7 +7234,6 @@ const PatientProfile = () => {
                     />
                   )}
                   {activeTab === 'dental-chart' && <DentalChart patientId={data?._id || id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
-                  {activeTab === 'treatment-plan' && <DentalTreatmentTab patientId={data?._id || id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}
                   {activeTab === 'dental-images' && <DentalImagesTab patientId={data?._id || id} selectedVisitDate={selectedVisitDate} />}
                   {activeTab === 'tooth-history' && <ToothHistoryTab patientId={data?._id || id} selectedVisitDate={selectedVisitDate} />}
                   {activeTab === 'lab-work' && <LabWorkTab patientId={data?._id || id} patientData={data} appointments={appointments} selectedVisitDate={selectedVisitDate} />}

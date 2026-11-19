@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, User, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download, MessageSquare } from 'lucide-react';
+import { Search, User, Users, Trash2, X, AlertTriangle, PlusCircle, Eye, CheckCircle, XCircle, Clock, MoreVertical, FileText, CalendarPlus, Phone, MessageCircle, Download, MessageSquare } from 'lucide-react';
 import { exportPatientsToExcel } from '../../../utils/excelExport';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,6 +27,8 @@ const PatientPanel = () => {
     setCurrentPage,
     searchTerm,
     setSearchTerm,
+    limit,
+    isSeeAll,
     fetchPatients
   } = usePatients();
 
@@ -65,7 +67,7 @@ const PatientPanel = () => {
   const [selectedPatientForPayment, setSelectedPatientForPayment] = useState(null);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [activeConsentPatient, setActiveConsentPatient] = useState(null);
-  const itemsPerPage = 15;
+  const itemsPerPage = limit || 15;
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -389,7 +391,9 @@ const PatientPanel = () => {
       {/* Stats and Table Section */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {/* Status Filter Tabs */}
-        <div className="flex flex-wrap gap-2 p-4 border-b border-gray-100 bg-gray-50/50">
+        {/* Status Filter Tabs & View Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-gray-100 bg-gray-50/50">
+          <div className="flex flex-wrap gap-2">
           {['All', 'Paid', 'Pending', 'Active', 'Dead'].map((status) => (
             <button
               key={status}
@@ -406,6 +410,51 @@ const PatientPanel = () => {
               </span>
             </button>
           ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {isSeeAll ? (
+              <button
+                type="button"
+                onClick={() => fetchPatients(1, 15, searchTerm)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all shadow-xs cursor-pointer"
+                title="Switch back to 15 patients per page"
+              >
+                <span>Viewing: <strong className="font-black text-indigo-900">All ({totalPatients || patients.length})</strong></span>
+                <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded font-black">Show 15 / Page</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fetchPatients(1, 'all', searchTerm)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="See all patients on one page"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>See All ({totalPatients || statusCounts.All})</span>
+              </button>
+            )}
+
+            {isSeeAll && paginatedPatients.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const allIds = paginatedPatients.map(p => p._id);
+                  const isAllSelected = allIds.length > 0 && allIds.every(id => selectedPatientIds.includes(id));
+                  if (isAllSelected) {
+                    setSelectedPatientIds([]);
+                  } else {
+                    setSelectedPatientIds(allIds);
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${paginatedPatients.length > 0 && paginatedPatients.every(p => selectedPatientIds.includes(p._id)) ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}
+                title="Select all patients for bulk messaging"
+              >
+                <Users className="w-3.5 h-3.5" />
+                {paginatedPatients.length > 0 && paginatedPatients.every(p => selectedPatientIds.includes(p._id)) ? `✓ All ${paginatedPatients.length} Selected` : `Select All (${paginatedPatients.length})`}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Table */}
@@ -588,13 +637,28 @@ const PatientPanel = () => {
             </tbody>
           </table>
         </div>
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={totalPatients}
-          itemsPerPage={itemsPerPage}
-        />
+        {isSeeAll ? (
+          <div className="flex flex-col sm:flex-row justify-between items-center p-4 text-sm text-gray-500 gap-4 bg-white border-t border-gray-100">
+            <span className="font-medium">
+              Showing all <strong className="text-gray-900">{filteredPatients.length}</strong> patients
+            </span>
+            <button
+              type="button"
+              onClick={() => fetchPatients(1, 15, searchTerm)}
+              className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold hover:bg-blue-100 transition-all cursor-pointer"
+            >
+              Show 15 Per Page
+            </button>
+          </div>
+        ) : (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={(page) => fetchPatients(page, itemsPerPage, searchTerm)}
+            totalItems={totalPatients}
+            itemsPerPage={itemsPerPage}
+          />
+        )}
       </div>
 
       {/* Delete Modal Placeholder - can be expanded as needed */}

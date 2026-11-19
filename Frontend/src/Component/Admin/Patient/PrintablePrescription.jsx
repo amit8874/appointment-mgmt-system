@@ -39,6 +39,8 @@ const PrintablePrescription = ({
     parsedNotes = null;
   }
 
+  const isJsonString = (str) => typeof str === 'string' && (str.trim().startsWith('{') || str.trim().startsWith('['));
+
   // 1. Context / Title
   const contextTitle = prescription?.title || (parsedNotes?.isDental ? 'Dental Examination & Prescription' : '');
 
@@ -176,7 +178,8 @@ const PrintablePrescription = ({
   })();
 
   // 10. Advice
-  const adviceText = parsedNotes?.advice || prescription?.advice || '';
+  const rawAdvice = parsedNotes?.advice || prescription?.advice || '';
+  const adviceText = isJsonString(rawAdvice) ? '' : rawAdvice;
 
   // 11. Next Visit / Follow Up
   const nextVisitDateStr = (() => {
@@ -194,7 +197,8 @@ const PrintablePrescription = ({
     }
   })();
 
-  const nextVisitNotesText = parsedNotes?.nextAppointmentNotes || parsedNotes?.doctorNotes || parsedNotes?.visitNotes || prescription?.doctorNotes || '';
+  const rawNotes = parsedNotes?.nextAppointmentNotes || parsedNotes?.doctorNotes || parsedNotes?.visitNotes || prescription?.doctorNotes || '';
+  const nextVisitNotesText = isJsonString(rawNotes) ? '' : rawNotes;
   const nextVisitText = nextVisitDateStr ? (nextVisitNotesText ? `${nextVisitDateStr} (${nextVisitNotesText})` : nextVisitDateStr) : '';
 
   // 12. Investigation List
@@ -875,11 +879,7 @@ const PrintablePrescription = ({
                   ))}
                 </tbody>
               </table>
-            ) : (
-              <div className="p-4 border border-slate-300 rounded-lg text-center text-xs text-slate-500 mb-3 italic">
-                {prescription.notes || 'No medications listed.'}
-              </div>
-            )}
+            ) : null}
 
             {/* Advice, Next Visit & Investigation */}
             <div className="space-y-1.5 mb-3 text-xs leading-snug">

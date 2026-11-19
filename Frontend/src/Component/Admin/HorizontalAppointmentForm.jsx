@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, ChevronDown, Calendar as CalendarIcon, Loader2, Mic, MicOff, X, Clock, Star, Heart, RotateCcw, Mail, Droplet, MapPin, PhoneCall, ShieldAlert, FileText, Check } from 'lucide-react';
+import { Plus, ChevronDown, Calendar as CalendarIcon, Loader2, Mic, MicOff, X, Clock, Star, Heart, RotateCcw, Mail, Droplet, MapPin, PhoneCall, ShieldAlert, FileText, Check, Sparkles } from 'lucide-react';
 import api, { whatsappApi, clinicalNoteApi } from '../../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
@@ -53,6 +53,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     state: '',
     zip: '',
     bloodGroup: '',
+    religion: '',
     alternateMobile: '',
     emergencyContact: '',
     emergencyPhone: '',
@@ -100,6 +101,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
   const [activeExtraFields, setActiveExtraFields] = useState({
     email: false,
     bloodGroup: false,
+    religion: false,
     address: false,
     alternateMobile: false,
     emergencyContact: false,
@@ -117,6 +119,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
     setActiveExtraFields({
       email: true,
       bloodGroup: true,
+      religion: true,
       address: true,
       alternateMobile: true,
       emergencyContact: true,
@@ -378,6 +381,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       ...prev,
       email: !!p.email || prev.email,
       bloodGroup: !!p.bloodGroup || prev.bloodGroup,
+      religion: !!p.religion || prev.religion,
       address: !!(p.address || p.city || p.state || p.zip) || prev.address,
       alternateMobile: !!(p.alternateMobile || p.alternatePhone) || prev.alternateMobile,
       emergencyContact: !!(p.emergencyContact || p.emergencyPhone) || prev.emergencyContact,
@@ -399,6 +403,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       state: p.state || '',
       zip: p.zip || '',
       bloodGroup: p.bloodGroup || '',
+      religion: p.religion || '',
       alternateMobile: p.alternateMobile || p.alternatePhone || '',
       emergencyContact: p.emergencyContact || '',
       emergencyPhone: p.emergencyPhone || '',
@@ -591,6 +596,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       ...prev,
       email: !!p.email || prev.email,
       bloodGroup: !!p.bloodGroup || prev.bloodGroup,
+      religion: !!p.religion || prev.religion,
       address: !!(p.address || p.city || p.state || p.zip) || prev.address,
       alternateMobile: !!(p.alternateMobile || p.alternatePhone) || prev.alternateMobile,
       emergencyContact: !!(p.emergencyContact || p.emergencyPhone) || prev.emergencyContact,
@@ -611,6 +617,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
       state: p.state || '',
       zip: p.zip || '',
       bloodGroup: p.bloodGroup || '',
+      religion: p.religion || '',
       alternateMobile: p.alternateMobile || p.alternatePhone || '',
       emergencyContact: p.emergencyContact || '',
       emergencyPhone: p.emergencyPhone || '',
@@ -688,6 +695,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           state: formData.state,
           zip: formData.zip,
           bloodGroup: formData.bloodGroup,
+          religion: formData.religion || '',
           alternateMobile: formData.alternateMobile,
           emergencyContact: formData.emergencyContact,
           emergencyPhone: formData.emergencyPhone,
@@ -738,6 +746,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
             state: formData.state,
             zip: formData.zip,
             bloodGroup: formData.bloodGroup,
+            religion: formData.religion || '',
             alternateMobile: formData.alternateMobile,
             emergencyContact: formData.emergencyContact,
             emergencyPhone: formData.emergencyPhone,
@@ -1234,6 +1243,20 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
 
               <button
                 type="button"
+                onClick={() => toggleExtraField('religion')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                  activeExtraFields.religion
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                }`}
+              >
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                Religion
+                {activeExtraFields.religion && <Check className="w-3 h-3 ml-0.5" />}
+              </button>
+
+              <button
+                type="button"
                 onClick={addAllExtraFields}
                 className="px-2 py-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 dark:text-blue-400 hover:underline cursor-pointer"
               >
@@ -1243,7 +1266,7 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
           </div>
 
           {/* Active Field Inputs Grid */}
-          {(activeExtraFields.email || activeExtraFields.bloodGroup || activeExtraFields.alternateMobile || activeExtraFields.address || activeExtraFields.emergencyContact || activeExtraFields.medicalHistory) && (
+          {(activeExtraFields.email || activeExtraFields.bloodGroup || activeExtraFields.religion || activeExtraFields.alternateMobile || activeExtraFields.address || activeExtraFields.emergencyContact || activeExtraFields.medicalHistory) && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3 border-t border-gray-200 dark:border-gray-700">
               {activeExtraFields.email && (
                 <div className="flex flex-col">
@@ -1282,6 +1305,31 @@ export default function HorizontalAppointmentForm({ doctors = [], onSuccess, ope
                       <option value="">Select Blood Group</option>
                       {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => (
                         <option key={bg} value={bg}>{bg}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 absolute right-3 top-3 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
+              {activeExtraFields.religion && (
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-gray-700 dark:text-gray-300 font-bold flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-500" /> Religion
+                    </label>
+                    <button type="button" onClick={() => toggleExtraField('religion')} className="text-gray-400 hover:text-red-500 cursor-pointer"><X className="w-3 h-3" /></button>
+                  </div>
+                  <div className="relative">
+                    <select
+                      name="religion"
+                      value={formData.religion}
+                      onChange={handleChange}
+                      className="w-full border border-gray-300 p-2 rounded-lg text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 pr-8"
+                    >
+                      <option value="">Select Religion</option>
+                      {['Hindu', 'Muslim', 'Sikh', 'Christian', 'Jain', 'Buddhist', 'Other'].map(rel => (
+                        <option key={rel} value={rel}>{rel}</option>
                       ))}
                     </select>
                     <ChevronDown className="w-4 h-4 absolute right-3 top-3 text-gray-400 pointer-events-none" />

@@ -431,6 +431,7 @@ export const bookPatientAppointment = async (req, res) => {
         state: patientDetails.state || '',
         zip: patientDetails.zip || '',
         bloodGroup: patientDetails.bloodGroup || undefined,
+        religion: patientDetails.religion || '',
         alternateMobile: patientDetails.alternateMobile || '',
         emergencyContact: patientDetails.emergencyContact || '',
         emergencyPhone: patientDetails.emergencyPhone || '',
@@ -462,6 +463,7 @@ export const bookPatientAppointment = async (req, res) => {
       if (patientDetails.state) existingPatient.state = patientDetails.state;
       if (patientDetails.zip) existingPatient.zip = patientDetails.zip;
       if (patientDetails.bloodGroup) existingPatient.bloodGroup = patientDetails.bloodGroup;
+      if (patientDetails.religion) existingPatient.religion = patientDetails.religion;
       if (patientDetails.alternateMobile) existingPatient.alternateMobile = patientDetails.alternateMobile;
       if (patientDetails.emergencyContact) existingPatient.emergencyContact = patientDetails.emergencyContact;
       if (patientDetails.emergencyPhone) existingPatient.emergencyPhone = patientDetails.emergencyPhone;
@@ -1040,6 +1042,7 @@ export const bookAppointment = async (req, res) => {
         gender: patientDetails.gender ? (patientDetails.gender.charAt(0).toUpperCase() + patientDetails.gender.slice(1).toLowerCase()) : undefined,
         dateOfBirth: patientDetails.dateOfBirth,
         bloodGroup: patientDetails.bloodGroup || undefined,
+        religion: patientDetails.religion || '',
         status: 'active'
       });
 
@@ -1067,6 +1070,9 @@ export const bookAppointment = async (req, res) => {
       if (patientDetails.dateOfBirth) updateData.dateOfBirth = patientDetails.dateOfBirth;
       if (patientDetails.bloodGroup && patientDetails.bloodGroup.trim()) {
         updateData.bloodGroup = patientDetails.bloodGroup;
+      }
+      if (patientDetails.religion !== undefined) {
+        updateData.religion = patientDetails.religion;
       }
       
       if (Object.keys(updateData).length > 0) {
@@ -2796,6 +2802,7 @@ export const bookWalkInAppointment = async (req, res) => {
       state,
       zip,
       bloodGroup,
+      religion,
       alternateMobile,
       emergencyContact,
       emergencyPhone,
@@ -2858,6 +2865,7 @@ export const bookWalkInAppointment = async (req, res) => {
         state: state || '',
         zip: zip || '',
         bloodGroup: bloodGroup || undefined,
+        religion: religion || '',
         alternateMobile: alternateMobile || '',
         emergencyContact: emergencyContact || '',
         emergencyPhone: emergencyPhone || '',
@@ -2880,6 +2888,7 @@ export const bookWalkInAppointment = async (req, res) => {
       if (state) existingPatient.state = state;
       if (zip) existingPatient.zip = zip;
       if (bloodGroup) existingPatient.bloodGroup = bloodGroup;
+      if (religion) existingPatient.religion = religion;
       if (alternateMobile) existingPatient.alternateMobile = alternateMobile;
       if (emergencyContact) existingPatient.emergencyContact = emergencyContact;
       if (emergencyPhone) existingPatient.emergencyPhone = emergencyPhone;

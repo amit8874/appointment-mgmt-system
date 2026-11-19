@@ -3,7 +3,15 @@ import Product from '../models/Product.js';
 // Get all products for an organization
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.find({ organizationId: req.tenantId }).sort({ createdAt: -1 });
+    const orgId = req.tenantId || req.user?.organizationId;
+    const filter = orgId ? {
+      $or: [
+        { organizationId: orgId },
+        { organizationId: orgId.toString() },
+        { organizationId: { $exists: false } }
+      ]
+    } : {};
+    const products = await Product.find(filter).sort({ name: 1 });
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: error.message });

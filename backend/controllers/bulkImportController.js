@@ -49,6 +49,7 @@ export const bulkImportPatients = async (req, res) => {
       const email = (row.email || row.Email || '').toString().trim().toLowerCase();
       const address = (row.address || row.Address || '').toString().trim();
       const bloodGroup = (row.bloodGroup || row['Blood Group'] || '').toString().trim();
+      const religion = (row.religion || row.Religion || '').toString().trim();
 
       // 1. Basic Validation: First Name is required
       if (!firstName) {
@@ -84,6 +85,7 @@ export const bulkImportPatients = async (req, res) => {
           age: age ? parseInt(age) : undefined,
           address,
           bloodGroup: bloodGroup || undefined,
+          religion: religion || '',
           status: 'active',
           paymentStatus: 'paid'
         });
