@@ -358,7 +358,10 @@ const DoctorPublicProfile = () => {
     );
   }
 
-  const clinicName = doctor.organizationId?.name || doctor.clinicName || "Oviaan Clinic";
+  const clinicName = doctor.clinicName || doctor.organizationId?.name || "Oviaan Clinic";
+  const clinicAddress = doctor.address || (doctor.organizationId?.address
+    ? `${doctor.organizationId.address.street || ''}${doctor.organizationId.address.street ? ', ' : ''}${doctor.organizationId.address.city || ''}${doctor.organizationId.address.city ? ', ' : ''}${doctor.organizationId.address.state || ''}${doctor.organizationId.address.state ? ' ' : ''}${doctor.organizationId.address.zipCode || ''}`.trim()
+    : '');
   const clinicImages = (doctor.organizationId?.clinicImages && doctor.organizationId.clinicImages.length > 0)
     ? doctor.organizationId.clinicImages
     : (doctor.clinicImages || []);
@@ -401,15 +404,15 @@ const DoctorPublicProfile = () => {
               <div className="flex-1 space-y-4">
                 <div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-center sm:justify-start">
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">{clinicName}</h1>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">{doctor.name}</h1>
                     <span className="self-center px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-full border border-indigo-100">
-                      Verified Clinic
+                      Verified Doctor
                     </span>
                   </div>
-                  <p className="text-[#28328c] font-black text-sm mt-1">Consulting Doctor: {doctor.name}</p>
+                  <p className="text-[#28328c] font-black text-sm mt-1">{clinicName}</p>
                   <p className="text-indigo-600 font-bold text-xs mt-0.5">{doctor.specialization}</p>
                   <p className="text-slate-400 text-xs mt-0.5">{doctor.qualification}</p>
-                  <p className="text-slate-500 font-medium text-xs mt-1">{doctor.experience || 10} Years Experience Overall</p>
+                  <p className="text-slate-500 font-medium text-xs mt-1">{doctor.experience || 5} Years Experience Overall</p>
                 </div>
 
                 <div className="h-px bg-slate-100" />
@@ -418,8 +421,8 @@ const DoctorPublicProfile = () => {
                   <div className="space-y-1">
                     <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Clinic Location</span>
                     <span className="flex items-center justify-center sm:justify-start gap-1 text-slate-600">
-                      <MapPin size={14} className="text-slate-400" />
-                      {clinicName}
+                      <MapPin size={14} className="text-slate-400 shrink-0" />
+                      {clinicAddress || clinicName}
                     </span>
                   </div>
                   <div className="space-y-1">
@@ -648,7 +651,7 @@ const DoctorPublicProfile = () => {
 
           {/* Right Column: Slot Selector Card or Direct Contact Info */}
           <div className="space-y-8">
-            {!doctor.hideBookAppointment ? (
+            {(!doctor.hideBookAppointment && !doctor.isSuperAdminCreated) ? (
               <SlotSelector 
                 doctorId={doctor._id}
                 onSelect={(date, slot) => {
@@ -656,15 +659,22 @@ const DoctorPublicProfile = () => {
                 }}
               />
             ) : (
-              <div className="border border-amber-200 rounded-2xl p-6 bg-amber-50/70 shadow-sm space-y-3">
-                <div className="flex items-center gap-2 text-amber-800 font-black text-sm uppercase tracking-wide">
-                  <Phone size={18} className="text-amber-600" />
-                  Online Booking Disabled
+              <div className="border border-sky-200 rounded-2xl p-6 bg-sky-50/70 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-sky-900 font-black text-sm uppercase tracking-wide">
+                  <Phone size={18} className="text-sky-600" />
+                  Direct Clinic Consultation
                 </div>
-                <p className="text-xs text-amber-900/80 font-medium leading-relaxed">
-                  Direct website slot booking is currently turned off for <span className="font-bold">{doctor.name}</span>. 
-                  Please call the clinic directly or visit in person to schedule your consultation.
+                <p className="text-xs text-sky-950/80 font-medium leading-relaxed">
+                  To consult with <span className="font-bold">{doctor.name}</span> at <span className="font-bold">{clinicName}</span>, please call the clinic directly or visit at the address below.
                 </p>
+                {doctor.phone && (
+                  <a 
+                    href={`tel:${doctor.phone}`}
+                    className="w-full py-3 bg-[#14bef0] text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-[#079cc7] transition-all shadow-md shadow-sky-500/20"
+                  >
+                    <Phone size={15} /> Call Clinic ({doctor.phone})
+                  </a>
+                )}
               </div>
             )}
 
@@ -676,9 +686,7 @@ const DoctorPublicProfile = () => {
                 <div>
                   <p className="text-slate-800 font-bold">{clinicName}</p>
                   <p className="text-slate-500 font-medium mt-1 leading-relaxed">
-                    {doctor.organizationId?.address
-                      ? `${doctor.organizationId.address.street || ''}${doctor.organizationId.address.street ? ', ' : ''}${doctor.organizationId.address.city || ''}${doctor.organizationId.address.city ? ', ' : ''}${doctor.organizationId.address.state || ''}${doctor.organizationId.address.state ? ' ' : ''}${doctor.organizationId.address.zipCode || ''}`.trim()
-                      : (doctor.address || 'Street details not specified.')}
+                    {clinicAddress || (doctor.address || 'Street details not specified.')}
                   </p>
                 </div>
               </div>

@@ -63,7 +63,8 @@ import {
   Sparkles,
   CheckCircle2,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  MoreHorizontal
 } from 'lucide-react';
 import api, { patientApi, appointmentApi, medicalRecordApi, emailApi, whatsappApi, prescriptionTemplateApi, invoiceTemplateApi, organizationApi, centralDoctorApi, billingApi, authApi, patientProgressImageApi, patientProgressComparisonApi, translationApi, clinicalNoteApi, progressNoteApi, followUpReminderApi } from '../../../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -430,7 +431,8 @@ const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user, onNa
     { key: 'tooth-history', name: 'Tooth History', icon: History },
     { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
     { key: 'lab-work', name: 'Lab Work', icon: FlaskConical },
-    { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote }
+    { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote },
+    { key: 'other', name: 'Other', icon: MoreHorizontal }
   ];
 
   const visitNavSections = availableTabs.length > 0
@@ -1379,6 +1381,14 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
                   const t = { _id: 'default', templateName: 'Oviaan Default Template' };
                   setSelectedTemplate(t);
                   try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
+                } else if (e.target.value === 'global_a4_blank') {
+                  const t = { _id: 'global_a4_blank', templateName: 'Pre-Printed Letterhead Pad (Data Only)', headerType: 'a4_blank' };
+                  setSelectedTemplate(t);
+                  try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
+                } else if (e.target.value === 'global_a4') {
+                  const t = { _id: 'global_a4', templateName: 'A4 Full Template (Digital Letterhead)', headerType: 'a4' };
+                  setSelectedTemplate(t);
+                  try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
                 } else if (e.target.value === 'default_v2') {
                   const t = { _id: 'default_v2', templateName: 'Oviaan Default Template 2' };
                   setSelectedTemplate(t);
@@ -1394,8 +1404,10 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
               className="bg-white border-2 border-indigo-100 rounded-xl px-4 py-1.5 text-[11px] font-bold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer hover:border-indigo-300 transition-all min-w-[180px]"
             >
               <option value="default">Oviaan Default Template (Default)</option>
+              <option value="global_a4_blank">Pre-Printed Letterhead Pad (Data Only)</option>
+              <option value="global_a4">A4 Full Template (Digital Letterhead)</option>
               <option value="default_v2">Oviaan Default Template 2</option>
-              {templates.filter(t => t._id && (t.templateName || t.name)).map(t => (
+              {templates.filter(t => t._id && t._id !== 'global_a4' && t._id !== 'global_a4_blank' && (t.templateName || t.name)).map(t => (
                 <option key={t._id} value={t._id}>
                   {t.templateName || t.name}
                 </option>
@@ -5572,6 +5584,879 @@ const TabClinicalNotes = ({ patientId, user }) => {
 };
 
 /* --------------------------------------------------
+  TabOther - Other Services & Doctor Visit Billing
+-------------------------------------------------- */
+
+// Common procedures list for instant selection or custom typing
+const COMMON_PROCEDURES = [
+  'Consultation / Checkup',
+  'Root Canal Treatment (RCT)',
+  'Tooth Extraction',
+  'Surgical Extraction / Impaction',
+  'Dental Implant Placement',
+  'Crown & Bridge Preparation',
+  'Orthodontic Treatment / Aligners',
+  'Teeth Scaling & Polishing',
+  'Periodontal Flap Surgery',
+  'Complete / Partial Denture',
+  'Composite / Laser Filling',
+  'Pediatric Pulpectomy',
+  'Minor Oral Surgery',
+  'Cyst Enucleation / Biopsy',
+  'Bleaching / Teeth Whitening',
+  'Dental Veneers / Laminates'
+];
+
+// Helper to resolve patient profile details correctly
+const getPatientInfo = (patient) => {
+  const name = (
+    patient?.fullName ||
+    `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim() ||
+    patient?.name ||
+    patient?.patientName ||
+    'Patient'
+  ).replace(/\b(MR|MS|MRS|DR|SHRI|SMT)\.?\s+\1\.?\b/gi, '$1.').trim() || 'Patient';
+
+  const phone = patient?.mobile || patient?.phone || patient?.contactNumber || patient?.contact || 'N/A';
+  const id = patient?.patientId || patient?._id || 'N/A';
+  const age = patient?.age || 'N/A';
+  const gender = patient?.gender || 'N/A';
+
+  return { name, phone, id, age, gender };
+};
+
+const DoctorVisitReceiptModal = ({ isOpen, onClose, bill, patient, clinicInfo }) => {
+  if (!isOpen || !bill) return null;
+
+  const vDetails = bill.visitingDoctorDetails || {};
+  const patientInfo = getPatientInfo(patient);
+  const printReceipt = () => {
+    window.print();
+  };
+
+  const proceduresList = vDetails.procedures && vDetails.procedures.length > 0
+    ? vDetails.procedures
+    : (bill.items && bill.items.length > 0
+        ? bill.items.map(it => ({ name: it.procedureName || it.description || 'Procedure', amount: it.cost || it.unitPrice || it.subtotal || 0 }))
+        : [{ name: vDetails.procedureName || 'Specialist Consultation', amount: vDetails.paidToDoctor || bill.amount || 0 }]
+      );
+
+  const totalExpense = Number(vDetails.paidToDoctor || bill.amount || 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #doctor-visit-receipt-print-area, #doctor-visit-receipt-print-area * { visibility: visible; }
+          #doctor-visit-receipt-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 20px;
+            background: white !important;
+            color: black !important;
+          }
+          .no-print-area { display: none !important; }
+        }
+      `}</style>
+
+      <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header Action Bar */}
+        <div className="p-4 bg-slate-100 flex items-center justify-between border-b no-print-area">
+          <div className="flex items-center gap-2">
+            <Stethoscope className="w-5 h-5 text-purple-700" />
+            <span className="text-sm font-black uppercase tracking-wider text-slate-800">Doctor Visit Receipt</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={printReceipt}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow transition"
+            >
+              <Printer className="w-3.5 h-3.5" /> Print Receipt
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Printable Area */}
+        <div id="doctor-visit-receipt-print-area" className="p-6 overflow-y-auto space-y-6 text-slate-800">
+          {/* Clinic Brand Header */}
+          <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
+            <div>
+              <h2 className="text-xl font-black uppercase text-slate-900 tracking-tight">
+                {clinicInfo.name || clinicInfo.clinicName || 'Clinic Management System'}
+              </h2>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                {typeof clinicInfo.address === 'string' ? clinicInfo.address : (clinicInfo.address?.street ? `${clinicInfo.address.street}, ${clinicInfo.address.city || ''}` : 'Specialist & Multispeciality Clinic')}
+              </p>
+              <p className="text-xs text-slate-500 font-medium">
+                Phone: {clinicInfo.phone || clinicInfo.mobile || 'N/A'} | Email: {clinicInfo.email || 'N/A'}
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="inline-block px-3 py-1 rounded-full text-xs font-black bg-purple-100 text-purple-800 uppercase tracking-wider">
+                Doctor Visit Voucher
+              </span>
+              <p className="text-xs font-mono font-bold text-slate-600 mt-1">Receipt: #{bill.billId || bill.invoiceNumber || 'N/A'}</p>
+              <p className="text-xs text-slate-500 font-medium">Date: {bill.date ? new Date(bill.date).toLocaleDateString() : new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          {/* Patient & Doctor Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Patient Details</p>
+              <p className="font-extrabold text-slate-900 text-sm">{patientInfo.name}</p>
+              <p className="text-xs text-slate-600 font-medium">Patient ID: <span className="font-bold">{patientInfo.id}</span></p>
+              <p className="text-xs text-slate-600 font-medium">Phone: {patientInfo.phone}</p>
+              <p className="text-xs text-slate-600 font-medium">Age/Gender: {patientInfo.age} / {patientInfo.gender}</p>
+            </div>
+
+            <div className="bg-purple-50/60 p-3.5 rounded-2xl border border-purple-200">
+              <p className="text-[10px] font-black uppercase text-purple-700 tracking-widest mb-1">Visiting Specialist Doctor</p>
+              <p className="font-extrabold text-purple-950 text-sm">Dr. {vDetails.doctorName || bill.doctorName || 'Visiting Doctor'}</p>
+              <p className="text-xs text-purple-800 font-medium">Specialty: <span className="font-bold">{vDetails.doctorSpecialty || 'Specialist'}</span></p>
+              {vDetails.doctorPhone && (
+                <p className="text-xs text-purple-800 font-medium">Phone: {vDetails.doctorPhone}</p>
+              )}
+              <p className="text-xs text-purple-800 font-medium">Payment Mode: <span className="font-bold text-slate-900">{vDetails.doctorPaymentMode || 'Cash'}</span></p>
+            </div>
+          </div>
+
+          {/* Procedures Breakdown */}
+          <div className="border border-slate-200 rounded-2xl overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
+                <tr>
+                  <th className="p-3">#</th>
+                  <th className="p-3">Procedure / Treatment Done</th>
+                  <th className="p-3 text-right">Amount Given to Doctor</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {proceduresList.map((proc, idx) => (
+                  <tr key={idx}>
+                    <td className="p-3 text-slate-400 font-bold">{idx + 1}</td>
+                    <td className="p-3 font-bold text-slate-900">{proc.name || proc.procedureName}</td>
+                    <td className="p-3 text-right font-extrabold text-slate-900">₹{Number(proc.amount || 0).toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-slate-50 font-bold border-t border-slate-200">
+                <tr>
+                  <td colSpan={2} className="p-3 text-right text-xs uppercase tracking-wider text-slate-600">Total Amount Given to Doctor (Clinic Expense):</td>
+                  <td className="p-3 text-right text-sm font-black text-purple-950">₹{totalExpense.toLocaleString('en-IN')}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {/* Notes if available */}
+          {bill.notes && (
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">Clinical Notes / Procedure Observation</span>
+              <p className="text-slate-800 whitespace-pre-wrap">{bill.notes}</p>
+            </div>
+          )}
+
+          {/* Signatures */}
+          <div className="pt-8 flex justify-between items-end border-t border-slate-200 text-center text-xs">
+            <div>
+              <div className="w-36 border-b border-slate-400 mb-1"></div>
+              <p className="font-bold text-slate-700">Visiting Doctor Signature</p>
+            </div>
+            <div>
+              <div className="w-36 border-b border-slate-400 mb-1"></div>
+              <p className="font-bold text-slate-700">Authorized Clinic Stamp</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DoctorVisitModal = ({ isOpen, onClose, onSave, editingBill, patient, clinicInfo }) => {
+  if (!isOpen) return null;
+
+  const patientInfo = getPatientInfo(patient);
+
+  const [doctorName, setDoctorName] = useState(editingBill?.visitingDoctorDetails?.doctorName || editingBill?.doctorName || '');
+  const [doctorSpecialty, setDoctorSpecialty] = useState(editingBill?.visitingDoctorDetails?.doctorSpecialty || '');
+  const [doctorPhone, setDoctorPhone] = useState(editingBill?.visitingDoctorDetails?.doctorPhone || '');
+  const [visitDate, setVisitDate] = useState(() => {
+    if (editingBill?.date) {
+      try {
+        return new Date(editingBill.date).toISOString().slice(0, 16);
+      } catch (e) {
+        return new Date().toISOString().slice(0, 16);
+      }
+    }
+    return new Date().toISOString().slice(0, 16);
+  });
+  
+  // Procedures array (supports multiple procedures with dropdown selection and custom typing)
+  const [procedures, setProcedures] = useState(() => {
+    if (editingBill?.visitingDoctorDetails?.procedures && editingBill.visitingDoctorDetails.procedures.length > 0) {
+      return editingBill.visitingDoctorDetails.procedures.map(p => ({
+        name: p.name || p.procedureName || '',
+        amount: p.amount !== undefined ? p.amount : ''
+      }));
+    }
+    if (editingBill?.items && editingBill.items.length > 0) {
+      return editingBill.items.map(it => ({
+        name: it.procedureName || it.description || '',
+        amount: it.cost !== undefined ? it.cost : (it.unitPrice !== undefined ? it.unitPrice : it.subtotal || '')
+      }));
+    }
+    if (editingBill?.visitingDoctorDetails?.procedureName) {
+      return [{
+        name: editingBill.visitingDoctorDetails.procedureName,
+        amount: editingBill.visitingDoctorDetails.paidToDoctor || editingBill.visitingDoctorDetails.doctorFee || editingBill.amount || ''
+      }];
+    }
+    return [{ name: '', amount: '' }];
+  });
+
+  const [doctorPaymentMode, setDoctorPaymentMode] = useState(editingBill?.visitingDoctorDetails?.doctorPaymentMode || editingBill?.paymentMethod || 'Cash');
+  const [notes, setNotes] = useState(editingBill?.notes || '');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Procedure list handlers
+  const handleAddProcedure = () => {
+    setProcedures(prev => [...prev, { name: '', amount: '' }]);
+  };
+
+  const handleProcedureChange = (index, field, value) => {
+    setProcedures(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleRemoveProcedure = (index) => {
+    if (procedures.length <= 1) return;
+    setProcedures(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Total amount given to doctor is the sum of procedure amounts
+  const totalAmountGivenToDoctor = procedures.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+  const handleSubmit = async (e, shouldPrintReceipt = false) => {
+    e.preventDefault();
+    if (!doctorName.trim()) {
+      toast.error('Please enter the Visiting Doctor Name');
+      return;
+    }
+    
+    const validProcedures = procedures.filter(p => p.name.trim().length > 0);
+    if (validProcedures.length === 0) {
+      toast.error('Please enter or select at least one procedure');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const procedureSummaryName = validProcedures.map(p => p.name.trim()).join(', ');
+      const items = validProcedures.map(p => ({
+        description: p.name.trim(),
+        procedureName: p.name.trim(),
+        qty: 1,
+        unitPrice: parseFloat(p.amount) || 0,
+        cost: parseFloat(p.amount) || 0,
+        subtotal: parseFloat(p.amount) || 0,
+        total: parseFloat(p.amount) || 0,
+        price: parseFloat(p.amount) || 0,
+        status: 'Paid',
+        paidAmount: parseFloat(p.amount) || 0,
+        dueAmount: 0
+      }));
+
+      const payload = {
+        patientId: patientInfo.id !== 'N/A' ? patientInfo.id : 'PATIENT',
+        patientName: patientInfo.name,
+        patientPhone: patientInfo.phone !== 'N/A' ? patientInfo.phone : '',
+        doctorId: `VISITING_${doctorName.trim().replace(/\s+/g, '_')}`,
+        doctorName: doctorName.trim(),
+        billType: 'DoctorVisit',
+        amount: totalAmountGivenToDoctor,
+        paidAmount: totalAmountGivenToDoctor,
+        dueAmount: 0,
+        status: 'Paid',
+        paymentMethod: doctorPaymentMode || 'Cash',
+        date: visitDate ? new Date(visitDate) : new Date(),
+        items: items,
+        visitingDoctorDetails: {
+          doctorName: doctorName.trim(),
+          doctorSpecialty: doctorSpecialty.trim(),
+          doctorPhone: doctorPhone.trim(),
+          procedureName: procedureSummaryName,
+          procedures: validProcedures.map(p => ({
+            name: p.name.trim(),
+            amount: parseFloat(p.amount) || 0
+          })),
+          doctorFee: totalAmountGivenToDoctor,
+          paidToDoctor: totalAmountGivenToDoctor,
+          doctorDue: 0,
+          doctorPayoutStatus: 'Paid',
+          doctorPaymentMode: doctorPaymentMode || 'Cash',
+          clinicShare: 0
+        },
+        notes: notes.trim()
+      };
+
+      let savedBill;
+      if (editingBill?._id) {
+        savedBill = await billingApi.update(editingBill._id, payload);
+        toast.success('Doctor visit billing record updated successfully!');
+      } else {
+        savedBill = await billingApi.create(payload);
+        toast.success('Doctor visit record created! Expense added to Expense Dashboard.');
+      }
+
+      onSave(savedBill, shouldPrintReceipt);
+      onClose();
+    } catch (err) {
+      console.error('Error saving doctor visit bill:', err);
+      toast.error(err.response?.data?.message || 'Failed to save doctor visit record');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[95vh] border border-slate-100">
+        {/* Header */}
+        <div className="p-5 bg-gradient-to-r from-purple-700 to-indigo-800 text-white flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-white/10 rounded-2xl backdrop-blur-md">
+              <Stethoscope className="w-6 h-6 text-purple-200" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black tracking-tight uppercase">
+                {editingBill ? 'Edit Doctor Visit Record' : 'Record Doctor Visit & Billing'}
+              </h2>
+              <p className="text-xs text-purple-200 font-medium">
+                Log visiting specialist doctor, multiple procedures & clinic expense payout
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={(e) => handleSubmit(e, false)} className="p-6 overflow-y-auto space-y-6">
+          {/* 1. Patient Info Summary */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Patient</span>
+              <p className="font-extrabold text-slate-900 text-sm">{patientInfo.name}</p>
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Patient ID</span>
+              <p className="font-bold text-slate-700 text-xs">{patientInfo.id}</p>
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Phone</span>
+              <p className="font-bold text-slate-700 text-xs">{patientInfo.phone}</p>
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Age / Gender</span>
+              <p className="font-bold text-slate-700 text-xs">{patientInfo.age} / {patientInfo.gender}</p>
+            </div>
+          </div>
+
+          {/* 2. Visiting Doctor Details */}
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5 mb-3">
+              <User className="w-4 h-4 text-purple-700" /> Visiting Specialist Doctor
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Doctor Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Dr. Rajesh Sharma"
+                  value={doctorName}
+                  onChange={(e) => setDoctorName(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Specialty / Field
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Orthodontist, Oral Surgeon"
+                  value={doctorSpecialty}
+                  onChange={(e) => setDoctorSpecialty(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Doctor Contact Phone
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 9876543210"
+                  value={doctorPhone}
+                  onChange={(e) => setDoctorPhone(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-medium"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Procedure & Visit Details */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                <ClipboardList className="w-4 h-4 text-purple-700" /> Procedures Performed & Amount Given to Doctor
+              </h3>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-600">Visit Date:</label>
+                <input
+                  type="datetime-local"
+                  value={visitDate}
+                  onChange={(e) => setVisitDate(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-purple-500 font-medium"
+                />
+              </div>
+            </div>
+
+            {/* Datalist for instant autocomplete while allowing custom typing */}
+            <datalist id="doctor-visit-common-procedures">
+              {COMMON_PROCEDURES.map((pName, i) => (
+                <option key={i} value={pName} />
+              ))}
+            </datalist>
+
+            {/* Multiple Procedures Rows */}
+            <div className="space-y-2.5 bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
+              <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-400 tracking-wider px-1">
+                <span>Procedure / Service (Select from dropdown or type)</span>
+                <span className="w-44 text-right pr-2">Amount Given to Dr (₹)</span>
+              </div>
+
+              {procedures.map((proc, idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                  <div className="relative flex-1">
+                    <input
+                      list="doctor-visit-common-procedures"
+                      type="text"
+                      placeholder="Select from dropdown or write custom procedure..."
+                      value={proc.name}
+                      onChange={(e) => handleProcedureChange(idx, 'name', e.target.value)}
+                      required
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                    />
+                  </div>
+
+                  <div className="w-44">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="₹ Amount to Dr"
+                      value={proc.amount}
+                      onChange={(e) => handleProcedureChange(idx, 'amount', e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-black text-amber-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                    />
+                  </div>
+
+                  {procedures.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveProcedure(idx)}
+                      title="Remove Procedure"
+                      className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleAddProcedure}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-bold transition"
+                >
+                  <Plus className="w-4 h-4" /> Add Another Procedure
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Side-by-side: Amount Given to Doctor (Left) & Clinical Notes (Right) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+            {/* Left Column: Total Amount Given to Doctor (Expense) & Payment Mode */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-amber-50/40 border-2 border-purple-200 flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase text-purple-900 tracking-wider block mb-1">
+                  Total Amount Given to Doctor (Clinic Expense)
+                </span>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className="text-2xl font-black text-purple-950">
+                    ₹ {totalAmountGivenToDoctor.toLocaleString('en-IN')}
+                  </span>
+                  <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                    Expense
+                  </span>
+                </div>
+
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Payment Mode Given to Doctor
+                </label>
+                <select
+                  value={doctorPaymentMode}
+                  onChange={(e) => setDoctorPaymentMode(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-purple-500 bg-white shadow-sm"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Card">Card</option>
+                  <option value="Net Banking">Net Banking</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <p className="text-[11px] text-purple-800 font-semibold mt-3 pt-2 border-t border-purple-200/60 flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                This ₹{totalAmountGivenToDoctor.toLocaleString('en-IN')} is automatically added to Expense Dashboard and subtracted from revenue.
+              </p>
+            </div>
+
+            {/* Right Column: Clinical Notes / Procedure Observation */}
+            <div className="flex flex-col">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Clinical Notes / Procedure Observation
+              </label>
+              <textarea
+                rows={5}
+                placeholder="Enter clinical findings, tooth numbers, notes or recommendations..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full flex-1 px-3.5 py-2.5 rounded-2xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleSubmit(e, true)}
+              disabled={submitting}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-bold transition flex items-center justify-center gap-1.5"
+            >
+              <Printer className="w-4 h-4 text-purple-700" /> Save & Print Receipt
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold shadow-lg shadow-purple-700/20 transition flex items-center justify-center gap-1.5"
+            >
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {editingBill ? 'Update Record' : 'Save Record'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const TabOther = ({ patient, patientId, user }) => {
+  const [bills, setBills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingBill, setEditingBill] = useState(null);
+  const [receiptBill, setReceiptBill] = useState(null);
+
+  const patientInfo = getPatientInfo(patient);
+
+  const fetchDoctorVisitBills = async () => {
+    try {
+      setLoading(true);
+      const res = await billingApi.getByPatient(patientId, { billType: 'DoctorVisit' }).catch(() => null);
+      let list = res?.bills || (Array.isArray(res) ? res : []);
+      if (!list || list.length === 0) {
+        const fallbackRes = await billingApi.getAll({ patientId: patientInfo.id !== 'N/A' ? patientInfo.id : patientId, billType: 'DoctorVisit' });
+        list = fallbackRes?.bills || (Array.isArray(fallbackRes) ? fallbackRes : []);
+      }
+      setBills(list.filter(b => b.billType === 'DoctorVisit'));
+    } catch (err) {
+      console.error('Error fetching doctor visit bills:', err);
+      toast.error('Failed to load doctor visit billing records');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (patientId) {
+      fetchDoctorVisitBills();
+    }
+  }, [patientId]);
+
+  const handleDelete = async (billId) => {
+    if (!window.confirm('Are you sure you want to delete this Doctor Visit record? The corresponding expense in the Expense Dashboard will also be removed.')) return;
+    try {
+      await billingApi.delete(billId);
+      toast.success('Doctor visit record and linked expense deleted successfully');
+      fetchDoctorVisitBills();
+    } catch (err) {
+      toast.error('Failed to delete doctor visit record');
+    }
+  };
+
+  const handleSaved = (savedBill, shouldPrintReceipt) => {
+    fetchDoctorVisitBills();
+    if (shouldPrintReceipt && savedBill) {
+      setReceiptBill(savedBill);
+    }
+  };
+
+  // Metrics calculation
+  const totalVisits = bills.length;
+  const totalDoctorPaid = bills.reduce((sum, b) => sum + (b.visitingDoctorDetails?.paidToDoctor || b.amount || 0), 0);
+  const totalProcedures = bills.reduce((sum, b) => {
+    const procs = b.visitingDoctorDetails?.procedures;
+    return sum + (procs && procs.length > 0 ? procs.length : (b.items?.length || 1));
+  }, 0);
+
+  const filteredBills = bills.filter(b => {
+    const q = searchQuery.toLowerCase();
+    const docName = (b.visitingDoctorDetails?.doctorName || b.doctorName || '').toLowerCase();
+    const procName = (b.visitingDoctorDetails?.procedureName || b.items?.[0]?.procedureName || '').toLowerCase();
+    const specialty = (b.visitingDoctorDetails?.doctorSpecialty || '').toLowerCase();
+    const billId = (b.billId || b.invoiceNumber || '').toLowerCase();
+    return docName.includes(q) || procName.includes(q) || specialty.includes(q) || billId.includes(q);
+  });
+
+  const clinicInfo = user?.organization || user?.organizationId || {};
+
+  return (
+    <div className="space-y-8">
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: 'Specialist Visits', value: totalVisits, icon: Stethoscope, color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Total Paid to Doctors (Expense)', value: `₹${totalDoctorPaid.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'Total Procedures Performed', value: totalProcedures, icon: ClipboardList, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+          { label: 'Patient', value: patientInfo.name, icon: User, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className={`p-3 ${stat.bg} ${stat.color} rounded-2xl`}><stat.icon size={22} /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
+              <p className="text-xl font-black text-slate-800 truncate max-w-[140px]">{stat.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Header & Actions Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-tight">
+            <Stethoscope className="w-5 h-5 text-purple-600" /> Doctor Visit Billing
+          </h2>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+            Visiting specialist doctors, procedures done & clinic expense payouts
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search doctor, procedure..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-white rounded-2xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500 shadow-sm"
+            />
+          </div>
+
+          <button
+            onClick={() => { setEditingBill(null); setShowModal(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md shadow-purple-600/20 transition active:scale-95"
+          >
+            <Plus className="w-4 h-4" /> Record Doctor Visit Bill
+          </button>
+        </div>
+      </div>
+
+      {/* Billing Records List */}
+      {loading ? (
+        <div className="p-12 text-center bg-white rounded-3xl border border-slate-100 flex flex-col items-center justify-center gap-3">
+          <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading Doctor Visit Records...</p>
+        </div>
+      ) : filteredBills.length === 0 ? (
+        <div className="p-12 text-center bg-white rounded-3xl border border-slate-100 flex flex-col items-center justify-center gap-4">
+          <div className="w-16 h-16 rounded-3xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-inner">
+            <Stethoscope size={32} />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">No Doctor Visit Records Yet</h3>
+            <p className="text-xs text-slate-400 font-medium max-w-sm mt-1">
+              When an external doctor comes to perform procedures on this patient, record them here. The amount given to the doctor will automatically log as clinic expense.
+            </p>
+          </div>
+          <button
+            onClick={() => { setEditingBill(null); setShowModal(true); }}
+            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow transition"
+          >
+            + Record First Doctor Visit
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/75 border-b border-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  <th className="py-4 px-5">Date & Invoice</th>
+                  <th className="py-4 px-5">Visiting Doctor</th>
+                  <th className="py-4 px-5">Procedures Performed</th>
+                  <th className="py-4 px-5 text-right">Amount Given to Dr (Expense)</th>
+                  <th className="py-4 px-5 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {filteredBills.map((b) => {
+                  const v = b.visitingDoctorDetails || {};
+                  const dPaid = Number(v.paidToDoctor || b.amount || 0);
+                  const dateStr = b.date ? new Date(b.date).toLocaleDateString() : 'N/A';
+
+                  const procsDisplay = v.procedures && v.procedures.length > 0
+                    ? v.procedures.map(p => `${p.name} (₹${Number(p.amount || 0).toLocaleString('en-IN')})`).join(', ')
+                    : (v.procedureName || b.items?.[0]?.procedureName || 'Specialist Procedure');
+
+                  return (
+                    <tr key={b._id} className="hover:bg-slate-50/60 transition group">
+                      <td className="py-4 px-5">
+                        <span className="font-mono font-bold text-slate-900 block">{b.billId || b.invoiceNumber || 'INV-001'}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">{dateStr}</span>
+                      </td>
+
+                      <td className="py-4 px-5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
+                            <Stethoscope className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="font-extrabold text-slate-900">Dr. {v.doctorName || b.doctorName}</p>
+                            <p className="text-[10px] text-purple-700 font-bold uppercase tracking-wider">{v.doctorSpecialty || 'Specialist'}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-5">
+                        <span className="font-bold text-slate-800 block">{procsDisplay}</span>
+                        {b.notes && <span className="text-[10px] text-slate-400 truncate max-w-xs block mt-0.5">{b.notes}</span>}
+                      </td>
+
+                      <td className="py-4 px-5 text-right">
+                        <span className="font-black text-amber-800 text-sm block">₹{dPaid.toLocaleString('en-IN')}</span>
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-amber-100 text-amber-800 mt-0.5">
+                          Paid via {v.doctorPaymentMode || b.paymentMethod || 'Cash'}
+                        </span>
+                      </td>
+
+                      <td className="py-4 px-5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => setReceiptBill(b)}
+                            title="Print / View Receipt"
+                            className="p-2 text-slate-600 hover:text-purple-700 hover:bg-purple-50 rounded-xl transition"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => { setEditingBill(b); setShowModal(true); }}
+                            title="Edit Record"
+                            className="p-2 text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(b._id)}
+                            title="Delete Record"
+                            className="p-2 text-slate-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Doctor Visit Modal (Create / Edit) */}
+      <DoctorVisitModal
+        isOpen={showModal}
+        onClose={() => { setShowModal(false); setEditingBill(null); }}
+        onSave={handleSaved}
+        editingBill={editingBill}
+        patient={patient}
+        clinicInfo={clinicInfo}
+      />
+
+      {/* Doctor Visit Receipt Modal */}
+      <DoctorVisitReceiptModal
+        isOpen={Boolean(receiptBill)}
+        onClose={() => setReceiptBill(null)}
+        bill={receiptBill}
+        patient={patient}
+        clinicInfo={clinicInfo}
+      />
+    </div>
+  );
+};
+
+/* --------------------------------------------------
 Main Patient Profile Component
 -------------------------------------------------- */
 
@@ -5708,11 +6593,21 @@ const PatientProfile = () => {
         if (response && response.templates) {
           let loadedTemplates = response.templates;
           if (hasA4) {
-            loadedTemplates = [{
-              _id: 'global_a4',
-              templateName: 'A4 Full Template (Admin Settings)',
-              isDefault: false
-            }, ...loadedTemplates];
+            loadedTemplates = [
+              {
+                _id: 'global_a4_blank',
+                templateName: 'Pre-Printed Letterhead Pad (Data Only)',
+                headerType: 'a4_blank',
+                isDefault: false
+              },
+              {
+                _id: 'global_a4',
+                templateName: 'A4 Full Template (Digital Letterhead)',
+                headerType: 'a4',
+                isDefault: false
+              },
+              ...loadedTemplates
+            ];
           }
           setTemplates(loadedTemplates);
 
@@ -5722,7 +6617,10 @@ const PatientProfile = () => {
             const saved = localStorage.getItem('cms_selected_prescription_template');
             if (saved) {
               const parsed = JSON.parse(saved);
-              if (parsed?._id === 'global_a4') {
+              if (parsed?._id === 'global_a4_blank' || parsed?.headerType === 'a4_blank') {
+                const match = loadedTemplates.find(t => t._id === 'global_a4_blank');
+                if (match) currentSelection = match;
+              } else if (parsed?._id === 'global_a4' || parsed?.headerType === 'a4') {
                 const match = loadedTemplates.find(t => t._id === 'global_a4');
                 if (match) currentSelection = match;
               } else if (parsed?._id === 'default_v2') {
@@ -6235,12 +7133,17 @@ const PatientProfile = () => {
 
     // Pre-convert and preload all print images as base64 Data URLs so the browser never races network requests during print preview
     try {
-      const isA4 = selectedTemplate?._id === 'global_a4' || selectedTemplate?.headerType === 'a4' || selectedTemplate?.layoutType === 'a4';
+      const isA4Blank = selectedTemplate?._id === 'global_a4_blank' || selectedTemplate?.headerType === 'a4_blank';
+      const isA4 = selectedTemplate?._id === 'global_a4' || selectedTemplate?.headerType === 'a4' || selectedTemplate?.layoutType === 'a4' || isA4Blank;
 
-      // 1. A4 background template image
+      prescriptionObj.isLetterheadPad = isA4Blank;
+
+      // 1. A4 background template image (Skip loading if in pre-printed letterhead pad mode)
       const a4Url = orgDetails?.prescriptionTemplate?.templateUrl || latestSettings?.templateUrl;
-      if (isA4 && a4Url) {
+      if (isA4 && a4Url && !isA4Blank) {
         prescriptionObj.resolvedTemplateUrl = await convertUrlToBase64(a4Url);
+      } else if (isA4Blank) {
+        prescriptionObj.resolvedTemplateUrl = null;
       }
 
       // 2. Clinic Logo
@@ -6346,7 +7249,8 @@ const PatientProfile = () => {
     { key: 'tooth-history', name: 'Tooth History', icon: History },
     { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
     { key: 'lab-work', name: 'Lab Work', icon: FlaskConical },
-    { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote }
+    { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote },
+    { key: 'other', name: 'Other', icon: MoreHorizontal }
   ] : [
     { key: 'personal', name: 'Personal Info', icon: User },
     { key: 'prescriptions', name: 'Prescriptions', icon: Pill },
@@ -6354,7 +7258,8 @@ const PatientProfile = () => {
     { key: 'billing', name: 'Billing', icon: IndianRupee },
     { key: 'progress', name: 'Progress Gallery', icon: Camera },
     { key: 'follow-ups', name: 'Follow-ups', icon: Bell },
-    { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote }
+    { key: 'clinical-notes', name: 'Clinical Notes', icon: StickyNote },
+    { key: 'other', name: 'Other', icon: MoreHorizontal }
   ];
 
 
@@ -7002,6 +7907,12 @@ const PatientProfile = () => {
                   text: 'text-teal-950 dark:text-teal-250',
                   border: 'lg:border-l-teal-600 border-b-teal-600',
                   icon: 'text-teal-600'
+                },
+                'other': {
+                  bg: 'bg-purple-50 dark:bg-purple-950/20',
+                  text: 'text-purple-950 dark:text-purple-250',
+                  border: 'lg:border-l-purple-600 border-b-purple-600',
+                  icon: 'text-purple-600'
                 }
               };
 
@@ -7251,6 +8162,14 @@ const PatientProfile = () => {
                       selectedVisitDate={selectedVisitDate}
                     />
                   )}
+                  {activeTab === 'other' && (
+                    <TabOther
+                      patient={data}
+                      patientId={id}
+                      user={user}
+                      selectedVisitDate={selectedVisitDate}
+                    />
+                  )}
                 </motion.div>
               </AnimatePresence>
             )}
@@ -7321,10 +8240,19 @@ const PatientProfile = () => {
           isOpen={showTemplateModal} 
           onClose={() => setShowTemplateModal(false)} 
           onSaveSuccess={(layout) => {
-            if (layout === 'a4') {
+            if (layout === 'a4_blank') {
+              const t = {
+                _id: 'global_a4_blank',
+                templateName: 'Pre-Printed Letterhead Pad (Data Only)',
+                headerType: 'a4_blank'
+              };
+              setSelectedTemplate(t);
+              try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
+            } else if (layout === 'a4') {
               const t = {
                 _id: 'global_a4',
-                templateName: 'A4 Full Template (Admin Settings)'
+                templateName: 'A4 Full Template (Digital Letterhead)',
+                headerType: 'a4'
               };
               setSelectedTemplate(t);
               try { localStorage.setItem('cms_selected_prescription_template', JSON.stringify(t)); } catch (err) {}
@@ -7402,6 +8330,8 @@ const PatientProfile = () => {
             aiBodyArea={orgDetails?.prescriptionTemplate?.aiBodyArea}
             fontSize={orgDetails?.prescriptionTemplate?.fontSize}
             isTemplateEnabled={orgDetails?.prescriptionTemplate?.enabled !== false}
+            letterheadPrintMode={orgDetails?.prescriptionTemplate?.letterheadPrintMode}
+            printBackground={selectedTemplate?._id !== 'global_a4_blank' && selectedTemplate?.headerType !== 'a4_blank'}
             prescription={printingPrescription}
             patient={data}
             clinicName={orgDetails?.name || user?.organization?.name || user?.clinicName}

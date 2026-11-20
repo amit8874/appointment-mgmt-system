@@ -11,6 +11,8 @@ const PrintablePrescription = ({
   aiBodyArea,
   fontSize,
   isTemplateEnabled,
+  letterheadPrintMode,
+  printBackground,
   prescription, 
   patient, 
   clinicName, 
@@ -253,10 +255,32 @@ const PrintablePrescription = ({
     return `${serverUrl}${cleanPath}`;
   };
 
-  // A4 letterhead is ONLY used when explicitly selected by the doctor (global_a4).
+  // A4 letterhead is used when explicitly selected by the doctor:
+  // - 'global_a4': A4 Full Digital Letterhead (with background image and digital footer)
+  // - 'global_a4_blank': Pre-Printed Letterhead Pad (Data Only, no background image, no digital header/footer)
   // Oviaan Default Template (default) NEVER uses the admin's uploaded background template.
   const finalOrgTemplateUrl = prescription?.resolvedTemplateUrl || orgTemplateUrl;
-  const isA4 = Boolean(finalOrgTemplateUrl) && isTemplateEnabled !== false && (template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4');
+  const isA4 = isTemplateEnabled !== false && (
+    template?._id === 'global_a4' || 
+    template?._id === 'global_a4_blank' || 
+    template?.headerType === 'a4' || 
+    template?.headerType === 'a4_blank' || 
+    template?.layoutType === 'a4'
+  );
+
+  // Check if printing in Pre-Printed Letterhead Pad Mode (Data Only)
+  const isLetterheadPad = (
+    template?._id === 'global_a4_blank' ||
+    template?.headerType === 'a4_blank' ||
+    template?.isLetterheadPad === true ||
+    prescription?.isLetterheadPad === true ||
+    printBackground === false ||
+    (template?._id === 'global_a4' && letterheadPrintMode === 'content_only')
+  );
+
+  const isAi = templateMode === 'ai_vision';
+  const effectiveHeaderArea = (isAi && aiHeaderArea) ? aiHeaderArea : (headerArea || { top: 45, left: 10, right: 10, height: 25 });
+  const effectiveBodyArea = (isAi && aiBodyArea) ? aiBodyArea : (bodyArea || { top: 75, bottom: 25, left: 12, right: 12 });
 
   const baseFontSize = fontSize || 12;
 
@@ -496,8 +520,8 @@ const PrintablePrescription = ({
       style={{ backgroundColor: 'white', color: '#1e293b', boxSizing: 'border-box', fontSize: `${baseFontSize}px`, fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
     >
       
-      {/* A4 Background Image (Only if custom A4 template is actively chosen) */}
-      {isA4 && finalOrgTemplateUrl && (
+      {/* A4 Background Image (Only if full digital letterhead mode is chosen; NOT in pre-printed letterhead pad mode) */}
+      {isA4 && finalOrgTemplateUrl && !isLetterheadPad && (
         <img 
           src={getImageUrl(finalOrgTemplateUrl)} 
           alt="A4 Background" 
@@ -517,24 +541,32 @@ const PrintablePrescription = ({
           <div
             style={{
               position: 'absolute',
-              top: `${(headerArea?.top ?? 45)}mm`,
-              left: `${(headerArea?.left ?? 10)}mm`,
-              right: `${(headerArea?.right ?? 10)}mm`,
-              minHeight: `${(headerArea?.height ?? 25)}mm`,
+              top: `${(effectiveHeaderArea?.top ?? 45)}mm`,
+              left: `${(effectiveHeaderArea?.left ?? 10)}mm`,
+              right: `${(effectiveHeaderArea?.right ?? 10)}mm`,
+              minHeight: `${(effectiveHeaderArea?.height ?? 25)}mm`,
               zIndex: 10,
               fontSize: `${baseFontSize}px`,
               boxSizing: 'border-box'
             }}
           >
             <div className="flex items-center justify-between gap-4 mb-2 w-full">
-              <div className="flex items-baseline gap-2 flex-1 min-w-0 pr-4">
+              <div className="flex items-baseline gap-2 flex-1 min-w-0 pr-2">
                 <span className="font-bold text-slate-800 whitespace-nowrap">Name :</span>
                 <span className="flex-1 font-semibold text-slate-900 border-b-[1.5px] border-dotted border-slate-600 pb-0.5 truncate">
                   {patientDisplayFullName}
                 </span>
               </div>
-              <div className="flex items-baseline gap-2 shrink-0 min-w-[140px] justify-end">
-                <span className="font-bold text-slate-800 whitespace-nowrap">Age / Sex</span>
+              {displayPatientId && (
+                <div className="flex items-baseline gap-1.5 shrink-0 px-2">
+                  <span className="font-bold text-slate-800 whitespace-nowrap">ID :</span>
+                  <span className="font-semibold text-slate-900 border-b-[1.5px] border-dotted border-slate-600 pb-0.5 min-w-[50px] text-center">
+                    {displayPatientId}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-baseline gap-2 shrink-0 min-w-[130px] justify-end">
+                <span className="font-bold text-slate-800 whitespace-nowrap">Age / Sex :</span>
                 <span className="font-semibold text-slate-900 border-b-[1.5px] border-dotted border-slate-600 pb-0.5 min-w-[65px] text-center">
                   {patientDisplayAgeGender}
                 </span>
@@ -561,10 +593,10 @@ const PrintablePrescription = ({
           <div
             style={{
               position: 'absolute',
-              top: `${(bodyArea?.top ?? 75)}mm`,
-              bottom: `${(bodyArea?.bottom ?? 25)}mm`,
-              left: `${(bodyArea?.left ?? 12)}mm`,
-              right: `${(bodyArea?.right ?? 12)}mm`,
+              top: `${(effectiveBodyArea?.top ?? 75)}mm`,
+              bottom: `${(effectiveBodyArea?.bottom ?? 25)}mm`,
+              left: `${(effectiveBodyArea?.left ?? 12)}mm`,
+              right: `${(effectiveBodyArea?.right ?? 12)}mm`,
               zIndex: 10,
               fontSize: `${baseFontSize}px`,
               boxSizing: 'border-box',
@@ -1050,46 +1082,48 @@ const PrintablePrescription = ({
               </div>
             </div>
 
-            {/* Footer Bar (Barcode on Left ONLY if uploaded + Custom Footer Text) */}
-            <div className="pt-2 border-t border-slate-200 flex items-center justify-between w-full">
-              {/* Barcode on Left: ONLY if uploaded by admin */}
-              <div className="flex flex-col items-center justify-start shrink-0 min-w-[96px] max-w-[120px] text-center">
-                {footerBarcodeUrl ? (
-                  <img 
-                    src={footerBarcodeUrl} 
-                    alt="Prescription QR Code" 
-                    loading="eager"
-                    decoding="sync"
-                    className="w-20 h-20 object-contain border border-slate-200 p-1 rounded bg-white shadow-xs" 
-                    onError={(e) => {
-                      console.warn("Failed to load footer barcode image:", footerBarcodeUrl);
-                    }}
-                  />
-                ) : null}
-              </div>
+            {/* Footer Bar (Barcode on Left ONLY if uploaded + Custom Footer Text) - Hidden in Pre-Printed Pad Mode */}
+            {!isLetterheadPad && (
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between w-full">
+                {/* Barcode on Left: ONLY if uploaded by admin */}
+                <div className="flex flex-col items-center justify-start shrink-0 min-w-[96px] max-w-[120px] text-center">
+                  {footerBarcodeUrl ? (
+                    <img 
+                      src={footerBarcodeUrl} 
+                      alt="Prescription QR Code" 
+                      loading="eager"
+                      decoding="sync"
+                      className="w-20 h-20 object-contain border border-slate-200 p-1 rounded bg-white shadow-xs" 
+                      onError={(e) => {
+                        console.warn("Failed to load footer barcode image:", footerBarcodeUrl);
+                      }}
+                    />
+                  ) : null}
+                </div>
 
-              {/* Clinic Custom Footer Notice (Red strip) + Additional Footer Sub-Text (Plain black text directly below) */}
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
-                {resolvedFooterText ? (
-                  <div className="border border-red-200 bg-red-50/70 rounded-md py-1 px-4 max-w-lg shadow-2xs">
-                    <p className="font-bold text-red-600 text-[10px] tracking-wide uppercase leading-tight whitespace-pre-line">
-                      {resolvedFooterText}
+                {/* Clinic Custom Footer Notice (Red strip) + Additional Footer Sub-Text (Plain black text directly below) */}
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+                  {resolvedFooterText ? (
+                    <div className="border border-red-200 bg-red-50/70 rounded-md py-1 px-4 max-w-lg shadow-2xs">
+                      <p className="font-bold text-red-600 text-[10px] tracking-wide uppercase leading-tight whitespace-pre-line">
+                        {resolvedFooterText}
+                      </p>
+                    </div>
+                  ) : null}
+                  {resolvedFooterSubText ? (
+                    <p 
+                      style={{ color: '#000000', fontSize: '10px', fontWeight: 500, lineHeight: 1.35, textAlign: 'center', marginTop: '4px', whiteSpace: 'pre-line', maxWidth: '440px' }}
+                      className="font-medium text-black text-[10px] leading-tight text-center mt-1 whitespace-pre-line max-w-lg"
+                    >
+                      {resolvedFooterSubText}
                     </p>
-                  </div>
-                ) : null}
-                {resolvedFooterSubText ? (
-                  <p 
-                    style={{ color: '#000000', fontSize: '10px', fontWeight: 500, lineHeight: 1.35, textAlign: 'center', marginTop: '4px', whiteSpace: 'pre-line', maxWidth: '440px' }}
-                    className="font-medium text-black text-[10px] leading-tight text-center mt-1 whitespace-pre-line max-w-lg"
-                  >
-                    {resolvedFooterSubText}
-                  </p>
-                ) : null}
-              </div>
+                  ) : null}
+                </div>
 
-              {/* Right Spacer for balance */}
-              <div className="w-24 shrink-0"></div>
-            </div>
+                {/* Right Spacer for balance */}
+                <div className="w-24 shrink-0"></div>
+              </div>
+            )}
           </div>
 
         </div>

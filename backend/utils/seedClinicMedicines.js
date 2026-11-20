@@ -38,98 +38,170 @@ export const CLINIC_MEDICINES = [
 
 /**
  * Automatically seeds the 30 medicines, products, and inventory batches
- * for all organizations on the server. Safe to run multiple times (idempotent).
+ * for all organizations on the server. Safe to run multiple times (idempotent),
+ * and handles legacy unique name indexes gracefully.
  */
 export const seedClinicMedicinesAndProducts = async () => {
   try {
+    // 1. Drop legacy unique index on name_1 if it exists to allow multi-tenant compatibility
+    try {
+      const indexes = await Medicine.collection.indexes();
+      const legacyUniqueName = indexes.find(idx => idx.name === 'name_1' && idx.unique);
+      if (legacyUniqueName) {
+        await Medicine.collection.dropIndex('name_1');
+        console.log('[AUTO-SEED] Dropped legacy unique index on medicines.name_1');
+      }
+    } catch {
+      // Index drop error ignored (e.g. if doesn't exist or insufficient permissions)
+    }
+
     const orgs = await Organization.find({}).lean();
     if (!orgs || orgs.length === 0) return;
 
     for (const org of orgs) {
       for (const item of CLINIC_MEDICINES) {
-        // 1. Ensure Product catalog item exists with exact price
-        const existingProd = await Product.findOne({
-          $or: [
-            { organizationId: org._id, name: item.name },
-            { organizationId: org._id.toString(), name: item.name }
-          ]
-        });
-
-        if (!existingProd) {
-          await Product.create({
+        try {
+          // 1. Ensure Product catalog item exists with exact price for this organization
+          let existingProd = await Product.findOne({
             organizationId: org._id,
-            name: item.name,
-            price: item.price,
-            stock: 100,
-            description: `Pack: ${item.packSize}`,
-            category: item.category,
-            tax: 0
+            name: item.name
           });
-        } else if (existingProd.price !== item.price) {
-          await Product.updateOne(
-            { _id: existingProd._id },
-            { $set: { price: item.price, description: `Pack: ${item.packSize}`, category: item.category } }
-          );
-        }
 
-        // 2. Ensure Medicine catalog item exists
-        let med = await Medicine.findOne({
-          $or: [
-            { organizationId: org._id, name: item.name },
-            { organizationId: org._id.toString(), name: item.name }
-          ]
-        });
+          if (!existingProd) {
+            existingProd = await Product.findOne({
+              organizationId: org._id.toString(),
+              name: item.name
+            });
+          }
 
-        if (!med) {
-          med = await Medicine.create({
-            organizationId: org._id,
-            name: item.name,
-            category: item.category,
-            type: item.type,
-            packSize: item.packSize,
-            description: `Price: ₹${item.price} | Pack: ${item.packSize}`,
-            status: 'Active',
-            gstPercentage: 0,
-            minimumStockAlert: 10,
-            usageCount: 1,
-            isCommon: true,
-            isGlobal: false
-          });
-        }
-
-        // 3. Ensure MedicineBatch exists with exact selling price
-        const existingBatch = await MedicineBatch.findOne({
-          $or: [
-            { organizationId: org._id, medicineId: med._id },
-            { organizationId: org._id.toString(), medicineId: med._id }
-          ]
-        });
-
-        if (!existingBatch) {
-          await MedicineBatch.create({
-            organizationId: org._id,
-            medicineId: med._id,
-            batchNo: 'BATCH-001',
-            expiryDate: new Date('2028-12-31T23:59:59.000Z'),
-            mrp: item.price,
-            purchasePrice: parseFloat((item.price * 0.7).toFixed(2)),
-            sellingPrice: item.price,
-            stockQuantity: 100,
-            initialStock: 100,
-            status: 'Active'
-          });
-        } else if (existingBatch.sellingPrice !== item.price) {
-          await MedicineBatch.updateOne(
-            { _id: existingBatch._id },
-            {
-              $set: {
-                mrp: item.price,
-                sellingPrice: item.price,
-                purchasePrice: parseFloat((item.price * 0.7).toFixed(2)),
-                status: 'Active'
-              }
+          if (!existingProd) {
+            try {
+              await Product.create({
+                organizationId: org._id,
+                name: item.name,
+                price: item.price,
+                stock: 100,
+                description: `Pack: ${item.packSize}`,
+                category: item.category,
+                tax: 0
+              });
+            } catch (pErr) {
+              // If duplicate or collision, update existing
+              await Product.updateOne(
+                { organizationId: org._id, name: item.name },
+                { $set: { price: item.price, description: `Pack: ${item.packSize}`, category: item.category } }
+              ).catch(() => {});
             }
-          );
+          } else if (existingProd.price !== item.price) {
+            await Product.updateOne(
+              { _id: existingProd._id },
+              { $set: { price: item.price, description: `Pack: ${item.packSize}`, category: item.category } }
+            );
+          }
+
+          // 2. Ensure Medicine catalog item exists (check globally by name first to avoid E11000 duplicate key error)
+          let med = await Medicine.findOne({
+            $or: [
+              { name: item.name },
+              { name: new RegExp(`^${item.name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}$`, 'i') }
+            ]
+          });
+
+          if (!med) {
+            try {
+              med = await Medicine.create({
+                organizationId: org._id,
+                name: item.name,
+                category: item.category,
+                type: item.type,
+                packSize: item.packSize,
+                description: `Price: ₹${item.price} | Pack: ${item.packSize}`,
+                status: 'Active',
+                gstPercentage: 0,
+                minimumStockAlert: 10,
+                usageCount: 1,
+                isCommon: true,
+                isGlobal: true
+              });
+            } catch (mErr) {
+              // If caught by duplicate key, fetch the existing record
+              med = await Medicine.findOne({ name: item.name });
+            }
+          } else {
+            // Update metadata if needed
+            await Medicine.updateOne(
+              { _id: med._id },
+              {
+                $set: {
+                  category: item.category,
+                  type: item.type,
+                  packSize: item.packSize,
+                  description: `Price: ₹${item.price} | Pack: ${item.packSize}`,
+                  status: 'Active'
+                }
+              }
+            ).catch(() => {});
+          }
+
+          if (!med) continue;
+
+          // 3. Ensure MedicineBatch exists for this org with exact selling price and active stock
+          let existingBatch = await MedicineBatch.findOne({
+            organizationId: org._id,
+            medicineId: med._id
+          });
+
+          if (!existingBatch) {
+            existingBatch = await MedicineBatch.findOne({
+              organizationId: org._id.toString(),
+              medicineId: med._id
+            });
+          }
+
+          if (!existingBatch) {
+            try {
+              await MedicineBatch.create({
+                organizationId: org._id,
+                medicineId: med._id,
+                batchNo: 'BATCH-001',
+                expiryDate: new Date('2028-12-31T23:59:59.000Z'),
+                mrp: item.price,
+                purchasePrice: parseFloat((item.price * 0.7).toFixed(2)),
+                sellingPrice: item.price,
+                stockQuantity: 100,
+                initialStock: 100,
+                status: 'Active'
+              });
+            } catch (bErr) {
+              await MedicineBatch.updateOne(
+                { organizationId: org._id, medicineId: med._id },
+                {
+                  $set: {
+                    mrp: item.price,
+                    sellingPrice: item.price,
+                    purchasePrice: parseFloat((item.price * 0.7).toFixed(2)),
+                    status: 'Active',
+                    expiryDate: new Date('2028-12-31T23:59:59.000Z')
+                  }
+                }
+              ).catch(() => {});
+            }
+          } else if (existingBatch.sellingPrice !== item.price || existingBatch.status !== 'Active') {
+            await MedicineBatch.updateOne(
+              { _id: existingBatch._id },
+              {
+                $set: {
+                  mrp: item.price,
+                  sellingPrice: item.price,
+                  purchasePrice: parseFloat((item.price * 0.7).toFixed(2)),
+                  status: 'Active',
+                  expiryDate: new Date('2028-12-31T23:59:59.000Z')
+                }
+              }
+            );
+          }
+        } catch (itemErr) {
+          console.warn(`[AUTO-SEED] Note on item ${item.name} for org ${org.name}:`, itemErr.message);
         }
       }
     }

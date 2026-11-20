@@ -27,6 +27,7 @@ const PrescriptionTemplateTab = () => {
     const [settings, setSettings] = useState({
         enabled: false,
         templateMode: 'manual', // 'manual' | 'ai_vision'
+        letterheadPrintMode: 'content_only', // 'content_only' (pre-printed pad) | 'full_template' (plain paper)
         templateUrl: '',
         printableArea: { top: 55, left: 12, right: 12, bottom: 30 },
         headerArea: { top: 45, left: 10, right: 10, height: 25 },
@@ -38,6 +39,7 @@ const PrescriptionTemplateTab = () => {
         footerText: '',
         footerSubText: ''
     });
+    const [previewWithTemplate, setPreviewWithTemplate] = useState(true);
     const [uploadingBarcode, setUploadingBarcode] = useState(false);
     const barcodeInputRef = React.useRef(null);
     const [loading, setLoading] = useState(false);
@@ -79,6 +81,7 @@ const PrescriptionTemplateTab = () => {
                 setSettings({
                     enabled: Boolean(d.enabled),
                     templateMode: d.templateMode || 'manual',
+                    letterheadPrintMode: d.letterheadPrintMode || 'content_only',
                     templateUrl: d.templateUrl || '',
                     printableArea: d.printableArea || { top: 55, left: 12, right: 12, bottom: 30 },
                     headerArea: d.headerArea || defaultHeader,
@@ -106,6 +109,7 @@ const PrescriptionTemplateTab = () => {
             await organizationApi.updatePrescriptionTemplateSettings({
                 enabled: dataToSave.enabled,
                 templateMode: dataToSave.templateMode,
+                letterheadPrintMode: dataToSave.letterheadPrintMode || 'content_only',
                 printableArea: dataToSave.printableArea,
                 headerArea: dataToSave.headerArea,
                 bodyArea: dataToSave.bodyArea,
@@ -466,6 +470,78 @@ const PrescriptionTemplateTab = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    {/* Letterhead Printing Mode Section (Physical Pad vs Plain Paper) */}
+                    <div className="space-y-3 pt-4 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Layers size={18} className="text-indigo-600" />
+                                <label className="text-sm font-bold text-slate-800">Print Output Style (Stationery vs Plain Paper)</label>
+                            </div>
+                            <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                                settings.letterheadPrintMode === 'full_template' 
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                                {settings.letterheadPrintMode === 'full_template' ? '📄 Full Digital Template' : '🖨️ Pre-Printed Pad (Data Only)'}
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                            Configure whether the software should print on your clinic's existing physical pre-printed pad or print full template on blank paper:
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label className={`flex flex-col p-3.5 border-2 rounded-2xl cursor-pointer transition-all ${
+                                settings.letterheadPrintMode !== 'full_template'
+                                    ? 'border-emerald-500 bg-emerald-50/50 shadow-xs'
+                                    : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-2">
+                                        <input 
+                                            type="radio" 
+                                            name="letterheadPrintMode" 
+                                            checked={settings.letterheadPrintMode !== 'full_template'} 
+                                            onChange={() => setSettings(prev => ({ ...prev, letterheadPrintMode: 'content_only' }))}
+                                            className="text-emerald-600 focus:ring-emerald-500"
+                                        />
+                                        <span className="text-xs font-black text-slate-800">1. Pre-Printed Pad (Data Only)</span>
+                                    </div>
+                                    <span className="text-[9px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                                        Doctor Pad
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 leading-normal font-medium">
+                                    <strong>Template image aur digital header/footer print NAHI honge.</strong> Sirf Patient info (Name, Age, ID, Date) aur Prescription body (Medicines, Advice) exact margins par print honge taaki aapke pre-printed physical pad par perfect fit baithe.
+                                </p>
+                            </label>
+
+                            <label className={`flex flex-col p-3.5 border-2 rounded-2xl cursor-pointer transition-all ${
+                                settings.letterheadPrintMode === 'full_template'
+                                    ? 'border-indigo-500 bg-indigo-50/50 shadow-xs'
+                                    : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-2">
+                                        <input 
+                                            type="radio" 
+                                            name="letterheadPrintMode" 
+                                            checked={settings.letterheadPrintMode === 'full_template'} 
+                                            onChange={() => setSettings(prev => ({ ...prev, letterheadPrintMode: 'full_template' }))}
+                                            className="text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-xs font-black text-slate-800">2. Full Digital Template</span>
+                                    </div>
+                                    <span className="text-[9px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">
+                                        Plain Paper
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 leading-normal font-medium">
+                                    <strong>Template background image aur full digital footer paper par print honge.</strong> Normal plain white A4 sheet par poora digital print nikalne ke liye.
+                                </p>
+                            </label>
+                        </div>
                     </div>
 
                     {/* Prescription Footer Barcode / QR Code Section */}
@@ -925,27 +1001,63 @@ const PrescriptionTemplateTab = () => {
 
                 {/* Right side: Live Preview (5 cols) */}
                 <div className="lg:col-span-5 bg-slate-100 rounded-2xl p-5 border border-slate-200 flex flex-col items-center lg:sticky lg:top-[160px] self-start w-full">
-                    <div className="flex items-center justify-between w-full mb-3">
+                    <div className="flex items-center justify-between w-full mb-2">
                         <div className="flex items-center gap-1.5">
                             <FileImage size={14} className={isAiMode ? "text-purple-600" : "text-indigo-600"} />
                             <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest">
-                                {isAiMode ? 'AI Vision Preview' : 'Manual Margins Preview'}
+                                {isAiMode ? 'AI Vision Preview' : 'Margins Preview'}
                             </h3>
                         </div>
-                        <div className="flex items-center gap-2 text-[10px] font-bold">
+                        {currentImage && (
+                            <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewWithTemplate(true)}
+                                    className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${
+                                        previewWithTemplate ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                    title="Show uploaded template image as background guide"
+                                >
+                                    Pad Guide
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewWithTemplate(false)}
+                                    className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${
+                                        !previewWithTemplate ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                    title="Show only printed ink on blank paper (Pre-printed pad output)"
+                                >
+                                    Print Output
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center justify-between w-full mb-2.5 px-0.5 text-[10px] font-bold">
+                        <div className="flex items-center gap-2">
                             <span className="flex items-center gap-1 text-indigo-700"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> Header</span>
                             <span className="flex items-center gap-1 text-emerald-700"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Body</span>
                         </div>
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                            previewWithTemplate && currentImage ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                            {previewWithTemplate && currentImage ? 'Showing Template Guide' : 'Stationery Print Output'}
+                        </span>
                     </div>
 
                     {/* A4 Paper Aspect Ratio Container (1 : 1.414) */}
                     <div className="relative w-full max-w-[340px] aspect-[1/1.414] bg-white shadow-xl rounded overflow-hidden border border-slate-300 select-none">
-                        {currentImage ? (
+                        {currentImage && previewWithTemplate ? (
                             <img src={currentImage} className="absolute inset-0 w-full h-full object-contain" alt="Letterhead Template Preview" />
-                        ) : (
+                        ) : !currentImage ? (
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
                                 <FileImage size={40} />
                                 <span className="text-[10px] font-bold uppercase tracking-wider mt-2">No Template Uploaded</span>
+                            </div>
+                        ) : (
+                            <div className="absolute top-2 left-2 z-0 opacity-40 text-[8px] font-black text-slate-400 uppercase tracking-widest pointer-events-none">
+                                Pre-Printed Pad Mode (Template hidden on print)
                             </div>
                         )}
                         
@@ -964,11 +1076,15 @@ const PrescriptionTemplateTab = () => {
                                 {isAiMode ? 'AI Header' : 'Header Area'}
                             </span>
                             
-                            {/* Line 1: Name and Age/Sex */}
+                            {/* Line 1: Name, ID and Age/Sex */}
                             <div className="flex items-center justify-between w-full mb-0.5">
                                 <div className="flex items-baseline gap-1 flex-1 min-w-0 pr-1">
                                     <span className="font-bold text-slate-900 whitespace-nowrap">Name :</span>
                                     <span className="border-b border-dotted border-slate-600 font-semibold truncate flex-1">Amit Maurya</span>
+                                </div>
+                                <div className="flex items-baseline gap-1 shrink-0 px-1">
+                                    <span className="font-bold text-slate-900 whitespace-nowrap">ID :</span>
+                                    <span className="border-b border-dotted border-slate-600 font-semibold min-w-[20px] text-center">P-101</span>
                                 </div>
                                 <div className="flex items-baseline gap-1 shrink-0">
                                     <span className="font-bold text-slate-900 whitespace-nowrap">Age/Sex :</span>

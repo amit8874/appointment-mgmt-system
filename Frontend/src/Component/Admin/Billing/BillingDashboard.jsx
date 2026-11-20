@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, PlusCircle, FileText, User, Filter, ChevronLeft, ChevronRight, Send, Phone, Trash2, CheckCircle, Clock, AlertCircle, Eye, Printer, X, Download, Plus, Minus } from 'lucide-react';
+import { Search, PlusCircle, FileText, User, Filter, ChevronLeft, ChevronRight, Send, Phone, Trash2, CheckCircle, Clock, AlertCircle, Eye, Printer, X, Download, Plus, Minus, Stethoscope } from 'lucide-react';
 import { billingApi, appointmentApi, centralDoctorApi, authApi, pharmacyApi, medicineApi, productApi } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import InvoiceTemplate from '../../../components/Shared/InvoiceTemplate';
@@ -110,12 +110,31 @@ const InvoiceList = React.memo(({
               </div>
 
               <div className="text-sm text-black space-y-1">
-                <p className="group-hover:text-green-200 transition-colors duration-300">
-                  <span className="font-medium text-black group-hover:text-green-100 transition-colors duration-300">Doctor:</span> {invoice.doctor}
-                </p>
-                <p className="group-hover:text-green-200 transition-colors duration-300">
-                  <span className="font-medium text-black group-hover:text-green-100 transition-colors duration-300">Date:</span> {invoice.date}
-                </p>
+                {invoice.billType === 'DoctorVisit' && invoice.visitingDoctorDetails?.doctorName ? (
+                  <>
+                    <p className="group-hover:text-purple-100 transition-colors duration-300">
+                      <span className="font-semibold text-purple-900 group-hover:text-purple-200">Visiting Dr:</span> {invoice.visitingDoctorDetails.doctorName} {invoice.visitingDoctorDetails.doctorSpecialty ? `(${invoice.visitingDoctorDetails.doctorSpecialty})` : ''}
+                    </p>
+                    {invoice.visitingDoctorDetails.procedureName && (
+                      <p className="group-hover:text-purple-100 transition-colors duration-300 text-xs">
+                        <span className="font-semibold text-slate-700 group-hover:text-purple-200">Procedures:</span> {invoice.visitingDoctorDetails.procedureName}
+                      </p>
+                    )}
+                    <div className="pt-1 mt-1 border-t border-purple-100 group-hover:border-purple-600/40 flex justify-between items-center text-xs font-semibold">
+                      <span className="text-amber-700 group-hover:text-amber-200">Paid to Dr: {formatCurrency(invoice.visitingDoctorDetails.paidToDoctor || invoice.amount || 0)}</span>
+                      <span className="text-slate-500 group-hover:text-slate-300 text-[10px] font-bold uppercase">{invoice.visitingDoctorDetails.doctorPaymentMode || 'Cash'}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="group-hover:text-green-200 transition-colors duration-300">
+                      <span className="font-medium text-black group-hover:text-green-100 transition-colors duration-300">Doctor:</span> {invoice.doctor}
+                    </p>
+                    <p className="group-hover:text-green-200 transition-colors duration-300">
+                      <span className="font-medium text-black group-hover:text-green-100 transition-colors duration-300">Date:</span> {invoice.date}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -250,6 +269,7 @@ const transformApiData = (apiBill) => {
     billType: apiBill.billType || 'General',
     items: apiBill.items || [],
     installments: apiBill.installments || [],
+    visitingDoctorDetails: apiBill.visitingDoctorDetails || {},
     paidAmount: apiBill.paidAmount !== undefined ? apiBill.paidAmount : (apiBill.amount || 0),
     dueAmount: apiBill.dueAmount !== undefined ? apiBill.dueAmount : 0,
     details: {
@@ -1527,6 +1547,40 @@ const InvoiceDetailModal = ({ invoice, onClose, onUpdateStatus, onDelete, onPrin
             </div>
           </div>
 
+          {/* Visiting Specialist Doctor Details if billType is DoctorVisit */}
+          {(invoice.billType === 'DoctorVisit' || invoice.visitingDoctorDetails?.doctorName) && (
+            <div className="mb-6 p-4 rounded-xl border-2 border-purple-500 bg-purple-50/70">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                  <Stethoscope className="w-4 h-4 text-purple-700" /> Visiting Specialist Doctor Record
+                </span>
+                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  Paid via {invoice.visitingDoctorDetails?.doctorPaymentMode || 'Cash'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Visiting Doctor</span>
+                  <p className="font-extrabold text-slate-900">{invoice.visitingDoctorDetails?.doctorName || invoice.doctor}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Specialty / Field</span>
+                  <p className="font-extrabold text-slate-900">{invoice.visitingDoctorDetails?.doctorSpecialty || 'Specialist'}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Procedures Performed</span>
+                  <p className="font-extrabold text-slate-900">{invoice.visitingDoctorDetails?.procedureName || 'Specialist Procedure'}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Amount Paid to Doctor (Expense)</span>
+                  <p className="font-extrabold text-emerald-800 text-sm">
+                    ₹{invoice.visitingDoctorDetails?.paidToDoctor || invoice.amount || 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Itemized Table */}
           <div className="mb-6 rounded-lg overflow-hidden border-2 border-black">
             <table className="min-w-full divide-y divide-black">
@@ -2006,7 +2060,29 @@ const BillingDashboard = () => {
 
   const paginatedInvoices = invoices; // Now paginated on server-side
 
-  const summaryMetrics = [
+  const summaryMetrics = billingTab === 'DoctorVisit' ? [
+    {
+      title: 'Total Doctor Visits',
+      value: invoices.length,
+      colorClass: 'border-purple-500',
+      icon: User,
+      textClass: 'text-purple-600'
+    },
+    {
+      title: 'Paid to Visiting Dr (Expense)',
+      value: formatCurrency(invoices.reduce((sum, inv) => sum + (inv.visitingDoctorDetails?.paidToDoctor || inv.amount || 0), 0)),
+      colorClass: 'border-amber-500',
+      icon: RupeeIcon,
+      textClass: 'text-amber-600'
+    },
+    {
+      title: 'Avg Payout per Visit',
+      value: formatCurrency(invoices.length > 0 ? (invoices.reduce((sum, inv) => sum + (inv.visitingDoctorDetails?.paidToDoctor || inv.amount || 0), 0) / invoices.length) : 0),
+      colorClass: 'border-emerald-500',
+      icon: RupeeIcon,
+      textClass: 'text-emerald-600'
+    },
+  ] : [
     { title: 'Total Paid Value', value: formatCurrency(summary.totalPaid), colorClass: 'border-green-500', icon: RupeeIcon, textClass: 'text-green-500' },
     { title: 'Outstanding Receivables', value: formatCurrency(summary.totalPending), colorClass: 'border-red-500', icon: RupeeIcon, textClass: 'text-red-500' },
     { title: 'Average Invoice Value', value: formatCurrency(summary.averageInvoice), colorClass: `border-sky-500`, icon: RupeeIcon, textClass: `text-sky-500` },
@@ -2062,11 +2138,12 @@ const BillingDashboard = () => {
           </div>
         )}
 
-        <div className={`grid grid-cols-1 ${isDentistClinic ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4 mb-6`}>
+        <div className={`grid grid-cols-1 ${isDentistClinic ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 mb-6`}>
           {[
             { id: 'General', label: 'Consultation & General', icon: User, color: 'sky', description: 'Doctors, Appointments & OPD' },
             { id: 'Pharmacy', label: 'Pharmacy Billing', icon: PlusCircle, color: 'indigo', description: 'Medicines, Inventory & Retail' },
             ...(isDentistClinic ? [{ id: 'Dental', label: 'Dental Billing', icon: FileText, color: 'emerald', description: 'Dental Procedures & Treatments' }] : []),
+            { id: 'DoctorVisit', label: 'Dr Visit Billing', icon: Stethoscope, color: 'purple', description: 'Visiting Doctors & Specialist Visits' },
           ].map((tab) => (
             <button
               key={tab.id}

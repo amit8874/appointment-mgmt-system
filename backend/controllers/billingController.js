@@ -12,6 +12,7 @@ import Appointment from '../models/Appointment.js';
 import Organization from '../models/Organization.js';
 import InvoiceTemplate from '../models/InvoiceTemplate.js';
 import Patient from '../models/PaitentEditProfile.js';
+import OtherExpense from '../models/OtherExpense.js';
 import { sendWhatsAppMediaTemplate, uploadWhatsAppMediaFromFile } from '../services/whatsappService.js';
 import { sendInvoiceEmail } from '../services/emailService.js';
 import fs from 'fs';
@@ -123,6 +124,70 @@ const syncAppointmentStatus = async (appointmentId, billStatus) => {
   }
 };
 
+// Helper to sync Doctor Visit expense with OtherExpense model
+const syncDoctorVisitExpense = async (bill, tenantId, userId) => {
+  if (!bill || bill.billType !== 'DoctorVisit') return;
+  const vDetails = bill.visitingDoctorDetails || {};
+  const paidToDoctor = Number(vDetails.paidToDoctor || 0);
+  const docName = vDetails.doctorName || bill.doctorName || 'Visiting Doctor';
+  const procName = vDetails.procedureName || (bill.items && bill.items[0]?.procedureName) || '';
+  const docPaymentMode = vDetails.doctorPaymentMode || 'Cash';
+  const docPayoutStatus = vDetails.doctorPayoutStatus || (paidToDoctor >= (vDetails.doctorFee || 0) && (vDetails.doctorFee || 0) > 0 ? 'Paid' : (paidToDoctor > 0 ? 'Partially Paid' : 'Pending'));
+
+  const validPaymentMethods = ['Cash', 'Card', 'UPI', 'Net Banking', 'Cheque', 'Other'];
+  const safePaymentMethod = validPaymentMethods.includes(docPaymentMode) ? docPaymentMode : 'Other';
+
+  try {
+    if (paidToDoctor > 0) {
+      if (vDetails.expenseId) {
+        await OtherExpense.findOneAndUpdate(
+          { _id: vDetails.expenseId, organizationId: tenantId },
+          {
+            expenseName: `Visiting Doctor Fee - Dr. ${docName}`,
+            category: 'Doctor Visiting Fee',
+            vendor: `Dr. ${docName}`,
+            purchaseDate: bill.date || new Date(),
+            invoiceNumber: bill.billId || bill.invoiceNumber,
+            unitPrice: paidToDoctor,
+            totalAmount: paidToDoctor,
+            paymentMethod: safePaymentMethod,
+            paymentStatus: docPayoutStatus === 'Paid' ? 'Paid' : 'Partially Paid',
+            notes: `Patient: ${bill.patientName} (ID: ${bill.patientId}) | Procedure: ${procName || 'N/A'} | Bill ID: ${bill.billId}`
+          }
+        );
+      } else {
+        const newExpense = await OtherExpense.create({
+          organizationId: tenantId,
+          expenseName: `Visiting Doctor Fee - Dr. ${docName}`,
+          category: 'Doctor Visiting Fee',
+          vendor: `Dr. ${docName}`,
+          purchaseDate: bill.date || new Date(),
+          invoiceNumber: bill.billId || bill.invoiceNumber,
+          quantity: 1,
+          unitPrice: paidToDoctor,
+          totalAmount: paidToDoctor,
+          paymentMethod: safePaymentMethod,
+          paymentStatus: docPayoutStatus === 'Paid' ? 'Paid' : 'Partially Paid',
+          notes: `Patient: ${bill.patientName} (ID: ${bill.patientId}) | Procedure: ${procName || 'N/A'} | Bill ID: ${bill.billId}`,
+          createdBy: userId
+        });
+        bill.visitingDoctorDetails.expenseId = newExpense._id;
+        await Billing.findByIdAndUpdate(bill._id, {
+          'visitingDoctorDetails.expenseId': newExpense._id
+        });
+      }
+    } else if (vDetails.expenseId) {
+      await OtherExpense.findOneAndDelete({ _id: vDetails.expenseId, organizationId: tenantId });
+      bill.visitingDoctorDetails.expenseId = undefined;
+      await Billing.findByIdAndUpdate(bill._id, {
+        $unset: { 'visitingDoctorDetails.expenseId': 1 }
+      });
+    }
+  } catch (err) {
+    console.error('[DOCTOR VISIT EXPENSE SYNC ERROR]:', err);
+  }
+};
+
 export const getAllBills = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -133,6 +198,7 @@ export const getAllBills = async (req, res) => {
     
     // Support filtering in the query
     if (req.query.billType) query.billType = req.query.billType;
+    if (req.query.patientId) query.patientId = req.query.patientId;
     if (req.query.status) query.status = req.query.status;
     if (req.query.paymentMethod) query.paymentMethod = req.query.paymentMethod;
     
@@ -276,14 +342,17 @@ export const getBillingStats = async (req, res) => {
 
 export const createBill = async (req, res) => {
   try {
-    const { patientId, patientName, patientPhone, doctorId, doctorName, amount, items, status, notes, paymentMethod, transactionId, appointmentId, appointmentDate, appointmentTime, paidAmount, dueAmount, billType, discount, installments, date, billDate } = req.body;
+    const { patientId, patientName, patientPhone, doctorId, doctorName, amount, items, status, notes, paymentMethod, transactionId, appointmentId, appointmentDate, appointmentTime, paidAmount, dueAmount, billType, discount, installments, date, billDate, visitingDoctorDetails } = req.body;
 
     console.log('[BILLING DEBUG] createBill received:', { patientId, patientName, doctorId, doctorName, amount, billType, paymentMethod, itemCount: items?.length });
 
+    const effectiveDoctorName = doctorName || visitingDoctorDetails?.doctorName || 'Visiting Doctor';
+    const effectiveDoctorId = doctorId || (visitingDoctorDetails?.doctorName ? `DOC_${visitingDoctorDetails.doctorName.replace(/\s+/g, '_')}` : 'VISITING');
+
     if (!patientId) return res.status(400).json({ message: 'Patient ID is required' });
     if (!patientName) return res.status(400).json({ message: 'Patient name is required' });
-    if (!doctorId) return res.status(400).json({ message: 'Doctor ID is required' });
-    if (!doctorName) return res.status(400).json({ message: 'Doctor name is required' });
+    if (!effectiveDoctorId) return res.status(400).json({ message: 'Doctor ID is required' });
+    if (!effectiveDoctorName) return res.status(400).json({ message: 'Doctor name is required' });
     if (amount === undefined || amount === null || isNaN(amount) || amount < 0) return res.status(400).json({ message: 'Valid amount is required (cannot be negative)' });
 
     const totals = calculateInvoiceTotals({
@@ -337,8 +406,11 @@ export const createBill = async (req, res) => {
       bill.patientId = patientId;
       bill.patientName = patientName;
       bill.patientPhone = patientPhone || '';
-      bill.doctorId = doctorId;
-      bill.doctorName = doctorName;
+      bill.doctorId = effectiveDoctorId;
+      bill.doctorName = effectiveDoctorName;
+      if (visitingDoctorDetails) {
+        bill.visitingDoctorDetails = visitingDoctorDetails;
+      }
       bill.amount = totals.grandTotal;
       bill.grossAmount = totals.grossAmount;
       bill.discountAmount = totals.discountAmount;
@@ -448,8 +520,8 @@ export const createBill = async (req, res) => {
         patientId,
         patientName,
         patientPhone: patientPhone || '',
-        doctorId,
-        doctorName,
+        doctorId: effectiveDoctorId,
+        doctorName: effectiveDoctorName,
         amount: totals.grandTotal,
         grossAmount: totals.grossAmount,
         discountAmount: totals.discountAmount,
@@ -466,6 +538,7 @@ export const createBill = async (req, res) => {
         paymentMethod: resolvedPaymentMethod,
         transactionId: transactionId || null,
         billType: billType || 'General',
+        visitingDoctorDetails: visitingDoctorDetails || {},
         discount: totals.discountAmount,
         installments: finalInstallments
       });
@@ -588,6 +661,11 @@ export const createBill = async (req, res) => {
     // Sync with Appointment paymentStatus
     await syncAppointmentStatus(appointmentId, status);
 
+    // Auto sync Doctor Visit expense
+    if (bill.billType === 'DoctorVisit') {
+      await syncDoctorVisitExpense(bill, req.tenantId, req.user?.id || req.user?._id);
+    }
+
     res.status(isNew ? 201 : 200).json(bill);
   } catch (error) {
     console.error('Billing error:', error);
@@ -700,6 +778,11 @@ export const updateBill = async (req, res) => {
 
     await bill.save();
 
+    // Auto sync Doctor Visit expense
+    if (bill.billType === 'DoctorVisit') {
+      await syncDoctorVisitExpense(bill, req.tenantId, req.user?.id || req.user?._id);
+    }
+
     // Sync with Appointment status
     if (bill.appointmentId) {
       await syncAppointmentStatus(bill.appointmentId, bill.status);
@@ -715,6 +798,9 @@ export const deleteBill = async (req, res) => {
   try {
     const bill = await Billing.findOneAndDelete({ _id: req.params.id, organizationId: req.tenantId });
     if (!bill) return res.status(404).json({ message: 'Bill not found' });
+    if (bill.visitingDoctorDetails?.expenseId) {
+      await OtherExpense.findOneAndDelete({ _id: bill.visitingDoctorDetails.expenseId, organizationId: req.tenantId });
+    }
     res.json({ message: 'Bill deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

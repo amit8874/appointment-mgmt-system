@@ -17,7 +17,7 @@ const billingSchema = new mongoose.Schema({
   },
   billType: {
     type: String,
-    enum: ['General', 'Pharmacy', 'Lab', 'Dental'],
+    enum: ['General', 'Pharmacy', 'Lab', 'Dental', 'DoctorVisit'],
     default: 'General'
   },
   billId: {
@@ -161,6 +161,24 @@ const billingSchema = new mongoose.Schema({
     paidAmount: { type: Number, default: 0 },
     dueAmount: { type: Number, default: 0 }
   }],
+  // Visiting Doctor Billing Fields
+  visitingDoctorDetails: {
+    doctorName: { type: String, default: '' },
+    doctorSpecialty: { type: String, default: '' },
+    doctorPhone: { type: String, default: '' },
+    procedureName: { type: String, default: '' },
+    procedures: [{
+      name: { type: String, default: '' },
+      amount: { type: Number, default: 0 }
+    }],
+    doctorFee: { type: Number, default: 0 },
+    paidToDoctor: { type: Number, default: 0 },
+    doctorDue: { type: Number, default: 0 },
+    doctorPayoutStatus: { type: String, enum: ['Paid', 'Pending', 'Partially Paid'], default: 'Paid' },
+    doctorPaymentMode: { type: String, default: 'Cash' },
+    clinicShare: { type: Number, default: 0 },
+    expenseId: { type: mongoose.Schema.Types.ObjectId, ref: 'OtherExpense' }
+  },
   notes: String,
   storageProvider: { type: String, default: 'local' }, // 'local', 'cloudinary', 'aws_s3'
   invoiceS3Bucket: { type: String },

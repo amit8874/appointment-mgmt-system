@@ -183,15 +183,29 @@ const SlotGroup = ({ title, slots, icon, onSelect }) => {
 };
 
 
-const ContactClinic = ({ phone }) => {
+const ContactClinic = ({ phone, clinicName, address }) => {
   return (
-    <div className="mt-1 border-t border-slate-100 pt-5 pb-2 animate-in fade-in slide-in-from-top-4 duration-500">
-      <div className="flex flex-col items-start gap-1">
-        <span className="text-sm font-bold text-slate-500">Phone number</span>
-        <span className="text-2xl font-black text-[#14bef0] tracking-tight">{phone || "No phone number available"}</span>
+    <div className="mt-1 border-t border-slate-100 pt-5 pb-3 animate-in fade-in slide-in-from-top-4 duration-500">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Clinic Contact Number</span>
+          <a href={phone ? `tel:${phone}` : undefined} className="text-xl font-black text-[#14bef0] tracking-tight hover:underline flex items-center gap-2 mt-1">
+            <Phone size={18} />
+            {phone || "Direct phone not listed"}
+          </a>
+        </div>
+        {(clinicName || address) && (
+          <div>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Clinic Location</span>
+            <div className="text-xs font-bold text-slate-800 mt-1 flex items-start gap-1.5">
+              <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
+              <span>{clinicName ? `${clinicName} - ` : ''}{address || ''}</span>
+            </div>
+          </div>
+        )}
       </div>
-      <p className="mt-4 text-[13px] text-slate-500 leading-relaxed font-medium">
-        By calling this number, you agree to the <span className="text-blue-600 hover:underline cursor-pointer">Terms & Conditions</span>. If you could not connect with the center, please write to <span className="text-blue-600 hover:underline cursor-pointer">amitmaurya3276@gmail.com</span>
+      <p className="mt-3 text-[12px] text-slate-500 leading-relaxed font-medium">
+        Call directly for appointments, inquiries, and clinic timings.
       </p>
     </div>
   );
@@ -926,10 +940,13 @@ const FindDoctors = () => {
                     <p className="text-slate-400 text-xs mt-0.5">{doctor.experience || 10} years experience overall</p>
                     
                     <div className="mt-2 text-sm font-bold text-slate-800">
-                      <div className="flex items-center gap-1 text-xs">
-                        {doctor.address} {doctor.address && doctor.clinicName && <span className="text-slate-300 font-normal">•</span>} {doctor.clinicName}
+                      <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                        <MapPin size={13} className="text-slate-400 shrink-0" />
+                        <span>{doctor.address || doctor.clinicName}</span>
+                        {doctor.address && doctor.clinicName && <span className="text-slate-300 font-normal">•</span>}
+                        {doctor.address && doctor.clinicName && <span className="font-semibold text-slate-700">{doctor.clinicName}</span>}
                       </div>
-                      <div className="text-slate-500 font-medium mt-0.5 text-xs">₹{doctor.fee || 500} Consultation fee at clinic</div>
+                      <div className="text-slate-500 font-medium mt-1 text-xs">₹{doctor.fee || 500} Consultation fee at clinic</div>
                     </div>
 
                     <div className="mt-3 flex items-center gap-3">
@@ -950,11 +967,13 @@ const FindDoctors = () => {
 
                   {/* Booking Area Right */}
                   <div className="md:w-44 shrink-0 flex flex-col items-end md:items-start justify-end gap-2 text-right md:text-left">
-                     <div className="flex items-center gap-2 text-green-600 text-xs font-bold mb-1">
-                        <Calendar size={14} className="fill-green-600/10" />
-                        Available Today
-                     </div>
-                     {!doctor.hideBookAppointment && (
+                     {(!doctor.hideBookAppointment && !doctor.isSuperAdminCreated) && (
+                       <div className="flex items-center gap-2 text-green-600 text-xs font-bold mb-1">
+                          <Calendar size={14} className="fill-green-600/10" />
+                          Available Today
+                       </div>
+                     )}
+                     {(!doctor.hideBookAppointment && !doctor.isSuperAdminCreated) ? (
                        <button 
                         onClick={() => {
                           setExpandedDoctorId(expandedDoctorId === doctor._id ? null : doctor._id);
@@ -969,16 +988,18 @@ const FindDoctors = () => {
                           {expandedDoctorId === doctor._id ? "Close Slots" : "Book Clinic Visit"}
                           <div className="text-[10px] font-normal opacity-80 -mt-0.5">No Booking Fee</div>
                        </button>
-                     )}
+                     ) : null}
                      <button 
                       onClick={() => {
                         setExpandedContactId(expandedContactId === doctor._id ? null : doctor._id);
                         setExpandedDoctorId(null);
                       }}
                       className={`w-full py-2.5 border font-bold rounded text-sm transition-all flex items-center justify-center gap-2 ${
-                        expandedContactId === doctor._id
-                        ? "bg-slate-100 text-slate-600 border-slate-200"
-                        : "border-[#14bef0] text-[#14bef0] hover:bg-blue-50"
+                        (doctor.hideBookAppointment || doctor.isSuperAdminCreated)
+                          ? "bg-[#14bef0] text-white hover:bg-[#079cc7] border-[#14bef0] shadow-md"
+                          : expandedContactId === doctor._id
+                            ? "bg-slate-100 text-slate-600 border-slate-200"
+                            : "border-[#14bef0] text-[#14bef0] hover:bg-blue-50"
                       }`}
                      >
                         <Phone size={14} />
@@ -988,7 +1009,7 @@ const FindDoctors = () => {
                 </div>
 
                 {/* Expanded Slot Selector */}
-                {!doctor.hideBookAppointment && (
+                {(!doctor.hideBookAppointment && !doctor.isSuperAdminCreated) && (
                   <motion.div
                     initial={false}
                     animate={{ height: expandedDoctorId === doctor._id ? "auto" : 0, opacity: expandedDoctorId === doctor._id ? 1 : 0 }}
@@ -1009,7 +1030,7 @@ const FindDoctors = () => {
                   animate={{ height: expandedContactId === doctor._id ? "auto" : 0, opacity: expandedContactId === doctor._id ? 1 : 0 }}
                   className="overflow-hidden"
                 >
-                  <ContactClinic phone={doctor.phone} />
+                  <ContactClinic phone={doctor.phone} clinicName={doctor.clinicName} address={doctor.address} />
                 </motion.div>
               </div>
             );

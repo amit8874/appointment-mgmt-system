@@ -196,7 +196,10 @@ export const generatePdf = async (req, res) => {
       template = { _id: 'default_v2', templateName: 'Oviaan Default Template 2' };
     } else if (templateId === 'global_a4') {
       console.log("[generatePdf] Explicitly requested global A4 template.");
-      template = { _id: 'global_a4', headerType: 'a4', layoutType: 'a4' };
+      template = { _id: 'global_a4', headerType: 'a4', layoutType: 'a4', printBackground: true };
+    } else if (templateId === 'global_a4_blank') {
+      console.log("[generatePdf] Explicitly requested global A4 blank letterhead pad (data only).");
+      template = { _id: 'global_a4_blank', headerType: 'a4', layoutType: 'a4', printBackground: false };
     } else if (templateId && mongoose.Types.ObjectId.isValid(templateId)) {
       template = await PrescriptionTemplate.findById(templateId);
       console.log("[generatePdf] Found template by ID:", template ? template._id : "Not Found");

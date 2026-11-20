@@ -55,6 +55,10 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
       const saved = localStorage.getItem('cms_selected_prescription_template');
       if (saved) {
         const parsed = JSON.parse(saved);
+        if (parsed?._id === 'global_a4_blank' || parsed?.headerType === 'a4_blank') {
+          setLayoutStyle('a4_blank');
+          return;
+        }
         if (parsed?._id === 'global_a4' || parsed?.headerType === 'a4') {
           setLayoutStyle('a4');
           return;
@@ -185,6 +189,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                       Layout Configuration
                     </div>
                     <div className="flex flex-col gap-3">
+                      {/* Option 1: Oviaan Default */}
                       <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${layoutStyle === 'default' ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
                         <input type="radio" checked={layoutStyle === 'default'} onChange={() => setLayoutStyle('default')} className="mt-1 text-indigo-600 focus:ring-indigo-500" />
                         <div>
@@ -192,11 +197,32 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                           <span className="text-xs text-slate-500 font-medium block mt-0.5">Oviaan official prescription layout with clinic & doctor details</span>
                         </div>
                       </label>
+
+                      {/* Option 2: Pre-Printed Letterhead Pad (Data Only) */}
+                      <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${layoutStyle === 'a4_blank' ? 'bg-emerald-50 border-emerald-400' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                        <input type="radio" checked={layoutStyle === 'a4_blank'} onChange={() => setLayoutStyle('a4_blank')} className="mt-1 text-emerald-600 focus:ring-emerald-500" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-800 block">Pre-Printed Letterhead Pad</span>
+                            <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
+                              Data Only
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-500 font-medium block mt-0.5">Prints patient details & medicines only at calibrated margins on your physical pad (No template image, no digital header/footer)</span>
+                        </div>
+                      </label>
+
+                      {/* Option 3: A4 Full Digital Letterhead (With Background) */}
                       <label className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${!organization?.prescriptionTemplate?.templateUrl ? 'opacity-50 cursor-not-allowed' : ''} ${layoutStyle === 'a4' ? 'bg-indigo-50 border-indigo-300' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
                         <input type="radio" disabled={!organization?.prescriptionTemplate?.templateUrl} checked={layoutStyle === 'a4'} onChange={() => setLayoutStyle('a4')} className="mt-1 text-indigo-600 focus:ring-indigo-500" />
                         <div>
-                          <span className="font-bold text-slate-800 block">A4 Full Template (Settings)</span>
-                          <span className="text-xs text-slate-500 font-medium block mt-0.5">Uses the background image configured in Admin Settings</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-800 block">A4 Full Digital Letterhead</span>
+                            <span className="text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                              Plain Paper
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-500 font-medium block mt-0.5">Prints uploaded letterhead template image and full branding on plain A4 sheet</span>
                           {!organization?.prescriptionTemplate?.templateUrl && (
                             <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider mt-1 block">Not Configured in Settings</span>
                           )}
@@ -241,7 +267,7 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                     <img src={getImageUrl(organization.prescriptionTemplate.templateUrl)} alt="A4 Template Background" className="absolute inset-0 w-full h-full object-contain" style={{ zIndex: 0 }} />
                   ) : null}
                   
-                  {layoutStyle === 'a4' ? (() => {
+                  {(layoutStyle === 'a4' || layoutStyle === 'a4_blank') ? (() => {
                     const tCfg = organization?.prescriptionTemplate || {};
                     const isAi = tCfg.templateMode === 'ai_vision';
                     const hArea = (isAi && tCfg.aiHeaderArea) ? tCfg.aiHeaderArea : (tCfg.headerArea || { top: 45, left: 10, right: 10, height: 25 });
@@ -263,13 +289,17 @@ const TemplateModal = ({ isOpen, onClose, onSaveSuccess }) => {
                         className="pointer-events-none flex flex-col justify-center"
                       >
                         <div className="flex items-center justify-between gap-4 mb-1.5 w-full">
-                          <div className="flex items-baseline gap-2 flex-1 min-w-0 pr-4">
+                          <div className="flex items-baseline gap-2 flex-1 min-w-0 pr-2">
                             <span className="font-bold text-slate-800 whitespace-nowrap">Name :</span>
                             <span className="flex-1 font-semibold text-slate-900 border-b-[1.5px] border-dotted border-slate-600 pb-0.5 truncate">Amit Maurya</span>
                           </div>
-                          <div className="flex items-baseline gap-2 shrink-0 min-w-[130px] justify-end">
-                            <span className="font-bold text-slate-800 whitespace-nowrap">Age / Sex</span>
-                            <span className="font-semibold text-slate-900 border-b-[1.5px] border-dotted border-slate-600 pb-0.5 min-w-[60px] text-center">23/M</span>
+                          <div className="flex items-baseline gap-1 shrink-0 px-2">
+                            <span className="font-bold text-slate-800 whitespace-nowrap">ID :</span>
+                            <span className="font-semibold text-slate-900 border-b-[1.5px] border-dotted border-slate-600 pb-0.5 min-w-[36px] text-center">20261001</span>
+                          </div>
+                          <div className="flex items-baseline gap-2 shrink-0 min-w-[120px] justify-end">
+                            <span className="font-bold text-slate-800 whitespace-nowrap">Age / Sex :</span>
+                            <span className="font-semibold text-slate-900 border-b-[1.5px] border-dotted border-slate-600 pb-0.5 min-w-[55px] text-center">23/M</span>
                           </div>
                         </div>
                         <div className="flex items-baseline gap-4 w-full">

@@ -278,7 +278,10 @@ const Doctors = () => {
                     <DetailBlock label="Gender" value={doctor.gender} />
                     <DetailBlock label="Date of Birth" value={doctor.dob ? new Date(doctor.dob).toLocaleDateString() : 'N/A'} icon={Calendar} />
                     <div className="col-span-2">
-                      <DetailBlock label="Residential Address" value={doctor.address || 'N/A'} icon={MapPin} />
+                      <DetailBlock label="Clinic / Practice Name" value={doctor.clinicName || doctor.serviceLocation?.practiceName || doctor.organizationId?.name || 'N/A'} icon={Building2} />
+                    </div>
+                    <div className="col-span-2">
+                      <DetailBlock label="Clinic Address / Location" value={doctor.address || 'N/A'} icon={MapPin} />
                     </div>
                   </div>
                 </section>
@@ -612,8 +615,8 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!createFormData.name || !createFormData.specialization) {
-      alert('Doctor Name and Specialization are required.');
+    if (!createFormData.name || !createFormData.specialization || !createFormData.clinicName) {
+      alert('Doctor Name, Specialization, and Clinic Name are required.');
       return;
     }
     try {
@@ -733,6 +736,54 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
                 </div>
 
                 <div>
+                  <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                    <Stethoscope size={13} className="text-indigo-600" /> Specialization *
+                  </label>
+                  <input 
+                    type="text" 
+                    required
+                    list="doctor-specialization-list"
+                    placeholder="e.g. Dentist, General Physician, Cardiologist..."
+                    value={createFormData.specialization}
+                    onChange={e => setCreateFormData({...createFormData, specialization: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <datalist id="doctor-specialization-list">
+                    <option value="General Physician" />
+                    <option value="Dentist" />
+                    <option value="Dental Surgeon" />
+                    <option value="Orthodontist" />
+                    <option value="Cardiologist" />
+                    <option value="Dermatologist" />
+                    <option value="Orthopedic Surgeon" />
+                    <option value="Pediatrician" />
+                    <option value="Gynecologist / Obstetrician" />
+                    <option value="Neurologist" />
+                    <option value="ENT Specialist" />
+                    <option value="Psychiatrist" />
+                    <option value="Ophthalmologist" />
+                    <option value="Gastroenterologist" />
+                    <option value="Pulmonologist" />
+                    <option value="Physiotherapist" />
+                    <option value="General Surgeon" />
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                    <Building2 size={13} className="text-indigo-600" /> Clinic / Hospital Name *
+                  </label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. Aarogyam Medical Center"
+                    value={createFormData.clinicName}
+                    onChange={e => setCreateFormData({...createFormData, clinicName: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Gender *</label>
                   <select
                     value={createFormData.gender}
@@ -767,16 +818,7 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
                   />
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Clinic / Hospital Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Aarogyam Medical Center"
-                    value={createFormData.clinicName}
-                    onChange={e => setCreateFormData({...createFormData, clinicName: e.target.value})}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+
 
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">City / Location</label>

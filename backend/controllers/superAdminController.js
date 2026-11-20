@@ -1449,6 +1449,9 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
       ? "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300&h=300"
       : "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=300&h=300";
 
+    const resolvedClinicName = (clinicName && clinicName.trim()) ? clinicName.trim() : 'Oviaan Partnered Healthcare';
+    const resolvedAddress = (address && address.trim()) ? address.trim() : (city ? `${city}, India` : 'India');
+
     const newDoctor = new Doctor({
       doctorId,
       name,
@@ -1458,8 +1461,25 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
       qualification: qualification || 'MBBS',
       experience: parseInt(experience) || 5,
       fee: parseFloat(fee) || 500,
-      clinicName: clinicName || 'Oviaan Partnered Healthcare',
-      address: fullAddress,
+      clinicName: resolvedClinicName,
+      address: resolvedAddress,
+      addressInfo: {
+        address1: resolvedAddress,
+        city: city || '',
+        country: 'India'
+      },
+      serviceLocation: {
+        type: 'clinic',
+        practiceName: resolvedClinicName,
+        address: {
+          street: resolvedAddress,
+          city: city || '',
+          state: '',
+          pincode: ''
+        }
+      },
+      isSuperAdminCreated: true,
+      hideBookAppointment: true,
       phone: phone || '',
       email: email || '',
       about: about || bio || `${name} is a dedicated healthcare practitioner specializing in ${specialization}.`,
@@ -1467,15 +1487,15 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
       status: 'Verified',
       organizationId: targetOrgId,
       availability: {
-        monday: true,
-        tuesday: true,
-        wednesday: true,
-        thursday: true,
-        friday: true,
-        saturday: true,
+        monday: false,
+        tuesday: false,
+        wednesday: false,
+        thursday: false,
+        friday: false,
+        saturday: false,
         sunday: false
       },
-      workingHours: [{ start: '09:00', end: '18:00' }]
+      workingHours: []
     });
 
     await newDoctor.save();

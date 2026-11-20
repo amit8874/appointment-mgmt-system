@@ -260,6 +260,11 @@ const organizationSchema = new mongoose.Schema({
       enum: ['manual', 'ai_vision'],
       default: 'manual'
     },
+    letterheadPrintMode: {
+      type: String,
+      enum: ['content_only', 'full_template'],
+      default: 'content_only'
+    },
     aiHeaderArea: {
       top: { type: Number },
       left: { type: Number },

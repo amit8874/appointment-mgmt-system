@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import * as XLSX from 'xlsx';
 import { expenseApi, commonApi } from '../../../services/api';
 import RecordVault from './RecordVault';
+import ExpenseMonthGroupView from './ExpenseMonthGroupView';
 
 const MoreExpenses = () => {
   // Lists and loading states
@@ -17,6 +18,9 @@ const MoreExpenses = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // View mode: 'monthGroup' (organized month-by-month timeline) or 'table' (flat paginated table)
+  const [viewMode, setViewMode] = useState('monthGroup');
 
   // Search & filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -72,21 +76,22 @@ const MoreExpenses = () => {
     'Other'
   ];
 
-  // Fetch expenses on change of filters or page
+  // Fetch expenses on change of filters, viewMode, or page
   useEffect(() => {
     fetchExpenses();
-  }, [searchTerm, filterType, customStartDate, customEndDate, currentPage]);
+  }, [searchTerm, filterType, customStartDate, customEndDate, currentPage, viewMode]);
 
   const fetchExpenses = async () => {
     setLoading(true);
     try {
+      const isGroup = viewMode === 'monthGroup';
       const params = {
         search: searchTerm,
         filterType,
         startDate: filterType === 'custom' ? customStartDate : undefined,
         endDate: filterType === 'custom' ? customEndDate : undefined,
-        page: currentPage,
-        limit: 10
+        page: isGroup ? 1 : currentPage,
+        limit: isGroup ? 500 : 10
       };
       const res = await expenseApi.getOtherExpenses(params);
       setExpenses(res.expenses || []);
@@ -309,96 +314,124 @@ const MoreExpenses = () => {
       {/* Header & Main KPIs */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
-            💸 More Clinic Expenses
+          <h1 className="text-xl font-medium text-slate-800 dark:text-white flex items-center gap-2">
+            <span>💸 Clinic Expenses</span>
           </h1>
-          <p className="text-xs font-bold text-slate-400 dark:text-gray-400 uppercase tracking-widest mt-1">
-            Track utility bills, rent, doctor payments, cleaning & other custom outflows
+          <p className="text-xs font-normal text-slate-500 dark:text-gray-400 mt-0.5">
+            Track utility bills, rent, doctor payments, cleaning & other clinic outflows
           </p>
         </div>
 
         {/* Action buttons */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => openModal('add')}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-indigo-600/10 transition-all active:scale-95"
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-medium shadow-sm transition-all active:scale-95"
           >
-            <PlusCircle size={16} />
+            <PlusCircle size={15} />
             <span>Add Clinic Expense</span>
           </button>
           <button
             onClick={handleExportExcel}
-            className="flex items-center gap-2 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-gray-700 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
+            className="flex items-center gap-1.5 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-gray-700 px-3 py-2 rounded-xl text-xs font-normal transition-all"
           >
-            <FileSpreadsheet size={16} className="text-green-600" />
+            <FileSpreadsheet size={15} className="text-green-600" />
             <span>Excel</span>
           </button>
           <button
             onClick={handleExportPDF}
-            className="flex items-center gap-2 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-gray-700 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
+            className="flex items-center gap-1.5 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-gray-700 px-3 py-2 rounded-xl text-xs font-normal transition-all"
           >
-            <FileDown size={16} className="text-rose-600" />
+            <FileDown size={15} className="text-rose-600" />
             <span>PDF Report</span>
           </button>
         </div>
       </div>
 
       {/* Quick stats KPI widgets */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
-            <IndianRupee size={24} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-4 rounded-2xl shadow-sm flex items-center gap-3.5">
+          <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
+            <IndianRupee size={20} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-slate-400 dark:text-gray-400 uppercase tracking-widest">Total Outflow</p>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mt-0.5">₹{stats.total.toLocaleString('en-IN')}</h3>
+            <p className="text-[11px] font-normal text-slate-400 dark:text-gray-400">Total Outflow</p>
+            <h3 className="text-lg font-medium text-slate-800 dark:text-white mt-0.5">₹{stats.total.toLocaleString('en-IN')}</h3>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 rounded-xl">
-            <CheckCircle2 size={24} />
+        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-4 rounded-2xl shadow-sm flex items-center gap-3.5">
+          <div className="p-2.5 bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 rounded-xl">
+            <CheckCircle2 size={20} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-slate-400 dark:text-gray-400 uppercase tracking-widest">Total Settled</p>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mt-0.5">₹{stats.paid.toLocaleString('en-IN')}</h3>
+            <p className="text-[11px] font-normal text-slate-400 dark:text-gray-400">Total Settled</p>
+            <h3 className="text-lg font-medium text-slate-800 dark:text-white mt-0.5">₹{stats.paid.toLocaleString('en-IN')}</h3>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-5 rounded-2xl shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-xl">
-            <Clock size={24} />
+        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-4 rounded-2xl shadow-sm flex items-center gap-3.5">
+          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-xl">
+            <Clock size={20} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-slate-400 dark:text-gray-400 uppercase tracking-widest">Total Unsettled/Due</p>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mt-0.5">₹{stats.pending.toLocaleString('en-IN')}</h3>
+            <p className="text-[11px] font-normal text-slate-400 dark:text-gray-400">Total Unsettled/Due</p>
+            <h3 className="text-lg font-medium text-slate-800 dark:text-white mt-0.5">₹{stats.pending.toLocaleString('en-IN')}</h3>
           </div>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Filter, Search & View Switcher Bar */}
+      <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 p-3.5 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="relative flex-1">
-          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by expense name or category..."
+            placeholder="Search expense name, category, or vendor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-gray-700 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50/50 dark:bg-gray-900/50 outline-none text-slate-800 dark:text-white"
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-gray-700 rounded-xl text-xs font-normal focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-slate-50/50 dark:bg-gray-900/50 outline-none text-slate-800 dark:text-white"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-slate-400" />
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* View Mode Toggle: Month Group View vs Table View */}
+          <div className="flex items-center bg-slate-100 dark:bg-gray-700/60 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setViewMode('monthGroup')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-normal transition-all ${
+                viewMode === 'monthGroup'
+                  ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm font-medium'
+                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Calendar size={13} />
+              <span>Month Group View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-normal transition-all ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-sm font-medium'
+                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <FileSpreadsheet size={13} />
+              <span>Table View</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Filter size={14} className="text-slate-400" />
             <select
               value={filterType}
               onChange={(e) => {
                 setFilterType(e.target.value);
                 setCurrentPage(1);
               }}
-              className="px-3 py-2 border border-slate-200 dark:border-gray-700 rounded-xl text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200 outline-none bg-slate-50/50 dark:bg-gray-900/50"
+              className="px-2.5 py-1.5 border border-slate-200 dark:border-gray-700 rounded-xl text-xs font-normal text-slate-700 dark:text-slate-200 outline-none bg-slate-50/50 dark:bg-gray-900/50"
             >
               <option value="all">All Time</option>
               <option value="today">Today</option>
@@ -410,148 +443,168 @@ const MoreExpenses = () => {
           </div>
 
           {filterType === 'custom' && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <input
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                className="px-3 py-1.5 border border-slate-200 dark:border-gray-700 rounded-xl text-xs font-medium outline-none bg-slate-50/50 dark:bg-gray-900/50 text-slate-800 dark:text-white"
+                className="px-2 py-1 border border-slate-200 dark:border-gray-700 rounded-xl text-xs font-normal outline-none bg-slate-50/50 dark:bg-gray-900/50 text-slate-800 dark:text-white"
               />
-              <span className="text-xs text-slate-400 font-bold">to</span>
+              <span className="text-xs text-slate-400">to</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="px-3 py-1.5 border border-slate-200 dark:border-gray-700 rounded-xl text-xs font-medium outline-none bg-slate-50/50 dark:bg-gray-900/50 text-slate-800 dark:text-white"
+                className="px-2 py-1 border border-slate-200 dark:border-gray-700 rounded-xl text-xs font-normal outline-none bg-slate-50/50 dark:bg-gray-900/50 text-slate-800 dark:text-white"
               />
             </div>
           )}
         </div>
       </div>
 
-      {/* Main Table view */}
-      <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead className="bg-slate-50 dark:bg-gray-900/40 text-slate-500 dark:text-gray-400 border-b border-slate-200 dark:border-gray-700">
-              <tr>
-                <th className="p-4 font-black uppercase tracking-widest text-[10px]">Expense Name</th>
-                <th className="p-4 font-black uppercase tracking-widest text-[10px]">Category</th>
-                <th className="p-4 font-black uppercase tracking-widest text-[10px]">Paid To / Vendor</th>
-                <th className="p-4 font-black uppercase tracking-widest text-[10px]">Expense Date</th>
-                <th className="p-4 font-black uppercase tracking-widest text-[10px]">Quantity</th>
-                <th className="p-4 font-black uppercase tracking-widest text-[10px]">Amount</th>
-                <th className="p-4 font-black uppercase tracking-widest text-[10px] text-center">Status</th>
-                <th className="p-4 font-black uppercase tracking-widest text-[10px] text-center">Invoice</th>
-                <th className="p-4 font-black uppercase tracking-widest text-[10px] text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-gray-700 text-slate-600 dark:text-gray-300">
-              {loading ? (
-                Array.from({ length: 5 }).map((_, idx) => (
-                  <tr key={idx} className="animate-pulse">
-                    <td colSpan="9" className="p-6 text-center text-slate-400">Loading records...</td>
-                  </tr>
-                ))
-              ) : expenses.length > 0 ? (
-                expenses.map((exp) => (
-                  <tr key={exp._id} className="hover:bg-slate-50/50 dark:hover:bg-gray-700/30 transition-colors">
-                    <td className="p-4 font-bold text-slate-800 dark:text-white">{exp.expenseName}</td>
-                    <td className="p-4 font-medium text-slate-500">{exp.category}</td>
-                    <td className="p-4 font-medium">{exp.vendor || '-'}</td>
-                    <td className="p-4 font-medium">{exp.purchaseDate ? new Date(exp.purchaseDate).toLocaleDateString('en-GB') : '-'}</td>
-                    <td className="p-4 font-bold">{exp.quantity}</td>
-                    <td className="p-4 font-extrabold text-slate-800 dark:text-white">₹{exp.totalAmount.toLocaleString('en-IN')}</td>
-                    <td className="p-4 text-center">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                        exp.paymentStatus === 'Paid'
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                          : exp.paymentStatus === 'Partially Paid'
-                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
-                      }`}>
-                        {exp.paymentStatus}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center">
-                      {exp.invoiceUrl ? (
-                        <a
-                           href={exp.invoiceUrl}
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           className="inline-flex p-1.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors"
-                           title="View Invoice Document"
-                        >
-                          <FileText size={14} />
-                        </a>
-                      ) : (
-                        <span className="text-slate-400 dark:text-gray-600">-</span>
-                      )}
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => openModal('view', exp)}
-                          className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg transition-all"
-                          title="View details"
-                        >
-                          <Eye size={14} />
-                        </button>
-                        <button
-                          onClick={() => openModal('edit', exp)}
-                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-gray-700 rounded-lg transition-all"
-                          title="Edit"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(exp._id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-gray-700 rounded-lg transition-all"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
+      {/* Main View: Month Grouped View OR Table View */}
+      {viewMode === 'monthGroup' ? (
+        <ExpenseMonthGroupView
+          expenses={expenses}
+          loading={loading}
+          itemTitle={(item) => item.expenseName}
+          itemSubtitle={(item) => item.category}
+          itemRecipient={(item) => item.vendor}
+          itemDate={(item) => item.purchaseDate}
+          itemAmount={(item) => Number(item.totalAmount || 0)}
+          itemStatus={(item) => item.paymentStatus}
+          itemQuantity={(item) => item.quantity}
+          itemNotes={(item) => item.notes}
+          itemInvoiceUrl={(item) => item.invoiceUrl}
+          typeLabel="Clinic Expenses"
+          onView={(item) => openModal('view', item)}
+          onEdit={(item) => openModal('edit', item)}
+          onDelete={handleDelete}
+        />
+      ) : (
+        <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead className="bg-slate-50 dark:bg-gray-900/40 text-slate-500 dark:text-gray-400 border-b border-slate-200 dark:border-gray-700">
                 <tr>
-                  <td colSpan="9" className="p-8 text-center text-slate-400">
-                    <Info size={24} className="mx-auto text-slate-300 mb-2" />
-                    <span>No general expenses recorded yet.</span>
-                  </td>
+                  <th className="p-3.5 font-normal text-[11px] text-slate-500">Expense Name</th>
+                  <th className="p-3.5 font-normal text-[11px] text-slate-500">Category</th>
+                  <th className="p-3.5 font-normal text-[11px] text-slate-500">Paid To / Vendor</th>
+                  <th className="p-3.5 font-normal text-[11px] text-slate-500">Expense Date</th>
+                  <th className="p-3.5 font-normal text-[11px] text-slate-500 text-center">Qty</th>
+                  <th className="p-3.5 font-normal text-[11px] text-slate-500 text-right">Amount</th>
+                  <th className="p-3.5 font-normal text-[11px] text-slate-500 text-center">Status</th>
+                  <th className="p-3.5 font-normal text-[11px] text-slate-500 text-center">Invoice</th>
+                  <th className="p-3.5 font-normal text-[11px] text-slate-500 text-right">Actions</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination controls */}
-        {totalPages > 1 && (
-          <div className="p-4 border-t border-slate-100 dark:border-gray-700 flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">
-              Showing page {currentPage} of {totalPages}
-            </span>
-            <div className="flex gap-2">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => prev - 1)}
-                className="p-2 border border-slate-200 dark:border-gray-700 rounded-xl disabled:opacity-50 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => prev + 1)}
-                className="p-2 border border-slate-200 dark:border-gray-700 rounded-xl disabled:opacity-50 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-gray-700 text-slate-600 dark:text-gray-300">
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <tr key={idx} className="animate-pulse">
+                      <td colSpan="9" className="p-6 text-center text-slate-400 font-normal">Loading records...</td>
+                    </tr>
+                  ))
+                ) : expenses.length > 0 ? (
+                  expenses.map((exp) => (
+                    <tr key={exp._id} className="hover:bg-slate-50/50 dark:hover:bg-gray-700/30 transition-colors">
+                      <td className="p-3.5 font-normal text-slate-800 dark:text-white">{exp.expenseName}</td>
+                      <td className="p-3.5 font-normal text-slate-500">{exp.category}</td>
+                      <td className="p-3.5 font-normal">{exp.vendor || '-'}</td>
+                      <td className="p-3.5 font-normal text-slate-500">{exp.purchaseDate ? new Date(exp.purchaseDate).toLocaleDateString('en-GB') : '-'}</td>
+                      <td className="p-3.5 font-normal text-center">{exp.quantity}</td>
+                      <td className="p-3.5 font-medium text-slate-800 dark:text-white text-right">₹{exp.totalAmount.toLocaleString('en-IN')}</td>
+                      <td className="p-3.5 text-center">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-normal ${
+                          exp.paymentStatus === 'Paid'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            : exp.paymentStatus === 'Partially Paid'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300'
+                        }`}>
+                          {exp.paymentStatus}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-center">
+                        {exp.invoiceUrl ? (
+                          <a
+                             href={exp.invoiceUrl}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="inline-flex p-1 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 rounded hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+                             title="View Invoice Document"
+                          >
+                            <FileText size={14} />
+                          </a>
+                        ) : (
+                          <span className="text-slate-300 dark:text-gray-600">-</span>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openModal('view', exp)}
+                            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-all"
+                            title="View details"
+                          >
+                            <Eye size={13} />
+                          </button>
+                          <button
+                            onClick={() => openModal('edit', exp)}
+                            className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-gray-700 rounded transition-all"
+                            title="Edit"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(exp._id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-gray-700 rounded transition-all"
+                            title="Delete"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="9" className="p-8 text-center text-slate-400 font-normal">
+                      <Info size={20} className="mx-auto text-slate-300 mb-2" />
+                      <span>No general expenses recorded yet.</span>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+
+          {/* Pagination controls */}
+          {totalPages > 1 && (
+            <div className="p-3.5 border-t border-slate-100 dark:border-gray-700 flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-normal">
+                Showing page {currentPage} of {totalPages}
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => prev - 1)}
+                  className="p-1.5 border border-slate-200 dark:border-gray-700 rounded-lg disabled:opacity-50 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  className="p-1.5 border border-slate-200 dark:border-gray-700 rounded-lg disabled:opacity-50 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Record Vault segment at the bottom */}
       <RecordVault expenseType="More Expenses" />

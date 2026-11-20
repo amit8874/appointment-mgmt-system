@@ -194,23 +194,21 @@ export const getGlobalPublicDoctors = async (req, res) => {
     const uniqueDoctors = Array.from(uniqueDoctorsMap.values());
 
     const formattedDoctors = await Promise.all(uniqueDoctors.map(async doctor => {
-      let displayAddress = doctor.address || '';
-      let displayClinic = doctor.serviceLocation?.type === 'other' ? "External Clinic" : "Own Clinic";
+      // Prioritize doctor's explicit clinic name and address
+      let displayClinic = doctor.clinicName || doctor.serviceLocation?.practiceName;
+      if (!displayClinic || displayClinic === "Own Clinic" || displayClinic === "External Clinic") {
+        displayClinic = doctor.organizationId?.name || "Clinic";
+      }
 
-      // If a specific service location address is provided (Own or Other), use it
-      if (doctor.serviceLocation?.address?.city) {
-        const addr = doctor.serviceLocation.address;
-        displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
-        if (doctor.serviceLocation.practiceName) {
-          displayClinic = doctor.serviceLocation.practiceName;
+      let displayAddress = doctor.address || '';
+      if (!displayAddress) {
+        if (doctor.serviceLocation?.address?.city) {
+          const addr = doctor.serviceLocation.address;
+          displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
+        } else if (doctor.organizationId && doctor.organizationId.address && doctor.organizationId.address.city) {
+          const addr = doctor.organizationId.address;
+          displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
         }
-      } else if (doctor.organizationId && doctor.organizationId.address && doctor.organizationId.address.city) {
-        // Fallback to the clinic's own registration address!
-        const addr = doctor.organizationId.address;
-        displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
-        displayClinic = doctor.organizationId.name || displayClinic;
-      } else if (doctor.organizationId && doctor.organizationId.name) {
-        displayClinic = doctor.organizationId.name;
       }
 
       return {
@@ -232,7 +230,8 @@ export const getGlobalPublicDoctors = async (req, res) => {
         organizationId: doctor.organizationId,
         likesPercentage: doctor.likesPercentage || 0,
         totalStories: doctor.totalStories || 0,
-        hideBookAppointment: doctor.hideBookAppointment || false,
+        isSuperAdminCreated: Boolean(doctor.isSuperAdminCreated),
+        hideBookAppointment: Boolean(doctor.isSuperAdminCreated || doctor.hideBookAppointment),
         doctorStamp: await resolveS3UrlIfNeeded(doctor.doctorStamp),
         doctorSignature: await resolveS3UrlIfNeeded(doctor.doctorSignature)
       };
@@ -1334,21 +1333,21 @@ export const getPublicDoctorProfile = async (req, res) => {
       return res.status(404).json({ message: 'Doctor not found or inactive' });
     }
     
-    let displayAddress = doctor.address || '';
-    let displayClinic = doctor.serviceLocation?.type === 'other' ? "External Clinic" : "Own Clinic";
+    // Prioritize doctor's explicit clinic name and address
+    let displayClinic = doctor.clinicName || doctor.serviceLocation?.practiceName;
+    if (!displayClinic || displayClinic === "Own Clinic" || displayClinic === "External Clinic") {
+      displayClinic = doctor.organizationId?.name || "Clinic";
+    }
 
-    if (doctor.serviceLocation?.address?.city) {
-      const addr = doctor.serviceLocation.address;
-      displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
-      if (doctor.serviceLocation.practiceName) {
-        displayClinic = doctor.serviceLocation.practiceName;
+    let displayAddress = doctor.address || '';
+    if (!displayAddress) {
+      if (doctor.serviceLocation?.address?.city) {
+        const addr = doctor.serviceLocation.address;
+        displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
+      } else if (doctor.organizationId && doctor.organizationId.address && doctor.organizationId.address.city) {
+        const addr = doctor.organizationId.address;
+        displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
       }
-    } else if (doctor.organizationId && doctor.organizationId.address && doctor.organizationId.address.city) {
-      const addr = doctor.organizationId.address;
-      displayAddress = `${addr.street ? addr.street + ', ' : ''}${addr.city}${addr.state ? ', ' + addr.state : ''}`.trim();
-      displayClinic = doctor.organizationId.name || displayClinic;
-    } else if (doctor.organizationId && doctor.organizationId.name) {
-      displayClinic = doctor.organizationId.name;
     }
 
     const formattedDoctor = {
@@ -1372,7 +1371,8 @@ export const getPublicDoctorProfile = async (req, res) => {
       clinicImages: doctor.clinicImages ? await Promise.all(doctor.clinicImages.map(img => resolveS3UrlIfNeeded(img))) : [],
       likesPercentage: doctor.likesPercentage || 0,
       totalStories: doctor.totalStories || 0,
-      hideBookAppointment: doctor.hideBookAppointment || false,
+      isSuperAdminCreated: Boolean(doctor.isSuperAdminCreated),
+      hideBookAppointment: Boolean(doctor.isSuperAdminCreated || doctor.hideBookAppointment),
       organizationId: doctor.organizationId ? await resolveOrganizationUrls(doctor.organizationId) : null
     };
 

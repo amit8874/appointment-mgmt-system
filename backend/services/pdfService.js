@@ -2320,7 +2320,8 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
   // Template background image resolution (A4)
   const orgTemplateUrl = org?.prescriptionTemplate?.templateUrl || org?.prescriptionTemplateUrl || template?.orgTemplateUrl || template?.templateUrl;
   const templateBase64 = orgTemplateUrl ? await getBase64Image(orgTemplateUrl) : null;
-  const isA4 = (template?._id === 'global_a4' || template?.headerType === 'a4' || template?.layoutType === 'a4') && Boolean(templateBase64) && (org?.prescriptionTemplate?.enabled !== false);
+  const isA4 = (template?._id === 'global_a4' || template?._id === 'global_a4_blank' || template?.headerType === 'a4' || template?.layoutType === 'a4') && (org?.prescriptionTemplate?.enabled !== false);
+  const shouldPrintBackground = template?.printBackground !== false && template?._id !== 'global_a4_blank' && org?.prescriptionTemplate?.letterheadPrintMode !== 'content_only';
 
   const printableArea = template?.printableArea || org?.prescriptionTemplate?.printableArea;
   const margins = printableArea || { top: 55, left: 15, right: 15, bottom: 25 };
@@ -2744,7 +2745,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
     </head>
     <body>
       <div class="page-container">
-        ${isA4 && templateBase64 ? `
+        ${isA4 && templateBase64 && shouldPrintBackground ? `
           <img class="template-bg" src="${templateBase64}" alt="A4 Background" />
         ` : ''}
 
@@ -3134,7 +3135,8 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                 </div>
               </div>
 
-              <!-- Footer Bar (Barcode on Left ONLY if uploaded + Custom Footer Text) -->
+              <!-- Footer Bar (Barcode on Left ONLY if uploaded + Custom Footer Text) - Hidden in Pre-printed Pad Mode -->
+              ${(!isA4 || shouldPrintBackground) ? `
               <div style="padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box;">
                 <!-- Barcode on Left: ONLY if uploaded by admin -->
                 <div style="width: 110px; height: 110px; display: flex; align-items: center; justify-content: flex-start; flex-shrink: 0;">
@@ -3158,6 +3160,7 @@ async function getPrescriptionHtml(prescriptionData, patientData, org, template,
                 <!-- Right Spacer for balance -->
                 <div style="width: 110px; flex-shrink: 0;"></div>
               </div>
+              ` : ''}
             </div>
           `}
         </div>

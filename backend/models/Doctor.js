@@ -32,6 +32,14 @@ const doctorSchema = new mongoose.Schema({
     sparse: true,
     trim: true,
   },
+  clinicName: {
+    type: String,
+    trim: true,
+  },
+  isSuperAdminCreated: {
+    type: Boolean,
+    default: false,
+  },
   specialization: {
     type: String,
     required: true,

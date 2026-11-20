@@ -116,11 +116,15 @@ export const getSettings = async (req, res) => {
     if (!templateData.templateMode) {
       templateData.templateMode = 'manual';
     }
+    if (!templateData.letterheadPrintMode) {
+      templateData.letterheadPrintMode = 'content_only';
+    }
 
     res.status(200).json({
       success: true,
       data: {
         ...templateData,
+        letterheadPrintMode: templateData.letterheadPrintMode || org.prescriptionTemplate?.letterheadPrintMode || 'content_only',
         footerBarcode: templateData.footerBarcode || org.prescriptionTemplate?.footerBarcode || org.branding?.footerBarcode || org.footerBarcode || "",
         footerText: templateData.footerText || org.prescriptionTemplate?.footerText || org.branding?.footerText || org.footerText || "",
         footerSubText: templateData.footerSubText || org.prescriptionTemplate?.footerSubText || org.branding?.footerSubText || org.footerSubText || ""
@@ -140,7 +144,7 @@ export const updateSettings = async (req, res) => {
       return res.status(400).json({ success: false, message: "Organization ID is required" });
     }
 
-    const { enabled, templateMode, printableArea, headerArea, bodyArea, aiHeaderArea, aiBodyArea, fontSize, footerBarcode, footerText, footerSubText } = req.body;
+    const { enabled, templateMode, letterheadPrintMode, printableArea, headerArea, bodyArea, aiHeaderArea, aiBodyArea, fontSize, footerBarcode, footerText, footerSubText } = req.body;
 
     const org = await Organization.findById(organizationId);
     if (!org) {
@@ -153,6 +157,7 @@ export const updateSettings = async (req, res) => {
 
     if (enabled !== undefined) org.prescriptionTemplate.enabled = enabled;
     if (templateMode !== undefined) org.prescriptionTemplate.templateMode = templateMode;
+    if (letterheadPrintMode !== undefined) org.prescriptionTemplate.letterheadPrintMode = letterheadPrintMode;
     if (fontSize !== undefined) org.prescriptionTemplate.fontSize = fontSize;
     if (footerBarcode !== undefined) {
       org.prescriptionTemplate.footerBarcode = footerBarcode;
