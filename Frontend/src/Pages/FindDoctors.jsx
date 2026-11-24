@@ -4,7 +4,8 @@ import {
   Search, MapPin, Star, Clock, Heart, 
   Filter, ChevronDown, ChevronRight, Stethoscope, 
   Award, Languages, Calendar, Phone,
-  ThumbsUp, Smartphone, CheckCircle, Shield, X, Sparkles
+  ThumbsUp, Smartphone, CheckCircle, Shield, X, Sparkles,
+  Image as ImageIcon
 } from "lucide-react";
 import { motion } from "framer-motion";
 import api from "../services/api";
@@ -963,6 +964,18 @@ const FindDoctors = () => {
                           {doctor.totalStories || 0} Patient Stories
                        </div>
                     </div>
+                    {/* Claim Profile Callout for Unclaimed Doctors */}
+                    {(!doctor.organizationId || doctor.isSuperAdminCreated) && (
+                      <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span className="text-slate-400 font-medium text-[11px]">Are you Dr. {doctor.name}?</span>
+                        <Link
+                          to={`/register-organization?claimedDoctorId=${doctor._id}&phone=${encodeURIComponent(doctor.phone || '')}&name=${encodeURIComponent(doctor.name || '')}&clinicName=${encodeURIComponent(doctor.clinicName || '')}&city=${encodeURIComponent(doctor.addressInfo?.city || doctor.city || '')}`}
+                          className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px] flex items-center gap-1 hover:underline"
+                        >
+                          <Shield size={12} className="text-indigo-600" /> Claim Profile & Start Free Trial
+                        </Link>
+                      </div>
+                    )}
                   </div>
 
                   {/* Booking Area Right */}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { 
   MapPin, Star, Clock, Heart, Award, Languages, Calendar, Phone, 
-  ThumbsUp, Shield, X, Sparkles, ChevronLeft, ChevronRight, MessageSquare, BookOpen, Stethoscope, User,
+  ThumbsUp, Shield, ShieldCheck, X, Sparkles, ChevronLeft, ChevronRight, MessageSquare, BookOpen, Stethoscope, User,
   Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -362,9 +362,18 @@ const DoctorPublicProfile = () => {
   const clinicAddress = doctor.address || (doctor.organizationId?.address
     ? `${doctor.organizationId.address.street || ''}${doctor.organizationId.address.street ? ', ' : ''}${doctor.organizationId.address.city || ''}${doctor.organizationId.address.city ? ', ' : ''}${doctor.organizationId.address.state || ''}${doctor.organizationId.address.state ? ' ' : ''}${doctor.organizationId.address.zipCode || ''}`.trim()
     : '');
-  const clinicImages = (doctor.organizationId?.clinicImages && doctor.organizationId.clinicImages.length > 0)
-    ? doctor.organizationId.clinicImages
-    : (doctor.clinicImages || []);
+  // Prioritize doctor's own uploaded images (4-5 images uploaded by superadmin)
+  const hasDoctorSpecificImages = Boolean(
+    (doctor.images && doctor.images.length > 0) || 
+    (doctor.clinicImages && doctor.clinicImages.length > 0)
+  );
+
+  const displayImages = (doctor.images && doctor.images.length > 0)
+    ? doctor.images
+    : (doctor.clinicImages && doctor.clinicImages.length > 0)
+      ? doctor.clinicImages
+      : (doctor.organizationId?.clinicImages || []);
+  const clinicImages = displayImages;
   const clinicAbout = doctor.organizationId?.about || doctor.bio || doctor.about || "No biography available.";
   const clinicFacilities = doctor.organizationId?.facilities || [];
 
@@ -388,6 +397,34 @@ const DoctorPublicProfile = () => {
           
           {/* Left Column: Doctor Identity & Info */}
           <div className="lg:col-span-2 space-y-8">
+
+            {/* Claim Profile Banner for Unassigned / Directory Doctors */}
+            {(!doctor.organizationId || doctor.isSuperAdminCreated) && (
+              <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-blue-900 rounded-3xl p-6 md:p-7 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden border border-indigo-700">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="space-y-2 text-center md:text-left relative z-10 flex-1">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/30 border border-indigo-400/40 rounded-full text-indigo-200 text-xs font-black uppercase tracking-wider">
+                    <Sparkles size={13} className="text-amber-400" /> Are you Dr. {doctor.name}?
+                  </div>
+                  <h3 className="text-xl md:text-2xl font-black tracking-tight text-white">
+                    Claim this profile & power your clinic with free software!
+                  </h3>
+                  <p className="text-indigo-200 text-xs leading-relaxed max-w-xl">
+                    Get full verified ownership of your listing, accept appointments, send automated WhatsApp reminders, and generate digital prescriptions in 30 seconds.
+                  </p>
+                </div>
+                <div className="shrink-0 relative z-10">
+                  <Link
+                    to={`/register-organization?claimedDoctorId=${doctor._id}&phone=${encodeURIComponent(doctor.phone || '')}&name=${encodeURIComponent(doctor.name || '')}&clinicName=${encodeURIComponent(doctor.clinicName || '')}&city=${encodeURIComponent(doctor.addressInfo?.city || doctor.city || '')}`}
+                    className="px-6 py-3 bg-white hover:bg-indigo-50 text-indigo-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    <ShieldCheck size={18} className="text-emerald-600" />
+                    Claim Profile Now
+                  </Link>
+                </div>
+              </div>
+            )}
+
             {/* Hero Card */}
             <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm relative overflow-hidden flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
               {/* Decorative backgrounds */}
@@ -438,6 +475,19 @@ const DoctorPublicProfile = () => {
                   <span className="text-slate-500 font-bold border-b border-dotted border-slate-300">
                     {doctor.totalStories || 0} Patient Stories
                   </span>
+                  {displayImages && displayImages.length > 0 && (
+                    <a
+                      href="#doctor-gallery-section"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.getElementById('doctor-gallery-section')?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-200/60 transition-colors shadow-xs"
+                    >
+                      <ImageIcon size={12} className="text-indigo-600" />
+                      <span>{displayImages.length} Photos</span>
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -470,15 +520,24 @@ const DoctorPublicProfile = () => {
               </div>
             )}
 
-            {/* Clinic Gallery (Only render if there are clinicImages) */}
-            {clinicImages.length > 0 && (
-              <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm space-y-6">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2 uppercase tracking-wider">
-                    <ImageIcon size={20} className="text-indigo-600" />
-                    Clinic Gallery
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1">Take a look inside the treatment rooms and infrastructure.</p>
+            {/* Doctor & Clinic Gallery */}
+            {displayImages.length > 0 && (
+              <div id="doctor-gallery-section" className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2 uppercase tracking-wider">
+                      <ImageIcon size={20} className="text-indigo-600" />
+                      {hasDoctorSpecificImages ? `Dr. ${doctor.name} - Photos & Clinic Gallery` : "Clinic Gallery"}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {hasDoctorSpecificImages 
+                        ? `Explore ${displayImages.length} uploaded photos of Dr. ${doctor.name}, consultation rooms, and clinic facilities.`
+                        : "Take a look inside the treatment rooms and infrastructure."}
+                    </p>
+                  </div>
+                  <span className="self-start sm:self-auto px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-full border border-indigo-100">
+                    {activeImageIndex + 1} / {displayImages.length} Photos
+                  </span>
                 </div>
 
                 {/* Main Image View */}

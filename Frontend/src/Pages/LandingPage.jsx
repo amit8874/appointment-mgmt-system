@@ -31,7 +31,9 @@ import {
   Play,
   Pause,
   Monitor,
-  CheckCircle2
+  CheckCircle2,
+  MessageSquare,
+  Globe
 } from 'lucide-react';
 
 import api from '../services/api';
@@ -1019,6 +1021,27 @@ const LandingPage = () => {
               Book an Appointment
             </button>
           </div>
+            {/* Quick Popular Searches */}
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600">
+              <span className="font-bold text-slate-500">Popular Searches:</span>
+              {[
+                { label: "Dentist", spec: "Dentist" },
+                { label: "General Physician", spec: "General Physician" },
+                { label: "Dermatologist (Skin)", spec: "Dermatologist" },
+                { label: "Gynecologist", spec: "Gynecologist" },
+                { label: "Pediatrician (Child)", spec: "Pediatrician" },
+                { label: "Orthopedic (Bone & Joint)", spec: "Orthopedic" }
+              ].map((item, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleSpecialityClick(item.spec)}
+                  className="px-3.5 py-1 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 font-bold rounded-full border border-slate-200/90 shadow-xs hover:border-indigo-300 transition-all cursor-pointer"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           
           </div>
         </div>
@@ -1475,12 +1498,12 @@ const LandingPage = () => {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-8">
-            <SpecialtyCard onClick={() => handleSpecialityClick("Dentist")} image="/landing/pregnancy.png" name="Period doubts or Pregnancy" />
+            <SpecialtyCard onClick={() => handleSpecialityClick("Gynecologist")} image="/landing/pregnancy.png" name="Period doubts or Pregnancy" />
             <SpecialtyCard onClick={() => handleSpecialityClick("Dermatologist")} image="/landing/skin.png" name="Acne, pimple or skin issues" />
             <SpecialtyCard onClick={() => handleSpecialityClick("Pediatrician")} image="/landing/child.png" name="Child not feeling well" />
             <SpecialtyCard onClick={() => handleSpecialityClick("General Physician")} image="/landing/fever.png" name="Cold, cough or fever" />
             <SpecialtyCard onClick={() => handleSpecialityClick("Psychiatrist")} image="/landing/mental_health.png" name="Depression or anxiety" />
-            <SpecialtyCard onClick={() => handleSpecialityClick("Urologist")} image="/landing/surgeries.png" name="Performance issues in bed" />
+            <SpecialtyCard onClick={() => handleSpecialityClick("Dentist")} image="/landing/find_doctors.png" name="Toothache & Dental care" />
           </div>
         </div>
       </section>
@@ -1704,6 +1727,91 @@ const LandingPage = () => {
 
 
       {/* Pricing Plans Section */}
+            {/* Doctor Growth & WhatsApp Automation Showcase Section */}
+      <section className="py-20 px-4 bg-gradient-to-b from-indigo-950 via-slate-900 to-indigo-950 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="text-center max-w-3xl mx-auto mb-14">
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-indigo-300 text-xs font-black uppercase tracking-wider mb-4">
+              <Sparkles size={14} className="text-amber-400" /> For Doctors & Clinic Owners
+            </span>
+            <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white mb-4">
+              Grow Your Clinic Practice with Smart Automation
+            </h2>
+            <p className="text-slate-300 text-base md:text-lg leading-relaxed">
+              Join hundreds of verified practitioners who use our software to automate appointments, send WhatsApp prescription updates, and get discovered by new patients.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+            {/* Feature 1 */}
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-sm hover:border-indigo-400/50 transition-all group">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 mb-6 group-hover:scale-110 transition-transform">
+                <MessageSquare size={26} />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Automated WhatsApp Reminders</h3>
+              <p className="text-slate-400 text-sm leading-relaxed mb-4">
+                Patients receive automated WhatsApp confirmation and reminders 2 hours before appointments. Reduces clinic no-shows by up to 70%.
+              </p>
+              <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                <Check size={14} /> Zero manual calling needed
+              </span>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-sm hover:border-indigo-400/50 transition-all group">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-400 mb-6 group-hover:scale-110 transition-transform">
+                <PenTool size={26} />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">30-Second Digital Prescriptions</h3>
+              <p className="text-slate-400 text-sm leading-relaxed mb-4">
+                Generate branded, clean digital prescriptions and bills in seconds with built-in medicine databases and custom symptom templates.
+              </p>
+              <span className="text-xs font-bold text-indigo-400 flex items-center gap-1">
+                <Check size={14} /> Print or WhatsApp PDF directly
+              </span>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-8 backdrop-blur-sm hover:border-indigo-400/50 transition-all group">
+              <div className="w-14 h-14 rounded-2xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400 mb-6 group-hover:scale-110 transition-transform">
+                <Globe size={26} />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Get New Patients Online</h3>
+              <p className="text-slate-400 text-sm leading-relaxed mb-4">
+                Your clinic gets a verified profile on our high-ranking "Find Doctors" directory. Thousands of nearby patients discover and book visits directly.
+              </p>
+              <span className="text-xs font-bold text-sky-400 flex items-center gap-1">
+                <Check size={14} /> Pre-created profiles ready to claim
+              </span>
+            </div>
+          </div>
+
+          {/* CTA Banner */}
+          <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+            <div>
+              <h3 className="text-2xl font-black text-white mb-1">Already on our Doctor Directory?</h3>
+              <p className="text-indigo-100 text-sm font-medium">Claim your pre-created clinic profile or register your practice in 2 minutes.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <Link
+                to="/register-organization"
+                className="px-7 py-3.5 bg-white text-indigo-900 rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-indigo-50 shadow-lg active:scale-95 transition-all"
+              >
+                Start 14-Day Free Trial
+              </Link>
+              <Link
+                to="/find-doctors"
+                className="px-6 py-3.5 bg-indigo-900/60 hover:bg-indigo-900 text-white rounded-2xl font-bold text-sm border border-indigo-400/30 transition-all"
+              >
+                Search & Claim Your Profile →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
       <section id="pricing" className="py-24 bg-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 relative z-10">
           <div className="text-center mb-16">

@@ -220,6 +220,47 @@ export const registerOrganization = async (req, res) => {
     owner.organizationId = organization._id;
     await owner.save();
 
+    // Link matching directory doctor profile if claimed or matching phone/email
+    try {
+      const Doctor = (await import('../models/Doctor.js')).default;
+      let targetDoctor = null;
+      if (req.body.claimedDoctorId) {
+        targetDoctor = await Doctor.findById(req.body.claimedDoctorId);
+      } else if (phone || ownerEmail) {
+        const cleanPhone = (phone || '').trim().replace(/\D/g, '').slice(-10);
+        const searchConditions = [];
+        if (cleanPhone.length >= 7) searchConditions.push({ phone: { $regex: cleanPhone, $options: 'i' } });
+        if (ownerEmail) searchConditions.push({ email: ownerEmail.toLowerCase().trim() });
+
+        if (searchConditions.length > 0) {
+          targetDoctor = await Doctor.findOne({
+            $and: [
+              {
+                $or: [
+                  { isSuperAdminCreated: true },
+                  { organizationId: null },
+                  { organizationId: { $exists: false } }
+                ]
+              },
+              { $or: searchConditions }
+            ]
+          });
+        }
+      }
+
+      if (targetDoctor) {
+        targetDoctor.organizationId = organization._id;
+        targetDoctor.isSuperAdminCreated = false;
+        targetDoctor.clinicName = organization.name;
+        targetDoctor.status = 'Verified';
+        await targetDoctor.save();
+        console.log(`[Registration] Linked pre-existing directory doctor ${targetDoctor.name} to new organization ${organization.name}`);
+      }
+    } catch (claimErr) {
+      console.error('[Registration] Error linking claimed directory doctor:', claimErr);
+    }
+
+
     // Send instant email notification to platform admin (amitmaurya3276@gmail.com)
     // This is done silently to notify the admin about new clinic registrations
     sendClinicRegistrationNotification(organization, owner).catch(err => 

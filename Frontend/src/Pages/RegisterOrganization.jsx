@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building2, Mail, Phone, Lock, User, TrendingUp, Monitor, 
   ChevronRight, Eye, EyeOff, X, Check, Users, ShieldCheck, 
-  Zap, Clock, MapPin, Stethoscope
+  Zap, Clock, MapPin, Stethoscope, Sparkles, CheckCircle2
 } from 'lucide-react';
-import { organizationApi } from '../services/api';
+import { organizationApi, centralDoctorApi } from '../services/api';
+import { INDIAN_STATES, getCitiesForState } from '../utils/indianLocations';
 import { useAuth } from '../context/AuthContext';
 import "./Register.css";
 import signupHero from "../assets/img/signup-hero.png";
@@ -50,7 +51,9 @@ const InputField = ({
 
 const RegisterOrganization = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login, logout } = useAuth();
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -62,6 +65,11 @@ const RegisterOrganization = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const otpInputs = React.useRef([]);
 
+  const [matchedDoctor, setMatchedDoctor] = useState(null);
+  const [dismissedMatchId, setDismissedMatchId] = useState(null);
+  const [isAutoFilled, setIsAutoFilled] = useState(false);
+
+  // Form State MUST be declared before any code that reads formData
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -77,7 +85,86 @@ const RegisterOrganization = () => {
     state: '',
     zipCode: '',
     clinicType: 'General',
+    claimedDoctorId: null
   });
+
+  const availableCities = getCitiesForState(formData.state);
+
+  // Check URL params for claimed doctor profile
+  useEffect(() => {
+    const claimId = searchParams.get('claimedDoctorId');
+    const claimPhone = searchParams.get('phone');
+    const claimName = searchParams.get('name');
+    const claimClinic = searchParams.get('clinicName');
+    const claimCity = searchParams.get('city');
+
+    if (claimId || claimPhone || claimName) {
+      setFormData(prev => ({
+        ...prev,
+        claimedDoctorId: claimId || prev.claimedDoctorId,
+        phone: claimPhone || prev.phone,
+        ownerName: claimName || prev.ownerName,
+        name: claimClinic || (claimName ? `${claimName} Clinic` : prev.name),
+        city: claimCity || prev.city
+      }));
+    }
+  }, [searchParams]);
+
+  // Live match superadmin directory doctors
+  useEffect(() => {
+    if (isAutoFilled) return;
+
+    const queryPhone = formData.phone?.trim() || '';
+    const queryEmail = formData.ownerEmail?.trim() || formData.email?.trim() || '';
+    const queryName = formData.ownerName?.trim() || formData.name?.trim() || '';
+
+    if (queryPhone.length < 5 && queryEmail.length < 5 && queryName.length < 4) {
+      setMatchedDoctor(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await centralDoctorApi.matchDirectory({
+          phone: queryPhone.length >= 5 ? queryPhone : undefined,
+          email: queryEmail.length >= 5 ? queryEmail : undefined,
+          name: queryName.length >= 4 ? queryName : undefined
+        });
+        if (res?.match && res.match._id !== dismissedMatchId) {
+          setMatchedDoctor(res.match);
+        } else {
+          setMatchedDoctor(null);
+        }
+      } catch (err) {
+        console.error('Directory match lookup error:', err);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [formData.phone, formData.ownerEmail, formData.email, formData.ownerName, formData.name, dismissedMatchId, isAutoFilled]);
+
+  const handleAutoFillFromDirectory = () => {
+    if (!matchedDoctor) return;
+    setFormData(prev => ({
+      ...prev,
+      ownerName: matchedDoctor.name || prev.ownerName,
+      name: matchedDoctor.clinicName || (matchedDoctor.name ? `${matchedDoctor.name} Clinic` : prev.name),
+      phone: matchedDoctor.phone || prev.phone,
+      ownerEmail: matchedDoctor.email || prev.ownerEmail,
+      email: matchedDoctor.email || prev.email,
+      street: matchedDoctor.address || prev.street,
+      city: matchedDoctor.addressInfo?.city || matchedDoctor.city || prev.city,
+      state: matchedDoctor.addressInfo?.state || prev.state,
+      clinicType: matchedDoctor.specialization?.toLowerCase().includes('dent') ? 'Dental' 
+                : matchedDoctor.specialization?.toLowerCase().includes('eye') || matchedDoctor.specialization?.toLowerCase().includes('ophthal') ? 'Eye'
+                : matchedDoctor.specialization?.toLowerCase().includes('skin') || matchedDoctor.specialization?.toLowerCase().includes('dermat') ? 'Skin'
+                : matchedDoctor.specialization?.toLowerCase().includes('ped') ? 'Pediatric'
+                : matchedDoctor.specialization?.toLowerCase().includes('pet') || matchedDoctor.specialization?.toLowerCase().includes('vet') ? 'Pet'
+                : 'General',
+      claimedDoctorId: matchedDoctor._id
+    }));
+    setIsAutoFilled(true);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -272,6 +359,56 @@ const RegisterOrganization = () => {
 
           {step === 'form' ? (
             <form onSubmit={handleSubmit}>
+
+              {/* Directory Match Recommendation Banner */}
+              {matchedDoctor && !isAutoFilled && (
+                <div className="full-width p-4 bg-gradient-to-r from-indigo-50 to-amber-50 border-2 border-indigo-200 rounded-2xl mb-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shrink-0 shadow-md">
+                      <Sparkles size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                          Directory Profile Found
+                        </span>
+                        <span className="text-xs font-bold text-slate-800">{matchedDoctor.name}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        {matchedDoctor.specialization} • {matchedDoctor.clinicName || 'Clinic'} • {matchedDoctor.addressInfo?.city || matchedDoctor.city || 'India'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={handleAutoFillFromDirectory}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all shrink-0 cursor-pointer"
+                    >
+                      <Sparkles size={14} /> Auto-fill Details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDismissedMatchId(matchedDoctor._id);
+                        setMatchedDoctor(null);
+                      }}
+                      className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+                      title="Dismiss suggestion"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isAutoFilled && (
+                <div className="full-width p-3 bg-emerald-50 border border-emerald-200 rounded-xl mb-4 text-xs font-bold text-emerald-800 flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                  <span>Auto-filled details from your directory profile! Set your password to complete registration.</span>
+                </div>
+              )}
+
               <div className="form-grid">
                 <div className="full-width">
                   <InputField
@@ -431,25 +568,47 @@ const RegisterOrganization = () => {
                   />
                 </div>
 
-                <InputField
-                  icon={Building2}
-                  label="City"
-                  placeholder="e.g. Lucknow"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleChange}
-                  required
-                />
+                <div className="signup-input-group">
+                  <label className="signup-label">State</label>
+                  <div className="signup-input-wrapper">
+                    <div className="signup-icon"><Building2 size={16} /></div>
+                    <input
+                      list="indian-states-list"
+                      placeholder="Select or type State"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleChange}
+                      className="signup-input"
+                      required
+                    />
+                    <datalist id="indian-states-list">
+                      {INDIAN_STATES.map((st) => (
+                        <option key={st} value={st} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
 
-                <InputField
-                  icon={Building2}
-                  label="State"
-                  placeholder="e.g. Uttar Pradesh"
-                  name="state"
-                  value={formData.state}
-                  onChange={handleChange}
-                  required
-                />
+                <div className="signup-input-group">
+                  <label className="signup-label">City {formData.state ? `(${formData.state})` : ''}</label>
+                  <div className="signup-input-wrapper">
+                    <div className="signup-icon"><Building2 size={16} /></div>
+                    <input
+                      list="indian-cities-list"
+                      placeholder={formData.state ? `Select or type city in ${formData.state}` : "Select or type City"}
+                      name="city"
+                      value={formData.city}
+                      onChange={handleChange}
+                      className="signup-input"
+                      required
+                    />
+                    <datalist id="indian-cities-list">
+                      {availableCities.map((ct) => (
+                        <option key={ct} value={ct} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
 
                 <div className="full-width">
                   <InputField

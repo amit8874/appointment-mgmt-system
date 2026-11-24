@@ -380,6 +380,10 @@ export const patientApi = {
 };
 
 export const centralDoctorApi = {
+  matchDirectory: async (params = {}) => {
+    const { data } = await api.get('/doctors/directory/match', { params });
+    return data;
+  },
   getAll: async (params = {}) => {
     const { data } = await api.get('/doctors', { params });
     return data;
@@ -819,6 +823,18 @@ export const superAdminApi = {
   },
   toggleDoctorBookingVisibility: async (doctorId, hideBookAppointment) => {
     const { data } = await api.patch(`/superadmin/doctors/${doctorId}/toggle-booking`, { hideBookAppointment });
+    return data;
+  },
+  getPlatformDoctors: async () => {
+    const { data } = await api.get('/superadmin/doctors/platform');
+    return data;
+  },
+  updateDoctorSuperAdmin: async (doctorId, doctorData) => {
+    const { data } = await api.put(`/superadmin/doctors/${doctorId}`, doctorData);
+    return data;
+  },
+  deleteDoctorSuperAdmin: async (doctorId) => {
+    const { data } = await api.delete(`/superadmin/doctors/${doctorId}`);
     return data;
   },
 };

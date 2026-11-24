@@ -28,7 +28,11 @@ import {
   Copy,
   ExternalLink,
   Check,
-  Loader2
+  Loader2,
+  Edit,
+  Trash2,
+  Globe,
+  Image as ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { StatCardSkeleton } from '../../components/Shared/DashboardSkeletons';
@@ -36,18 +40,23 @@ import { DoctorCardSkeleton } from '../../components/Shared/DoctorSkeletons';
 import { getDoctorPhoto } from '../../utils/doctorUtils';
 
 const Doctors = () => {
+  const [activeTab, setActiveTab] = useState('platform'); // 'platform' or 'organizations'
   const [organizations, setOrganizations] = useState([]);
   const [selectedOrg, setSelectedOrg] = useState(null);
   const [doctors, setDoctors] = useState([]);
+  const [platformDoctors, setPlatformDoctors] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [editingDoctor, setEditingDoctor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [doctorsLoading, setDoctorsLoading] = useState(false);
+  const [platformLoading, setPlatformLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [orgSearchTerm, setOrgSearchTerm] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     fetchOrganizations();
+    fetchPlatformDoctors();
   }, []);
 
   const fetchOrganizations = async () => {
@@ -59,6 +68,18 @@ const Doctors = () => {
       console.error('Failed to fetch organizations:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPlatformDoctors = async () => {
+    try {
+      setPlatformLoading(true);
+      const data = await superAdminApi.getPlatformDoctors();
+      setPlatformDoctors(data || []);
+    } catch (err) {
+      console.error('Failed to fetch platform doctors:', err);
+    } finally {
+      setPlatformLoading(false);
     }
   };
 
@@ -79,9 +100,11 @@ const Doctors = () => {
     if (!window.confirm('Are you sure you want to verify this doctor?')) return;
     try {
       await superAdminApi.verifyDoctorSuperAdmin(doctorId);
-      // Refresh doctor list
-      const data = await superAdminApi.getOrganizationDoctors(selectedOrg._id);
-      setDoctors(data || []);
+      if (selectedOrg) {
+        const data = await superAdminApi.getOrganizationDoctors(selectedOrg._id);
+        setDoctors(data || []);
+      }
+      fetchPlatformDoctors();
       if (selectedDoctor && selectedDoctor._id === doctorId) {
         setSelectedDoctor({ ...selectedDoctor, status: 'Verified' });
       }
@@ -94,9 +117,11 @@ const Doctors = () => {
     if (!window.confirm('Are you sure you want to reject this doctor registration?')) return;
     try {
       await superAdminApi.rejectDoctorSuperAdmin(doctorId);
-      // Refresh doctor list
-      const data = await superAdminApi.getOrganizationDoctors(selectedOrg._id);
-      setDoctors(data || []);
+      if (selectedOrg) {
+        const data = await superAdminApi.getOrganizationDoctors(selectedOrg._id);
+        setDoctors(data || []);
+      }
+      fetchPlatformDoctors();
       if (selectedDoctor && selectedDoctor._id === doctorId) {
         setSelectedDoctor({ ...selectedDoctor, status: 'Rejected' });
       }
@@ -115,6 +140,7 @@ const Doctors = () => {
         const data = await superAdminApi.getOrganizationDoctors(selectedOrg._id);
         setDoctors(data || []);
       }
+      fetchPlatformDoctors();
       if (selectedDoctor && selectedDoctor._id === doctorId) {
         setSelectedDoctor({ ...selectedDoctor, hideBookAppointment: targetStatus });
       }
@@ -124,15 +150,51 @@ const Doctors = () => {
     }
   };
 
+  const handleDeleteDoctor = async (doctor) => {
+    const confirmMsg = `Are you sure you want to permanently delete Dr. ${doctor.name}? This will remove their profile from the public "Find Doctors" page and cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await superAdminApi.deleteDoctorSuperAdmin(doctor._id);
+      alert(`Dr. ${doctor.name} has been deleted successfully.`);
+
+      // Update local state
+      setPlatformDoctors(prev => prev.filter(d => d._id !== doctor._id));
+      setDoctors(prev => prev.filter(d => d._id !== doctor._id));
+
+      if (selectedDoctor && selectedDoctor._id === doctor._id) {
+        setSelectedDoctor(null);
+      }
+      if (editingDoctor && editingDoctor._id === doctor._id) {
+        setEditingDoctor(null);
+      }
+    } catch (err) {
+      console.error('Delete doctor error:', err);
+      alert(err.response?.data?.message || err.message || 'Failed to delete doctor');
+    }
+  };
+
+  const handleDoctorUpdated = (updatedDoc) => {
+    setPlatformDoctors(prev => prev.map(d => d._id === updatedDoc._id ? updatedDoc : d));
+    setDoctors(prev => prev.map(d => d._id === updatedDoc._id ? updatedDoc : d));
+    if (selectedDoctor && selectedDoctor._id === updatedDoc._id) {
+      setSelectedDoctor(updatedDoc);
+    }
+  };
+
   const filteredOrgs = organizations.filter(org => 
     org.name.toLowerCase().includes(orgSearchTerm.toLowerCase()) ||
     org.email.toLowerCase().includes(orgSearchTerm.toLowerCase())
   );
 
-  const filteredDoctors = doctors.filter(doc => 
-    doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doc.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doc.doctorId?.toLowerCase().includes(searchTerm.toLowerCase())
+  const activeDoctorList = (activeTab === 'platform' && !selectedOrg) ? platformDoctors : doctors;
+
+  const filteredDoctors = activeDoctorList.filter(doc => 
+    doc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doc.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doc.clinicName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doc.doctorId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    doc.phone?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const StatusBadge = ({ status }) => {
@@ -178,9 +240,28 @@ const Doctors = () => {
                 <p className="text-xs text-gray-500 font-medium">Reviewing details for {doctor.name}</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600">
-              <XCircle size={24} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setEditingDoctor(doctor);
+                  onClose();
+                }}
+                className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors"
+              >
+                <Edit size={14} /> Edit Profile
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteDoctor(doctor);
+                }}
+                className="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors"
+              >
+                <Trash2 size={14} /> Delete Doctor
+              </button>
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600">
+                <XCircle size={24} />
+              </button>
+            </div>
           </div>
 
           {/* Modal Content */}
@@ -207,6 +288,14 @@ const Doctors = () => {
                       <p className="text-sm font-bold text-gray-700">₹{doctor.consultationFee || doctor.fee}</p>
                     </div>
                   </div>
+                </div>
+
+                {/* Organization Affiliation */}
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Organization Affiliation</span>
+                  <p className="text-xs font-bold text-slate-800">
+                    {doctor.organizationId?.name || (doctor.isSuperAdminCreated ? 'None (Independent Public Directory Doctor)' : 'Unassigned')}
+                  </p>
                 </div>
 
                 {/* Verification Actions */}
@@ -301,37 +390,33 @@ const Doctors = () => {
                   </div>
                 </section>
 
-
-
-                {/* Availability Section */}
-                <section>
-                  <h4 className="text-sm font-black uppercase tracking-widest text-orange-600 mb-4 flex items-center gap-2">
-                    <Clock size={16} /> Schedule & Availability
-                  </h4>
-                  <div className="bg-orange-50/50 rounded-3xl p-6 border border-orange-100/50">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
-                        <div key={day} className="flex items-center gap-2">
-                          {doctor.availability?.[day] ? (
-                            <CheckCircle2 size={14} className="text-emerald-500" />
-                          ) : (
-                            <XCircle size={14} className="text-rose-500" />
-                          )}
-                          <span className="text-xs font-bold capitalize text-gray-700">{day}</span>
+                {/* About & Bio */}
+                {(doctor.about || doctor.bio) && (
+                  <section>
+                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-600 mb-2 flex items-center gap-2">
+                      <FileText size={16} /> Biography / About
+                    </h4>
+                    <p className="text-xs text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100 leading-relaxed">
+                      {doctor.about || doctor.bio}
+                    </p>
+                  </section>
+                )}
+                {/* Doctor & Clinic Gallery Photos */}
+                {((doctor.images && doctor.images.length > 0) || (doctor.clinicImages && doctor.clinicImages.length > 0)) && (
+                  <section>
+                    <h4 className="text-sm font-black uppercase tracking-widest text-indigo-600 mb-3 flex items-center gap-2">
+                      <ImageIcon size={16} /> Doctor & Clinic Photos ({(doctor.images || doctor.clinicImages).length})
+                    </h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                      {(doctor.images && doctor.images.length > 0 ? doctor.images : doctor.clinicImages).map((img, i) => (
+                        <div key={i} className="aspect-video rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm relative group">
+                          <img src={img} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          <span className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded">#{i + 1}</span>
                         </div>
                       ))}
                     </div>
-                    <div className="mt-6 p-4 bg-white rounded-2xl border border-orange-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Clock size={16} className="text-orange-500" />
-                        <span className="text-xs font-black uppercase text-gray-400 tracking-widest">Working Hours</span>
-                      </div>
-                      <span className="text-sm font-bold text-gray-800">
-                        {doctor.workingHours?.start || '09:00'} - {doctor.workingHours?.end || '17:00'}
-                      </span>
-                    </div>
-                  </div>
-                </section>
+                  </section>
+                )}
 
               </div>
             </div>
@@ -356,22 +441,25 @@ const Doctors = () => {
       <div className="max-w-7xl mx-auto">
         
         {/* Breadcrumbs / Header */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             {selectedOrg && (
               <button 
                 onClick={() => setSelectedOrg(null)}
                 className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors"
+                title="Back to Organizations"
               >
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
             )}
             <div>
               <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-                {selectedOrg ? `Doctors in ${selectedOrg.name}` : 'Central Doctor Directory'}
+                {selectedOrg ? `Doctors in ${selectedOrg.name}` : 'Doctor Directory & Management'}
               </h1>
               <p className="text-slate-500 font-medium">
-                {selectedOrg ? 'Review and manage specific practitioners' : 'Manage registered doctors across all clinic organizations'}
+                {selectedOrg 
+                  ? 'Review and manage practitioners affiliated with this clinic' 
+                  : 'Manage public directory doctors and clinic-affiliated doctors'}
               </p>
             </div>
           </div>
@@ -387,17 +475,54 @@ const Doctors = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                   type="text" 
-                  placeholder={selectedOrg ? "Search doctors..." : "Search organizations..."}
-                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none w-64 shadow-sm"
-                  value={selectedOrg ? searchTerm : orgSearchTerm}
-                  onChange={(e) => selectedOrg ? setSearchTerm(e.target.value) : setOrgSearchTerm(e.target.value)}
+                  placeholder={
+                    selectedOrg || activeTab === 'platform' 
+                      ? "Search doctors..." 
+                      : "Search organizations..."
+                  }
+                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none w-64 shadow-sm text-xs font-semibold"
+                  value={selectedOrg || activeTab === 'platform' ? searchTerm : orgSearchTerm}
+                  onChange={(e) => {
+                    if (selectedOrg || activeTab === 'platform') {
+                      setSearchTerm(e.target.value);
+                    } else {
+                      setOrgSearchTerm(e.target.value);
+                    }
+                  }}
                 />
              </div>
           </div>
         </div>
 
+        {/* Top View Selector Tabs (Visible when not drilling into a specific org) */}
+        {!selectedOrg && (
+          <div className="mb-6 flex items-center gap-2 bg-slate-200/70 p-1.5 rounded-2xl w-fit">
+            <button
+              onClick={() => { setActiveTab('platform'); setSelectedOrg(null); }}
+              className={`px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${
+                activeTab === 'platform'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Globe size={16} /> Platform / Directory Doctors ({platformDoctors.length})
+            </button>
+            <button
+              onClick={() => { setActiveTab('organizations'); setSelectedOrg(null); }}
+              className={`px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${
+                activeTab === 'organizations'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Building2 size={16} /> Clinic Organizations ({organizations.length})
+            </button>
+          </div>
+        )}
+
+        {/* View Content */}
         <AnimatePresence mode="wait">
-          {!selectedOrg ? (
+          {!selectedOrg && activeTab === 'organizations' ? (
             <motion.div 
               key="org-list"
               initial={{ opacity: 0, y: 20 }}
@@ -459,7 +584,7 @@ const Doctors = () => {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6"
             >
-              {doctorsLoading ? (
+              {(activeTab === 'platform' && !selectedOrg ? platformLoading : doctorsLoading) ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[1, 2, 3, 4, 5, 6].map(i => <DoctorCardSkeleton key={i} />)}
                 </div>
@@ -468,7 +593,7 @@ const Doctors = () => {
                   {filteredDoctors.map(doctor => (
                     <div 
                       key={doctor._id}
-                      className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden group hover:shadow-lg transition-all"
+                      className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden group hover:shadow-lg transition-all flex flex-col justify-between"
                     >
                       <div className="p-6">
                         <div className="flex items-start gap-4">
@@ -481,77 +606,122 @@ const Doctors = () => {
                               <span className="text-[10px] font-black text-slate-400">{doctor.doctorId}</span>
                             </div>
                             <h3 className="text-lg font-bold text-slate-900 truncate">{doctor.name}</h3>
-                            <p className="text-xs font-bold text-indigo-600 mb-3">{doctor.specialization}</p>
+                            <p className="text-xs font-bold text-indigo-600 mb-1">{doctor.specialization}</p>
                             
+                            <div className="text-[11px] font-semibold text-slate-500 truncate mb-3 flex items-center gap-1">
+                              <Building2 size={12} className="text-slate-400 shrink-0" />
+                              <span className="truncate">{doctor.clinicName || doctor.serviceLocation?.practiceName || doctor.organizationId?.name || 'Independent Doctor'}</span>
+                            </div>
+
                             <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
                                <div className="flex items-center gap-1">
                                   <Briefcase size={12} />
-                                  {doctor.experience} Yrs
+                                  {doctor.experience || 0} Yrs
                                </div>
                                <div className="flex items-center gap-1 text-emerald-600">
                                   <IndianRupee size={12} />
-                                  {doctor.consultationFee || doctor.fee}
-                               </div>
+                                  {doctor.consultationFee || doctor.fee || 500}
+                                </div>
                             </div>
                           </div>
                         </div>
+
+                        {/* Additional Quick Details */}
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                          <span className="flex items-center gap-1 truncate">
+                            <MapPin size={12} className="text-slate-400 shrink-0" />
+                            <span className="truncate">{doctor.addressInfo?.city || doctor.city || 'India'}</span>
+                          </span>
+                          {doctor.phone && (
+                            <span className="flex items-center gap-1 font-semibold text-slate-600">
+                              <Phone size={12} className="text-slate-400" />
+                              {doctor.phone}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                         <button 
-                          onClick={() => setSelectedDoctor(doctor)}
-                          className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 transition-colors"
-                         >
-                            <Eye size={14} /> Full Details
-                         </button>
-                         <div className="flex items-center gap-2">
-                           <button
-                             onClick={() => handleToggleBookingVisibility(doctor._id, doctor.hideBookAppointment)}
-                             className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm ${
-                               doctor.hideBookAppointment 
-                                 ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100" 
-                                 : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
-                             }`}
-                             title={doctor.hideBookAppointment ? "Click to SHOW Book Slot button on public site" : "Click to HIDE Book Slot button on public site"}
-                           >
-                             {doctor.hideBookAppointment ? (
-                               <>
-                                 <EyeOff size={13} /> Slots Hidden
-                               </>
-                             ) : (
-                               <>
-                                 <Eye size={13} /> Slots Visible
-                               </>
-                             )}
-                           </button>
-                           {doctor.status === 'Pending' && (
-                             <div className="flex gap-2">
-                               <button 
-                                 onClick={() => handleVerifyDoctor(doctor._id)}
-                                 className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
-                                 title="Verify Immediately"
-                               >
-                                  <CheckCircle2 size={16} />
-                               </button>
-                               <button 
-                                 onClick={() => handleRejectDoctor(doctor._id)}
-                                 className="p-1.5 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-600 hover:text-white transition-all shadow-sm"
-                                 title="Reject Registration"
-                               >
-                                  <XCircle size={16} />
-                               </button>
-                             </div>
-                           )}
-                         </div>
+
+                      {/* Card Action Bar */}
+                      <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => setSelectedDoctor(doctor)}
+                            className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                            title="View Full Profile"
+                          >
+                            <Eye size={14} /> View
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button 
+                            onClick={() => setEditingDoctor(doctor)}
+                            className="flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-800 transition-colors"
+                            title="Edit Doctor Details"
+                          >
+                            <Edit size={14} /> Edit
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button 
+                            onClick={() => handleDeleteDoctor(doctor)}
+                            className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-800 transition-colors"
+                            title="Delete Doctor"
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleBookingVisibility(doctor._id, doctor.hideBookAppointment)}
+                            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all shadow-sm ${
+                              doctor.hideBookAppointment 
+                                ? "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100" 
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                            }`}
+                            title={doctor.hideBookAppointment ? "Click to SHOW Book Slot button on public site" : "Click to HIDE Book Slot button on public site"}
+                          >
+                            {doctor.hideBookAppointment ? (
+                              <>
+                                <EyeOff size={12} /> Slots Hidden
+                              </>
+                            ) : (
+                              <>
+                                <Eye size={12} /> Slots Visible
+                              </>
+                            )}
+                          </button>
+                          {doctor.status === 'Pending' && (
+                            <div className="flex gap-1.5">
+                              <button 
+                                onClick={() => handleVerifyDoctor(doctor._id)}
+                                className="p-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                                title="Verify Immediately"
+                              >
+                                 <CheckCircle2 size={14} />
+                              </button>
+                              <button 
+                                onClick={() => handleRejectDoctor(doctor._id)}
+                                className="p-1 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                                title="Reject Registration"
+                              >
+                                 <XCircle size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
                   {filteredDoctors.length === 0 && (
-                     <div className="col-span-full py-20 text-center">
-                        <div className="bg-slate-200/50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 text-slate-400">
+                     <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-slate-200">
+                        <div className="bg-slate-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 text-slate-400">
                            <Stethoscope size={40} />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-800">No doctors registered</h3>
-                        <p className="text-slate-500">This organization has not added any practitioners yet</p>
+                        <h3 className="text-xl font-bold text-slate-800">No doctors found</h3>
+                        <p className="text-slate-500 text-sm mt-1">
+                          {activeTab === 'platform' && !selectedOrg
+                            ? "No platform directory doctors found. Click 'Create Doctor Profile' to add one."
+                            : "This organization has not added any practitioners yet."}
+                        </p>
                      </div>
                   )}
                 </div>
@@ -570,6 +740,19 @@ const Doctors = () => {
           )}
         </AnimatePresence>
 
+        {/* Edit Doctor Profile Modal */}
+        <AnimatePresence>
+          {editingDoctor && (
+            <EditDoctorModal
+              doctor={editingDoctor}
+              isOpen={!!editingDoctor}
+              onClose={() => setEditingDoctor(null)}
+              organizations={organizations}
+              onDoctorUpdated={handleDoctorUpdated}
+            />
+          )}
+        </AnimatePresence>
+
         {/* Create Public Doctor Profile Modal */}
         <AnimatePresence>
           {isCreateModalOpen && (
@@ -578,6 +761,7 @@ const Doctors = () => {
               onClose={() => setIsCreateModalOpen(false)} 
               organizations={organizations}
               onDoctorCreated={() => {
+                fetchPlatformDoctors();
                 if (selectedOrg) handleSelectOrg(selectedOrg);
               }}
             />
@@ -589,6 +773,396 @@ const Doctors = () => {
   );
 };
 
+/* -------------------------------------------------------------
+   EDIT DOCTOR MODAL COMPONENT
+------------------------------------------------------------- */
+const EditDoctorModal = ({ doctor, isOpen, onClose, organizations, onDoctorUpdated }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    photo: '',
+    gender: 'Male',
+    specialization: 'General Physician',
+    qualification: 'MBBS',
+    experience: 5,
+    clinicName: '',
+    address: '',
+    city: '',
+    fee: 500,
+    phone: '',
+    email: '',
+    about: '',
+    organizationId: '',
+    hideBookAppointment: false,
+    status: 'Verified',
+    images: ['', '', '', '', '']
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (doctor) {
+      setFormData({
+        name: doctor.name || '',
+        photo: doctor.photo || '',
+        gender: doctor.gender || 'Male',
+        specialization: doctor.specialization || 'General Physician',
+        qualification: doctor.qualification || 'MBBS',
+        experience: doctor.experience || 0,
+        clinicName: doctor.clinicName || doctor.serviceLocation?.practiceName || '',
+        address: doctor.address || doctor.addressInfo?.address1 || doctor.serviceLocation?.address?.street || '',
+        city: doctor.addressInfo?.city || doctor.serviceLocation?.address?.city || '',
+        fee: doctor.fee || doctor.consultationFee || 500,
+        phone: doctor.phone || '',
+        email: doctor.email || '',
+        about: doctor.about || doctor.bio || '',
+        organizationId: doctor.organizationId?._id || doctor.organizationId || '',
+        hideBookAppointment: !!doctor.hideBookAppointment,
+        status: doctor.status || 'Verified',
+        images: (() => {
+          const ex = (doctor.images && doctor.images.length > 0) 
+            ? doctor.images 
+            : (doctor.clinicImages && doctor.clinicImages.length > 0 ? doctor.clinicImages : []);
+          return [0, 1, 2, 3, 4].map(idx => ex[idx] || '');
+        })()
+      });
+    }
+  }, [doctor]);
+
+  if (!isOpen || !doctor) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.specialization) {
+      alert('Doctor Name and Specialization are required.');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const cleanImgs = (formData.images || []).filter(u => typeof u === 'string' && u.trim().length > 0).map(u => u.trim());
+      const payload = {
+        ...formData,
+        images: cleanImgs,
+        clinicImages: cleanImgs
+      };
+      const res = await superAdminApi.updateDoctorSuperAdmin(doctor._id, payload);
+      alert('Doctor profile updated successfully!');
+      if (onDoctorUpdated) onDoctorUpdated(res.doctor);
+      onClose();
+    } catch (err) {
+      console.error('Error updating doctor:', err);
+      alert(err.response?.data?.message || err.message || 'Failed to update doctor profile');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+      >
+        {/* Modal Header */}
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-amber-600 to-indigo-900 text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 border border-white/30 rounded-xl flex items-center justify-center text-white">
+              <Edit size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Edit Doctor Profile</h2>
+              <p className="text-xs text-amber-100">Update details for Dr. {doctor.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white">
+            <XCircle size={24} />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="flex-1 overflow-y-auto p-8 bg-white">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Doctor Name *</label>
+                <input 
+                  type="text" 
+                  required
+                  value={formData.name}
+                  onChange={e => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                  <Stethoscope size={13} className="text-indigo-600" /> Specialization *
+                </label>
+                <input 
+                  type="text" 
+                  required
+                  value={formData.specialization}
+                  onChange={e => setFormData({...formData, specialization: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1.5 flex items-center gap-1.5">
+                  <Building2 size={13} className="text-indigo-600" /> Clinic / Hospital Name
+                </label>
+                <input 
+                  type="text" 
+                  value={formData.clinicName}
+                  onChange={e => setFormData({...formData, clinicName: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Gender</label>
+                <select
+                  value={formData.gender}
+                  onChange={e => setFormData({...formData, gender: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="Male">Male Doctor</option>
+                  <option value="Female">Female Doctor</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Qualification</label>
+                <input 
+                  type="text" 
+                  value={formData.qualification}
+                  onChange={e => setFormData({...formData, qualification: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Years of Experience</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  value={formData.experience}
+                  onChange={e => setFormData({...formData, experience: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Consultation Fee (₹)</label>
+                <input 
+                  type="number" 
+                  value={formData.fee}
+                  onChange={e => setFormData({...formData, fee: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">City / Location</label>
+                <input 
+                  type="text" 
+                  value={formData.city}
+                  onChange={e => setFormData({...formData, city: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Full Clinic Address</label>
+                <input 
+                  type="text" 
+                  value={formData.address}
+                  onChange={e => setFormData({...formData, address: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Direct Phone / Mobile</label>
+                <input 
+                  type="tel" 
+                  value={formData.phone}
+                  onChange={e => setFormData({...formData, phone: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Email Address</label>
+                <input 
+                  type="email" 
+                  value={formData.email}
+                  onChange={e => setFormData({...formData, email: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Profile Photo URL</label>
+                <input 
+                  type="url" 
+                  value={formData.photo}
+                  onChange={e => setFormData({...formData, photo: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              {/* 5-Slot Doctor & Clinic Gallery URLs */}
+              <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                      <ImageIcon size={16} className="text-indigo-600" /> Doctor & Clinic Gallery (Up to 5 Photos)
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Add 4-5 image URLs (doctor photos, clinic interior, treatment equipment) displayed exclusively on their public profile in Find Doctors.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">
+                    {(formData.images || []).filter(u => u && u.trim()).length} / 5 Added
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {[0, 1, 2, 3, 4].map(idx => {
+                    const currentVal = (formData.images && formData.images[idx]) || '';
+                    return (
+                      <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col justify-between shadow-xs space-y-2">
+                        <div className="flex items-center justify-between text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                          <span>Photo #{idx + 1}</span>
+                          {currentVal && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...(formData.images || ['', '', '', '', ''])];
+                                updated[idx] = '';
+                                setFormData({ ...formData, images: updated });
+                              }}
+                              className="text-rose-500 hover:text-rose-700 text-[10px] font-bold"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={currentVal}
+                          onChange={e => {
+                            const updated = [...(formData.images || ['', '', '', '', ''])];
+                            updated[idx] = e.target.value;
+                            setFormData({ ...formData, images: updated });
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+
+                        <div className="w-full h-20 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
+                          {currentVal ? (
+                            <img
+                              src={currentVal}
+                              alt={`Slot ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                              onError={e => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-slate-300">
+                              <ImageIcon size={18} />
+                              <span className="text-[9px] font-semibold mt-0.5">Empty Slot</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">About Doctor / Biography</label>
+                <textarea 
+                  rows="3"
+                  value={formData.about}
+                  onChange={e => setFormData({...formData, about: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+
+              {/* Organization Assignment Dropdown */}
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Associate Organization (Optional)</label>
+                <select
+                  value={formData.organizationId}
+                  onChange={e => setFormData({...formData, organizationId: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">None (Independent Platform Doctor - No Organization)</option>
+                  {organizations.map(org => (
+                    <option key={org._id} value={org._id}>{org.name}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">Select "None" to detach this doctor from all organizations so they show as an independent directory doctor.</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Doctor Verification Status</label>
+                <select
+                  value={formData.status}
+                  onChange={e => setFormData({...formData, status: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="Verified">Verified</option>
+                  <option value="Active">Active</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3 pt-6">
+                <input
+                  type="checkbox"
+                  id="hideBookingCheck"
+                  checked={formData.hideBookAppointment}
+                  onChange={e => setFormData({...formData, hideBookAppointment: e.target.checked})}
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                />
+                <label htmlFor="hideBookingCheck" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  Hide "Book Clinic Visit" Slot Button on Public Site
+                </label>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-8 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-indigo-600/20"
+              >
+                {submitting && <Loader2 className="animate-spin" size={14} />}
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------
+   CREATE DOCTOR MODAL COMPONENT
+------------------------------------------------------------- */
 const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) => {
   const [createFormData, setCreateFormData] = useState({
     name: '',
@@ -621,7 +1195,13 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
     }
     try {
       setSubmitting(true);
-      const res = await superAdminApi.createPublicDoctorProfile(createFormData);
+      const cleanImgs = (createFormData.images || []).filter(u => typeof u === 'string' && u.trim().length > 0).map(u => u.trim());
+      const payload = {
+        ...createFormData,
+        images: cleanImgs,
+        clinicImages: cleanImgs
+      };
+      const res = await superAdminApi.createPublicDoctorProfile(payload);
       const fullUrl = `${window.location.origin}${res.publicUrl}`;
       setSuccessProfile({
         name: res.doctor.name,
@@ -661,7 +1241,7 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
             </div>
             <div>
               <h2 className="text-lg font-bold">Create Public Doctor Profile</h2>
-              <p className="text-xs text-indigo-200">Visible on website & indexed by Google search</p>
+              <p className="text-xs text-indigo-200">Visible on Find Doctors page without needing an organization</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-300">
@@ -818,8 +1398,6 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
                   />
                 </div>
 
-
-
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">City / Location</label>
                   <input 
@@ -874,6 +1452,76 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+                {/* 5-Slot Doctor & Clinic Gallery URLs */}
+                <div className="md:col-span-2 bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                        <ImageIcon size={16} className="text-indigo-600" /> Doctor & Clinic Gallery (Up to 5 Photos)
+                      </label>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Add 4-5 image URLs (doctor photos, clinic interior, treatment rooms) displayed on their public profile in Find Doctors so patients can see real photos.
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">
+                      {(createFormData.images || []).filter(u => u && u.trim()).length} / 5 Added
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {[0, 1, 2, 3, 4].map(idx => {
+                      const currentVal = (createFormData.images && createFormData.images[idx]) || '';
+                      return (
+                        <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col justify-between shadow-xs space-y-2">
+                          <div className="flex items-center justify-between text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                            <span>Photo #{idx + 1}</span>
+                            {currentVal && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...(createFormData.images || ['', '', '', '', ''])];
+                                  updated[idx] = '';
+                                  setCreateFormData({ ...createFormData, images: updated });
+                                }}
+                                className="text-rose-500 hover:text-rose-700 text-[10px] font-bold"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                          
+                          <input
+                            type="url"
+                            placeholder="https://..."
+                            value={currentVal}
+                            onChange={e => {
+                              const updated = [...(createFormData.images || ['', '', '', '', ''])];
+                              updated[idx] = e.target.value;
+                              setCreateFormData({ ...createFormData, images: updated });
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+
+                          <div className="w-full h-20 rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
+                            {currentVal ? (
+                              <img
+                                src={currentVal}
+                                alt={`Slot ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                                onError={e => { e.currentTarget.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-slate-300">
+                                <ImageIcon size={18} />
+                                <span className="text-[9px] font-semibold mt-0.5">Empty Slot</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <div className="md:col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">About Doctor / Biography</label>
@@ -886,6 +1534,7 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
                   />
                 </div>
 
+                {/* Organization Selection (Default is None) */}
                 <div className="md:col-span-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Associate Organization (Optional)</label>
                   <select
@@ -893,11 +1542,12 @@ const CreateDoctorModal = ({ isOpen, onClose, organizations, onDoctorCreated }) 
                     onChange={e => setCreateFormData({...createFormData, organizationId: e.target.value})}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    <option value="">Default Oviaan Platform Doctor</option>
+                    <option value="">None (Independent Platform Doctor - No Organization)</option>
                     {organizations.map(org => (
                       <option key={org._id} value={org._id}>{org.name}</option>
                     ))}
                   </select>
+                  <p className="text-[11px] text-slate-500 mt-1">Leave as "None" so this doctor remains independent and shows on Find Doctors without belonging to any clinic.</p>
                 </div>
               </div>
 

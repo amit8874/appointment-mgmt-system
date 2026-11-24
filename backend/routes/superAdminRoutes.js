@@ -23,6 +23,9 @@ import {
   createPublicDoctorProfileBySuperAdmin,
   deleteOrganization,
   toggleDoctorBookingVisibility,
+  getPlatformDoctors,
+  updateDoctorBySuperAdmin,
+  deleteDoctorBySuperAdmin,
 } from '../controllers/superAdminController.js';
 
 const router = express.Router();
@@ -197,5 +200,27 @@ router.post('/doctors/create-profile', createPublicDoctorProfileBySuperAdmin);
  * @access  Super Admin
  */
 router.patch('/doctors/:id/toggle-booking', toggleDoctorBookingVisibility);
+
+
+/**
+ * @route   GET /api/superadmin/doctors/platform
+ * @desc    Get all platform / directory doctors (unassigned or created by superadmin)
+ * @access  Super Admin
+ */
+router.get('/doctors/platform', getPlatformDoctors);
+
+/**
+ * @route   PUT /api/superadmin/doctors/:id
+ * @desc    Update doctor profile by Super Admin
+ * @access  Super Admin
+ */
+router.put('/doctors/:id', updateDoctorBySuperAdmin);
+
+/**
+ * @route   DELETE /api/superadmin/doctors/:id
+ * @desc    Permanently delete doctor profile by Super Admin
+ * @access  Super Admin
+ */
+router.delete('/doctors/:id', deleteDoctorBySuperAdmin);
 
 export default router;

@@ -5,7 +5,8 @@ const doctorSchema = new mongoose.Schema({
   organizationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Organization',
-    required: true,
+    required: false,
+    default: null,
   },
   doctorId: {
     type: String,
@@ -203,6 +204,10 @@ const doctorSchema = new mongoose.Schema({
     trim: true,
   },
   clinicImages: {
+    type: [String],
+    default: [],
+  },
+  images: {
     type: [String],
     default: [],
   },

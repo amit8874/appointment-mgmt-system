@@ -123,7 +123,62 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
         fee: doctor?.fee || doctor?.consultationFee || ''
     });
     
+    // formData must be initialized before any code or useEffect reads it
     const [formData, setFormData] = useState(getInitialFormData);
+
+    const [dirMatch, setDirMatch] = useState(null);
+    const [dismissedDirId, setDismissedDirId] = useState(null);
+    const [isDirAutoFilled, setIsDirAutoFilled] = useState(false);
+
+    // Auto-detect superadmin created directory doctors by phone or name
+    useEffect(() => {
+        if (isDirAutoFilled || doctor) return;
+
+        const qPhone = formData.phone?.trim() || '';
+        const qName = formData.name?.trim() || '';
+
+        if (qPhone.length < 5 && qName.length < 4) {
+            setDirMatch(null);
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            try {
+                const res = await centralDoctorApi.matchDirectory({
+                    phone: qPhone.length >= 5 ? qPhone : undefined,
+                    name: qName.length >= 4 ? qName : undefined
+                });
+                if (res?.match && res.match._id !== dismissedDirId) {
+                    setDirMatch(res.match);
+                } else {
+                    setDirMatch(null);
+                }
+            } catch (err) {
+                console.error('Directory match lookup error:', err);
+            }
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [formData.phone, formData.name, dismissedDirId, isDirAutoFilled, doctor]);
+
+    const handleAutoFillFromDirectory = () => {
+        if (!dirMatch) return;
+        setFormData(prev => ({
+            ...prev,
+            name: dirMatch.name || prev.name,
+            phone: dirMatch.phone || prev.phone,
+            email: dirMatch.email || prev.email,
+            specialization: dirMatch.specialization || prev.specialization,
+            qualification: dirMatch.qualification || prev.qualification,
+            experience: dirMatch.experience || prev.experience,
+            fee: dirMatch.fee || prev.fee,
+            gender: dirMatch.gender || prev.gender,
+            about: dirMatch.about || dirMatch.bio || prev.about,
+            photo: dirMatch.photo || prev.photo,
+            directoryDoctorId: dirMatch._id
+        }));
+        setIsDirAutoFilled(true);
+    };
     
     useEffect(() => {
         if (doctor) {
@@ -642,6 +697,55 @@ const AddDoctorForm = ({ isOpen, onClose, onSave, doctor, isForced = false }) =>
                                             </div>
 
                                             <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+
+                                                {/* Directory Doctor Recommendation Banner */}
+                                                {dirMatch && !isDirAutoFilled && (
+                                                    <div className="col-span-full p-3.5 bg-gradient-to-r from-indigo-50 to-amber-50 border border-indigo-200 rounded-2xl flex items-center justify-between gap-3 animate-in fade-in">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                                                <Sparkles size={16} />
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">
+                                                                        Directory Profile Found
+                                                                    </span>
+                                                                    <span className="text-xs font-bold text-slate-800">{dirMatch.name}</span>
+                                                                </div>
+                                                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                                                    {dirMatch.specialization} • {dirMatch.experience || 0} Yrs Exp • {dirMatch.qualification || 'MBBS'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleAutoFillFromDirectory}
+                                                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                                                            >
+                                                                <Sparkles size={12} /> Auto-fill Profile
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setDismissedDirId(dirMatch._id);
+                                                                    setDirMatch(null);
+                                                                }}
+                                                                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                                                                title="Dismiss"
+                                                            >
+                                                                <X size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {isDirAutoFilled && (
+                                                    <div className="col-span-full p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2 animate-in fade-in">
+                                                        <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                                                        Profile auto-filled from directory for Dr. {dirMatch?.name}!
+                                                    </div>
+                                                )}
+
                                                 <InputField label="Full Name" name="name" value={formData.name} onChange={handleInputChange} required icon={User} error={errors.name} />
                                                 <InputField label="Mobile Number" name="phone" value={formData.phone} onChange={handleInputChange} required icon={Phone} error={errors.phone} />
                                                 <InputField label="Email Address" name="email" type="email" value={formData.email} onChange={handleInputChange} required icon={Mail} error={errors.email} />

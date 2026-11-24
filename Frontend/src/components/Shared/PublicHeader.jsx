@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X, Tag, ShoppingBag, ChevronDown, Calendar, FileText, User, ShieldPlus, ClipboardList, Lock, MessageSquare, CreditCard, Video, PenTool, Layout, Sparkles, Check, AlertCircle, Heart, TrendingUp } from 'lucide-react';
+import { Menu, X, Tag, ShoppingBag, ChevronDown, Calendar, FileText, User, ShieldPlus, ClipboardList, Lock, MessageSquare, CreditCard, Video, PenTool, Layout, Sparkles, Check, AlertCircle, Heart, TrendingUp, Stethoscope } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const PublicHeader = () => {
@@ -144,6 +144,13 @@ const PublicHeader = () => {
                   </AnimatePresence>
                 </div>
 
+                <Link 
+                  to="/find-doctors" 
+                  className="text-sm font-bold text-slate-700 hover:text-blue-600 transition-all flex items-center gap-1.5"
+                >
+                  <Stethoscope size={15} className="text-blue-600" />
+                  Find Doctors
+                </Link>
                 <a 
                   href="/#pricing" 
                   className="text-sm font-bold text-slate-700 hover:text-blue-600 transition-all"
@@ -171,6 +178,13 @@ const PublicHeader = () => {
 
           {/* Right Section: Action Buttons + Mobile Hamburger */}
           <div className="flex items-center gap-3">
+            <Link 
+              to="/register-organization" 
+              className="hidden lg:inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-full text-xs font-black border border-indigo-200/80 transition-all"
+            >
+              <span>For Doctors</span>
+              <span className="px-1.5 py-0.5 bg-indigo-600 text-white text-[9px] font-bold rounded-full">Free Trial</span>
+            </Link>
             <Link 
               to="/login" 
               className="hidden sm:inline-flex px-5 py-2 text-sm font-bold text-slate-700 hover:text-blue-600 transition-all border border-slate-200 rounded-full hover:border-blue-200 hover:bg-blue-50/50"
@@ -225,6 +239,22 @@ const PublicHeader = () => {
 
         {/* Drawer Nav Links */}
         <nav className="flex flex-col gap-3 px-5 py-6 overflow-y-auto max-h-[calc(100vh-250px)] scrollbar-hide">
+          <Link
+            to="/find-doctors"
+            onClick={() => setSidebarOpen(false)}
+            className="px-4 py-2.5 rounded-xl font-bold text-sm text-slate-800 hover:bg-slate-50 flex items-center gap-2 border border-slate-100"
+          >
+            <Stethoscope size={16} className="text-blue-600" />
+            Find Doctors
+          </Link>
+          <Link
+            to="/register-organization"
+            onClick={() => setSidebarOpen(false)}
+            className="px-4 py-2.5 rounded-xl font-bold text-sm text-indigo-700 bg-indigo-50 border border-indigo-100 flex items-center justify-between"
+          >
+            <span>For Doctors / List Clinic</span>
+            <span className="text-[9px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full">Free Trial</span>
+          </Link>
           {/* Product Menu Mobile */}
           <div className="flex flex-col gap-1">
             <button

@@ -1421,20 +1421,18 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
       about,
       bio,
       gender,
-      organizationId
+      organizationId,
+      images,
+      clinicImages
     } = req.body;
 
     if (!name || !specialization) {
       return res.status(400).json({ message: 'Doctor Name and Specialization are required' });
     }
 
-    let targetOrgId = organizationId;
-    if (!targetOrgId) {
-      const defaultOrg = await Organization.findOne();
-      if (defaultOrg) {
-        targetOrgId = defaultOrg._id;
-      }
-    }
+    // SuperAdmin created doctors are NOT assigned to any organization by default
+    // They exist as independent public directory profiles unless an organization is explicitly chosen
+    let targetOrgId = (organizationId && typeof organizationId === 'string' && organizationId.trim()) ? organizationId.trim() : (organizationId || null);
 
     const count = await Doctor.countDocuments();
     const doctorId = `DOC${String(count + 101).padStart(3, '0')}`;
@@ -1451,6 +1449,9 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
 
     const resolvedClinicName = (clinicName && clinicName.trim()) ? clinicName.trim() : 'Oviaan Partnered Healthcare';
     const resolvedAddress = (address && address.trim()) ? address.trim() : (city ? `${city}, India` : 'India');
+
+    const rawImages = Array.isArray(images) ? images : (Array.isArray(clinicImages) ? clinicImages : []);
+    const sanitizedImages = rawImages.filter(u => typeof u === 'string' && u.trim().length > 0).map(u => u.trim());
 
     const newDoctor = new Doctor({
       doctorId,
@@ -1478,6 +1479,8 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
           pincode: ''
         }
       },
+      clinicImages: sanitizedImages,
+      images: sanitizedImages,
       isSuperAdminCreated: true,
       hideBookAppointment: true,
       phone: phone || '',
@@ -1517,6 +1520,168 @@ export const createPublicDoctorProfileBySuperAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating public doctor profile by superadmin:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+};
+
+
+/**
+ * @desc    Get Platform / Independent Doctors (created by Super Admin or without organization)
+ * @route   GET /api/superadmin/doctors/platform
+ * @access  Super Admin
+ */
+export const getPlatformDoctors = async (req, res) => {
+  try {
+    const doctors = await Doctor.find({
+      $or: [
+        { organizationId: null },
+        { organizationId: { $exists: false } },
+        { isSuperAdminCreated: true }
+      ]
+    }).sort({ createdAt: -1 });
+    res.json(doctors);
+  } catch (error) {
+    console.error('Get platform doctors error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+};
+
+/**
+ * @desc    Update Doctor Profile by Super Admin
+ * @route   PUT /api/superadmin/doctors/:id
+ * @access  Super Admin
+ */
+export const updateDoctorBySuperAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      gender,
+      photo,
+      specialization,
+      qualification,
+      experience,
+      fee,
+      clinicName,
+      address,
+      city,
+      phone,
+      email,
+      about,
+      bio,
+      status,
+      hideBookAppointment,
+      organizationId,
+      images,
+      clinicImages
+    } = req.body;
+
+    const doctor = await Doctor.findById(id);
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    if (name) doctor.name = name;
+    if (gender) doctor.gender = gender;
+    if (photo !== undefined) doctor.photo = photo;
+    if (specialization) doctor.specialization = specialization;
+    if (qualification !== undefined) doctor.qualification = qualification;
+    if (experience !== undefined) doctor.experience = parseInt(experience) || 0;
+    if (fee !== undefined) doctor.fee = parseFloat(fee) || 0;
+    if (status) doctor.status = status;
+    if (hideBookAppointment !== undefined) doctor.hideBookAppointment = hideBookAppointment;
+    if (phone !== undefined) doctor.phone = phone;
+    if (email !== undefined) doctor.email = email;
+    if (about !== undefined) doctor.about = about;
+    if (bio !== undefined) doctor.bio = bio;
+
+    if (images !== undefined || clinicImages !== undefined) {
+      const incomingImgs = Array.isArray(images) ? images : (Array.isArray(clinicImages) ? clinicImages : []);
+      const sanitized = incomingImgs.filter(u => typeof u === 'string' && u.trim().length > 0).map(u => u.trim());
+      doctor.clinicImages = sanitized;
+      doctor.images = sanitized;
+    }
+
+    // Organization allotment control: can be set or cleared (null)
+    if (organizationId !== undefined) {
+      doctor.organizationId = (organizationId && typeof organizationId === 'string' && organizationId.trim()) 
+        ? organizationId.trim() 
+        : null;
+    }
+
+    const resolvedClinicName = (clinicName !== undefined) ? clinicName : doctor.clinicName;
+    if (resolvedClinicName !== undefined) {
+      doctor.clinicName = resolvedClinicName;
+    }
+
+    const resolvedAddress = (address !== undefined) ? address : doctor.address;
+    if (resolvedAddress !== undefined) {
+      doctor.address = resolvedAddress;
+    }
+
+    if (!doctor.addressInfo) doctor.addressInfo = {};
+    if (resolvedAddress !== undefined) doctor.addressInfo.address1 = resolvedAddress;
+    if (city !== undefined) doctor.addressInfo.city = city;
+
+    if (!doctor.serviceLocation) doctor.serviceLocation = { type: 'clinic', address: {} };
+    if (!doctor.serviceLocation.address) doctor.serviceLocation.address = {};
+    if (resolvedClinicName !== undefined) doctor.serviceLocation.practiceName = resolvedClinicName;
+    if (resolvedAddress !== undefined) doctor.serviceLocation.address.street = resolvedAddress;
+    if (city !== undefined) doctor.serviceLocation.address.city = city;
+
+    await doctor.save();
+
+    await AuditLog.create({
+      adminId: req.user.id,
+      action: 'DOCTOR_UPDATE_SUPERADMIN',
+      targetType: 'Doctor',
+      targetId: doctor._id,
+      details: { doctorName: doctor.name, doctorId: doctor.doctorId },
+      ipAddress: req.ip
+    });
+
+    res.json({
+      message: 'Doctor profile updated successfully',
+      doctor
+    });
+  } catch (error) {
+    console.error('Update doctor by superadmin error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+};
+
+/**
+ * @desc    Delete Doctor Profile by Super Admin
+ * @route   DELETE /api/superadmin/doctors/:id
+ * @access  Super Admin
+ */
+export const deleteDoctorBySuperAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doctor = await Doctor.findById(id);
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    const doctorName = doctor.name;
+    const doctorIdCode = doctor.doctorId;
+
+    await Doctor.findByIdAndDelete(id);
+
+    await AuditLog.create({
+      adminId: req.user.id,
+      action: 'DOCTOR_DELETE_SUPERADMIN',
+      targetType: 'Doctor',
+      targetId: id,
+      details: { doctorName, doctorId: doctorIdCode },
+      ipAddress: req.ip
+    });
+
+    res.json({
+      message: `Doctor ${doctorName} deleted successfully`
+    });
+  } catch (error) {
+    console.error('Delete doctor by superadmin error:', error);
     res.status(500).json({ message: error.message || 'Server error' });
   }
 };

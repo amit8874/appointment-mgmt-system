@@ -835,6 +835,21 @@ export const getDoctorCount = async (req, res) => {
 export const createDoctor = async (req, res) => {
   try {
     const doctorData = req.body;
+    // If claiming an existing directory doctor, adopt and update that record
+    const targetClaimId = doctorData.directoryDoctorId || doctorData.claimedDoctorId;
+    if (targetClaimId) {
+      const existingDirDoc = await Doctor.findById(targetClaimId);
+      if (existingDirDoc && (!existingDirDoc.organizationId || existingDirDoc.isSuperAdminCreated)) {
+        Object.assign(existingDirDoc, doctorData, {
+          organizationId: req.tenantId,
+          status: doctorData.status || 'Verified',
+          isSuperAdminCreated: false
+        });
+        const savedDoctor = await existingDirDoc.save();
+        return res.status(201).json(await resolveDoctorPhoto(savedDoctor));
+      }
+    }
+
 
     // Validate required fields
     if (!doctorData.name || !doctorData.specialization) {
@@ -1369,6 +1384,7 @@ export const getPublicDoctorProfile = async (req, res) => {
       bio: doctor.bio || doctor.about || '',
       about: doctor.about || doctor.bio || '',
       clinicImages: doctor.clinicImages ? await Promise.all(doctor.clinicImages.map(img => resolveS3UrlIfNeeded(img))) : [],
+      images: (doctor.images && doctor.images.length > 0) ? await Promise.all(doctor.images.map(img => resolveS3UrlIfNeeded(img))) : (doctor.clinicImages ? await Promise.all(doctor.clinicImages.map(img => resolveS3UrlIfNeeded(img))) : []),
       likesPercentage: doctor.likesPercentage || 0,
       totalStories: doctor.totalStories || 0,
       isSuperAdminCreated: Boolean(doctor.isSuperAdminCreated),
@@ -1380,5 +1396,76 @@ export const getPublicDoctorProfile = async (req, res) => {
   } catch (error) {
     console.error('Error fetching public doctor profile:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+/**
+ * @desc    Match unassigned SuperAdmin-created directory doctors for registration & onboarding recommendations
+ * @route   GET /api/doctors/directory/match
+ * @access  Public
+ */
+export const matchDirectoryDoctor = async (req, res) => {
+  try {
+    const { phone, email, name, query } = req.query;
+
+    const conditions = [];
+
+    if (phone && phone.trim().length >= 4) {
+      const cleanPhone = phone.trim().replace(/\D/g, '').slice(-10);
+      if (cleanPhone.length >= 4) {
+        conditions.push({ phone: { $regex: cleanPhone, $options: 'i' } });
+      }
+    }
+
+    if (email && email.trim().length >= 4) {
+      conditions.push({ email: { $regex: email.trim(), $options: 'i' } });
+    }
+
+    if (name && name.trim().length >= 3) {
+      const cleanName = name.trim().replace(/^dr\.?\s*/i, '');
+      if (cleanName.length >= 2) {
+        conditions.push({ name: { $regex: cleanName, $options: 'i' } });
+      }
+    }
+
+    if (query && query.trim().length >= 3) {
+      const cleanQ = query.trim().replace(/^dr\.?\s*/i, '');
+      conditions.push(
+        { name: { $regex: cleanQ, $options: 'i' } },
+        { clinicName: { $regex: cleanQ, $options: 'i' } },
+        { phone: { $regex: cleanQ, $options: 'i' } }
+      );
+    }
+
+    if (conditions.length === 0) {
+      return res.json({ match: null, matches: [] });
+    }
+
+    // Only match doctors who are platform/directory doctors or unassigned (not already part of an active registered clinic)
+    const filter = {
+      $and: [
+        {
+          $or: [
+            { isSuperAdminCreated: true },
+            { organizationId: null },
+            { organizationId: { $exists: false } }
+          ]
+        },
+        { $or: conditions }
+      ]
+    };
+
+    const matches = await Doctor.find(filter)
+      .select('_id doctorId name specialization qualification experience fee clinicName address city addressInfo phone email about bio photo gender')
+      .limit(5);
+
+    return res.json({
+      match: matches[0] || null,
+      matches
+    });
+  } catch (error) {
+    console.error('Match directory doctor error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
   }
 };

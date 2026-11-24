@@ -22,7 +22,8 @@ import {
   addDoctorReview,
   getDoctorProfileMe,
   updateDoctorProfileMe,
-  getPublicDoctorProfile
+  getPublicDoctorProfile,
+  matchDirectoryDoctor
 } from '../controllers/doctorController.js';
 
 
@@ -32,6 +33,10 @@ const router = express.Router();
 
 // GET /api/doctors/public/search - Search all doctors across organizations (Public)
 router.get('/public/search', getGlobalPublicDoctors);
+
+// GET /api/doctors/directory/match - Match directory profile for onboarding recommendation (Public)
+router.get('/directory/match', matchDirectoryDoctor);
+
 
 // GET /api/doctors/public/suggestions - Get search suggestions (Public)
 router.get('/public/suggestions', getSearchSuggestions);
