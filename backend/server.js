@@ -74,12 +74,32 @@ if (nodeEnv === 'production') {
   dotenv.config();
 }
 
+// Configure CORS allowed origins with automatic mobile app support
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000', 'https://oviaan.com', 'https://www.oviaan.com'];
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // Native apps, curl, server-to-server
+  if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) return true;
+  // Always permit mobile apps (Capacitor/Cordova) and local development
+  if (
+    origin.startsWith('capacitor://') ||
+    origin.startsWith('http://localhost') ||
+    origin.startsWith('https://localhost') ||
+    origin.startsWith('ionic://')
+  ) {
+    return true;
+  }
+  return false;
+};
+
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -143,14 +163,9 @@ connectDB().then(() => {
 Global Middleware
 -------------------------------------------------- */
 
-// Configure CORS more securely for production
-const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'];
-
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       console.warn(`[CORS] Rejected from origin: ${origin}`);
