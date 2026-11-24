@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Link } from 'react-router-dom';
-import { Menu, X, Tag, ShoppingBag, ChevronDown, Calendar, FileText, User, ShieldPlus, ClipboardList, Lock, MessageSquare, CreditCard, Video, PenTool, Layout, Sparkles, Check, AlertCircle, Heart, TrendingUp, Stethoscope } from 'lucide-react';
+import { Menu, X, Tag, ShoppingBag, ChevronDown, Calendar, FileText, User, ShieldPlus, ClipboardList, Lock, MessageSquare, CreditCard, Video, PenTool, Layout, Sparkles, Check, AlertCircle, Heart, TrendingUp, Stethoscope, Smartphone, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const PublicHeader = () => {
+  const isMobileApp = Capacitor.isNativePlatform();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productMenuOpen, setProductMenuOpen] = useState(false);
   const [mobileProductOpen, setMobileProductOpen] = useState(false);
@@ -157,6 +159,13 @@ const PublicHeader = () => {
                 >
                   Pricing
                 </a>
+                <a 
+                  href="/#download-app" 
+                  className="text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-all flex items-center gap-1.5"
+                >
+                  <Smartphone size={15} className="text-indigo-600" />
+                  Doctor App
+                </a>
                 <div className="relative group/medicine">
                   <div 
                     className="px-4 py-1.5 text-sm font-extrabold text-orange-600 bg-orange-50 border border-orange-100 rounded-full cursor-not-allowed opacity-80 flex items-center gap-2"
@@ -177,7 +186,8 @@ const PublicHeader = () => {
           </div>
 
           {/* Right Section: Action Buttons + Mobile Hamburger */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Desktop Action Buttons (100% untouched) */}
             <Link 
               to="/register-organization" 
               className="hidden lg:inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-full text-xs font-black border border-indigo-200/80 transition-all"
@@ -187,24 +197,32 @@ const PublicHeader = () => {
             </Link>
             <Link 
               to="/login" 
-              className="hidden sm:inline-flex px-5 py-2 text-sm font-bold text-slate-700 hover:text-blue-600 transition-all border border-slate-200 rounded-full hover:border-blue-200 hover:bg-blue-50/50"
+              className="hidden md:inline-flex px-5 py-2 text-sm font-bold text-slate-700 hover:text-blue-600 transition-all border border-slate-200 rounded-full hover:border-blue-200 hover:bg-blue-50/50"
             >
               Log in
             </Link>
             <Link 
               to="/register-organization" 
-              className="hidden sm:inline-flex px-6 py-2 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all text-sm shadow-lg shadow-blue-500/20 active:scale-95"
+              className="hidden md:inline-flex px-6 py-2 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all text-sm shadow-lg shadow-blue-500/20 active:scale-95"
             >
               Try for free
+            </Link>
+
+            {/* Mobile View SignIn Button — Only visible in Mobile View (< md) */}
+            <Link
+              to="/login"
+              className="md:hidden inline-flex items-center justify-center px-3.5 py-1.5 bg-blue-600 text-white rounded-full font-bold text-xs shadow-md shadow-blue-500/25 hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              Sign In
             </Link>
 
             {/* Mobile Hamburger — visible only on mobile */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+              className="md:hidden flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm active:scale-95"
               aria-label="Open menu"
             >
-              <Menu size={20} className="text-slate-700" />
+              <Menu size={18} className="text-slate-700" />
             </button>
           </div>
 
@@ -314,6 +332,23 @@ const PublicHeader = () => {
               )}
             </AnimatePresence>
           </div>
+
+          <a
+            href="/#download-app"
+            onClick={() => setSidebarOpen(false)}
+            className="flex items-center gap-4 px-5 py-4 bg-indigo-50 border border-indigo-100 rounded-2xl hover:bg-indigo-100 transition-all group active:scale-95"
+          >
+            <div className="w-10 h-10 bg-gradient-to-tr from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
+              <Smartphone size={18} className="text-white" />
+            </div>
+            <div>
+              <p className="font-black text-slate-800 text-sm tracking-tight flex items-center gap-1.5">
+                Doctor App
+                <span className="text-[9px] bg-indigo-600 text-white font-bold px-1.5 py-0.5 rounded-full">APK</span>
+              </p>
+              <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mt-0.5">Download for Android</p>
+            </div>
+          </a>
 
           <a
             href="/#pricing"

@@ -328,52 +328,52 @@ export default function AppointmentTable({ rebookData, activeTab }) {
   }
 
   return (
-    <div className="bg-gray-100 min-h-screen p-2 md:p-3">
+    <div className="bg-gray-100 min-h-screen p-1 sm:p-2 md:p-3 pb-20 sm:pb-24 md:pb-6">
       <div className="w-full mx-auto">
 
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+        {/* Header - Hidden on mobile view as requested */}
+        <div className="hidden sm:flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 mb-1.5 sm:mb-2">
           <div className="text-center sm:text-left flex items-baseline gap-2 flex-wrap">
-            <h1 className="text-base md:text-lg font-bold text-slate-800 tracking-tight">Appointments</h1>
-            <nav className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <h1 className="text-sm sm:text-base md:text-lg font-normal sm:font-bold text-slate-800 tracking-tight">Appointments</h1>
+            <nav className="flex items-center gap-1 text-[10px] font-normal sm:font-bold text-slate-400 uppercase tracking-wider">
               <span>Dashboard</span>
               <span className="text-slate-200">/</span>
               <span className="text-indigo-600">Appointments</span>
             </nav>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             {/* View Toggle */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-2xl shadow-inner w-full sm:w-auto">
+            <div className="flex items-center bg-slate-100 p-0.5 sm:p-1 rounded-2xl shadow-inner w-full sm:w-auto">
               <button
                 onClick={() => setViewMode("list")}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${viewMode === "list"
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-xl transition-all font-normal sm:font-black text-xs sm:text-[10px] sm:uppercase sm:tracking-widest ${viewMode === "list"
                   ? "bg-white text-indigo-600 shadow-lg"
                   : "text-slate-400 hover:text-slate-600"
                   }`}
               >
-                <List className="w-4 h-4" />
+                <List className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>List View</span>
               </button>
               <button
                 onClick={() => setViewMode("calendar")}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${viewMode === "calendar"
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-1.5 sm:py-2.5 rounded-xl transition-all font-normal sm:font-black text-xs sm:text-[10px] sm:uppercase sm:tracking-widest ${viewMode === "calendar"
                   ? "bg-white text-indigo-600 shadow-lg"
                   : "text-slate-400 hover:text-slate-600"
                   }`}
               >
-                <CalendarDays className="w-4 h-4" />
+                <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>Calendar View</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <button
                 onClick={fetchAppointments}
-                className="flex-1 sm:flex-none p-3 bg-white border border-slate-100 rounded-2xl hover:bg-slate-50 flex items-center justify-center gap-2 text-slate-400 transition-all shadow-sm group"
+                className="flex-1 sm:flex-none p-2 sm:p-3 bg-white border border-slate-100 rounded-2xl hover:bg-slate-50 flex items-center justify-center gap-1.5 sm:gap-2 text-slate-400 transition-all shadow-sm group"
               >
-                <RefreshCw className={`w-4 h-4 group-hover:rotate-180 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
-                <span className="text-[10px] font-black uppercase tracking-widest sm:hidden lg:inline">Refresh</span>
+                <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:rotate-180 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="text-xs sm:text-[10px] font-normal sm:font-black sm:uppercase sm:tracking-widest sm:hidden lg:inline">Refresh</span>
               </button>
 
             </div>
@@ -381,7 +381,7 @@ export default function AppointmentTable({ rebookData, activeTab }) {
         </div>
 
         {viewMode === "calendar" ? (
-          <div className="mt-2">
+          <div className="mt-0 sm:mt-2">
             <AppointmentManagement isEmbedded={true} rebookData={rebookData} />
           </div>
         ) : (

@@ -532,28 +532,28 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
   // --- Rendering Helpers ---
   const renderHeader = () => {
     return (
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-3 md:px-6 py-3 md:py-4 bg-white/80 backdrop-blur-md rounded-t-3xl border-b border-slate-100">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4 px-2.5 md:px-6 py-2 md:py-4 bg-white/80 backdrop-blur-md rounded-t-2xl md:rounded-t-3xl border-b border-slate-100">
         <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-4 w-full md:w-auto">
-          <h2 className="text-lg md:text-2xl font-black text-slate-800 tracking-tight text-center md:text-left min-w-[150px] md:min-w-[180px]">
+          <h2 className="text-sm sm:text-base md:text-2xl font-normal md:font-black text-slate-800 tracking-normal md:tracking-tight text-center md:text-left min-w-[130px] md:min-w-[180px]">
             {format(currentMonth, view === 'day' ? 'MMMM d, yyyy' : 'MMMM yyyy')}
           </h2>
-          <div className="flex bg-slate-100 p-1 rounded-2xl gap-1 mx-auto md:mx-0">
-            <button onClick={prev} className="p-1.5 md:p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <ChevronLeft size={16} className="text-slate-600" />
+          <div className="flex bg-slate-100 p-0.5 sm:p-1 rounded-2xl gap-1 mx-auto md:mx-0">
+            <button onClick={prev} className="p-1 sm:p-1.5 md:p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+              <ChevronLeft size={15} className="text-slate-600" />
             </button>
-            <button onClick={goToToday} className="px-2 md:px-4 text-[9px] md:text-[10px] font-black text-slate-500 hover:text-blue-600 uppercase tracking-widest">Today</button>
-            <button onClick={next} className="p-1.5 md:p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
-              <ChevronRight size={16} className="text-slate-600" />
+            <button onClick={goToToday} className="px-2.5 md:px-4 py-0.5 text-xs md:text-[10px] font-normal md:font-black text-slate-500 hover:text-blue-600 capitalize md:uppercase tracking-normal md:tracking-widest">Today</button>
+            <button onClick={next} className="p-1 sm:p-1.5 md:p-2 hover:bg-white hover:shadow-sm rounded-xl transition-all">
+              <ChevronRight size={15} className="text-slate-600" />
             </button>
           </div>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-2xl gap-1 w-full md:w-auto overflow-x-auto scrollbar-hide">
+        <div className="flex bg-slate-100 p-0.5 sm:p-1 rounded-2xl gap-1 w-full md:w-auto overflow-x-auto scrollbar-hide">
           {['month', 'week', 'day'].map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`flex-1 md:flex-none px-3 md:px-6 py-2 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${view === v ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400 hover:text-slate-600'
+              className={`flex-1 md:flex-none px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-[10px] font-normal md:font-black capitalize md:uppercase tracking-normal md:tracking-widest rounded-xl transition-all ${view === v ? 'bg-white text-blue-600 shadow-md font-medium md:font-black' : 'text-slate-400 hover:text-slate-600'
                 }`}
             >
               {v}
@@ -569,7 +569,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
     return (
       <div className="grid grid-cols-7 bg-slate-50/50 border-b border-slate-100">
         {days.map((day, i) => (
-          <div key={i} className="py-4 text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+          <div key={i} className="py-2 md:py-4 text-center text-[10px] font-normal md:font-black uppercase tracking-wider md:tracking-[0.2em] text-slate-400">
             {day}
           </div>
         ))}
@@ -602,16 +602,16 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
             key={day.toString()}
             onClick={() => onDateClick(cloneDay)}
           >
-            <div className="flex justify-between items-start mb-1 md:mb-2">
+            <div className="flex justify-between items-start mb-0.5 md:mb-2">
               <div className="flex flex-col">
-                <span className={`text-[10px] md:text-sm font-bold transition-all ${isToday(day)
-                  ? "bg-blue-600 text-white w-5 h-5 md:w-8 md:h-8 flex items-center justify-center rounded-lg md:rounded-2xl shadow-lg shadow-blue-200 -mt-1 -ml-1 scale-110"
+                <span className={`text-[10px] md:text-sm font-normal md:font-bold transition-all ${isToday(day)
+                  ? "bg-blue-600 text-white w-5 h-5 md:w-8 md:h-8 flex items-center justify-center rounded-lg md:rounded-2xl shadow-lg shadow-blue-200 -mt-0.5 -ml-0.5 scale-105 font-medium md:font-bold"
                   : isCurrentMonth ? "text-slate-700" : "text-slate-400"
                   }`}>
                   {format(day, "d")}
                 </span>
                 {dayAppointments.length > 0 && isCurrentMonth && (
-                  <span className="text-[8px] md:text-[10px] font-black text-blue-600/60 mt-1 uppercase tracking-tighter">
+                  <span className="text-[8px] md:text-[10px] font-normal md:font-black text-blue-600 mt-0.5 uppercase tracking-normal">
                     <span className="hidden md:inline">{dayAppointments.length} Appt{dayAppointments.length > 1 ? 's' : ''}</span>
                     <span className="md:hidden">{dayAppointments.length}A</span>
                   </span>
@@ -829,68 +829,69 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
     };
 
     return (
-      <div className="bg-slate-50/60 rounded-b-3xl overflow-hidden shadow-sm flex flex-col">
-        {/* TOP BAR: Month Title, Quick Switch to Month Grid, Print Button, Book Slot */}
-        <div className="p-3 md:p-4 bg-white border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+      <div className="bg-slate-50/60 rounded-b-2xl md:rounded-b-3xl overflow-hidden shadow-sm flex flex-col">
+        {/* TOP BAR: Month Title, Quick Switch to Calendar, Print Button, Book Slot */}
+        <div className="p-2 sm:p-3 md:p-4 bg-white border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setView('month')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
-              title="Back to Full Month Grid"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-normal sm:font-bold transition-all"
+              title="Back to Calendar"
             >
-              <Grid size={14} className="text-slate-500" />
-              <span>Full Month Grid</span>
+              <CalendarDays size={14} className="text-slate-500" />
+              <span>Calendar</span>
             </button>
             <span className="text-slate-300">|</span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5 sm:gap-1">
               <button
                 onClick={prev}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+                className="p-1 sm:p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
                 title="Previous Day"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={15} />
               </button>
-              <span className="text-xs md:text-sm font-black text-slate-800 px-1">
+              <span className="text-xs md:text-sm font-normal md:font-black text-slate-800 px-1">
                 {format(currentMonth, 'MMMM yyyy')}
               </span>
               <button
                 onClick={next}
-                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+                className="p-1 sm:p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
                 title="Next Day"
               >
-                <ChevronRight size={16} />
+                <ChevronRight size={15} />
               </button>
             </div>
             <button
               onClick={goToToday}
-              className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors ml-1"
+              className="px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] font-normal md:font-black uppercase tracking-normal text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors ml-0.5 sm:ml-1"
             >
               Today
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={handlePrintDailySchedule}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+              className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-normal sm:font-bold shadow-sm transition-all cursor-pointer"
               title="Print all appointments and doctor notes for this date"
             >
-              <Printer size={14} />
-              <span>Print Day Schedule</span>
+              <Printer size={13} />
+              <span className="hidden sm:inline">Print Day Schedule</span>
+              <span className="sm:hidden">Print</span>
             </button>
             <button
               onClick={() => handleSelectSlot(selectedDate)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+              className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-normal sm:font-bold shadow-sm transition-all cursor-pointer"
             >
-              <UserPlus size={14} />
+              <UserPlus size={13} />
               <span>Book Appointment</span>
             </button>
           </div>
         </div>
 
         {/* CIRCLE DATE STRIP: 1 to 28/30/31 side by side in small circles */}
-        <div className="bg-white border-b border-slate-200/80 px-2 py-1.5 shadow-xs">
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin pb-0.5">
+        <div className="bg-white border-b border-slate-200/80 px-1.5 sm:px-2 py-1 sm:py-1.5 shadow-xs">
+          <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto scrollbar-thin pb-0.5">
             {daysInMonth.map((day) => {
               const isCurrentSelected = isSameDay(day, selectedDate);
               const isTodayDate = isToday(day);
@@ -901,26 +902,26 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
                   key={day.toString()}
                   type="button"
                   onClick={() => setSelectedDate(day)}
-                  className={`flex flex-col items-center justify-center min-w-[36px] py-0.5 px-1 rounded-xl transition-all group shrink-0 cursor-pointer ${
+                  className={`flex flex-col items-center justify-center min-w-[32px] sm:min-w-[36px] py-0.5 px-0.5 sm:px-1 rounded-xl transition-all group shrink-0 cursor-pointer ${
                     isCurrentSelected
                       ? 'bg-blue-50 ring-2 ring-blue-500 shadow-2xs'
                       : 'hover:bg-slate-100'
                   }`}
                 >
-                  <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                  <span className={`text-[9px] font-normal sm:font-bold uppercase tracking-normal ${
                     isCurrentSelected
-                      ? 'text-blue-600 font-black'
+                      ? 'text-blue-600 font-semibold sm:font-black'
                       : isTodayDate
-                        ? 'text-blue-500 font-bold'
+                        ? 'text-blue-500 font-normal sm:font-bold'
                         : 'text-slate-400 group-hover:text-slate-600'
                   }`}>
                     {format(day, 'EEE')}
                   </span>
                   
                   {/* Small Circle */}
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold transition-all relative ${
+                  <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-normal sm:font-extrabold transition-all relative ${
                     isCurrentSelected
-                      ? 'bg-blue-600 text-white shadow-xs scale-105'
+                      ? 'bg-blue-600 text-white shadow-xs scale-105 font-medium sm:font-bold'
                       : isTodayDate
                         ? 'bg-blue-100 text-blue-700 border border-blue-400'
                         : 'bg-slate-100 text-slate-700 group-hover:bg-slate-200'
@@ -929,7 +930,7 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
                     
                     {/* Appointment indicator dot */}
                     {dayApptsCount > 0 && (
-                      <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${
+                      <span className={`absolute -top-0.5 -right-0.5 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full border border-white ${
                         isCurrentSelected ? 'bg-amber-400' : 'bg-blue-600'
                       }`} />
                     )}
@@ -937,8 +938,8 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
 
                   {/* Day count */}
                   {dayApptsCount > 0 ? (
-                    <span className={`text-[8px] font-bold leading-none mt-0.5 ${
-                      isCurrentSelected ? 'text-blue-600 font-black' : 'text-slate-400'
+                    <span className={`text-[8px] font-normal sm:font-bold leading-none mt-0.5 ${
+                      isCurrentSelected ? 'text-blue-600 font-medium sm:font-black' : 'text-slate-400'
                     }`}>
                       {dayApptsCount}
                     </span>
@@ -952,13 +953,13 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
         </div>
 
         {/* SELECTED DATE HEADER & STATUS FILTERS */}
-        <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-slate-800 text-sm">
+        <div className="px-2.5 sm:px-4 py-1.5 sm:py-2 bg-slate-50 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-1.5 sm:gap-2 text-xs">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="font-normal sm:font-extrabold text-slate-800 text-xs sm:text-sm">
               {format(selectedDate, 'EEEE, MMMM do, yyyy')}
             </span>
             <span className="text-slate-400">•</span>
-            <span className="text-slate-500 font-semibold text-xs">
+            <span className="text-slate-500 font-normal sm:font-semibold text-xs">
               {dayAppointments.length} patient{dayAppointments.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -977,14 +978,14 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
                 key={tab.id}
                 type="button"
                 onClick={() => setDayFilter(tab.id)}
-                className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                className={`px-2 py-0.5 rounded-md text-[11px] font-normal sm:font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   dayFilter === tab.id
-                    ? 'bg-blue-600 text-white shadow-2xs'
+                    ? 'bg-blue-600 text-white shadow-2xs font-medium sm:font-bold'
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 <span>{tab.label}</span>
-                <span className={`text-[9px] px-1 rounded-full ${
+                <span className={`text-[9px] px-1 rounded-full font-normal ${
                   dayFilter === tab.id ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-500'
                 }`}>
                   {tab.count}
@@ -995,18 +996,18 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
         </div>
 
         {/* APPOINTMENT ROWS (VERTICAL: ONE SINGLE COMPACT BOX PER PATIENT, NOTES IN FRONT OF IT) */}
-        <div className="p-3 space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pb-36 min-h-[320px]">
+        <div className="p-2 sm:p-3 space-y-1.5 sm:space-y-2 max-h-[calc(100vh-240px)] overflow-y-auto pb-32 sm:pb-36 min-h-[260px]">
           {displayedAppointments.length === 0 ? (
-            <div className="bg-white rounded-xl border border-dashed border-slate-200 p-8 text-center flex flex-col items-center justify-center">
-              <CalendarIcon size={28} className="text-slate-300 mb-1.5" />
-              <h4 className="text-xs font-bold text-slate-700">No appointments for this date</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+            <div className="bg-white rounded-xl border border-dashed border-slate-200 p-4 sm:p-8 text-center flex flex-col items-center justify-center">
+              <CalendarIcon size={24} className="text-slate-300 mb-1 sm:mb-1.5" />
+              <h4 className="text-xs font-normal sm:font-bold text-slate-700">No appointments for this date</h4>
+              <p className="text-[11px] font-normal text-slate-400 mt-0.5">
                 No scheduled patients on {format(selectedDate, 'MMMM d, yyyy')}.
               </p>
               <button
                 type="button"
                 onClick={() => handleSelectSlot(selectedDate)}
-                className="mt-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
+                className="mt-2.5 sm:mt-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-normal sm:font-bold shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
               >
                 <Plus size={13} />
                 <span>Book Appointment</span>
@@ -1021,15 +1022,15 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
               return (
                 <div
                   key={app.id}
-                  className="w-full bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-xs transition-all px-3 py-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs"
+                  className="w-full bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-xs transition-all p-2 sm:px-3 sm:py-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-2 sm:gap-3 text-xs"
                 >
                   {/* LEFT: Patient Details (Compact 2-3 lines) */}
-                  <div className="flex items-center gap-2.5 shrink-0 md:w-[45%] lg:w-[40%]">
+                  <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 md:w-[45%] lg:w-[40%]">
                     {/* Clickable Avatar */}
                     <button
                       type="button"
                       onClick={() => handlePatientClick(targetPatientId)}
-                      className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-extrabold text-xs flex items-center justify-center shrink-0 cursor-pointer hover:bg-blue-600 hover:text-white transition-all shadow-2xs"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-50 text-blue-600 font-normal sm:font-extrabold text-xs flex items-center justify-center shrink-0 cursor-pointer hover:bg-blue-600 hover:text-white transition-all shadow-2xs"
                       title="Open Patient Profile"
                     >
                       {app.resource.patientName?.charAt(0) || 'P'}
@@ -1038,23 +1039,23 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
                     <div className="min-w-0 flex-1">
                       {/* Line 1: Time, Clickable Patient Name, ID, Status */}
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[11px] font-mono shrink-0">
+                        <span className="font-normal sm:font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded text-[11px] font-mono shrink-0">
                           {app.resource.time || format(app.start, 'hh:mm a')}
                         </span>
                         <button
                           type="button"
                           onClick={() => handlePatientClick(targetPatientId)}
-                          className="font-bold text-sm text-slate-900 hover:text-blue-600 hover:underline cursor-pointer truncate text-left"
+                          className="font-normal sm:font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600 hover:underline cursor-pointer truncate text-left"
                           title="Open Patient Profile"
                         >
                           {app.resource.patientName}
                         </button>
                         {app.resource.patientId && (
-                          <span className="text-[10px] text-slate-500 font-semibold bg-slate-50 border border-slate-200 px-1 rounded">
+                          <span className="text-[10px] text-slate-500 font-normal bg-slate-50 border border-slate-200 px-1 rounded">
                             ID: {app.resource.patientId}
                           </span>
                         )}
-                        <span className={`px-2 py-0.2 rounded-full text-[9px] font-black uppercase ${status.bg}`}>
+                        <span className={`px-2 py-0.2 rounded-full text-[9px] font-normal uppercase ${status.bg}`}>
                           {status.label}
                         </span>
                       </div>
@@ -1218,8 +1219,8 @@ const AppointmentManagment = ({ isEmbedded = false, rebookData }) => {
 
 
         {/* Main Content Area */}
-        <div className="flex-1 min-w-0 flex flex-col gap-6">
-          <div className="bg-white rounded-none md:rounded-[2.5rem] shadow-2xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col gap-3 md:gap-6">
+          <div className="bg-white rounded-xl md:rounded-[2.5rem] shadow-lg md:shadow-2xl shadow-slate-200/40 border border-slate-100 overflow-hidden">
             <AnimatePresence mode="wait">
               <motion.div
                 key="calendar-view"

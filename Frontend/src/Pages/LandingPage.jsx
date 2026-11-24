@@ -33,10 +33,15 @@ import {
   Monitor,
   CheckCircle2,
   MessageSquare,
-  Globe
+  Globe,
+  Smartphone,
+  Download,
+  CalendarCheck,
+  ShieldCheck
 } from 'lucide-react';
 
 import api from '../services/api';
+import { Capacitor } from '@capacitor/core';
 import PublicHeader from '../components/Shared/PublicHeader';
 import PublicFooter from '../components/Shared/PublicFooter';
 
@@ -738,6 +743,9 @@ const LandingPage = () => {
 
 
   useEffect(() => {
+    // Never show trial modal in mobile app
+    if (Capacitor.isNativePlatform()) return;
+
     // Show trial modal after a delay on every page refresh/load
     // Use sessionStorage to track if modal was shown in this browser session
     // Clear the flag on page load to allow showing on every refresh
@@ -1811,6 +1819,177 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Download Doctor Mobile App Section */}
+      <section id="download-app" className="py-20 px-4 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white relative overflow-hidden border-t border-b border-indigo-900/40">
+        {/* Glow Effects */}
+        <div className="absolute top-1/2 -left-20 w-80 h-80 bg-blue-500/15 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-0 right-10 w-96 h-96 bg-indigo-500/15 rounded-full blur-[120px] pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            
+            {/* Left Content Column (7 cols) */}
+            <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-500/20 border border-blue-400/30 rounded-full text-blue-300 text-xs font-bold uppercase tracking-wider">
+                <Smartphone size={15} className="text-blue-400" />
+                <span>Official Mobile Application</span>
+              </div>
+
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
+                Manage Your Clinic On The Go with <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-cyan-300">Oviaan Doctor App</span>
+              </h2>
+
+              <p className="text-slate-300 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                Never miss an OPD update. Prescribe medicines, review patient visit history, manage interactive dental charts, and monitor clinic revenue in real time directly from your Android phone.
+              </p>
+
+              {/* Key Features Badges */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 max-w-xl mx-auto lg:mx-0 text-left">
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
+                  <div className="w-9 h-9 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                    <CalendarCheck size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Live OPD Queue</h4>
+                    <p className="text-[11px] text-slate-400">Track and manage patient queue</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                    <FileText size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Digital Prescriptions</h4>
+                    <p className="text-[11px] text-slate-400">Write & WhatsApp PDF in 30s</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
+                  <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                    <ShieldCheck size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Cloud Synced</h4>
+                    <p className="text-[11px] text-slate-400">Bank-grade real-time security</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                    <Smartphone size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Native Mobile App</h4>
+                    <p className="text-[11px] text-slate-400">Fast, compact & zero lag</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Download Action Buttons */}
+              <div className="pt-4 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                <a
+                  href="/Oviaan-Doctor-App.apk"
+                  download="Oviaan-Doctor-App.apk"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-7 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/30 transition-all transform active:scale-95 group border border-blue-400/30 cursor-pointer"
+                >
+                  <Download className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" />
+                  <div className="text-left">
+                    <div className="text-[10px] text-blue-200 uppercase tracking-widest leading-none font-semibold">Direct Download</div>
+                    <div className="text-sm font-extrabold leading-tight mt-0.5">Download Android APK</div>
+                  </div>
+                  <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full ml-1">v1.0</span>
+                </a>
+
+                <div className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-6 py-3.5 bg-white/5 hover:bg-white/10 border border-white/15 text-white font-bold rounded-2xl transition-all opacity-85">
+                  <svg className="w-5 h-5 fill-current text-emerald-400" viewBox="0 0 24 24">
+                    <path d="M3.609 1.814L13.792 12 3.61 22.186a1.996 1.996 0 0 1-.219-.948V2.762c0-.348.078-.674.218-.948zm11.234 11.234l2.585 2.585-11.75 6.697 9.165-9.282zm0-2.096L5.678 1.67l11.75 6.697-2.585 2.585zm1.536 1.048l3.432 1.956c.866.494.866 1.298 0 1.792l-3.432 1.956-2.222-2.222 2.222-2.082z"/>
+                  </svg>
+                  <div className="text-left">
+                    <div className="text-[10px] text-slate-400 uppercase tracking-widest leading-none font-semibold">Google Play</div>
+                    <div className="text-sm font-extrabold leading-tight mt-0.5">Coming Soon</div>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 pt-1">
+                Supports Android 8.0 & above · Instant APK direct download · Auto-connects to clinic server
+              </p>
+            </div>
+
+            {/* Right Phone Mockup Column (5 cols) */}
+            <div className="lg:col-span-5 flex justify-center">
+              <div className="relative w-[280px] sm:w-[310px] bg-slate-950 rounded-[44px] p-3.5 shadow-2xl border-4 border-slate-700/80 ring-1 ring-white/20">
+                {/* Speaker pill */}
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 w-20 h-4 bg-slate-900 rounded-full z-20 flex items-center justify-center">
+                  <div className="w-8 h-1 bg-slate-700 rounded-full" />
+                </div>
+
+                {/* Inner Screen Mockup */}
+                <div className="bg-slate-900 rounded-[34px] overflow-hidden border border-slate-800 pt-8 pb-3 px-3 relative">
+                  {/* Mock App Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold">O</div>
+                      <span className="text-xs font-black text-white tracking-widest">OVIAAN</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[9px] font-bold">Live OPD</span>
+                  </div>
+
+                  {/* Mock Appointment Item */}
+                  <div className="mt-3 p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400">10:30 AM</span>
+                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold">Confirmed</span>
+                    </div>
+                    <h5 className="text-xs font-bold text-white mt-1">Rahul Sharma</h5>
+                    <p className="text-[10px] text-slate-400">Routine Dental Checkup</p>
+                  </div>
+
+                  {/* Mock Metrics Grid */}
+                  <div className="grid grid-cols-2 gap-2 mt-2.5">
+                    <div className="p-2 rounded-xl bg-slate-800/50 border border-slate-700/40">
+                      <span className="text-[9px] text-slate-400 block">Today's Visits</span>
+                      <span className="text-sm font-bold text-blue-400">24 Patients</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-800/50 border border-slate-700/40">
+                      <span className="text-[9px] text-slate-400 block">Prescriptions</span>
+                      <span className="text-sm font-bold text-emerald-400">18 Issued</span>
+                    </div>
+                  </div>
+
+                  {/* Mock Dental / Prescriptions CTA */}
+                  <div className="mt-2.5 p-2 rounded-xl bg-gradient-to-r from-indigo-900/60 to-blue-900/60 border border-indigo-700/40 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-white block">Digital Prescription</span>
+                      <span className="text-[8px] text-indigo-300">Fast 30-sec write</span>
+                    </div>
+                    <span className="text-[9px] px-2 py-1 rounded-lg bg-blue-600 text-white font-bold">+ New</span>
+                  </div>
+
+                  {/* Mock Bottom App Bar */}
+                  <div className="mt-4 pt-2 border-t border-slate-800 flex items-center justify-around text-slate-400 text-[8px]">
+                    <span className="text-blue-400 font-bold">📅 Calendar</span>
+                    <span>⚡ Today Appt</span>
+                    <span>👥 Patients</span>
+                  </div>
+                </div>
+
+                {/* Floating Highlights Badge */}
+                <div className="absolute -bottom-4 -left-4 bg-slate-900/95 backdrop-blur-md border border-white/20 p-2.5 rounded-2xl shadow-xl flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">✓</div>
+                  <div>
+                    <p className="text-[10px] font-bold text-white">Real-Time Sync</p>
+                    <p className="text-[8px] text-slate-400">Direct Clinic Server Connection</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
       {/* Pricing Section */}
       <section id="pricing" className="py-24 bg-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 relative z-10">
@@ -1978,10 +2157,12 @@ const LandingPage = () => {
 
       <PublicFooter />
 
-      <TrialModal 
-        isOpen={showTrialModal} 
-        onClose={() => setShowTrialModal(false)} 
-      />
+      {!Capacitor.isNativePlatform() && (
+        <TrialModal 
+          isOpen={showTrialModal} 
+          onClose={() => setShowTrialModal(false)} 
+        />
+      )}
 
       <ChatBot />
     </div>

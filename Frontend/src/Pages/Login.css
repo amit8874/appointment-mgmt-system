@@ -35,28 +35,18 @@
 }
 
 .brand-logo {
-  height: 65px;
+  height: 52px;
   width: auto;
-  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+  object-fit: contain;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.2));
 }
 
 .brand-name {
-  font-size: 1.5rem;
-  font-weight: 900;
-  color: white;
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #ffffff;
   letter-spacing: -0.5px;
-  background: linear-gradient(to bottom, #ffffff 30%, #bfdbfe 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 5px 15px rgba(0,0,0,0.1);
-}
-
-@media (max-width: 1024px) {
-  .login-page-container {
-    height: auto;
-    min-height: 100vh;
-    overflow: auto;
-  }
+  text-shadow: 0 2px 4px rgba(0,0,0,0.35);
 }
 
 /* Left Hero Section */
@@ -70,12 +60,6 @@
   align-items: center;
   padding: 2.5rem;
   overflow: hidden;
-}
-
-@media (max-width: 1024px) {
-  .login-hero {
-    display: none;
-  }
 }
 
 .hero-content {
@@ -199,34 +183,52 @@
 /* Role Selector */
 .role-selector {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.75rem;
   background: #f1f5f9;
-  padding: 0.25rem;
-  border-radius: 0.75rem;
-  margin-bottom: 1rem;
+  padding: 0.35rem;
+  border-radius: 1rem;
+  margin-bottom: 1.25rem;
 }
 
 .role-btn {
   flex: 1;
-  padding: 0.5rem 0.2rem;
-  border: none;
+  padding: 0.75rem 0.5rem;
+  border: 2px solid transparent;
   background: transparent;
   color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.725rem;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.2rem;
+  gap: 0.35rem;
+}
+
+.role-btn:hover {
+  color: var(--primary-color);
 }
 
 .role-btn.active {
   background: white;
   color: var(--primary-color);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border-color: rgba(0, 74, 173, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 74, 173, 0.12);
+}
+
+.role-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.role-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: inherit;
 }
 
 /* Input Styles */
@@ -372,4 +374,58 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+@media (max-width: 1024px) {
+  .login-page-container {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    background-color: var(--bg-light);
+  }
+
+  .login-hero {
+    display: none !important;
+  }
+
+  .signup-brand {
+    position: static;
+    margin-bottom: 1.25rem;
+    justify-content: center;
+    align-self: center;
+  }
+
+  .brand-logo {
+    height: 48px;
+    width: auto;
+    filter: drop-shadow(0 2px 6px rgba(0, 74, 173, 0.15));
+  }
+
+  .brand-name {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--primary-color, #004aad) !important;
+    -webkit-text-fill-color: var(--primary-color, #004aad) !important;
+    background: none !important;
+    text-shadow: none !important;
+    letter-spacing: -0.5px;
+  }
+
+  .login-form-section {
+    width: 100%;
+    max-width: 420px;
+    padding: 0;
+    height: auto;
+    overflow: visible;
+    background: transparent;
+  }
+
+  .login-card {
+    padding: 1.75rem 1.5rem;
+  }
 }

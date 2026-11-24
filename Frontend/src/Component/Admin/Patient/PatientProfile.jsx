@@ -407,11 +407,11 @@ const ActionButton = ({ icon: Icon, label, onClick, colorClass, hoverBg }) => {
 };
 
 const InfoItem = ({ label, value, icon: Icon }) => (
-  <div className="flex items-start space-x-3 py-2 border-b border-slate-50 last:border-0">
-    {Icon && <Icon className="w-4 h-4 text-slate-400 mt-0.5" />}
-    <div className="flex-1">
-      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-0.5">{label}</span>
-      <span className="text-slate-700 font-semibold break-words">{value || 'N/A'}</span>
+  <div className="flex items-start space-x-2 py-1 border-b border-slate-50 last:border-0">
+    {Icon && <Icon className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />}
+    <div className="flex-1 min-w-0">
+      <span className="text-[10px] font-normal text-slate-400 uppercase tracking-wider block mb-0.5">{label}</span>
+      <span className="text-slate-800 font-normal text-xs break-words">{value || 'N/A'}</span>
     </div>
   </div>
 );
@@ -440,41 +440,45 @@ const TabPersonalInfo = ({ data, appointments = [], onEdit, onRebook, user, onNa
     : defaultNavSections;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border-t border-slate-200 mt-4 bg-white/50 rounded-b-3xl">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border-t border-slate-200 mt-2 lg:mt-4 bg-white/50 rounded-b-3xl">
       {/* Column 1: Basic Details */}
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2 tracking-widest uppercase">
-            <User size={16} className="text-indigo-400" /> Basic Details
+      <div className="p-3 sm:p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs sm:text-sm font-normal text-indigo-900 flex items-center gap-1.5 tracking-wider uppercase">
+            <User size={14} className="text-indigo-400" /> Basic Details
           </h3>
-          <button onClick={onEdit} className="text-slate-400 hover:text-indigo-600"><Edit2 size={14} /></button>
+          <button onClick={onEdit} className="text-slate-400 hover:text-indigo-600"><Edit2 size={13} /></button>
         </div>
-        <div className="space-y-4 mb-8">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 mb-4">
           <InfoItem label="Full Name" value={data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim()} />
           <InfoItem label="Date of Birth" value={data.dateOfBirth ? formatDateDMY(data.dateOfBirth) : 'N/A'} />
           <InfoItem label="Gender" value={data.gender} />
           <InfoItem label="Blood Group" value={data.bloodGroup} />
           <InfoItem label="Religion" value={data.religion} />
           <InfoItem label="Age" value={data.age ? `${data.age} ${data.ageType || 'Year'}` : 'N/A'} />
-          <InfoItem label="Appointment Date" value={(() => {
-            const d = data.appointmentDate || data.lastVisit || (appointments && appointments[0]?.date);
-            if (!d) return 'N/A';
-            return formatDateDMY(d);
-          })()} />
+          <div className="col-span-2">
+            <InfoItem label="Appointment Date" value={(() => {
+              const d = data.appointmentDate || data.lastVisit || (appointments && appointments[0]?.date);
+              if (!d) return 'N/A';
+              return formatDateDMY(d);
+            })()} />
+          </div>
         </div>
 
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2 tracking-widest uppercase">
-            <div className="p-1.5 bg-indigo-50 rounded-lg"><Phone size={14} className="text-indigo-600" /></div> Contact Information
+        <div className="flex items-center justify-between mb-3 pt-2 border-t border-slate-100">
+          <h3 className="text-xs sm:text-sm font-normal text-indigo-900 flex items-center gap-1.5 tracking-wider uppercase">
+            <div className="p-1 bg-indigo-50 rounded"><Phone size={13} className="text-indigo-600" /></div> Contact Information
           </h3>
         </div>
-        <div className="space-y-4">
-          <InfoItem label="Main Contact Number" value={data.contactNumber || data.mobile} icon={Phone} />
-          <InfoItem label="Alternate Mobile Number" value={data.alternateMobile || data.alternatePhone} icon={Phone} />
-          <InfoItem label="Email Address" value={data.email} icon={Mail} />
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Residential Address</span>
-            <p className="text-slate-700 font-medium text-sm">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+          <InfoItem label="Main Contact" value={data.contactNumber || data.mobile} icon={Phone} />
+          <InfoItem label="Alternate Mobile" value={data.alternateMobile || data.alternatePhone} icon={Phone} />
+          <div className="col-span-2">
+            <InfoItem label="Email Address" value={data.email} icon={Mail} />
+          </div>
+          <div className="col-span-2 py-0.5">
+            <span className="text-[10px] font-normal text-slate-400 uppercase tracking-wider block mb-0.5">Residential Address</span>
+            <p className="text-slate-800 font-normal text-xs">
               {[data.address, data.city, data.state, data.zip].filter(Boolean).join(', ') || 'N/A'}
             </p>
           </div>
@@ -1365,15 +1369,15 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-bold text-slate-800 tracking-tight">Prescription History</h3>
-          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold uppercase tracking-wider">{allPrescriptions.length} Records</span>
+    <div className="space-y-3 sm:space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 mb-2 sm:mb-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm sm:text-base font-normal text-slate-800 tracking-tight">Prescription History</h3>
+          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md text-[10px] font-normal uppercase tracking-wider">{allPrescriptions.length} Records</span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-col items-end mr-4">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter leading-none mb-1">Prescription Layout</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex flex-col items-start sm:items-end w-full sm:w-auto">
+            <span className="text-[9px] font-normal text-slate-400 uppercase tracking-tighter leading-none mb-1">Prescription Layout</span>
             <select 
               value={selectedTemplate?._id || 'default'} 
               onChange={(e) => {
@@ -1401,7 +1405,7 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
                   }
                 }
               }}
-              className="bg-white border-2 border-indigo-100 rounded-xl px-4 py-1.5 text-[11px] font-bold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer hover:border-indigo-300 transition-all min-w-[180px]"
+              className="bg-white border border-indigo-100 rounded-lg px-2.5 py-1 text-[11px] font-normal text-indigo-700 outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm cursor-pointer hover:border-indigo-300 transition-all w-full sm:w-auto min-w-[160px]"
             >
               <option value="default">Oviaan Default Template (Default)</option>
               <option value="global_a4_blank">Pre-Printed Letterhead Pad (Data Only)</option>
@@ -1414,18 +1418,20 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
               ))}
             </select>
           </div>
-          <button 
-            onClick={onOpenTemplateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:scale-95"
-          >
-            <BookOpen size={14} /> Choose Template
-          </button>
-          <button 
-            onClick={onNewPrescription}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95"
-          >
-            <Plus size={14} /> New Prescription
-          </button>
+          <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
+            <button 
+              onClick={onOpenTemplateModal}
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-xs font-normal hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+            >
+              <BookOpen size={13} /> Choose Template
+            </button>
+            <button 
+              onClick={onNewPrescription}
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-normal hover:bg-indigo-700 transition-all shadow-sm active:scale-95"
+            >
+              <Plus size={13} /> New Prescription
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1502,13 +1508,13 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
             </div>
           ))
         ) : (
-          <div className="text-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center gap-4">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-300">
-              <Pill size={32} />
+          <div className="text-center py-6 sm:py-14 bg-slate-50 rounded-xl border border-dashed border-slate-200 flex flex-col items-center gap-2">
+            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-300">
+              <Pill size={24} />
             </div>
             <div>
-              <p className="text-slate-800 font-bold">No Prescriptions Found</p>
-              <p className="text-slate-400 text-xs mt-1">Prescriptions are automatically added here after visit notes are saved.</p>
+              <p className="text-slate-700 font-normal text-xs sm:text-sm">No Prescriptions Found</p>
+              <p className="text-slate-400 text-[11px] mt-0.5">Prescriptions are automatically added here after visit notes are saved.</p>
             </div>
           </div>
         )}
@@ -1574,17 +1580,17 @@ const TabPrescriptions = ({ appointments = [], medicalRecords = [], onNewPrescri
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between border-b pb-4">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex items-center justify-between border-b pb-2 sm:pb-3">
         <div>
-          <h3 className="text-lg font-bold text-gray-800">Follow-up Reminders</h3>
-          <p className="text-xs text-gray-500">Track care coordination for this patient</p>
+          <h3 className="text-sm sm:text-base font-normal text-slate-800">Follow-up Reminders</h3>
+          <p className="text-[11px] text-slate-400 font-normal">Track care coordination for this patient</p>
         </div>
         <button 
           onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-normal hover:bg-blue-700 transition-colors flex items-center gap-1.5 shadow-sm"
         >
-          <Plus size={16} /> Add Reminder
+          <Plus size={14} /> Add Reminder
         </button>
       </div>
 
@@ -1683,20 +1689,20 @@ const TabAppointments = ({ appointments, onRebook, onReschedule, onCancel }) => 
     const isCompleted = statusLower === 'completed';
 
     return (
-      <div className={`p-4 rounded-xl border-2 transition-all duration-300 ${statusLower === 'confirmed' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100 hover:border-slate-200'}`}>
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${statusLower === 'confirmed' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
-              <CalendarIcon size={18} />
+      <div className={`p-2.5 sm:p-3.5 rounded-lg border transition-all duration-300 ${statusLower === 'confirmed' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100 hover:border-slate-200'}`}>
+        <div className="flex justify-between items-start mb-2">
+          <div className="flex items-center gap-2.5">
+            <div className={`p-1.5 rounded-md ${statusLower === 'confirmed' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+              <CalendarIcon size={16} />
             </div>
             <div>
-              <p className="font-bold text-slate-800">{new Date(appt.date).toLocaleDateString()} at {appt.time}</p>
-              <p className="text-xs text-slate-500 font-medium flex items-center mt-0.5">
-                <Stethoscope size={12} className="mr-1" /> {appt.doctorName} ({appt.specialty || 'General'})
+              <p className="font-normal text-xs sm:text-sm text-slate-800">{new Date(appt.date).toLocaleDateString()} at {appt.time}</p>
+              <p className="text-[11px] text-slate-500 font-normal flex items-center mt-0.5">
+                <Stethoscope size={11} className="mr-1" /> {appt.doctorName} ({appt.specialty || 'General'})
               </p>
             </div>
           </div>
-          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+          <span className={`px-2 py-0.5 rounded-md text-[10px] font-normal uppercase tracking-wider ${
             statusLower === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
             statusLower === 'pending' ? 'bg-emerald-100 text-emerald-700' :
             statusLower === 'completed' ? 'bg-blue-100 text-blue-700' :
@@ -1706,34 +1712,34 @@ const TabAppointments = ({ appointments, onRebook, onReschedule, onCancel }) => 
             {statusLower === 'pending' ? 'Confirmed' : appt.status}
           </span>
         </div>
-        <p className="text-sm text-slate-600 italic bg-white/50 p-2 rounded-lg border border-slate-50 mb-4">"{appt.reason || 'No reason specified'}"</p>
-        <div className="flex justify-end items-center gap-2 flex-wrap">
+        <p className="text-xs text-slate-600 font-normal italic bg-white/50 p-1.5 rounded border border-slate-50 mb-2">"{appt.reason || 'No reason specified'}"</p>
+        <div className="flex justify-end items-center gap-1.5 flex-wrap">
           {!isCancelled && !isCompleted && onReschedule && (
             <button
               type="button"
               onClick={() => onReschedule(appt)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+              className="flex items-center gap-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-xs font-normal transition-colors shadow-sm"
               title="Reschedule Appointment"
             >
-              <Calendar size={12} /> Reschedule
+              <Calendar size={11} /> Reschedule
             </button>
           )}
           {!isCancelled && !isCompleted && onCancel && (
             <button
               type="button"
               onClick={() => onCancel(appt)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold transition-colors shadow-sm"
+              className="flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-md text-xs font-normal transition-colors shadow-sm"
               title="Cancel Appointment"
             >
-              <XCircle size={12} /> Cancel
+              <XCircle size={11} /> Cancel
             </button>
           )}
           <button
             type="button"
             onClick={() => onRebook(appt)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+            className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white rounded-md text-xs font-normal hover:bg-indigo-700 transition-colors shadow-sm"
           >
-            <RefreshCcw size={12} /> Re-book
+            <RefreshCcw size={11} /> Re-book
           </button>
         </div>
       </div>
@@ -1741,28 +1747,28 @@ const TabAppointments = ({ appointments, onRebook, onReschedule, onCancel }) => 
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-3 sm:space-y-5">
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-slate-800">Current & Upcoming</h3>
-          <span className="px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[10px] font-bold">{upcoming.length}</span>
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h3 className="text-sm sm:text-base font-normal text-slate-800">Current & Upcoming</h3>
+          <span className="px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded text-[10px] font-normal">{upcoming.length}</span>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {upcoming.length > 0 ? (
             upcoming.map(appt => <AppointmentItem key={appt._id} appt={appt} />)
           ) : (
-            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-              <p className="text-slate-400 text-sm font-medium">No active appointments</p>
+            <div className="text-center py-6 sm:py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+              <p className="text-slate-400 text-xs font-normal">No active appointments</p>
             </div>
           )}
         </div>
       </div>
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-slate-800">History</h3>
-          <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold">{past.length}</span>
+        <div className="flex items-center justify-between mb-2 sm:mb-3">
+          <h3 className="text-sm sm:text-base font-normal text-slate-800">History</h3>
+          <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-normal">{past.length}</span>
         </div>
-        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
           {past.map(appt => <AppointmentItem key={appt._id} appt={appt} />)}
         </div>
       </div>
@@ -3715,48 +3721,48 @@ const TabBilling = ({
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 relative pb-36 md:pb-28 lg:pb-12">
+    <div className="space-y-3 sm:space-y-5 relative pb-24 md:pb-28 lg:pb-12">
       {/* Billing Type Tabs */}
-      <div className="flex items-center gap-2 sm:gap-4 border-b border-slate-100 pb-1 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-1.5 sm:gap-4 border-b border-slate-100 pb-1 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setBillingTab('Consultant')}
-          className={`px-4 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-bold transition-all relative shrink-0 whitespace-nowrap ${
+          className={`px-3 sm:px-5 py-1.5 sm:py-2.5 text-xs sm:text-sm font-normal transition-all relative shrink-0 whitespace-nowrap ${
             billingTab === 'Consultant' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
           Consultant Billing
           {billingTab === 'Consultant' && (
-            <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />
+            <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-0.5 sm:h-1 bg-indigo-600 rounded-full" />
           )}
         </button>
         <button
           onClick={() => setBillingTab('Pharmacy')}
-          className={`px-4 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-bold transition-all relative shrink-0 whitespace-nowrap ${
+          className={`px-3 sm:px-5 py-1.5 sm:py-2.5 text-xs sm:text-sm font-normal transition-all relative shrink-0 whitespace-nowrap ${
             billingTab === 'Pharmacy' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
           Medical Pharmacy Billing
           {billingTab === 'Pharmacy' && (
-            <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />
+            <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-0.5 sm:h-1 bg-indigo-600 rounded-full" />
           )}
         </button>
         {isDentistClinic && (
           <button
             onClick={() => setBillingTab('Dental')}
-            className={`px-4 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-bold transition-all relative shrink-0 whitespace-nowrap ${
+            className={`px-3 sm:px-5 py-1.5 sm:py-2.5 text-xs sm:text-sm font-normal transition-all relative shrink-0 whitespace-nowrap ${
               billingTab === 'Dental' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
             }`}
           >
             Dental Billing
             {billingTab === 'Dental' && (
-              <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />
+              <motion.div layoutId="activeBillingTab" className="absolute bottom-0 left-0 right-0 h-0.5 sm:h-1 bg-indigo-600 rounded-full" />
             )}
           </button>
         )}
       </div>
 
       {/* Summary Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         {(() => {
           const calculatedTotals = filteredBills.map(b => 
             b.billType === 'Pharmacy' ? normalizePharmacyInvoice(b) : calculateInvoiceTotals(b)
@@ -3776,12 +3782,12 @@ const TabBilling = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm border border-slate-100 flex items-center gap-2.5 sm:gap-4"
+              className="bg-white p-2.5 sm:p-4 rounded-xl shadow-sm border border-slate-100 flex items-center gap-2 sm:gap-3"
             >
-              <div className={`p-2 sm:p-3 ${stat.color} rounded-xl shadow-inner shrink-0`}><stat.icon size={18} className="sm:w-[22px] sm:h-[22px]" strokeWidth={2.5} /></div>
+              <div className={`p-1.5 sm:p-2.5 ${stat.color} rounded-lg shadow-inner shrink-0`}><stat.icon size={16} className="sm:w-[20px] sm:h-[20px]" strokeWidth={2} /></div>
               <div className="min-w-0 flex-1">
-                <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{stat.label}</p>
-                <p className={`text-sm sm:text-xl font-bold truncate ${stat.valColor || 'text-slate-800'}`}>{stat.value}</p>
+                <p className="text-[9px] sm:text-[10px] font-normal text-slate-400 uppercase tracking-wider truncate">{stat.label}</p>
+                <p className={`text-xs sm:text-base font-normal truncate ${stat.valColor || 'text-slate-800'}`}>{stat.value}</p>
               </div>
             </motion.div>
           ));
@@ -3789,24 +3795,24 @@ const TabBilling = ({
       </div>
 
       {/* Filters & Actions */}
-      <div className="flex flex-col lg:flex-row justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm sticky top-0 z-20">
-        <div className="flex flex-col sm:flex-row gap-3 flex-1">
+      <div className="flex flex-col lg:flex-row justify-between gap-2.5 bg-white p-2.5 sm:p-4 rounded-xl border border-slate-100 shadow-sm sticky top-0 z-20">
+        <div className="flex flex-col sm:flex-row gap-2 flex-1">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
             <input 
               type="text" 
               placeholder="Search invoice number..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="w-full pl-9 pr-3 py-1.5 sm:py-2 bg-slate-50 border-none rounded-lg text-xs font-normal focus:ring-1 focus:ring-indigo-500 outline-none"
             />
           </div>
           <div className="flex items-center gap-2">
-            <Filter className="text-slate-400 w-4 h-4" />
+            <Filter className="text-slate-400 w-3.5 h-3.5" />
             <select 
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+              className="bg-slate-50 border-none rounded-lg px-3 py-1.5 sm:py-2 text-xs font-normal text-slate-600 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
             >
               <option value="All">All Invoices</option>
               <option value="Paid">Paid</option>
@@ -5472,45 +5478,45 @@ const TabClinicalNotes = ({ patientId, user }) => {
   const canSeeInternal = ['admin', 'doctor', 'superadmin'].includes(user?.role);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-3 sm:space-y-5">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         {[
           { label: 'Total Notes', value: summary.total, icon: StickyNote, color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'Follow-ups', value: summary.followUp, icon: CalendarIcon, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'High Priority', value: summary.highPriority, icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50' },
           { label: 'Last Note', value: summary.lastNote, icon: History, color: 'text-slate-600', bg: 'bg-slate-100' },
         ].map((stat, i) => (
-          <div key={i} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className={`p-3 ${stat.bg} ${stat.color} rounded-2xl`}><stat.icon size={22} /></div>
+          <div key={i} className="bg-white p-2.5 sm:p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-2.5">
+            <div className={`p-1.5 sm:p-2.5 ${stat.bg} ${stat.color} rounded-lg`}><stat.icon size={18} /></div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
-              <p className="text-xl font-bold text-slate-800">{stat.value}</p>
+              <p className="text-[9px] sm:text-[10px] font-normal text-slate-400 uppercase tracking-wider">{stat.label}</p>
+              <p className="text-xs sm:text-base font-normal text-slate-800">{stat.value}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Header Actions */}
-      <div className="flex flex-col lg:flex-row justify-between gap-6">
-        <div className="flex flex-col sm:flex-row gap-4 flex-1">
+      <div className="flex flex-col lg:flex-row justify-between gap-2.5">
+        <div className="flex flex-col sm:flex-row gap-2 flex-1">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
             <input 
               type="text" 
               placeholder="Search by title, notes, or tags..." 
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
+              className="w-full pl-9 pr-3 py-1.5 sm:py-2 bg-white border border-slate-200 rounded-lg text-xs font-normal focus:ring-1 focus:ring-indigo-500 outline-none transition-all shadow-sm"
             />
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl shadow-sm">
-              <Filter size={14} className="text-slate-400" />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg shadow-sm">
+              <Filter size={13} className="text-slate-400" />
               <select 
                 value={filters.type}
                 onChange={e => setFilters({...filters, type: e.target.value})}
-                className="bg-transparent border-none text-xs font-bold text-slate-600 outline-none cursor-pointer"
+                className="bg-transparent border-none text-xs font-normal text-slate-600 outline-none cursor-pointer"
               >
                 <option value="">All Types</option>
                 <option value="diagnosis">Diagnosis</option>
@@ -6271,53 +6277,53 @@ const TabOther = ({ patient, patientId, user }) => {
   const clinicInfo = user?.organization || user?.organizationId || {};
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-3 sm:space-y-5">
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
         {[
           { label: 'Specialist Visits', value: totalVisits, icon: Stethoscope, color: 'text-purple-600', bg: 'bg-purple-50' },
           { label: 'Total Paid to Doctors (Expense)', value: `₹${totalDoctorPaid.toLocaleString('en-IN')}`, icon: IndianRupee, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Total Procedures Performed', value: totalProcedures, icon: ClipboardList, color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'Patient', value: patientInfo.name, icon: User, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ].map((stat, i) => (
-          <div key={i} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className={`p-3 ${stat.bg} ${stat.color} rounded-2xl`}><stat.icon size={22} /></div>
+          <div key={i} className="bg-white p-2.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-100 shadow-sm flex items-center gap-2.5">
+            <div className={`p-1.5 sm:p-3 ${stat.bg} ${stat.color} rounded-lg`}><stat.icon size={18} /></div>
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
-              <p className="text-xl font-black text-slate-800 truncate max-w-[140px]">{stat.value}</p>
+              <p className="text-[9px] sm:text-[10px] font-normal text-slate-400 uppercase tracking-wider">{stat.label}</p>
+              <p className="text-xs sm:text-base font-normal text-slate-800 truncate max-w-[140px]">{stat.value}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Header & Actions Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <div>
-          <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 uppercase tracking-tight">
-            <Stethoscope className="w-5 h-5 text-purple-600" /> Doctor Visit Billing
+          <h2 className="text-xs sm:text-sm font-normal text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+            <Stethoscope className="w-4 h-4 text-purple-600" /> Doctor Visit Billing
           </h2>
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+          <p className="text-[11px] text-slate-400 font-normal">
             Visiting specialist doctors, procedures done & clinic expense payouts
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
             <input
               type="text"
               placeholder="Search doctor, procedure..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white rounded-2xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-purple-500 focus:border-purple-500 shadow-sm"
+              className="w-full pl-8 pr-3 py-1.5 bg-white rounded-lg border border-slate-200 text-xs font-normal focus:ring-1 focus:ring-purple-500 shadow-sm"
             />
           </div>
 
           <button
             onClick={() => { setEditingBill(null); setShowModal(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md shadow-purple-600/20 transition active:scale-95"
+            className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-normal shadow-sm transition active:scale-95"
           >
-            <Plus className="w-4 h-4" /> Record Doctor Visit Bill
+            <Plus className="w-3.5 h-3.5" /> Record Doctor Visit Bill
           </button>
         </div>
       </div>
@@ -7961,14 +7967,14 @@ const PatientProfile = () => {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col min-h-0 lg:min-h-screen lg:max-h-screen lg:overflow-hidden bg-[#f8fafc]">
           {/* Top Header */}
-          <header className={`h-16 lg:h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 lg:px-6 flex items-center justify-between shrink-0 z-30 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
+          <header className={`h-14 lg:h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-3 lg:px-6 flex items-center justify-between shrink-0 z-30 ${profileLoading ? 'opacity-65 transition-opacity duration-200' : ''}`}>
             <div className="flex flex-col">
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight capitalize">
+              <h2 className="text-sm lg:text-xl font-normal lg:font-bold text-slate-800 lg:text-slate-900 tracking-tight capitalize">
                 {activeTab === 'progress' ? 'Treatment Gallery' : tabs.find(t => t.key === activeTab)?.name}
               </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Active Patient Record Session</span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[9px] lg:text-[10px] font-normal text-slate-400 uppercase tracking-wider">Active Patient Record Session</span>
               </div>
             </div>
 
@@ -8056,11 +8062,11 @@ const PatientProfile = () => {
           </header>
 
           {/* Tab Content Area */}
-          <main className="flex-1 lg:overflow-y-auto p-3.5 sm:p-6 lg:p-8 pb-40 md:pb-32 lg:pb-16 custom-scrollbar">
+          <main className="flex-1 lg:overflow-y-auto p-2 sm:p-6 lg:p-8 pb-24 md:pb-32 lg:pb-16 custom-scrollbar">
             {profileLoading ? (
-              <div className="flex flex-col items-center justify-center py-32">
-                <Loader2 size={36} className="text-indigo-600 animate-spin" />
-                <p className="mt-4 text-slate-500 font-semibold animate-pulse text-sm">Updating patient profile...</p>
+              <div className="flex flex-col items-center justify-center py-16 sm:py-32">
+                <Loader2 size={32} className="text-indigo-600 animate-spin" />
+                <p className="mt-3 text-slate-500 font-normal animate-pulse text-xs sm:text-sm">Updating patient profile...</p>
               </div>
             ) : (
               <AnimatePresence mode="wait">
@@ -8070,7 +8076,7 @@ const PatientProfile = () => {
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: -20, opacity: 0 }}
                   transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                  className="max-w-[1400px] mx-auto pb-8 sm:pb-12"
+                  className="max-w-[1400px] mx-auto pb-3 sm:pb-8"
                 >
                   {activeTab === 'personal' && (
                     <TabPersonalInfo 

@@ -1,0 +1,9 @@
+{
+  "appId": "com.oviaan.clinic",
+  "appName": "Oviaan Clinic",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

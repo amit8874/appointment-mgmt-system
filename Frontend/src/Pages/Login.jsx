@@ -5,7 +5,7 @@ import api from "../services/api";
 import { 
   Eye, EyeOff, Mail, Phone, Lock, ChevronRight, 
   User as UserIcon, Shield, Headset, Store, 
-  CheckCircle, Users, Activity, MessageSquare 
+  CheckCircle, Users, Activity, MessageSquare, Stethoscope 
 } from 'lucide-react';
 import { motion, AnimatePresence } from "framer-motion";
 import "./Login.css";
@@ -17,7 +17,8 @@ const Login = () => {
   const { login, isAuthenticated, user } = useAuth();
 
   const params = new URLSearchParams(location.search);
-  const initialRole = params.get("role") || "patient";
+  const urlRole = params.get("role");
+  const initialRole = (urlRole === "staff" || urlRole === "admin") ? urlRole : "admin";
   const [role, setRole] = useState(initialRole);
 
   const [isOtpMode, setIsOtpMode] = useState(false);
@@ -136,9 +137,8 @@ const Login = () => {
   };
 
   const roles = [
-    { id: 'patient', label: 'Patient', icon: <UserIcon size={14} /> },
-    { id: 'staff', label: 'Doctor/Staff', icon: <Headset size={14} /> },
-    { id: 'admin', label: 'Admin', icon: <Shield size={14} /> },
+    { id: 'admin', label: 'Doctor', icon: <Stethoscope size={22} /> },
+    { id: 'staff', label: 'Receptionist', icon: <Headset size={22} /> },
   ];
 
   const toggleLoginMode = () => {
@@ -157,7 +157,7 @@ const Login = () => {
       </Link>
 
       {/* Left Hero Section */}
-      <section className="login-hero">
+      <section className="login-hero hidden lg:flex">
         <div className="hero-image-wrapper">
           <img src={heroImage} alt="Modern Healthcare" className="hero-image" />
         </div>
@@ -224,14 +224,15 @@ const Login = () => {
             {roles.map((r) => (
               <button
                 key={r.id}
+                type="button"
                 onClick={() => {
                   setRole(r.id);
                   setErrorMessage("");
                 }}
                 className={`role-btn ${role === r.id ? "active" : ""}`}
               >
-                {r.icon}
-                <span className="hidden md:inline">{r.label}</span>
+                <span className="role-icon">{r.icon}</span>
+                <span className="role-label">{r.label}</span>
               </button>
             ))}
           </div>

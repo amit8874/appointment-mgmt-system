@@ -85,40 +85,40 @@ const MobileAppNavigation = () => {
       {/* Floating Action Button (FAB) */}
       <button
         onClick={handleAddClick}
-        className="md:hidden fixed bottom-20 right-6 w-14 h-14 bg-gradient-to-tr from-indigo-600 to-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30 z-50 transition-transform active:scale-90 border border-indigo-400/20"
+        className="md:hidden fixed bottom-15 right-4 w-12 h-12 bg-gradient-to-tr from-indigo-600 to-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30 z-50 transition-transform active:scale-90 border border-indigo-400/20"
         aria-label="New Appointment"
       >
-        <Plus className="w-8 h-8" />
+        <Plus className="w-6 h-6" />
       </button>
 
-      {/* Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900 text-white border-t-2 border-blue-900 flex items-center z-40 pb-safe shadow-lg">
-        {/* Grid View */}
+      {/* Bottom Navigation Bar - Compact App Height */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-13 bg-slate-900 text-white border-t border-slate-800 flex items-center z-40 pb-safe shadow-lg">
+        {/* Calendar */}
         <button
           onClick={handleGridClick}
-          className={`flex-1 flex flex-col items-center justify-center h-full transition-colors border-r-2 border-blue-900 ${
+          className={`flex-1 flex flex-col items-center justify-center h-full transition-colors border-r border-slate-800 ${
             activeTab === 'grid'
-              ? 'bg-slate-800 text-blue-400 font-extrabold'
+              ? 'bg-slate-800 text-blue-400 font-semibold'
               : 'text-gray-300 hover:bg-slate-800/50'
           }`}
         >
-          <Calendar className="w-5.5 h-5.5 mb-1 transition-transform active:scale-95 text-blue-400" />
-          <span className="text-[10px] font-black uppercase tracking-wider">
-            Grid View
+          <Calendar className="w-4.5 h-4.5 mb-0.5 transition-transform active:scale-95 text-blue-400" />
+          <span className="text-[10px] font-medium tracking-normal leading-none">
+            Calendar
           </span>
         </button>
 
         {/* Today Appointment */}
         <button
           onClick={handleTodayClick}
-          className={`flex-1 flex flex-col items-center justify-center h-full transition-colors border-r-2 border-blue-900 ${
+          className={`flex-1 flex flex-col items-center justify-center h-full transition-colors border-r border-slate-800 ${
             activeTab === 'today'
-              ? 'bg-slate-800 text-blue-400 font-extrabold'
+              ? 'bg-slate-800 text-blue-400 font-semibold'
               : 'text-gray-300 hover:bg-slate-800/50'
           }`}
         >
-          <Activity className="w-5.5 h-5.5 mb-1 transition-transform active:scale-95 text-blue-400" />
-          <span className="text-[10px] font-black uppercase tracking-wider text-center">
+          <Activity className="w-4.5 h-4.5 mb-0.5 transition-transform active:scale-95 text-blue-400" />
+          <span className="text-[10px] font-medium tracking-normal text-center leading-none">
             Today Appt
           </span>
         </button>
@@ -128,12 +128,12 @@ const MobileAppNavigation = () => {
           onClick={handlePatientsClick}
           className={`flex-1 flex flex-col items-center justify-center h-full transition-colors ${
             activeTab === 'patients'
-              ? 'bg-slate-800 text-blue-400 font-extrabold'
+              ? 'bg-slate-800 text-blue-400 font-semibold'
               : 'text-gray-300 hover:bg-slate-800/50'
           }`}
         >
-          <Users className="w-5.5 h-5.5 mb-1 transition-transform active:scale-95 text-blue-400" />
-          <span className="text-[10px] font-black uppercase tracking-wider">
+          <Users className="w-4.5 h-4.5 mb-0.5 transition-transform active:scale-95 text-blue-400" />
+          <span className="text-[10px] font-medium tracking-normal leading-none">
             Patient
           </span>
         </button>

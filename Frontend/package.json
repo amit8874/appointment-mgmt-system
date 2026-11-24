@@ -9,9 +9,15 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:run:android": "npx cap run android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/cli": "^7.6.10",
+    "@capacitor/core": "^8.6.2",
     "@fortawesome/fontawesome-free": "^7.1.0",
     "@hookform/resolvers": "^5.2.2",
     "@reduxjs/toolkit": "^2.9.2",
@@ -37,6 +43,7 @@
     "react-toastify": "^11.0.5",
     "recharts": "^2.12.7",
     "socket.io-client": "^4.8.3",
+    "three": "^0.187.0",
     "uuid": "^13.0.0",
     "xlsx": "^0.18.5",
     "yup": "^1.7.1"

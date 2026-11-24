@@ -457,20 +457,20 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
   return (
     <div className="p-3 sm:p-5 bg-white border border-slate-100 rounded-b-3xl mt-1 shadow-sm">
       {/* Header and Numbering System Toggles */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 pb-3 border-b border-slate-100">
-        <div className="flex items-center gap-2">
-          <Smile className="w-5 h-5 text-indigo-600 animate-pulse" />
-          <h3 className="text-sm font-black text-indigo-900 uppercase tracking-wider">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
+        <div className="flex items-center gap-1.5">
+          <Smile className="w-4 h-4 text-indigo-600 animate-pulse" />
+          <h3 className="text-xs sm:text-sm font-normal text-indigo-900 uppercase tracking-wide">
             Interactive {chartType === 'adult' ? '32-Tooth' : '20-Tooth'} Dental Chart
           </h3>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           {/* Create Bill Button */}
           <button
             type="button"
             onClick={() => setBillingModalOpen(true)}
-            className="w-full sm:w-auto justify-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase rounded-xl tracking-wider shadow-md shadow-emerald-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
+            className="w-full sm:w-auto justify-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-normal rounded-lg shadow-sm flex items-center gap-1 transition-all cursor-pointer"
           >
             <IndianRupee className="w-3.5 h-3.5" /> Create Bill
           </button>
@@ -479,14 +479,14 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
           <button
             type="button"
             onClick={() => setQuotationModalOpen(true)}
-            className="w-full sm:w-auto justify-center px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black uppercase rounded-xl tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+            className="w-full sm:w-auto justify-center px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-normal rounded-lg flex items-center gap-1 transition-all cursor-pointer shadow-sm"
           >
             <FileText className="w-3.5 h-3.5 text-amber-600" /> Quotation / Mock Bill
           </button>
 
           {/* Chart Type Toggle */}
-          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-50 border border-slate-200/80 p-1 rounded-xl shadow-sm w-full sm:w-auto">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-2 pr-1 select-none">Type:</span>
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-50 border border-slate-200/80 p-0.5 sm:p-1 rounded-lg shadow-sm w-full sm:w-auto">
+            <span className="text-[9px] font-normal text-slate-400 uppercase tracking-wider pl-1.5 pr-1 select-none">Type:</span>
             {[
               { id: 'adult', label: 'Adults' },
               { id: 'child', label: 'Children' }
@@ -498,9 +498,9 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                   setChartType(type.id);
                   setSelectedTeeth([]);
                 }}
-                className={`flex-1 sm:flex-initial text-center px-2.5 sm:px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
+                className={`flex-1 sm:flex-initial text-center px-2.5 py-1 rounded-md text-xs font-normal transition-all select-none cursor-pointer ${
                   chartType === type.id
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                    ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-200/50'
                 }`}
               >
@@ -510,8 +510,8 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
           </div>
 
           {/* Standard Numbering Selector */}
-          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-50 border border-slate-200/80 p-1 rounded-xl shadow-sm w-full sm:w-auto">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-2 pr-1 select-none">Numbering:</span>
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-50 border border-slate-200/80 p-0.5 sm:p-1 rounded-lg shadow-sm w-full sm:w-auto">
+            <span className="text-[9px] font-normal text-slate-400 uppercase tracking-wider pl-1.5 pr-1 select-none">Numbering:</span>
             {['FDI', 'Universal', 'Palmer'].map((sys) => (
               <button
                 key={sys}
@@ -521,9 +521,9 @@ const DentalChart = ({ patientId, patientData, appointments = [] }) => {
                   localStorage.setItem('dentalNumberingSystem', sys);
                   window.dispatchEvent(new Event('dentalNumberingSystemChanged'));
                 }}
-                className={`flex-1 sm:flex-initial text-center px-2.5 sm:px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${
+                className={`flex-1 sm:flex-initial text-center px-2 py-1 rounded-md text-xs font-normal transition-all select-none cursor-pointer ${
                   numberingSystem === sys
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                    ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-indigo-600 hover:bg-slate-200/50'
                 }`}
               >

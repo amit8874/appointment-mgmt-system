@@ -199,20 +199,20 @@ const Header = ({
     : planInfo.planName.replace(' Plan', '').toUpperCase();
 
   return (
-    <header className="flex items-center justify-between py-4 px-6 min-h-[76px] bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-md sticky top-0 z-20 transition-all duration-300">
+    <header className="flex items-center justify-between py-2 sm:py-4 px-3 sm:px-6 min-h-[50px] md:min-h-[76px] bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm md:shadow-md sticky top-0 z-20 transition-all duration-300">
       {/* Left: Hamburger + Logo */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <button
           onClick={toggleSidebar}
-          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors md:hidden"
+          className="p-1 sm:p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors md:hidden"
           aria-label="Open Menu"
         >
-          <Menu className="w-6 h-6" />
+          <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
 
-        <div className="flex flex-col items-center justify-center select-none py-0.5 px-1">
-          <img src="/logo.png" alt="Oviaan Logo" className="h-8 sm:h-9 w-auto object-contain" />
-          <span className="text-[10px] sm:text-[11px] font-black tracking-[0.25em] text-indigo-950 dark:text-indigo-300 uppercase leading-none mt-0.5">
+        <div className="flex flex-col items-center justify-center select-none py-0.5 px-0.5 sm:px-1">
+          <img src="/logo.png" alt="Oviaan Logo" className="h-6 sm:h-8 md:h-9 w-auto object-contain" />
+          <span className="text-[8px] sm:text-[10px] md:text-[11px] font-black tracking-[0.2em] sm:tracking-[0.25em] text-indigo-950 dark:text-indigo-300 uppercase leading-none mt-0.5">
             OVIAAN
           </span>
         </div>
@@ -487,10 +487,10 @@ const Header = ({
         <div className="relative" ref={notificationRef}>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2 rounded-xl border border-gray-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 relative transition-all shadow-sm"
+            className="p-1.5 sm:p-2 rounded-xl border border-gray-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400 relative transition-all shadow-sm"
             aria-label="Notifications"
           >
-            <Bell className="w-4 h-4" />
+            <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             {notifications.some(n => !n.isRead) && (
               <span className="absolute top-1 right-1 block h-2 w-2 rounded-full ring-2 ring-white dark:ring-gray-800 bg-red-500"></span>
             )}
@@ -542,18 +542,18 @@ const Header = ({
         <div className="relative" ref={profileMenuRef}>
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2 px-2 py-1.5 rounded-xl border border-gray-200 bg-slate-50 hover:bg-slate-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-all shadow-sm group"
+            className="flex items-center gap-1.5 sm:gap-2 px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-xl border border-gray-200 bg-slate-50 hover:bg-slate-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-all shadow-sm group"
             title="Profile & Settings"
           >
             {/* Avatar */}
-            <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-xs overflow-hidden ring-2 ring-indigo-100 dark:ring-indigo-800">
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-xs overflow-hidden ring-2 ring-indigo-100 dark:ring-indigo-800">
               {user?.profilePicture ? (
                 <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
               ) : (
                 <span>{user?.name ? user.name.charAt(0).toUpperCase() : 'A'}</span>
               )}
             </div>
-            <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 ${showProfileMenu ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-500 transition-transform duration-200 ${showProfileMenu ? 'rotate-180' : ''}`} />
           </button>
 
           {/* Profile Dropdown */}

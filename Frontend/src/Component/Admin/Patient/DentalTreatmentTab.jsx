@@ -472,39 +472,39 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
   }
 
   return (
-    <div className="p-6 bg-white border border-slate-100 rounded-b-3xl mt-4 shadow-sm space-y-6">
+    <div className="p-3 sm:p-6 bg-white border border-slate-100 rounded-b-2xl mt-2 sm:mt-4 shadow-sm space-y-3 sm:space-y-5">
       {/* Primary Section Switcher */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-slate-50 p-1.5 sm:p-2 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
             onClick={() => setMainTab('treatments')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-normal transition-all flex items-center gap-1.5 cursor-pointer ${
               mainTab === 'treatments'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                ? 'bg-indigo-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-indigo-600 hover:bg-slate-200/50'
             }`}
           >
-            <ClipboardList className="w-4 h-4" /> Active Treatment Plan ({treatments.length})
+            <ClipboardList className="w-3.5 h-3.5" /> Active Plan ({treatments.length})
           </button>
           <button
             type="button"
             onClick={() => setMainTab('quotations')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-normal transition-all flex items-center gap-1.5 cursor-pointer ${
               mainTab === 'quotations'
-                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
+                ? 'bg-amber-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-amber-600 hover:bg-slate-200/50'
             }`}
           >
-            <FileText className="w-4 h-4" /> Quotations & Estimates ({quotations.length})
+            <FileText className="w-3.5 h-3.5" /> Estimates ({quotations.length})
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setDentalBillingCreatorOpen(true)}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-emerald-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-normal rounded-lg shadow-sm flex items-center gap-1 transition-all cursor-pointer"
           >
             <IndianRupee className="w-3.5 h-3.5" /> Create Bill
           </button>
@@ -516,34 +516,34 @@ const DentalTreatmentTab = ({ patientId, patientData, appointments = [] }) => {
                 setSelectedQuotationForEdit(null);
                 setQuotationModalOpen(true);
               }}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md shadow-amber-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-normal rounded-lg shadow-sm flex items-center gap-1 transition-all cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> New Quotation / Estimate
+              <Plus className="w-3.5 h-3.5" /> New Estimate
             </button>
           )}
         </div>
       </div>
 
       {mainTab === 'quotations' ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <FileText className="w-4 h-4 text-amber-600" /> Patient Treatment Estimates & Mock Bills
+              <h4 className="text-xs sm:text-sm font-normal text-slate-800 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-amber-600" /> Patient Treatment Estimates
               </h4>
-              <p className="text-xs text-slate-500 font-bold">
+              <p className="text-[11px] text-slate-400 font-normal">
                 Estimates given to patient prior to procedure commencement
               </p>
             </div>
-            <span className="px-3 py-1 bg-amber-50 text-amber-800 text-xs font-black rounded-xl border border-amber-200">
+            <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[10px] font-normal rounded-md border border-amber-200">
               {quotations.length} {quotations.length === 1 ? 'Estimate' : 'Estimates'}
             </span>
           </div>
 
           {quotations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-              <FileText className="w-12 h-12 mb-3 opacity-40 text-amber-500" />
-              <p className="font-bold text-sm text-slate-600">No treatment estimates created for this patient yet.</p>
+            <div className="flex flex-col items-center justify-center py-8 text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+              <FileText className="w-8 h-8 mb-2 opacity-40 text-amber-500" />
+              <p className="font-normal text-xs text-slate-600">No treatment estimates created for this patient yet.</p>
               <button
                 type="button"
                 onClick={() => {

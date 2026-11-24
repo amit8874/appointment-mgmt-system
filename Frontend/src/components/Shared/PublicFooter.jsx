@@ -1,7 +1,11 @@
 import { Link } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { Facebook, Twitter, Linkedin, Youtube, Github } from 'lucide-react';
 
 const PublicFooter = () => {
+  if (Capacitor.isNativePlatform()) {
+    return null;
+  }
   return (
     <footer className="bg-[#1C2C5E] text-white py-12 px-4">
 

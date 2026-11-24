@@ -1,6 +1,30 @@
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+export const getBaseApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    const customUrl = localStorage.getItem('api_server_url');
+    if (customUrl) {
+      return customUrl.endsWith('/api') ? customUrl : `${customUrl.replace(/\/+$/, '')}/api`;
+    }
+  }
+
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && (envUrl.startsWith('http://') || envUrl.startsWith('https://'))) {
+    return envUrl;
+  }
+
+  if (Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform()) {
+    if (import.meta.env.DEV) {
+      return 'http://10.0.2.2:5000/api';
+    }
+    return 'https://oviaan.com/api';
+  }
+
+  return envUrl || '/api';
+};
+
+const API_BASE_URL = getBaseApiUrl();
 
 /**
  * Normalized socket URL from API_BASE_URL
